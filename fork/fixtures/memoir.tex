@@ -1,0 +1,21 @@
+\documentclass[11pt,oneside]{memoir}
+\usepackage{amsmath,amssymb,amsthm}
+\chapterstyle{bianchi}
+\setsecnumdepth{subsection}
+\settocdepth{section}
+\renewcommand{\cftchapterfont}{\bfseries}
+\newtheorem{thm}{Theorem}[chapter]
+\begin{document}
+%% feature: chapters | memoir chapter style, sections, numbered theorem by chapter, table of contents
+\tableofcontents*
+\chapter{Introduction}
+\section{Background}
+Some text in a memoir chapter.
+\begin{thm}
+  A theorem numbered within the chapter.
+\end{thm}
+\subsection{Detail}
+More text.
+\chapter{Second chapter}
+Content with an abstract-free layout.
+\end{document}

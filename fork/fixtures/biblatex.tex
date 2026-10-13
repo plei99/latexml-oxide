@@ -1,0 +1,9 @@
+\documentclass{amsart}
+\usepackage[backend=biber,style=alphabetic,maxalphanames=4,maxnames=5,hyperref,backref=true,backrefstyle=none]{biblatex}
+\usepackage{hyperref}
+\addbibresource{fixtures.bib}
+\begin{document}
+%% feature: alphabetic | alphabetic citations with pre/postnotes, multi-cite, five-author key, backrefs
+By \cite{Hartshorne77} and \cite[Thm.~1.6]{Deligne74}, see also \cite{ABCDE20} and \cite{Hartshorne77,Deligne74}.
+\printbibliography
+\end{document}

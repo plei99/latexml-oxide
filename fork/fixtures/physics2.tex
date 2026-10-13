@@ -1,0 +1,21 @@
+\documentclass{amsart}
+\usepackage{physics2}
+\usephysicsmodule{ab,ab.braket,diagmat,xmat,ab.legacy,op.legacy}
+\usepackage[upright=true]{derivative}
+\usepackage{fixdif}
+\begin{document}
+%% feature: ab | \ab with explicit delimiter (), [], ||, <>, and \ab|..| with a fraction
+\[ \ab(z q \odv{}{q}), \quad \ab[\frac{a}{b}], \quad \ab|\operatorname{Aut}\Gamma|, \quad \ab<x, y>, \quad \ab|\frac{1}{x}| \]
+%% feature: ab-legacy | legacy \abs, \norm, \eval, \order shortcuts
+\[ \abs{\Sigma}, \quad \norm{\lambda}, \quad \eval{\sum_{k \ge 0} \ab(k + \frac{1}{2}) x^k}_{x=1}, \quad f = g + \order{x^2} \]
+%% feature: braket | \bra, \ket, \braket from ab.braket
+\[ \ket{F}, \quad \bra{1}, \quad \braket{\phi}{\psi} \]
+%% feature: diagmat | diagonal matrices \pdiagmat, \bdiagmat with empty={} and default zeros
+\[ \pdiagmat[empty={}]{\lambda_1, \lambda_2, \ddots, \lambda_n}, \quad \bdiagmat[empty={}]{t^{-1},t}, \quad \pdiagmat{i,-i} \]
+%% feature: xmat | generic matrices \xmat
+\[ \pxmat{a}{2}{3}, \quad \bxmat*{x}{2}{2} \]
+%% feature: odv-pdv | derivative package: \odv, \pdv, \odv{}{q}, mixed \pdv
+\[ \odv{y}{x}, \quad \odv{}{q}, \quad \odv[order=2]{f}{t}, \quad \pdv{f}{x}, \quad \pdv{}{t_i}, \quad \pdv{f}{x,y} \]
+%% feature: fixdif | fixdif upright differential \d{x}, \d{x_i}, and in an integral
+\[ \int_0^1 f(x) \d{x}, \qquad \omega = \sum_i a_i \d{x_i}, \qquad \d{q} \]
+\end{document}

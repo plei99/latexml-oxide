@@ -1,0 +1,106 @@
+\documentclass{amsart}
+\usepackage{amssymb}
+\usepackage{mdframed}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{verbatim}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{csquotes}
+\usepackage[normalem]{ulem}
+\usepackage{multicol}
+\usepackage{hyperref}
+\setlist[enumerate]{label=(\alph*)}
+\newlist{steps}{enumerate}{1}
+\setlist[steps]{label=Step \arabic*., leftmargin=*}
+\lstset{basicstyle=\ttfamily\small, columns=fullflexible}
+\begin{document}
+%% feature: mdframed | framed boxes: default, with title, nested math
+\begin{mdframed}
+  A framed paragraph with math $x^2 + y^2 = 1$.
+\end{mdframed}
+\begin{mdframed}[frametitle={Exercise}]
+  Prove that $\sqrt{2}$ is irrational.
+\end{mdframed}
+%% feature: enumitem | \setlist labels, \newlist custom list, nested lists, description
+\begin{enumerate}
+  \item First, with a nested list:
+  \begin{itemize}
+    \item inner bullet
+  \end{itemize}
+  \item Second.
+\end{enumerate}
+\begin{steps}
+  \item Reduce to the case $n = 1$.
+  \item Induct.
+\end{steps}
+\begin{description}
+  \item[Term] its definition.
+\end{description}
+\begin{enumerate}[label=(\roman*)]
+  \item roman one
+  \item roman two
+\end{enumerate}
+%% feature: listings | lstlisting with language, inline \lstinline
+\begin{lstlisting}[language=Python]
+def f(x):
+    return x ** 2  # square
+\end{lstlisting}
+Inline code: \lstinline|print("hi")|.
+%% feature: algorithm | algorithm float with algpseudocode
+\begin{algorithm}[H]
+\caption{Euclid}
+\begin{algorithmic}[1]
+  \Function{gcd}{$a, b$}
+    \While{$b \neq 0$}
+      \State $(a, b) \gets (b, a \bmod b)$
+    \EndWhile
+    \State \Return $a$
+  \EndFunction
+\end{algorithmic}
+\end{algorithm}
+%% feature: verbatim | verbatim environment, \verb, comment environment
+\begin{verbatim}
+  raw   text  {with} \braces
+\end{verbatim}
+Inline \verb|\alpha|.
+\begin{comment}
+This must not appear.
+\end{comment}
+%% feature: booktabs | booktabs table in a float with caption
+\begin{table}[H]
+  \centering
+  \caption{Results}
+  \begin{tabular}{lrr}
+    \toprule
+    Method & Time & Error \\
+    \midrule
+    A & 1.0 & 0.1 \\
+    B & 2.5 & 0.01 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+%% feature: subcaption | figure with two subfigures side by side
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}{0.45\textwidth}\centering
+    \fbox{left panel}\caption{Left}
+  \end{subfigure}\hfill
+  \begin{subfigure}{0.45\textwidth}\centering
+    \fbox{right panel}\caption{Right}
+  \end{subfigure}
+  \caption{Two panels}
+\end{figure}
+%% feature: inline-text | csquotes, ulem strike/underline, footnote, hyperref link
+\enquote{Quoted text} with \sout{struck} and \uline{underlined} words,\footnote{A footnote.} and a \href{https://example.org}{link}.
+%% feature: multicol | two-column block
+\begin{multicols}{2}
+  Left column text that continues for a little while so the column has some content.
+  \columnbreak
+  Right column text.
+\end{multicols}
+\end{document}

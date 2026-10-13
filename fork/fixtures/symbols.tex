@@ -1,0 +1,43 @@
+\documentclass{amsart}
+\usepackage{amssymb,amsmath}
+\newcommand{\bmmax}{2}
+\usepackage{bm}
+\usepackage{accents}
+\usepackage{braket}
+\usepackage{stmaryrd}
+\usepackage{mathrsfs}
+\usepackage{stackengine}
+\usepackage{leftindex}
+\usepackage{cancel}
+\usepackage[sc]{mathpazo}
+\usepackage{eulervm}
+\usepackage[scaled=0.86]{berasans}
+\usepackage{inconsolata}
+\usepackage[T1]{fontenc}
+\newcommand*{\dt}[1]{\accentset{\mbox{\Huge\bfseries .}}{#1}}
+\newcommand{\M}{\overline{M}}
+\renewcommand{\k}{\Bbbk}
+\begin{document}
+%% feature: alphabets | \mathbb, \mathcal, \mathscr, \mathfrak, \mathsf, \mathtt, \Bbbk
+\[ \mathbb{Z} \subset \mathbb{Q} \subset \mathbb{R} \subset \mathbb{C}, \quad \mathcal{O}_X, \ \mathscr{F}, \ \mathfrak{g}, \ \mathsf{Set}, \ \mathtt{code}, \ \k \]
+%% feature: bold | \bm on Greek and Latin, \mathbf, \boldsymbol
+\[ \bm{\alpha} + \bm{x}, \quad \mathbf{v}, \quad \boldsymbol{\nabla} \]
+%% feature: greek | Euler Greek letters, variants, upright \Gamma
+\[ \alpha\beta\gamma\delta\varepsilon\zeta\eta\theta\iota\kappa\lambda\mu\nu\xi\pi\rho\sigma\tau\phi\varphi\chi\psi\omega, \quad \Gamma\Delta\Lambda\Sigma\Omega \]
+%% feature: accentset | \accentset and the notes-style big-dot \dt macro, \overline M, wide accents
+\[ \accentset{\circ}{X}, \quad \dt{x}, \quad \M_{g,n}, \quad \widetilde{X}, \quad \widehat{\mathcal{O}} \]
+%% feature: braket | braket package \Set, \set, \ket, \braket
+\[ \Set{x \in X | f(x) = 0}, \quad \set{1, 2}, \quad \ket{\psi}, \quad \braket{\phi | \psi} \]
+%% feature: stmaryrd | \sslash, \llparenthesis/\rrparenthesis, \mapsfrom, \boxslash
+\[ X \sslash G, \quad k\llparenthesis t \rrparenthesis, \quad a \mapsfrom b, \quad \boxslash \]
+%% feature: ams-arrows | amssymb arrows and relations
+\[ A \twoheadrightarrow B \dashrightarrow C \rightrightarrows D \rightsquigarrow E, \quad H \subsetneq G, \ N \trianglelefteq G, \ A \boxtimes B, \ G \rtimes H \]
+%% feature: stackengine | \Centerstack and \Vectorstack labels, \stackinset
+\Centerstack{$g=0$ $\beta_1$} \quad
+$\Vectorstack{{\partial \varepsilon = p} {\partial x = 0}}$ \quad
+\stackMath$\stackinset{c}{0ex}{c}{0ex}{\times}{\bigcirc}$
+%% feature: leftindex-cancel | \leftindex and \cancel
+\[ \leftindex^{t}{A}, \quad \leftindex_{G}{\backslash X}, \quad \frac{\cancel{x} y}{\cancel{x}} \]
+%% feature: text-fonts | small caps, sans, typewriter, bold, italic text with T1 encoding
+Some \textsc{Small Caps}, \textsf{sans serif}, \texttt{typewriter}, \textbf{bold}, \emph{emphasis}, and ``quotes''---dashes--and naïve accents.
+\end{document}

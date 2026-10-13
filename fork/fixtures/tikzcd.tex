@@ -1,0 +1,76 @@
+\documentclass{amsart}
+\usepackage{amssymb}
+\usepackage{tikz-cd}
+\begin{document}
+%% feature: square | commutative square, labels above/below/left/right
+\[\begin{tikzcd}
+  A \arrow[r, "f"] \arrow[d, "g"'] & B \arrow[d, "h"] \\
+  C \arrow[r, "k"'] & D
+\end{tikzcd}\]
+%% feature: ar-shorthand | \ar shorthand, rd diagonal, two-row triangle
+\[\begin{tikzcd}
+  X \ar[r, "p"] \ar[rd, "q"'] & Y \ar[d, "r"] \\
+  & Z
+\end{tikzcd}\]
+%% feature: arrow-heads | hookrightarrow, twoheadrightarrow, dashrightarrow, Rightarrow, mapsto, equals, dash
+\[\begin{tikzcd}
+  A \ar[r, hookrightarrow] & B \ar[r, twoheadrightarrow] & C \ar[r, dashrightarrow] & D \\
+  E \ar[r, Rightarrow] & F \ar[r, mapsto] & G \ar[r, equals] & H \ar[r, dash] & I
+\end{tikzcd}\]
+%% feature: short-exact | inline-width short exact sequence with hook/twohead arrows
+\[\begin{tikzcd}
+  0 \ar[r] & K \ar[r, hook] & G \ar[r, two heads] & Q \ar[r] & 0
+\end{tikzcd}\]
+%% feature: parallel | parallel arrows via shift left/right, and a swapped label
+\[\begin{tikzcd}
+  X \ar[r, shift left, "s"] \ar[r, shift right, "t"'] & Y
+\end{tikzcd}
+\qquad
+\begin{tikzcd}
+  A \ar[r, "f", swap] & B
+\end{tikzcd}\]
+%% feature: bend | bend left/right and an out/in curve with looseness
+\[\begin{tikzcd}
+  A \ar[r, bend left, "u"] \ar[r, bend right, "v"'] & B \ar[r, out=60, in=120, looseness=2, "w"] & C
+\end{tikzcd}\]
+%% feature: 2-cell | double arrow between two parallel arrows (phantom + Rightarrow)
+\[\begin{tikzcd}[column sep=large]
+  A \ar[r, bend left=50, ""{name=U, below}, "f"] \ar[r, bend right=50, ""{name=D}, "g"'] & B
+  \ar[Rightarrow, from=U, to=D, "\alpha"]
+\end{tikzcd}\]
+%% feature: pullback | pullback square with \lrcorner phantom label
+\[\begin{tikzcd}
+  P \ar[r] \ar[d] \ar[dr, phantom, "\lrcorner", very near start] & X \ar[d] \\
+  Y \ar[r] & Z
+\end{tikzcd}\]
+%% feature: cube | 3D cube with crossing over
+\[\begin{tikzcd}[row sep=scriptsize, column sep=scriptsize]
+  & A' \ar[rr] \ar[dd] & & B' \ar[dd] \\
+  A \ar[ur] \ar[rr, crossing over] \ar[dd] & & B \ar[ur] \\
+  & C' \ar[rr] & & D' \\
+  C \ar[rr] \ar[ur] & & D \ar[ur] \ar[from=uu, crossing over]
+\end{tikzcd}\]
+%% feature: loop | self-loop on an object
+\[\begin{tikzcd}
+  V \ar[loop right, "T"] \ar[r, "\phi"] & W
+\end{tikzcd}\]
+%% feature: big-labels | wide objects and long labels, description label
+\[\begin{tikzcd}[column sep=huge]
+  \operatorname{Hom}(X, Y \otimes Z) \ar[r, "\sim" description] \ar[d, "\text{restriction to } U"'] & \operatorname{Hom}(X \otimes Z^\vee, Y) \ar[d] \\
+  \Gamma(U, \mathcal{F}) \ar[r, "\operatorname{ev}_x"] & \mathcal{F}_x
+\end{tikzcd}\]
+%% feature: inline | tikz-cd inside running text
+Consider the map \begin{tikzcd}[cramped, sep=small] A \ar[r] & B \end{tikzcd} inside a sentence,
+followed by more words on the same line.
+%% feature: numbered | tikz-cd inside a numbered equation
+\begin{equation}\label{eq:cd}
+\begin{tikzcd}
+  E \ar[r] & F \ar[r] & G
+\end{tikzcd}
+\end{equation}
+%% feature: sep-options | row sep / column sep and arrow options at diagram level
+\[\begin{tikzcd}[row sep=2.5em, column sep=0.5em, arrows={-stealth}]
+  A \ar[rr] \ar[dr] & & B \\
+  & C \ar[ur]
+\end{tikzcd}\]
+\end{document}

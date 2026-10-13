@@ -1,0 +1,20 @@
+\documentclass{amsart}
+\usepackage{amsmath}
+\usepackage{spalign}
+\usepackage{cellspace}
+\setlength\cellspacetoplimit{3pt}
+\setlength\cellspacebottomlimit{3pt}
+\begin{document}
+%% feature: spalign | \spalignmat, \spalignaugmat, \spalignvector, \spalignsys
+\[ \spalignmat{1 2; 3 4}, \quad \spalignaugmat{1 0 2 0; 0 1 3 0; 0 0 0 1}, \quad \spalignvector{1 2 3}, \quad \spalignsys{x + y = 2; x - y = 0} \]
+%% feature: cellspace | tabular with cellspace S columns and tall fractions
+\begin{tabular}{|Sc|Sc|}
+  \hline
+  $\dfrac{1}{2}$ & $\displaystyle\sum_{i=1}^n i$ \\
+  \hline
+  $x$ & $\dfrac{a^2}{b^2}$ \\
+  \hline
+\end{tabular}
+%% feature: array | plain array with vertical rule (augmented matrix by hand)
+\[ \left[\begin{array}{cc|c} 1 & 0 & 2 \\ 0 & 1 & 3 \end{array}\right] \]
+\end{document}

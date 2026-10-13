@@ -1,0 +1,22 @@
+\documentclass{amsart}
+\usepackage{physics}
+\begin{document}
+%% feature: qty | automatic-size delimiters \qty(), \qty[], \qty{}, \qty||
+\[ \qty(\frac{a}{b}) + \qty[\frac{1}{2}] + \qty{x \in \mathbb{R} : x > 0} + \qty|\frac{x}{y}| \]
+%% feature: abs-norm | \abs, \norm, \eval
+\[ \abs{x - y} \le \norm{v}_2, \qquad \eval{f(x)}_{0}^{1} = f(1) - f(0) \]
+%% feature: dd | differentials \dd{x}, \dd[3]{x}
+\[ \int_0^1 f(x) \dd{x} + \int g \dd[3]{x} \]
+%% feature: dv | ordinary derivatives \dv{y}{x}, \dv{x}, \dv[2]{f}{t}
+\[ \dv{y}{x}, \quad \dv{x} \qty(x^2), \quad \dv[2]{f}{t} \]
+%% feature: pdv | partial derivatives \pdv{f}{x}, \pdv{f}{x}{y}, \pdv{}{t}
+\[ \pdv{f}{x}, \quad \pdv{f}{x}{y}, \quad \pdv[2]{f}{x}, \quad \pdv{}{t} \]
+%% feature: braket | Dirac notation \ket, \bra, \braket, \ev, \mel, \op
+\[ \ket{\psi}, \ \bra{\phi}, \ \braket{\phi}{\psi}, \ \ev{A}{\psi}, \ \mel{n}{H}{m}, \ \op{0}{1} \]
+%% feature: mqty | matrices \mqty(), \pmqty{}, \mqty[], \dmat
+\[ \mqty(a & b \\ c & d), \quad \pmqty{1 \\ 2 \\ -2}, \quad \mqty[0 & 1 \\ -1 & 0], \quad \mqty(\dmat{1,2,3}) \]
+%% feature: operators | \tr, \Tr, \rank, \Res, \grad, \div, \curl, trig
+\[ \tr A + \Tr B + \rank C, \quad \Res(f), \quad \grad f, \ \div \vb{F}, \ \curl \vb{F}, \quad \sin(x)\cos(x) \]
+%% feature: vectors | \vb, \va, \vu, \vdot, \cross
+\[ \vb{x} \vdot \vb{y}, \quad \va{a} \cross \vu{n} \]
+\end{document}

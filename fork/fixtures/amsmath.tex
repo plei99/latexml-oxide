@@ -1,0 +1,69 @@
+\documentclass{amsart}
+\usepackage{amssymb,amsthm,mathtools}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\DeclarePairedDelimiter{\gen}{\langle}{\rangle}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\floor}{\lfloor}{\rfloor}
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+\DeclareMathOperator{\Hom}{Hom}
+\DeclareMathOperator{\Aut}{Aut}
+\newtheorem{thm}{Theorem}
+\newtheorem{lem}[thm]{Lemma}
+\theoremstyle{definition}
+\newtheorem{defn}[thm]{Definition}
+\theoremstyle{remark}
+\newtheorem{rmk}[thm]{Remark}
+\newtheorem*{thm*}{Theorem}
+\crefname{thm}{Theorem}{Theorems}
+\crefname{lem}{Lemma}{Lemmas}
+\begin{document}
+%% feature: paired-delims | \DeclarePairedDelimiter plain, starred (auto-size) and sized
+\[ \abs{x}, \quad \abs*{\frac{a}{b}}, \quad \norm[\big]{v}, \quad \gen{g, h}, \quad \floor*{\frac{n}{2}} \]
+%% feature: colon-eq | \coloneqq, \eqqcolon, \colon, \mapsto
+\[ f \colon X \to Y, \quad x \mapsto x^2, \quad A \coloneqq B, \quad C \eqqcolon D \]
+%% feature: ext-arrows | \xrightarrow with sub/superscript, \xhookrightarrow, \xleftrightarrow, \xRightarrow
+\[ A \xrightarrow[\sim]{f} B \xhookrightarrow{i} C \xleftrightarrow{\cong} D \xRightarrow{\ \alpha\ } E \]
+%% feature: align | align with numbered rows, \label/\eqref, and align*
+\begin{align}
+  (a+b)^2 &= a^2 + 2ab + b^2 \label{eq:sq} \\
+  (a-b)^2 &= a^2 - 2ab + b^2
+\end{align}
+\begin{align*}
+  \Hom(A, B) &\cong \Aut(B) & x &= y
+\end{align*}
+By \eqref{eq:sq} we are done.
+%% feature: cases-matrices | cases, pmatrix, bmatrix, substack, binom, underbrace
+\[ f(x) = \begin{cases} 1 & x > 0, \\ 0 & \text{otherwise}, \end{cases}
+   \quad \begin{pmatrix} a & b \\ c & d \end{pmatrix}
+   \begin{bmatrix} 1 \\ 0 \end{bmatrix},
+   \quad \sum_{\substack{i < j \\ i,j \in S}} \binom{n}{k},
+   \quad \underbrace{1 + \cdots + 1}_{n} \]
+%% feature: big-operators | big operators with limits, \bigoplus, \bigsqcup, \prod, \int
+\[ \bigoplus_{i \in I} M_i, \quad \bigsqcup_{n} X_n, \quad \prod_{p} (1 - p^{-s})^{-1}, \quad \int_{-\infty}^{\infty} e^{-x^2} \, dx \]
+%% feature: theorems | plain/definition/remark styles, shared counter, unnumbered, proof with \qedhere
+\begin{thm}\label{thm:main}
+  Every finite group of prime order is cyclic.
+\end{thm}
+\begin{defn}
+  A group is \emph{simple} if it has no nontrivial normal subgroups.
+\end{defn}
+\begin{rmk}
+  This is a remark.
+\end{rmk}
+\begin{thm*}
+  An unnumbered theorem.
+\end{thm*}
+\begin{proof}
+  Lagrange's theorem gives
+  \[ |G| = p. \qedhere \]
+\end{proof}
+%% feature: cleveref | \cref/\Cref with custom names to theorem and lemma
+\begin{lem}\label{lem:a}
+  A lemma.
+\end{lem}
+\begin{thm}\label{thm:b}
+  A theorem.
+\end{thm}
+See \Cref{lem:a} and \cref{thm:b}, or both: \cref{lem:a,thm:b}.
+\end{document}
