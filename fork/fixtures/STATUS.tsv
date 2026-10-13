@@ -42,27 +42,27 @@ text__booktabs	ok
 text__subcaption	ok	
 text__inline-text	ok	
 text__multicol	partial	multicols is flattened to one column; the text itself is intact.
-tikzcd__square	partial	Upstream #785: horizontal arrows sit below the node baselines, and vertical arrowheads run into the lower row.
-tikzcd__ar-shorthand	partial	Upstream #785: the vertical arrowhead runs into Z, and p sits below the X/Y baseline.
-tikzcd__arrow-heads	partial	Upstream #785: every arrow tip and line style is correct, but every arrow sits below the node baseline.
-tikzcd__short-exact	partial	Upstream #785: the arrows hang below the baseline of the row.
-tikzcd__parallel	partial	Upstream #785: the swapped A→B arrow sits below the baseline.
+tikzcd__square	ok	
+tikzcd__ar-shorthand	ok	
+tikzcd__arrow-heads	ok	
+tikzcd__short-exact	ok	
+tikzcd__parallel	ok	
 tikzcd__bend	ok	
 tikzcd__2-cell	ok	
-tikzcd__pullback	partial	Upstream #785: vertical arrowheads run into Y and Z; the ⌟ is placed correctly.
-tikzcd__cube	partial	Upstream #785: the arrowheads into C′ and D′ overlap the glyphs; the crossing-over gaps are correct.
+tikzcd__pullback	ok	
+tikzcd__cube	ok	
 tikzcd__loop	ok	
-tikzcd__big-labels	partial	Upstream #785: vertical arrows strike through the lower-row objects, and the long side label has dropped below the arrow's midpoint.
-tikzcd__inline	partial	Inline, the objects are raised above the text baseline while the arrow stays on it.
-tikzcd__numbered	partial	Upstream #785: the arrows sit below the baseline.
+tikzcd__big-labels	ok	
+tikzcd__inline	ok	
+tikzcd__numbered	ok	
 tikzcd__sep-options	ok	
 figures__tikz-basic	ok	
 figures__tikz-calc	ok	
 figures__automata	ok	
-figures__multiline-node	partial	Multi-line node text sits high inside its box.
+figures__multiline-node	ok	
 figures__forest	wrong	The tree flattens to a bulleted list "• S • NP • D …" with no SVG. There is no tree in the corpus today.
 figures__circuitikz	partial	The voltage-source label floats to the left of the source.
-figures__pgfplots	partial	\addplot colours (blue, red) are dropped, and the legend text overflows its box.
+figures__pgfplots	partial	\addplot colours (blue, red) are dropped; plain TikZ colours work. The legend layout is right since the #785 fix.
 figures__tikz-3dplot	ok	
 figures__dynkin	ok	
 figures__sseq	wrong	The sseqpage output is empty and no error is reported. This affects 2 corpus documents with 25 diagrams.
