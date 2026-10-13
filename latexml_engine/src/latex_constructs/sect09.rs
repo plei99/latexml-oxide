@@ -80,9 +80,16 @@ pub(crate) fn load() -> Result<()> {
     r"\@caption@{}{}{}",
     r"\@hack@caption@{#1}{#2}{}#3\label\endcaption"
   );
+  // The test closes before either branch runs, as latex.ltx's `\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi`
+  // idiom does: Perl's form (latex_constructs.pool.ltxml:3178-3180) digests the caption inside `\ifx.#5. … \else …
+  // \fi`, so a stray `\fi` in the caption (listings' `basicstyle=\lst@ifdisplaystyle\small\fi` with `@` not a letter,
+  // in an `\lstinline`: 2012.08626, 2210.17505) or an `\if` without its `\fi` (0807.3034's `\def\arcs{\ifmmode …
+  // \else …}`; 1904.11818, 1602.01884) took the wrapper's own `\else`/`\fi`, and the `\label` scan read to the end of
+  // the file (Fatal `Mouth:EoF`; Perl the same, KNOWN_PERL_ERRORS #641). OXIDIZED_DESIGN #570; guards
+  // `perfect_kernel_batch66d::caption_hoist_*`.
   DefMacro!(
     r"\@hack@caption@{}{}{} Until:\label Until:\endcaption",
-    r"\ifx.#5.\@caption@@@{#1}{#2}{#3#4}\else\@@@hack@caption@{#1}{#2}{#3#4}#5\endcaption\fi"
+    r"\ifx.#5.\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi{\@caption@@@{#1}{#2}{#3#4}}{\@@@hack@caption@{#1}{#2}{#3#4}#5\endcaption}"
   );
   DefMacro!(
     r"\@@@hack@caption@{}{}{} Semiverbatim Until:\label Until:\endcaption",
@@ -118,7 +125,7 @@ pub(crate) fn load() -> Result<()> {
   // for `\endcaption`: `\caption{\ifdefined\x\color{blue}\fi …}`, 2609.27590, 2609.28438; KNOWN_PERL_ERRORS #468).
   DefMacro!(
     "\\@caption@@@{}{}{}",
-    r"\@@add@caption@counters\lx@setfloatcapt{\@@toccaption{\lx@format@toctitle@@{#1}{\if\relax\detokenize{#2}\relax\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi{#3}{#2}}}\@@caption{\lx@format@title@@{#1}{#3}}}"
+    r"\@@add@caption@counters\lx@setfloatcapt{\@@toccaption{\lx@format@toctitle@@{#1}{\if\relax\detokenize{#2}\relax\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi{#3}{#2}}}\lx@@caption{\lx@format@title@@{#1}{#3}}}"
   );
 
   // Note that the counters only get incremented by \caption, NOT by \table, \figure, etc.
@@ -197,7 +204,14 @@ pub(crate) fn load() -> Result<()> {
   // `ltx:text class="ltx_caption"` holding the title, minus the counter tag
   // (which no inline element may carry) — and drop the toc entry. Guard:
   // `perfect_kernel_batch54::caption_outside_a_float_becomes_its_float`.
-  DefConstructor!("\\@@caption{}", sub[document, args, props] {
+  // Perl names this constructor `\@@caption` (latex_constructs.pool.ltxml:3368), a name LaTeX leaves to classes:
+  // the Cambridge University Press classes keep `\caption` there for their `\contcaption` (fac.cls:803-805,
+  // ijsipaper.cls:876-878, mscs.cls:794-795), and with the kernel's `\@caption@@@` calling `\@@caption` every
+  // caption then called itself (Perl `deep_recursion`, ours `Stomach:Recursion`; witnesses 1209.5152, 1311.2960,
+  // 1410.5131, 1610.02500, 2205.14586, 2212.13027, 1604.04575, 2112.07588). The constructor is `\lx@@caption`, which
+  // the kernel and the bindings call; `\@@caption` stays its alias, so a class's own meaning for the name is the
+  // class's (OXIDIZED_DESIGN #566, KNOWN_PERL_ERRORS #637). Guard `perfect_kernel_batch66b::cup_contcaption_keeps_its_caption`.
+  DefConstructor!("\\lx@@caption{}", sub[document, args, props] {
     let body = args[0].clone();
     // The list entry `\@@toccaption` could not place (below), for the float this caption may become.
     let unplaced_toccaption = remove_value("lx@unplaced@toccaption");
@@ -298,7 +312,8 @@ pub(crate) fn load() -> Result<()> {
     Ok(map)
   },
   mode => "text");
-  // With no ancestor to hold it, the entry waits for the `\@@caption` that follows: a caption in a box that is not a
+  Let!("\\@@caption", "\\lx@@caption");
+  // With no ancestor to hold it, the entry waits for the `\lx@@caption` that follows: a caption in a box that is not a
   // float becomes that float (above), whose list entry it is — LaTeX's `\caption` writes the `\addcontentsline` there
   // too (latex.ltx:17391-17399), and without it the list of figures showed the float's number alone
   // (`\captionsetup{type=figure}` or `\def\@captype{figure}` in a minipage, the tufte margin figures; 2609.06557,

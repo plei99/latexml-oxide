@@ -9195,7 +9195,7 @@ T1 gives the typed `ÿ` where pdflatex prints slot 255 `ß`. Witness russ/russ_d
 (recall 69.9 → 82.7; `Çäðàâåé`-style mojibake → Cyrillic); 150 other 8-bit-input corpus
 manuals unchanged. Guard `perfect_kernel_batch56::recatcoded_input_bytes_decode_through_their_declaration`
 (its UTF-8 control line reads `Cafй na й.` without the line-provenance gate).
-The raw-line readers decode the same way (`Mouth::read_raw_line_decoded`, `decode_eight_bit`): the `.bib` reader and, since batch 56ir, `{verbatim}` and verbatim.sty bodies. Their text reaches the output as typeset, including a first line that a wrapper's optional-argument check pushed back. Readers that WRITE a file (filecontents, `VerbatimOut`, `\writeverbatim`: `capture_raw_lines_until`) stay byte-exact, as TeX writes the bytes and decodes them when the file is read. Guard `perfect_kernel_batch56::verbatim_decodes_the_input_encoding`.
+The raw-line readers decode the same way (`Mouth::read_raw_line_decoded`, `decode_eight_bit`): the `.bib` reader and, since batch 56ir, `{verbatim}` and verbatim.sty bodies. Their text reaches the output as typeset, including a first line that a wrapper's optional-argument check pushed back. Readers that WRITE a file (filecontents, `VerbatimOut`, `\writeverbatim`) stay byte-exact, as TeX writes the bytes and decodes them when the file is read. Guard `perfect_kernel_batch56::verbatim_decodes_the_input_encoding`.
 
 ### 267. `\everypar` runs in front of the character that starts a paragraph (Perl: `\everypar` never fires)
 
@@ -16957,3 +16957,164 @@ paper's later `\newcommand` of one of these names (`\rem`, `\rad`, `\gal`, `\are
 Witnesses 0709.1649, 2103.01586, 1904.06264, 2407.13230. Guard `perfect_kernel_batch65y::siunits_unit_commands`; repro
 `stub-dependencies/siunits_unit_commands`.
 
+
+### 566. The kernel's caption constructor is `\lx@@caption`; `\@@caption` is its alias (Perl: the constructor is `\@@caption`)
+
+Perl defines the `ltx:caption` constructor as `\@@caption` (latex_constructs.pool.ltxml:3368), a name LaTeX leaves free
+for classes: the Cambridge University Press classes keep LaTeX's `\caption` there for their `\contcaption`
+(fac.cls:803-805, ijsipaper.cls:876-878, mscs.cls:794-795: `\let\@@caption\caption`). Raw-loaded (`localrawclasses`,
+#444), that made every caption call itself through the kernel's `\@caption@@@` (ours `Stomach:Recursion`, Perl
+`deep_recursion`; KNOWN_PERL_ERRORS #637).
+
+**Rust** (batch 66b, sect09.rs): the constructor is `\lx@@caption`, which the kernel and the bindings (caption,
+listings, algorithm2e, aas_support, tabularray) call; `\@@caption` is `\let` to it for any other caller, so a class's
+own meaning for the name is the class's and its `\contcaption` repeats the figure number as in pdflatex. Witnesses
+1209.5152, 1311.2960, 1410.5131, 1610.02500, 2205.14586, 2212.13027, 1604.04575, 2112.07588 (Fatal → 0 errors). The
+image fragments' prefix (latex_images.rs) gobbles `\lx@@caption` beside LaTeXImages.pm:411's `\@@caption`, since a
+fragment's `tex` reverts the caption under the new name.
+Guard `perfect_kernel_batch66b::cup_contcaption_keeps_its_caption`; repro `captions-floats/cup_contcaption_lets_caption`.
+
+### 567. `\newcommand` with an optional argument also defines LaTeX's internal `\\cs` (Perl: only `\cs`)
+
+latex.ltx:1245-1257 `\@xargdef` makes `\cs` `\@protected@testopt\cs\\cs{<default>}` and puts the macro reading `[#1]`
+under the internal `\\cs` (`\csname\string\cs\endcsname`). Perl's `\newcommand` builds one macro that reads its optional
+argument itself (`convertLaTeXArgs`), so code that calls the internal directly found it undefined: the amsart idiom
+`\edef\cs{\@dblarg\csname\string\cs\endcsname}`, copied by bcp.cls:151-153 for `\abtitle` and cmfne.cls:460,483, left
+`\@abtitle` unset, and `\uppercasenonmath\@abtitle` then built a definition containing itself (Fatal
+`Stomach:Recursion`; KNOWN_PERL_ERRORS #638).
+
+**Rust** (batch 66b, sect08.rs `define_optional_internal`): every declarator built on `\@xargdef` with an optional
+argument also defines `\\cs` with the same body, its first parameter the bracketed one: `\newcommand`, `\renewcommand`,
+`\providecommand`, the begin macro of `\newenvironment`/`\renewenvironment` (`\@newenv`'s `\new@command`,
+latex.ltx:1324-1331), and `\DeclareRobustCommand`'s inner `\cs␣` (:1412-1428; internal `\\cs␣`); a starred
+declarator's internal is not `\long` (`\l@ngrel@x`). `\cs` itself is unchanged. A `\renewcommand`,
+`\DeclareRobustCommand` or `\newenvironment` the lock refuses still defines its internal, as `\@xargdef` does: only the
+class's own `\csname\string\cs\endcsname` reaches it, and the replay of a refused class setter goes through it
+(cmfne.cls:462-483 `\renewcommand{\author}[2][]` + the `\@dblarg` `\edef`, whose `\enddoc@text` prints
+`\firstshortauthor`: 2210.02246 lost its two author lines while the internal was skipped). No binding defines or calls a
+`\\cs` internal; a locked `\renewenvironment` is refused whole (its stores recorded), and a `\newcommand` of a defined
+name defines none, as LaTeX's. Residuals: the internal reads `[…]` as
+an optional argument, as our `\@yargdef` does, where LaTeX's requires the brackets; an active character gets none (its
+`\string` names another control sequence). Witnesses 1510.00296, 1704.01336, 1207.2066, 2003.00661 (Fatal → 0 errors), 2210.02246 (cmfne's author lines).
+Guards `perfect_kernel_batch66b::{newcommand_optional_argument_defines_its_internal_macro,
+every_xargdef_declarator_defines_the_internal_macro, refused_dblarg_setter_reaches_its_internal}`; repros
+`macro-state/newcommand_optional_internal_cs`, `sectioning-frontmatter/refused_dblarg_setter_reaches_its_internal`.
+
+### 568. A locked robust binding locks its inner `\cs␣` against the files (Perl: the wrapper only)
+
+A robust binding is the wrapper `\protect\cs␣` around its body under `\cs␣` (Package.pm `defRobustCS`); the lock was
+recorded for `\cs` alone, so code that defines the inner by name took over every call. cmfne.cls:1772-1778 (cite.sty's
+code, copied) runs `\@namedef{cite }{…\@citex…}` with `\def\@citex[#1]#2{\@cite{\citen{#2}}{#1}}`; under our cite
+binding's `\let\citen\cite` (Perl cite.sty.ltxml) the kernel `\cite` reached the class's inner, which called `\cite`
+again (Fatal `Stomach:Recursion`).
+
+**Rust** (batch 66b, `def_macro`): a locked robust macro records `"\cs␣:locked@files"` as well, so raw class and package
+code redefining the inner is refused as the wrapper is; the document's own definition of the inner (its
+`\DeclareRobustCommand\cite`, or `\@namedef{cite }` in the preamble) stays its own, as in Perl. A file's `\let` of a locked
+robust binding to another robust command (a class's `\let\cite\mycite`) takes `\let`'s plain path rather than #315's body
+copy, which wrote the inner past the lock (guard `robust_let_over_a_locked_binding_keeps_its_inner`). A locked binding
+whose inner is free (a constructor: the kernel `\LaTeX`) keeps the copy, whose wrapper the lock refuses, at every
+origin but where D1 accepts the document's own override (`owns_calls` and a copied body that takes no argument):
+bera.sty:12-23 `\let\LaTeX=\fveLaTeX` keeps the logo (the enumitem, colorspace and mathador manuals lost it while
+every locked binding took the plain path, which leaves plain `:locked` to `\let`; guard
+`robust_let_over_a_locked_constructor_keeps_it`, repro `macro-state/robust_let_over_locked_constructor`). Perl's `Let`
+(Package.pm:383-390) checks no lock and takes bera's logo, as pdflatex does; a `\let` to a non-robust meaning takes the
+plain path here too (bera.sty:10-11 `\def\fveTeX`, `\let\TeX=\fveTeX`, replaces `\TeX`), so the outcome follows the target's
+kind — 65int8f's behaviour, kept. Residual: the refused wrapper records `:redefined@nargs` 0 (state.rs, the dropped
+definition) even when the copied body takes arguments, so a class's `\let\abstract\myabs` (robust, `[1]`) is not read as a
+stored-argument setter. Only the kernel
+`\cite` is a locked robust macro today. The robust constructor path (`def_constructor`) records the lock under
+the inner name only, the other half of the same asymmetry; no witness needs it. Witnesses 2210.02246, 2303.09770 (Fatal
+→ 0 errors). Guard `perfect_kernel_batch66b::locked_robust_cite_keeps_its_inner_definition`; repro
+`macro-state/locked_robust_inner_cite`.
+
+### 569. A lock against the files holds for their `\let` too; a binding's read-to-end environment locks both halves
+
+`:locked@files` (#453: the kernel minipage; the abstract's end half, sect05.rs) refuses a class's or package's
+redefinition while leaving the document free; `install_definition` applied it to a `\def`, but `\let` checked nothing (as
+Perl's `Let`, Package.pm:383-390, checks no lock). arabtex's asect.sty:297 `\let\endabstract\endquotation`, called by its
+own raw `\end` (alatex.sty:105-109), closed the kernel abstract's body as a quotation (2401.14559, 2 errors).
+
+**Rust** (batch 66c, `state::let_i`, TeX's `\let`): a `\let` from a class or package file of a name carrying
+`:locked@files` is refused; a plain `:locked` is still left to `\let`, as in Perl, and so are the engine's own meaning
+writes (`assign_meaning`: `\csname`'s `\relax`, `with_let` restores). A `\let` to an undefined token (expl3's
+`\cs_undefine:N`) only clears the name and is kept: projlib-author.sty:243-246 backs up and undefines
+`\abstract`/`\endabstract` before its `\newenvsc{abstract}`, whose `\NewDocumentEnvironment` errs "End of environment
+'abstract' already defined" on a name still defined (the homework and jwjournal manuals). The binding is kept aside
+(`"\cs:locked@cleared"`) and put back when the file's new meaning for the name is refused (`restore_cleared_binding`, from
+`install_definition` and `let_i`), whether the name is still undefined or `\csname` has made it `\relax` on the way
+(`\@namedef`, ltcmd's `\cs_set_eq:cc`), so the binding's other callers (a raw `\end`) still meet it. The lock is read at
+the origins `install_definition` reads it at (all but the document's). The binding comes back once: the stash is
+consumed, so a `\relax` the document gives the name later stays its own (guard `a_cleared_binding_is_restored_once`). The same rule for a
+binding whose begin half reads its body to the end: mn2e_support's `{keywords}` (`\lx@begin@keywords`) locks both
+`\keywords` and `\endkeywords` against the files, since mn2e-breakabs.sty:87-95 (shipped by MNRAS papers) redefines the
+end half alone as mn2e.cls's `\endlist` (1403.3615, 1607.03149), and a file redefining both halves would otherwise have
+its begin half taken and its end half refused; mn2e.cls:992 `\ifSFB@keywords` is defined. Residual shared with #453: the
+lock reads the origin at run time, so a class's `\AtBeginDocument{\let…}` runs as the document's. Guards
+`perfect_kernel_batch66b::{file_let_*, refused_*_of_a_cleared_name_restores_the_binding, mn2e_*}`; repros
+`macro-state/{file_let_of_locked_end_half, file_let_clearing_locked_name}`.
+
+### 570. The caption-label hoist closes its test before the caption is digested (Perl: inside it)
+
+Perl's `\@hack@caption@` (latex_constructs.pool.ltxml:3178-3180) is `\ifx.#5.\@caption@@@{…}{…}{#3#4}\else
+\@@@hack@caption@…#5\endcaption\fi`: the caption is digested inside the conditional, so a stray `\fi` in it (listings'
+`basicstyle=\lst@ifdisplaystyle\small\fi` written with `@` not a letter, in an `\lstinline`; 2012.08626, 2210.17505) or
+an `\if` without its `\fi` (0807.3034's `\def\arcs{\ifmmode … \else …}`; 1904.11818, 1602.01884) took the wrapper's own
+`\else`/`\fi`, and the `\label` scan read to the end of the file (Fatal `Mouth:EoF`, Perl the same; KPE #641).
+
+**Rust** (batch 66d, sect09.rs): `\ifx.#5.\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi{…}{…}`, latex.ltx's
+idiom: the test closes before either branch runs. A stray `\fi` is then "Didn't expect \fi" (pdflatex's "Extra \fi"),
+an open `\if` stays open as in TeX. The 5 witnesses lose their Fatal (0807.3034: 0 errors). Guards
+`perfect_kernel_batch66d::caption_hoist_*`; repros `captions-floats/caption_hoist_{stray_fi,unbalanced_if}`.
+
+### 571. AMS-TeX's `\abstract` is not the LaTeX kernel's locked one; amsppt.sty's own state for amsppt1.tex
+
+The kernel `\abstract` is locked (sect05.rs), and the lock survived into AMS-TeX mode, where the amsppt binding rebinds
+`\abstract`: TL amsppt1.tex:57's 1.x shim `\let\ab@\abstract \long\def\abstract#1{\ab@#1\endabstract}` was refused,
+so `\abstract{…}` read `Until:\endabstract` past `\document` (Fatal `Document:Malformed`; Perl's amsppt `\abstract` is
+unlocked, as AMS-TeX loads no LaTeX.pool there). amsppt1.tex:105-135 then redefines `\enddocument` from amsppt.sty's
+state, or keeps an older version calling `\runaway@` (gone since amsppt 2.0) when `\add@missing` is undefined, as it was
+in both Perl and Rust (4 undefined-macro errors; KPE #642).
+
+**Rust** (batch 66d, amsppt_sty.rs): the binding clears `\abstract:locked`, and defines amsppt.sty's environment-end
+tracker `\add@missing`/`\envir@end` (:107-111; `\envir@end` a sentinel for :126's `\enddocument␣`; the binding's environments close themselves, so none fires), the
+address count (:330-331), `\ifmonograph@` (:441) and `\thetranslator@` (:506), and its captions
+`\topcaption`/`\botcaption#1#2\endcaption` (:820-836: the label in `\smc`, `.\enspace`, the text; a paragraph, as the
+inserts are no-ops here; q-alg9505010, q-alg9507011). Witnesses alg-geom9505028, alg-geom9606011,
+2310.08131, q-alg9505010, q-alg9507011. Guards `perfect_kernel_batch66d::{amsppt1_abstract_shim_is_kept, amsppt_captions_are_paragraphs}`; repros
+`amstex/{amsppt1_abstract_braced, amsppt_botcaption}`.
+
+### 572. `{filecontents}` ends at its `\end{…}` anywhere in a line, as LaTeX's does
+
+latex.ltx:19047-19066 reads each line as `##1\E##2\E##3\relax`: the text before `\end{<currenvir>}` is written as the
+file's last line ("Writing text … before \end{…} as last line"), the text after it ignored ("Ignoring text … after
+\end{…}"). The port matched the whole trimmed line (fancyvrb's rule, the former `capture_raw_lines_until`, now removed), so
+`\end{tikzpicture}\end{filecontents*}` or `\end{filecontents}{b.tex}` captured the rest of the document (Fatal
+`Document:Malformed`; Perl's unanchored regex, latex_constructs.pool.ltxml:4274/4292, ends there too).
+
+**Rust** (batch 66d, `cache_filecontents`): the capture ends at the marker anywhere in a line, with LaTeX's two warnings;
+a prefix of spaces only is neither written nor warned about (LaTeX writes it as a blank last line, with the warning,
+latex.ltx:19055-19058, its spaces being of category other). Witnesses 1909.03404, 2311.02007,
+2503.03764. Guard `perfect_kernel_batch66d::filecontents_ends_mid_line`; repro `macro-state/filecontents_end_midline`.
+
+### 573. A driver with `\begin{document}` vetoes the preamble it inputs whatever their scores
+
+Perl's main-file pick (Pack.pm:180-182) removes every `\input` argument from the candidates; the port honoured a veto
+only when the vetoer scored at least the vetee's score (a 2-line `\input{main}` wrapper beside the real main.tex,
+2307.13586). A driver that `\input{preamble}`s its `\documentclass` file scores lower than the preamble, so the preamble
+was converted alone (Fatal `Document:Malformed`: 1402.3465, 2503.12837, 1505.07539, hep-th0609123).
+
+**Rust** (batch 66d, main_tex.rs `find_main_tex` and its cortex_worker.rs copy): a vetoer with a `\begin{document}` line
+vetoes unconditionally, as Perl; one without keeps the score gate. Guards
+`main_tex::tests::{driver_vetoes_the_preamble_it_inputs, wrapper_without_begin_document_keeps_its_main}`.
+
+### 574. The kernel's `\shorttitle`/`\shortauthor` aliases yield to the document's `\newcommand`
+
+sect05.rs predefines `\shorttitle`→`\@shorttitle` and `\shortauthor`→`\@shortauthor` (Rust-only, for templates that read
+them before `\author`, 2406.14142); latex.ltx has neither. A document's `\newcommand{\shorttitle}{…}` was refused as a
+redefinition, and `\title[\shorttitle]{…}` then set `\@shorttitle` to the alias of itself (Fatal `Timeout:Recursion`:
+1105.4905, 0909.2464; pdflatex and Perl 0).
+
+**Rust** (batch 66d): the two aliases are kernel stubs (`DefinitionOrigin::Stub`), which `\newcommand` treats as
+undefined, as the AAAI `\equalcontrib` stubs. Guard `perfect_kernel_batch66d::shorttitle_is_the_documents_own`; repro
+`sectioning-frontmatter/shorttitle_newcommand_by_document`.

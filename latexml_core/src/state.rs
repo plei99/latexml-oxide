@@ -1394,6 +1394,7 @@ pub fn install_definition<T: Into<Stored>>(definition: T, scope: Option<Scope>) 
     assign_value_sym(stub_sym, false, Some(Scope::Global));
   }
   if is_definition_locked(&token) {
+    restore_cleared_binding(&token);
     // A LOCKED BINDING OWNS ITS CALLS. The lock keeps the semantic markup of a call (Perl acb3b27e: commands "that
     // lose semantics when redefined"), and a use without an argument cannot produce that markup: the binding would
     // read the next token as its argument (a pgffor `\foreach \i/\text` loop variable: 15 errors; `\@for\text:=`:
@@ -3179,6 +3180,35 @@ where FnR: FnOnce(Option<&VecDeque<Stored>>) -> R {
 /// Whether `token`'s definition is locked while state is not unlocked, so `install_definition` drops a redefinition.
 pub fn is_definition_locked(token: &Token) -> bool { token.with_cs_name(is_name_locked) }
 
+/// Whether `token` means nothing a lock protects: undefined, or `\relax`, what TeX's `\csname` makes of an undefined
+/// name (tex.web §372) on the way to every `\@namedef`, `\expandafter\def\csname…` and expl3 `\cs_set:cpn`/`…:cc`
+/// definition ([`restore_cleared_binding`]).
+fn is_cleared_meaning(token: &Token) -> bool {
+  matches!(lookup_meaning(token), None | Some(Stored::None))
+    || x_equals(token, &crate::T_CS!("\\relax"))
+}
+
+/// Puts back the binding of a files-locked name that a file's `\let` cleared ([`let_i`], `"{cs}:locked@cleared"`) when
+/// the file's new meaning for it is refused, so that the binding's other callers (a raw `\end` running `\csname
+/// end<env>\endcsname`, alatex.sty:105-109) still meet it rather than an undefined name.
+fn restore_cleared_binding(token: &Token) {
+  let cleared_key = token.with_cs_name(|cs| s!("{cs}:locked@cleared"));
+  if arena::get(&cleared_key).is_none() || !is_cleared_meaning(token) {
+    return;
+  }
+  if let Some(binding) = lookup_value(&cleared_key).filter(|b| !matches!(b, Stored::None)) {
+    state_mut!().assign_internal(
+      TableName::Meaning,
+      token.get_cs_name(),
+      binding,
+      Some(Scope::Global),
+    );
+    // Once: a later `\relax` the document gives the name is its own, and a later clearing `\let` keeps the binding
+    // aside again.
+    assign_value(&cleared_key, Stored::None, Some(Scope::Global));
+  }
+}
+
 /// Whether the control sequence named `cs` is locked while state is not unlocked: against every definition
 /// (`"{cs}:locked"`), or against those the class and package files make (`"{cs}:locked@files"`), which leaves the
 /// document free to define it, as LaTeX and Perl do (the kernel minipage: sect12.rs, OXIDIZED_DESIGN_DIVERGENCES #453).
@@ -4481,6 +4511,37 @@ pub fn let_i(token1: &Token, token2: &Token, scope: Option<Scope>) {
     lookup_meaning(token2)
       .unwrap_or(Stored::None);
   // };
+  // A lock against the class and package files (`"{cs}:locked@files"`, [`name_carries_lock`]) holds for their `\let`
+  // as for their `\def` ([`install_definition`]): arabtex's asect.sty:297 `\let\endabstract\endquotation`, which its
+  // own raw `\end` (alatex.sty:105-109) then calls, closed the kernel abstract's body as a quotation (2401.14559). A
+  // plain `:locked` is left to a `\let` to a non-robust meaning, as Perl's `Let` checks none (Package.pm:383-390); a
+  // `\let` to a robust command takes the body copy below, whose wrapper the lock refuses (OXIDIZED_DESIGN #568). So
+  // are the engine's own meaning writes ([`assign_meaning`]: `\csname`'s `\relax`, restores). A `\let` to an undefined token only clears
+  // the name, and is kept: the "undefine, then define anew" idiom (projlib-author.sty:243-246 `\cs_undefine:N
+  // \endabstract` before `\newenvsc{abstract}`, whose scontents `\NewDocumentEnvironment` "already defined" check
+  // would fail; the homework and jwjournal manuals). The binding is kept aside (`"{cs}:locked@cleared"`) and back in
+  // place when the file's new meaning is refused ([`restore_cleared_binding`]), whether the name is still undefined or
+  // `\csname` has made it `\relax` on the way. Read at the origins `install_definition` reads the lock at (every one
+  // but the document's, [`name_carries_lock`]). OXIDIZED_DESIGN #569; guards `perfect_kernel_batch66b::file_let_*`,
+  // `…::refused_*_restores_the_binding`.
+  if crate::definition::origin::current_origin()
+    != crate::definition::origin::DefinitionOrigin::Document
+    && !state_is_unlocked()
+    && matches!(token1.get_catcode(), Catcode::CS | Catcode::ACTIVE)
+    && token1.with_cs_name(|cs| arena::get(s!("{cs}:locked@files")).is_some_and(lookup_bool_sym))
+  {
+    if !matches!(meaning, Stored::None) {
+      restore_cleared_binding(token1);
+      after_assignment();
+      return;
+    }
+    if !is_cleared_meaning(token1)
+      && let Some(binding) = lookup_meaning(token1)
+    {
+      let cleared_key = token1.with_cs_name(|cs| s!("{cs}:locked@cleared"));
+      assign_value(&cleared_key, binding, Some(Scope::Global));
+    }
+  }
   // Deep-copy the robust-wrapper pair.
   //
   // Our `DefConstructor`/`DefMacro` with `robust => true` stores the
@@ -4514,9 +4575,19 @@ pub fn let_i(token1: &Token, token2: &Token, scope: Option<Scope>) {
   // `\protect\bfseries<space>\ifmmode…` — and then `\let\bfseries=\mafx@bfseries` (33 of run 336's papers ran to
   // PushbackLimit, 2205.10090, 2211.07279). A copy over an existing body slot is still a copy (`\DeclareCommandCopy`
   // onto a robust command, `\let\origref\ref` run twice).
+  //
+  // Not over a locked inner: the body copy writes `\<token1><space>` directly, so for a locked robust binding (the
+  // kernel `\cite`, whose inner is locked against the files, OXIDIZED_DESIGN #568) a class's `\let\cite\mycite` would
+  // put its body under the binding's own wrapper, whose reinstallation the lock then refuses. Such a `\let` takes
+  // TeX's (and Perl's `Let`) plain path below instead. A locked binding whose inner is free (a constructor: the
+  // kernel `\LaTeX`) keeps the copy, whose wrapper the lock refuses: bera.sty:12-23's `\let\LaTeX=\fveLaTeX` (a
+  // `\DeclareRobustCommand`) would otherwise replace the logo with its typeset boxes (enumitem, colorspace and mathador
+  // manuals); its `\let\TeX=\fveTeX` (:10-11, a `\def`) takes the plain path and replaces `\TeX`, as in Perl. Guard
+  // `perfect_kernel_batch66b::robust_let_over_a_locked_constructor_keeps_it`.
   if let Stored::Expandable(ref defn) = meaning
     && let Some(token2_space) = robust_wrapper_body(defn, token2)
     && !token1.with_str(|s| body_mentions(&token2_space, &s!("{s} ")))
+    && !token1.with_str(|s| is_name_locked(&s!("{s} ")))
   {
     let token1_space = crate::T_CS!(token1.with_str(|s| s!("{s} ")));
     // (1) Copy `\<token2><space>` body to `\<token1><space>`

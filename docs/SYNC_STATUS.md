@@ -895,6 +895,80 @@ space where it is digested (1601.02132), and arxbj's IMS markup through a bindin
   Integration 8 (65y + 65z, four review rounds): bundle A/B 912 papers (`ab_65int8`; 65y/65z witnesses + int7 sample)
   errors 3056→2138, Error status 499→175, Fatal 1→1, bibliography/tables equal, the 18 word drops error tokens leaving
   math; manual net 797 manuals 0 diffs, 30 repros fixed, 0 newly failing.
+- **66b** (run-340 Fatal origins still Fatal on the int8 head; sample of 273 over the classes in
+  `~/data/pk_agents/main/run340/fatal/`: Stomach:Recursion 22/25, PushbackLimit 22/25, Mouth:EoF 24/24, Malformed 24/25,
+  Timeout:Recursion 19/25, IfLimit 11/23 still Fatal). Three mechanisms, 14 of the 22 Recursion witnesses Fatal → 0
+  errors (~215 papers by the sample rate): the kernel's caption constructor is `\lx@@caption` with `\@@caption` its
+  alias, since the Cambridge UP classes keep `\caption` under `\@@caption` for `\contcaption` (fac/ijsipaper/mscs; OD
+  #566, KPE #637); `\newcommand`/`\renewcommand`/`\providecommand` with an optional argument also define latex.ltx's
+  internal `\\cs` that the amsart idiom `\edef\cs{\@dblarg\csname\string\cs\endcsname}` calls (bcp.cls `\abtitle`,
+  cmfne.cls; OD #567, KPE #638; review r2: every `\@xargdef` declarator, `\newenvironment` and `\DeclareRobustCommand`
+  too); a locked robust binding locks its inner `\cs␣` against the files, so a class's copy of cite.sty's
+  `\@namedef{cite }` no longer takes over the kernel `\cite` (cmfne, asme2e; OD #568); image fragments gobble
+  `\lx@@caption` as well as `\@@caption` (latex_images.rs, LaTeXImages.pm:411). Guards
+  `perfect_kernel_batch66b::*`; repros `captions-floats/cup_contcaption_lets_caption`,
+  `macro-state/{newcommand_optional_internal_cs,locked_robust_inner_cite}`. Residual: AMS-TeX `\documentstyle{X}`
+  never raw-loads a paper-local `X.sty` (Perl the same, `notex => 1`), so amams.sty's `\title#1` meets amsppt's
+  `\title … \endtitle` and the file ends in the argument (math0402285, math0101270, math9906120; ~33 papers; raw-loading
+  needs an A/B against gr-qc9507042's fic.sty, which the amsppt fallback fixed); gtmacros papers ship no gtmacros.tex
+  (math9804003, math9902122, math9905203: harness).
+- **66c** (run-340 `\endgroup` cluster, the empty-trigger frame: 937 papers have an `\endgroup` error whose frame was opened
+  by no token, half of a 40-paper sample mdpi papers closing `\end{paracol}`): the mdpi binding follows the copy the
+  paper ships — a copy that loads paracol (mdpi.cls:55) opens `\begin{paracol}{2}\switchcolumn` (the first page's side
+  column) in its `\AfterEndPreamble`, after its own `\maketitle` (2105.08579's :880-887; 1809.00601's :908-912 via
+  `\maketitlen`), so the binding loads paracol and opens it there too, and the template's `\end{paracol}` closes it (raw
+  paracol.sty converts cleanly: the columns flow); a copy without paracol (1307.3961's 2013 one) and a paper shipping
+  none are unchanged. And (R3 of the study, OD #569) a lock against the files holds for their `\let` as for their
+  `\def` (`state::let_i`: arabtex's `\let\endabstract\endquotation`, 2401.14559), except a `\let` that only clears the
+  name (projlib's `\cs_undefine:N \endabstract`: the homework/jwjournal manuals), whose binding comes back when the
+  file's new meaning is refused; mn2e_support's `{keywords}` locks both halves against the files (mn2e-breakabs.sty's
+  `\endkeywords`, 1403.3615, 1607.03149; plus mn2e.cls:992 `\ifSFB@keywords`). Residual (pre-existing, 65int8 too):
+  `\usepackage{arabtex}` sets the whole body italic (its `\all@wcmd` font wrappers; pdflatex cmr10) — RED follow-up. Witnesses 2105.08579, 2201.05363. Guards `perfect_kernel_batch66b::{mdpi_*, file_let_*,
+  refused_*_of_a_cleared_name_restores_the_binding, mn2e_*}`. A/B over 74 mdpi papers (`ab_66c`: 45 of 65v's, 29 of the empty-trigger
+  list) vs 66b1: errors 154 → 100, Error status 37 → 17, none Fatal; the only word changes are error text gone
+  (`{paracol} 2 \switchcolumn` printed by the undefined environment). Residual: 1905.04581's own `\begin{paracol}`
+  after pgfplots figures raises paracol's `\ifinner` "Not in outer par mode" (2 errors; a mode left inner upstream,
+  not reproduced minimally). The rest of the `\endgroup` study
+  (`run340/clusters/endgroup_rootcauses.md`): R1 an eqnarray cell `a}{b` (latex.ltx:15760-15765 `{##}` templates; the
+  gullet's before-column marker already resets align_state as tex.web §324, but real braces would put `{…}` into every
+  eqnarray `tex` attribute: needs a hidden template group, ~86 papers), R2 diagrams stub body read raw inside an
+  alignment cell (~51), R4/R5 singletons; the parked mode-switch family (29/56) beyond mdpi.
+- **66d** (run-340 Fatal origins round 2, `~/data/pk_agents/main/run340/fatal/fatal_rootcauses.md`: 110 papers still
+  Fatal after 66b, 16 mechanisms). Seven fixed, red/green with repros: R1 the caption-label hoist closes its
+  `\ifx.#5.` before the caption is digested (latex.ltx's `\@firstoftwo` idiom; a stray `\fi` or open `\if` in a caption
+  took the wrapper's `\else`/`\fi`; OD #570, KPE #641); R3 AMS-TeX `\Bbb`/`\bold` are font switches, amsfonts `\bold` is
+  `\mathbf` (KPE #639); R4 AMS-TeX's `\abstract` drops the LaTeX kernel lock and amsppt.sty's state for amsppt1.tex exists
+  (OD #571, KPE #642); R5 a driver with `\begin{document}` vetoes the preamble it inputs (main_tex.rs and cortex_worker.rs;
+  OD #573); R6 `{filecontents}` ends at its `\end{…}` anywhere in a line (OD #572); R10 the kernel `\shorttitle`/
+  `\shortauthor` are stubs a `\newcommand` replaces (OD #574); R13 `\lbrack`/`\rbrack` are macros (KPE #640); and, from
+  the witness reconversion, amsppt's `\topcaption`/`\botcaption#1#2\endcaption` (amsppt.sty:820-836; q-alg9505010,
+  q-alg9507011) and amstex.tex's `\Err@`. Bundle witness reconversion (user 2026-10-13: every arXiv id in
+  `35feb675fa..` and the comments of touched code, 88 papers through the CLI's main-file pick, `~/data/pk_agents/main/
+  wit66`, 65int8f vs 66d3): 38 Fatal → converted (Fatal 50 → 7, words 0.81M → 1.76M), 6 fewer errors (mdpi, mn2e,
+  arabtex), 39 identical (incl. 2406.14142, 1905.05350, 2307.13586, 2606.02077), cond-mat0001395 changed for the better
+  (jpsj.sty's raw cite copy no longer takes `\cite`: 0 → 51 `bibref` citations, the "?" marks gone); manuals latex4wp,
+  gaceta, homework, jwjournal byte-identical. Errors 766 → 1006 only because the R1 papers now convert and show their
+  authors' stray conditionals (1904.11818 594, 2012.08626 112, 2210.17505 97, 1602.01884 20; pdflatex reports each).
+  Still erroring: AMS-TeX `\tag 1.2$'$` (1012.3760 Fatal → TooManyErrors, 1108.6264 3, 1112.1423 4; RED
+  `amstex/amstex_tag_with_math_text`, next); 1905.04581 (paracol `\ifinner`, known); unchanged pre-existing errors in
+  2304.05575 (`\BAmulticolumn`), gr-qc9405068/gr-qc9406008 (the author's `\beginabstract` pair), gr-qc9507042
+  (merged creators), math0012150 (active `@`), 2401.14559 (3), and the AMS-TeX amams/gtmacros Fatals of the 66b residual.
+  Bundle A/B (1009 papers, `~/data/pk_agents/main/ab_66bundle`, 66cr2 vs 66d2): identical tallies (E 2241, F 1), 12
+  papers' content changed. Six lose the running-head paragraph the kernel `\shorttitle`/`\shortauthor` had leaked into
+  the body (numapde 1908.02022, 2011.03580, 2301.02516; jnsao 2011.04474, 2001.07609; jpp-AAS 2305.03275; titles and creators
+  unchanged); five print amsfonts `\bold` bold (1210.0557, 1811.00558, 1903.00970, 2005.01953, 2303.01678); and
+  2210.02246 had lost cmfne's end-of-document author lines — 66c r3 skipped the `\@xargdef` internal of a refused
+  definition, which the replayed `\@dblarg` setter calls; restored (OD #567, guard
+  `perfect_kernel_batch66b::refused_dblarg_setter_reaches_its_internal`). Manual net (65int8f vs 66d4, `mnet_66d4`): 0
+  regressions, 13 repros fixed; 4 manuals changed, all from 66c r4 sending every locked binding down `\let`'s plain
+  path, which leaves plain `:locked` to `\let` — bera.sty:12-23 `\let\LaTeX=\fveLaTeX` (robust) replaced the `\LaTeX`
+  logo constructor with the package's typeset boxes (enumitem, colorspace, mathador-doc; tikzbrickfigurines-doc's node widths). The skip
+  now covers a locked inner only; the 4 manuals are byte-identical to 65int8f again (OD #568, guard
+  `perfect_kernel_batch66b::robust_let_over_a_locked_constructor_keeps_it`); no witness or A/B paper's logo count moved.
+  Guards `perfect_kernel_batch66d::*`,
+  `main_tex::tests::{driver_vetoes_the_preamble_it_inputs, wrapper_without_begin_document_keeps_its_main}`. Open:
+  R2 aastex `D` vs preloaded dcolumn (~50), R7 xargs robustness (~21), R8 `\enddocument` tail (~21), R9 hyperref
+  `\H@refstepcounter` (~12), R11 qbordermatrix IfLimit, R12 shipped core-file copies, R14-R16 singletons.
 - **63b** (landed): nameref's begin-document reset of `\ref`/`\pageref`/`\Ref` under its own hook label (KPE #519;
   2503.08060, 1908.01329, 1811.01873, which also needed nameref's `\NR@setref`), a nested alignment's rows run no
   enclosing row hook (KPE #518; arrays, `\halign`, TikZ matrices, tabbing), the 63a tag `~` binding narrowed to the

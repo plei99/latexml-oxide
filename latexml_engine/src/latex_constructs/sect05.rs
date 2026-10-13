@@ -1018,9 +1018,16 @@ pub(crate) fn load() -> Result<()> {
   // `\def\shorttitle#1{…}` (gaceta.cls:744) into a 0-arg macro, so the later
   // `\shorttitle{RUNNING HEAD}` left its argument to typeset as a `<para>`
   // before the frontmatter (gaceta/plantilla-articulo-suelto, RUST-ONLY).
-  // Guard: `perfect_kernel_batch56::a_class_shorttitle_survives_the_kernel_title`.
-  DefMacro!("\\shortauthor", "\\@shortauthor");
-  DefMacro!("\\shorttitle", "\\@shorttitle");
+  // Guard: `perfect_kernel_batch56::a_class_shorttitle_survives_the_kernel_title`. Kernel stubs
+  // (`DefinitionOrigin::Stub`), since latex.ltx has neither name: the document's own `\newcommand{\shorttitle}{…}`
+  // defines it, where the refused definition left `\title[\shorttitle]{…}` setting `\@shorttitle` to the alias of
+  // itself (Fatal `Timeout:Recursion`: 1105.4905, 0909.2464). Guard
+  // `perfect_kernel_batch66d::shorttitle_is_the_documents_own`.
+  with_origin(DefinitionOrigin::Stub, || -> Result<()> {
+    DefMacro!("\\shortauthor", "\\@shortauthor");
+    DefMacro!("\\shorttitle", "\\@shorttitle");
+    Ok(())
+  })?;
   // Perl (PR #2767): '\def\@shortauthor{#1}\def\@author{#2}\lx@add@authors{#2}'.
   // 59d: `\lx@author@flush`/`\lx@author@handed` hand each call's author-block tail to the creators it
   // made, `\lx@author@tail` the last call's at `\maketitle` (frontmatter_stores.rs).
@@ -2040,6 +2047,10 @@ fn skip_no_op_argument(body: &[Token], mut i: usize, p: &Parameter) -> usize {
 /// (`body_vocabulary_is_defined`) runs, in a group, with `\thanks`, `\footnote` and `\label` gobbled (the kernel makes
 /// the author's notes and labels), not re-entrant; afterwards the kernel's `\@author`/`\@shortauthor` and every store the
 /// body `\def`s are as before (empty if undefined), so what stays is the class's flags, counters, lists and `\let`s; an absent optional argument (`opt` empty) takes the class's default.
+/// Only the dropped body itself is read for stores (`defined_stores`): a store defined inside an internal it calls is
+/// kept, as the amsart `\@dblarg\csname\string\author\endcsname` wrapper's `\\author` sets them (cmfne.cls:462-483
+/// `\firstshortauthor`, which its `\enddoc@text` prints at the end of the document, 2210.02246; the class's own
+/// `\maketitle`, which would print them again, is refused).
 /// A replay that raises an error is dropped with its diagnostics (Info), as the `\maketitle` deposit is, and with
 /// every assignment it made (`AssignmentJournalGuard::rollback`): a setter that stopped half-way leaves no half-built
 /// state (jsty3-author.sty:542's xparse `\author`, whose expl3 author list its printer then looped over 991 times:
