@@ -1831,7 +1831,7 @@ fn eqnarray_continuation_after_lefteqn_does_not_panic() {
     &xml,
     "equationgroup",
     &[],
-    r#"<equationgroup class="ltx_eqn_eqnarray" xml:id="S0.EGx1"><equation xml:id="S0.E1"><tags><tag>(1)</tag><tag role="refnum">1</tag></tags><MathFork><Math tex="\displaystyle D=a+b\,dx" text="D = a + b * d * x" xml:id="S0.E1.m2"><XMath><XMApp><XMTok meaning="equals" role="RELOP">=</XMTok><XMTok font="italic" role="UNKNOWN">D</XMTok><XMApp><XMTok meaning="plus" role="ADDOP">+</XMTok><XMTok font="italic" role="UNKNOWN">a</XMTok><XMApp><XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok font="italic" role="UNKNOWN" rpadding="1.7pt">b</XMTok><XMTok font="italic" role="UNKNOWN">d</XMTok><XMTok font="italic" role="UNKNOWN">x</XMTok></XMApp></XMApp></XMApp></XMath></Math><MathBranch><tr><td align="left" colspan="3"><Math mode="inline" tex="\displaystyle D=a" text="D = a" xml:id="S0.Ex1.m1"><XMath><XMApp><XMTok meaning="equals" role="RELOP">=</XMTok><XMTok font="italic" role="UNKNOWN">D</XMTok><XMTok font="italic" role="UNKNOWN">a</XMTok></XMApp></XMath></Math></td></tr><tr><td/><td/><td align="left"><Math mode="inline" tex="\displaystyle+b\,dx" text="+ b * d * x" xml:id="S0.E1.m1"><XMath><XMApp><XMTok meaning="plus" role="ADDOP">+</XMTok><XMApp><XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok font="italic" role="UNKNOWN" rpadding="1.7pt">b</XMTok><XMTok font="italic" role="UNKNOWN">d</XMTok><XMTok font="italic" role="UNKNOWN">x</XMTok></XMApp></XMApp></XMath></Math></td></tr></MathBranch></MathFork></equation></equationgroup>"#,
+    r#"<equationgroup class="ltx_eqn_eqnarray" xml:id="S0.EGx1"><equation xml:id="S0.E1"><tags><tag>(1)</tag><tag role="refnum">1</tag></tags><MathFork><Math tex="\displaystyle D=a+b\,dx" text="D = a + b * d * x" xml:id="S0.E1.m2"><XMath><XMApp><XMTok meaning="equals" role="RELOP">=</XMTok><XMTok font="italic" role="UNKNOWN">D</XMTok><XMApp><XMTok meaning="plus" role="ADDOP">+</XMTok><XMTok font="italic" role="UNKNOWN">a</XMTok><XMApp><XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok font="italic" role="UNKNOWN" rpadding="1.7pt">b</XMTok><XMTok font="italic" role="UNKNOWN">d</XMTok><XMTok font="italic" role="UNKNOWN">x</XMTok></XMApp></XMApp></XMApp></XMath></Math><MathBranch><tr class="ltx_eqn_lefteqn"><td align="left" colspan="3"><Math mode="inline" tex="\displaystyle D=a" text="D = a" xml:id="S0.Ex1.m1"><XMath><XMApp><XMTok meaning="equals" role="RELOP">=</XMTok><XMTok font="italic" role="UNKNOWN">D</XMTok><XMTok font="italic" role="UNKNOWN">a</XMTok></XMApp></XMath></Math></td></tr><tr><td/><td/><td align="left"><Math mode="inline" tex="\displaystyle+b\,dx" text="+ b * d * x" xml:id="S0.E1.m1"><XMath><XMApp><XMTok meaning="plus" role="ADDOP">+</XMTok><XMApp><XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok font="italic" role="UNKNOWN" rpadding="1.7pt">b</XMTok><XMTok font="italic" role="UNKNOWN">d</XMTok><XMTok font="italic" role="UNKNOWN">x</XMTok></XMApp></XMApp></XMath></Math></td></tr></MathBranch></MathFork></equation></equationgroup>"#,
   );
 }
 
@@ -5228,7 +5228,8 @@ fn ar5iv_profile_sets_its_runaway_limits() {
 /// the class's T1, `_` and all (2609.06007), lmcs.cls:696-761's theorem set with its `thmC` styles (2609.11893),
 /// informs3.cls's `\TheoremsNumberedThrough` and e-companion `\ECSwitch` renumbering sections, theorems and equations
 /// (2609.08001),
-/// MnSymbol's `\llangle`/`\rrangle` (2609.07645; the binding warns that it is a stub); and `\tracingmacros` stored as
+/// MnSymbol's `\llangle`/`\rrangle` (2609.07645; since 65l a native binding of the whole package, which no longer
+/// warns that it is a stub); and `\tracingmacros` stored as
 /// a number, which `\the` reads back (Perl TeX_Debugging.pool.ltxml:214-225; arabtex's aedpatch.sty:29-30, 2609.25833).
 #[test]
 fn the_2609_classes_load_their_packages_and_commands() {
@@ -5418,8 +5419,8 @@ $\llangle x\rrangle$
 \end{document}",
       ),
       "<XMWrap xml:id=\"p1.m1.2.1.2\"><XMTok name=\"llangle\" role=\"OPEN\" stretchy=\"false\">\u{27ea}</XMTok><XMTok font=\"italic\" role=\"UNKNOWN\" xml:id=\"p1.m1.1\">x</XMTok><XMTok name=\"rrangle\" role=\"CLOSE\" stretchy=\"false\">\u{27eb}</XMTok></XMWrap>",
-      1,
-      "MnSymbol.sty is only minimally stubbed",
+      0,
+      "Info:bindings:MnSymbol.sty MnSymbol.sty is provided by a native binding, not interpreted raw.",
     ),
     (
       "p",
@@ -6780,6 +6781,13 @@ Text.
   );
   assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
   let found = contacts(&xml);
+  // (Ann's `*`, whose legend line lands among Bob's affiliations, stays shown as printed: 65e `show_unanswered_marks`)
+  assert_element(
+    &xml,
+    "personname",
+    &[],
+    "<personname>Ann Able<sup xml:id=\"id1\">\u{2217}</sup></personname>",
+  );
   // Ann holds her affiliation and her address alone: each address of the line goes to its author in order
   // (`email_line_calls`), the legend is not folded into Univ B. (Where the legend goes, an unmarked line placed by
   // position, is not pinned: it is not an affiliation.)
@@ -6787,7 +6795,7 @@ Text.
     found[0],
     vec![
       affiliation(" Univ A"),
-      "<contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">a@x.y</text></contact>".to_string()
+      "<contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">a@x.y</text></contact>".to_string()
     ],
     "{xml}"
   );
@@ -6799,7 +6807,7 @@ Text.
     bob,
     vec![
       &affiliation(" Univ B"),
-      &"<contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">b@x.y</text></contact>".to_string()
+      &"<contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">b@x.y</text></contact>".to_string()
     ],
     "{xml}"
   );
@@ -7954,7 +7962,9 @@ fn author_thanks_and_footnote_keep_their_math() {
       r"\documentclass{article}\begin{document}\title{T}\author{Ann Able$^{\dag}$, Bob Baker$^{*}$\thanks{$^{\dag}$ Univ X. $^{*}$ Univ Y.}}\maketitle Text.\end{document}"
     ),
     vec![
-      "<creator role=\"author\"><personname>Ann Able</personname></creator>".to_string(),
+      // (her `$^{\dag}$`, whose legend went with Bob's note, stays shown, as printed: 65e `show_unanswered_marks`)
+      "<creator role=\"author\"><personname>Ann Able<sup>\u{2020}</sup></personname></creator>"
+        .to_string(),
       format!(
         "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker<sup>*</sup></personname>{}</creator>",
         thanks("note", &format!("{} Univ X. <sup>*</sup> Univ Y.", it("†")))

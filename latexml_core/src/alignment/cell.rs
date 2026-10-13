@@ -63,6 +63,12 @@ pub struct Cell {
   pub has_intercol_after:  bool,
   /// Background color from \columncolor/\cellcolor (set during digestion by \@setcellcolor)
   pub backgroundcolor:     Option<String>,
+  /// Where the column's array.sty `>{…}` tokens begin in `before` (`Template::add_column`): right after the column
+  /// type's own before tokens (a paragraph column's box opening), ahead of the `>{…}` declarations and `\ignorespaces`.
+  pub prefix_at:           Option<usize>,
+  /// The cell's content overprints the cells to its right, as an `\rlap` does (`\lefteqn`, latex.ltx:15800): the
+  /// empty cells that follow it join its span (`normalize_overprint_spans`). Set by `\lx@alignment@cell@overprint`.
+  pub overprint:           bool,
 }
 impl Cell {
   pub fn border_at(&self, side: BorderSpec) -> Option<usize> {
@@ -90,6 +96,7 @@ mod tests {
     assert!(!c.thead_in_column);
     assert!(!c.has_intercol_before);
     assert!(!c.has_intercol_after);
+    assert!(!c.overprint);
   }
 
   #[test]

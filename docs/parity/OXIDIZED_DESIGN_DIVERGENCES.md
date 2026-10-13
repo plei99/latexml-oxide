@@ -4,7 +4,7 @@
 
 > **Numbering note:** the `### N` numbers are load-bearing (referenced from `.rs` comments) and are kept verbatim. `#16` and the math-grammar entries `#7–#18` live in [OXIDIZED_DESIGN_MATH.md](../math/OXIDIZED_DESIGN_MATH.md); in particular the code-referenced **`#18` is the f(x) "Speculative function application"** entry there, *not* the "Source-Level Bindings" `#18` below.
 >
-> **`#76` is a RETIRED number, not an omission** — its entry was consolidated into `#74` and the number was deliberately not reused (see the placeholder in sequence below). Next free number: **#518** (allocate at integration with `tools/perfect_kernel/next_entry_numbers.sh`).
+> **`#76` is a RETIRED number, not an omission** — its entry was consolidated into `#74` and the number was deliberately not reused (see the placeholder in sequence below). Next free number: **#565** (allocate at integration with `tools/perfect_kernel/next_entry_numbers.sh`).
 
 ---
 
@@ -4178,10 +4178,14 @@ machinery already discards it (`tests/alignment/longtable.{tex,xml}` shows the
 clean head-grabbed case, unchanged by this fix).
 
 **Divergence** (surpass-Perl): because the whole row was only ever the caption,
-drop it entire. `\lx@longtable@caption@` sets the existing `LONGTABLE_KILL_NEXT`
-row-discard flag (the very flag `\lx@longtable@kill@flag` uses for `\kill`); the
+drop it entire. `\lx@longtable@caption` ends with `\lx@longtable@caption@row`, which
+sets `LONGTABLE_CAPTION_ROW` (beside `\kill`'s `LONGTABLE_KILL_NEXT`); the
 caption's terminating `\\` (vtype `cr`) consumes it in `tex_tables.rs` and pops
-the just-ended empty row via `remove_row`. Uniform across caption position
+the just-ended empty row via `remove_row`. An `&` after the caption in its row clears
+the flag and the row is kept (65h): the caption spans every column, so the row holds
+more than the caption — a `\caption{…}\label{…}` with no `\\` before `\hline` and the
+head row, which pdflatex typesets with "Extra alignment tab" (guard
+`perfect_kernel_batch65h::longtable_caption_row_without_its_cr_keeps_the_next_row`). Uniform across caption position
 (start/middle/end) and body-vs-grabbed-head; the caption text is still hoisted
 (and, in a grabbed head/foot, still moves `LONGTABLE_CAPTIONS→…_HEAD_CAPTIONS`
 before the grab). `longtable_bindings` resets the flag per table so a malformed
@@ -7593,6 +7597,8 @@ into its `tex=`) carries no internal names: ours `tex="x+yTailwords.\par"`, Perl
 latex_constructs.pool.ltxml:373); what they queue on `\aftergroup` is discarded too (guard
 `perfect_kernel_batch64zf::abandoned_group_discards_hook_queued_aftergroup`); a group-end check that presumes a
 closer (setspace's `\lx@setspace@check`) is skipped under `lx@ending@document`.
+**Addendum (65i)**: a construct still digesting when `\end{document}` abandons groups never ended; its elements
+auto-close, so what follows the defect that left it open is placed by the schema, not held as `malformed:*` (#542).
 **Witnesses**: screenplay-pkg/screenplay-pkg (6 → 0); powerdotDE (recall 26.3 → 97.8%),
 csvsimple-legacy (88.9 → 99.6%), arXiv 1902.00853, 1907.09124 (batch 65c).
 **Guards**: `perfect_kernel_batch56::unbalanced_abstract_brace_unwinds_at_end`,
@@ -9391,6 +9397,9 @@ EPS/PS beside a PDF/PNG/JPEG file is a pdflatex one (latex+dvips cannot include 
 mirror of the DVI-driver cue). Witness 2210.04612: an MDPI template's `logo-*.eps` beside PNG figures, under
 `\documentclass[…,pdftex]{Definitions/mdpi}`, was taken as DVI, and expl3's backend check stopped it ("Backend
 request inconsistent with engine: using 'dvips'", expl3-code.tex:8036-8041; 47 of run 336's papers).
+
+**Included figures** (batch 65f, #537): the figures the source includes decide before the tree's file inventory, and
+a pstricks load is a DVI cue; the tree walk above remains the fallback when no included figure resolves.
 
 **Known limitation**: a source with EPS figures only that its author compiles with
 pdflatex+epstopdf is taken as DVI, as arXiv's own cue would.
@@ -12903,7 +12912,8 @@ all but one corpus case (2605.26800's second `dh`, pinned) and the colon stop wr
 material (latex_constructs.pool.ltxml:627-628, :3187-3190), so a `\protect\footnote` in a heading
 steps the counter twice and a caption's note appears twice; every later note's number shifts
 (KNOWN_PERL_ERRORS #417). **Rust** digests the copy under `\lx@toc@copy@neutralize` (the note
-constructors, the current footnote hooks, `\label`, `\index`, `\glossary` gobbled by plain `o m`/`s o m` macros — LaTeX's ltcmd expandable
+constructors, the current footnote hooks, `\label`, `\index`, `\glossary` gobbled by plain `o m`/`s o m` macros, and since 65m
+a `_`/`^` in its text a character, `tex_math::WRITTEN_COPY`, #550 — LaTeX's ltcmd expandable
 `\@gobble@om` left a constructor argument's frame open, 2605.13648), inside
 `\lx@format@toctitle@@`'s group and around the direct `\@@toccaption` callers (listings,
 algorithm2e). Witnesses 2605.15775, 2605.09284, 2605.19033 (20 of the 3,003 A/B papers). Guards
@@ -14870,7 +14880,7 @@ argument (its text is the kernel's; a body that typesets it would step counters,
 re-entrant, its output discarded; the groups it left open — `\begingroup`, environments, mode switches — are closed in
 a reading context and box list of their own, so their `\aftergroup` tokens and group-end boxes are discarded with it,
 and an imbalance that cannot be closed (or a document group it closed) is an Error. One that raises an error is
-dropped with its diagnostics (Info), as the `\maketitle` deposit is (#265).
+dropped with its diagnostics (Info), as the `\maketitle` deposit is (#265), and with its assignments (#534).
 Afterwards the lock's own record (`\lx@dropped@<name>`, `<name>:redefined@nargs`, which a `\let`/`\def` of the name in
 the body would rewrite globally) is as before, and so are the kernel's `\@author`/`\@shortauthor` and every store the
 dropped body `\def`s/`\gdef`s/`\edef`s/`\xdef`s — where the body changed them past its group; empty if undefined, the
@@ -14969,7 +14979,11 @@ still joins them; none of 204 papers); `\collaborator{X}` (ptephy_v1.cls:1403) a
 the `∗` mark, a symbol-led piece of an email or of the address text by its symbol, else a block contact; an `\address`
 before the `\author` sees no starred author yet (its email the block's); (3) in an `\address` with single-argument
 `\affil`s, emails taken out before the kernel's list parser, an email after a mark-only `\affil{\dag}` that mark's; (4)
-unlabelled `\affil`s attach `annotate=run` (authblk-TI.sty:104-121); (5) an `\address` of two-argument `\affil`s is
+unlabelled `\affil`s attach `annotate=run` (authblk-TI.sty:104-121), except one of `$^{n}$`-led lines, the list of the
+affiliations its marks label (`\lx@add@affiliation@marked`), with names marked `$^{n}$` (no `\name`) a name list whose
+marks request them (`\lx@add@authors@list`; 65e, 2203.01270: 1669 names each held all 288 lines, 83 MB, 6.9 GB),
+the lines after that list's first `\\` its legends (`{${}^{\ast}$Deceased, …}`), each a document `ltx:pubnote`
+with its mark, not one more creator; (5) an `\address` of two-argument `\affil`s is
 digested in a discarded `\hbox`: each `\affil`/`\email` adds its frontmatter, what it prints beside them is set aside.
 mdpi's `\history` keeps the last call (mdpi.cls:384 `\gdef`), gated by the `submit`/`accept` status.
 **Why**: content (run 336: ptephy 204 papers with errors → 27, starred-author emails 28 → 146; quantumarticle 61 → 4).
@@ -15155,6 +15169,9 @@ institute (no `\and`), unnumbered in l-aa (:419-424), every author's though it c
 (astro-ph9405007, astro-ph9609156); the captions "Fig. 1. text" / "Table 1. text", no colon (:381, :392, :371-377
 `{\bf #1} #2`); `\picplace` (:24-26). A shipped copy
 gets the binding too (a binding outranks a raw file).
+Plain TeX's `\matrix{…\cr}` (l-aa loads no amsmath) keeps its plain reading: the aa binding's `\@currenvir` dispatch,
+as for `\pmatrix` and `\cases`, which amsmath's environment-only `\matrix` lacked (65e; KPE #608; astro-ph9609122,
+astro-ph9809009, astro-ph9503122, astro-ph0002500, astro-ph9901229, astro-ph9610167: 101 errors + Fatal → 0).
 **Why**: content: the frontmatter, keywords and thesaurus codes of 843 papers. A/B: 80 witnesses with errors 80 → 2
 (185 → 2), 20 shipping the file 20 → 2, the 29 keyword-form papers 29 → 1 with no keyword text lost. Guards
 `perfect_kernel_batch64u::{l_aa_documentstyle_is_the_aa_class, l_aa_thesaurus_ends_at_par,
@@ -15762,7 +15779,9 @@ that expands to one (`\def\mybody{{\@@alignment@hline}}` … `\noalign\mybody` s
 Perl (TeX_Tables.pool:120-127) opens a `bgroup` it never closes, with `\let`s of `&`/`\noalign`/`\omit`/`\span` to
 `\relax` inside, which silences every later misplaced `\noalign`/`\omit`/`\span` until the group ends (KPE #191).
 Each is reported here, as TeX reports each. TeX-faithful per-site counting was decided by the main session
-(2026-10-11). On the reviewer's 24 `\noalign` papers, errors go 164 → 430 against 65c, with no XML loss.
+(2026-10-11). On the reviewer's 24 `\noalign` papers, errors go 164 → 430 against 65c, with no XML loss. 65h: the
+first in a group is the Error and the rest of that group Warnings (OD #540; run 340's tables read outside an alignment
+went `Fatal:TooManyErrors`).
 
 Dead ends:
 - consuming the body unread to balance a `bgroup` (REG-1 / math0403005) dropped its text;
@@ -15772,3 +15791,1169 @@ Witnesses 2306.10087, 2511.12320 (no stacked `border="bbbb…"`), math0403005. G
 `perfect_kernel_batch65::{misplaced_noalign_body_is_typeset, stray_hline_in_a_paragraph_is_one_error,
 misplaced_commands_are_each_reported, misplaced_hline_in_a_cell_draws_no_rule, misplaced_noalign_leaves_span_alone,
 misplaced_noalign_in_math_keeps_its_braces}`.
+
+### 526. A late class `\title`/`\author` the frontmatter seal turns away runs the class's own definition when it provably keeps no value (Perl: never runs a refused definition)
+
+A raw class's redefinition of the locked `\title`/`\author` is refused (Perl State.pm:502-517; OD #500 D1) and kept as
+`\lx@dropped@<name>`. When the document body has sealed the frontmatter (OD #154, ruling 2026-10-09) a later call is
+a supplement's and the kernel drops it. sect05.rs `sealed_class_call` hands such a call to the class's own definition,
+digested in place (`\lx@sealed@class@run`), only when that definition provably keeps no value
+(`class_command_stores`, fail-safe):
+- **store → dropped** (= base): any assignment in its body or one level of the macros it calls — a definer (`\def`,
+  `\gdef`, `\edef`, `\xdef`, `\let`, `\protected@*`, `\g@addto@macro`, `\addto@hook`, `\appto`, `\csgdef`,
+  `\renewcommand`, `\setlength`, `\setcounter` …), an expl3 `…_set`/`_put`/`_add`/`_incr`/`_concat`/`_clear`
+  function, a token register named other than after `\the`/`\showthe`/`\number`/`\romannumeral`/`\showtokens` (tex.web
+  §1226 reads the right-hand side with `get_x_token`), or a box filled and not printed. The xparse `\<name> code` hop
+  costs no level. A class's own helpers and expl3 functions are followed; the kernel's dispatchers and expl3 modules
+  are not. Reaching the kernel's command from inside the run (`\let\origauthor\author`) also counts as a store; a
+  re-entry guard keeps it from looping.
+- **not a store:** a definition or call of page furniture (fancyhdr.sty:144-149, :270-281; latex.ltx's marks and
+  `\@oddhead`/`\@evenhead`/`\@oddfoot`/`\@evenfoot`, :18305-18312), and a box the body fills and prints.
+- **print → in place:** the class's output stays where the call stands: RecipeBook.cls:284-286's per-recipe titles
+  (recipebook/LongSample).
+- **page furniture only → unit creator** (OD #527).
+- **otherwise dropped:** a class call that shows nothing and hands the author to no page furniture (`\typeout{#1}`, a
+  warning, an empty body), with an Info.
+
+Residuals, all dropped as the base drops them:
+- **the largest:** a body that both stores and prints (`\gdef\@author{#1}\par\noindent\textit{#1}\par`), which pdflatex
+  prints;
+- a scratch `\toks@{#1}` used only to typeset it;
+- formatting `{\let\\\newline #1}` (brace pairs are not counted as groups, since most are macro arguments);
+- a store two helper levels down (`\author`→`\@setauthor`→`\@@setauthor`) runs the class's code but adds nothing.
+
+Guards `perfect_kernel_batch65a::{sealed_title_runs_the_class_title_in_place,
+storing_class_title_after_the_body_is_dropped, author_kept_in_a_register_or_a_box_is_a_store,
+class_command_calling_the_kernels_does_not_loop, class_title_with_a_length_default_typesets_in_place}`.
+
+### 527. A late `\author` the class hands only to page furniture is the author of its sectional unit (Perl: dropped with the refused definition)
+
+User ruling 2026-10-11. A sealed-off `\author` (OD #526) becomes an `ltx:creator` of the enclosing sectional unit
+(`\lx@unit@creator`; LaTeXML-structure.rnc:666 `SectionalFrontMatter.class`) only when three things hold: its class
+call shows nothing in the flow, it stores nothing, and the class's OWN body hands the author straight to page
+furniture (`hands_author_to_page_furniture`).
+- **The class's own body** is the macro's own expansion or, for an xparse command, its `\<name> code` macro.
+- **What counts:** that body must directly hold a call of `\lfoot`/`\fancyfoot`/`\fancyhead`/`\markboth`/`\markright`
+  …, or a definition of `\@oddfoot`/`\@evenfoot`/`\@oddhead`/`\@evenhead` …, whose argument holds the author's own
+  parameter, alone or beside other text (`\markboth{#1 et al.}{}`).
+- **The author's own parameter** is the last mandatory one: `#1` of `[1]`, `#2` of `[2][]`. For an xparse command it is
+  the position of the last `m` in the argument specification, counting `m`, `o` and `O{…}`; a specification with any
+  other kind (`d`, `s`, `t`, `e`, `r`, `v` …) or without an `m` gives no unit author. An all-`m` command is optimized
+  to its code macro (`\__cmd_start_optimized:`), whose last parameter is the author. A delimited
+  `\def\author[#1]#2` is never run (the sealed call's shape gate refuses it): dropped, = base.
+- **Only furniture the body itself runs counts:** at the body's top brace level, outside any `\begingroup`/`\bgroup`
+  group (known by meaning; a local setting is discarded at its end, fancyhdr.sty:34, :50-51), and outside any
+  conditional (known by meaning, a `\newif` flag included; `\unless` is a prefix). A `\fi`/`\else`/`\or` that closes no
+  known conditional means one was opened by something unrecognised: no unit author.
+- **Nothing is followed:** no helper, no dispatcher.
+
+**Dropped (fail-safe residuals, = base), though some put the author in a head or foot:**
+- furniture reached only through a helper (`\@runhead{#1}`, `\@runhead{#2}` of `[2][]`, `\@runhead{#1 et al.}`, an
+  expl3 `\my_mark:n{#1}`);
+- furniture reached through a dispatcher (`\@ifnextchar[\@authoropt\@authornoopt`, `\@ifstar`);
+- a helper's own parameter filled with something else (`\@runhead{Draft}`, `\@runfoot{\thepage}`);
+- the optional label (`\renewcommand\author[2][]{\markboth{#1}{}}`);
+- the author stored in a macro the furniture reads (`\def\@runauthor{#1}\markboth{\@runauthor}{}`): a store;
+- an xparse optional in the foot instead of the author (`{m O{Anon}}{\lfoot{#2}}`, `{m o}`);
+- furniture inside another macro's argument (`\@gobble{\lfoot{#1}}`) or a conditional (`\if@authfoot\lfoot{#1}\fi`,
+  `\iffalse…\fi`), including the empty-check `\ifx\relax#1\relax\else\lfoot{#1}\fi`;
+- a conditional opened through a macro (`\def\ifauthfoot{\iffalse}` … `\ifauthfoot\lfoot{#1}\fi`), and furniture inside
+  a group (`\begingroup\lfoot{#1}\endgroup`; a `\markboth` in a group too).
+
+**Kept as before:**
+- **Placement:** after the unit's tags, title, toctitle and earlier creators, before its first body element.
+- **Label:** the call's optional argument, or the class's default for it (a `\newcommand` `[default]` or an xparse
+  `O{default}`), goes in `before` (`span.ltx_author_before`), so it is styled and CSS-hideable.
+- **Outside a sectional unit:** nothing.
+
+Witness recipebook/LongSample: RecipeBook.cls:300-302 `\RenewDocumentCommand{\author}{O{Author: } m}{\lfoot{\textcolor
+{black!20}{#1#2}}}`, its xparse code macro handing `#2` to `\lfoot` directly, so each recipe's attribution is its
+subsection's author. Guards
+`perfect_kernel_batch65a::{author_handed_to_page_furniture_is_the_units_author,
+author_after_section_text_joins_the_units_front_matter, author_kept_in_a_register_or_a_box_is_a_store}`.
+
+### 528. Heading names are digested in a group of their own (Perl: `DigestText` for the list names, `DigestIf` for `\refname`/`\bibname`/`\indexname`)
+
+latexml_core `digest_in_group` digests `{\name}`, as a class's `\section*{\name}` sets it. It is used for:
+`\contentsname`, `\listfigurename`, `\listtablename`, `\refname`/`\bibname`, `\indexname`, `\acknowledgmentsname`,
+`\ackname`, `\acknowlname`, `\notesname`, `\nomname`, `\listtheoremname`, `\lstlistlistingname`. An unbraced font
+switch stays in the heading (RecipeBook.cls:207-209), and a `\centering` still centres it (tidyres-doc.tex:9).
+- **The list names' leak was Rust-only:** Perl's `DigestText` (latex_constructs.pool.ltxml:734; Package.pm:405-411)
+  runs in a restricted-horizontal mode frame, which scopes the font but drops the `\centering`; the port's bare
+  digest leaked.
+- **The bibliography and index titles leak in Perl too** (`DigestIf`, :3885, :4523; KPE #606).
+
+Witnesses recipebook/LongSample, korigamik-example, sugconf-skeleton, chetdoc, and the arXiv bibliographies of
+1512.01863 and 2103.15856. Guard `perfect_kernel_batch65a::contents_name_font_stays_in_the_toc_title`.
+
+### 529. A closing caption moves out of a rotate/scale box to its float when nothing else would move (Perl: the panel figure nested in the transform's inline-block)
+
+insert_block (base_utilities.rs) keeps Perl's container order (TeX_Box.pool.ltxml:503-509: fits all and allowed,
+else fits all). One Rust-only case: when that container is one the context cannot hold (a figure in a transform's
+`ltx:inline-block`), the box's leading content becomes a block and its *closing* caption moves to the float the box is
+in, read in the same order. All of these must hold (`caption_hoist_is_safe`):
+- every element from the transform up to that float — or up to a `{center}`/`{flushleft}`/`{flushright}` directly in
+  the float that holds only the transform — was built from the box alone;
+- no element on that path is a paragraph;
+- the float holds no other caption.
+
+Witnesses heria/heria-proposal (heria.cls:737-745 `SidewaysFigure`), 1810.08269.
+
+**Limit — these keep Perl's schema-invalid nesting:**
+- a box that opens with its caption;
+- two captioned panels in transforms;
+- a transform beside the float's own `\caption`;
+- `\subcaption`, `\subfloat` and `\subfigure` panels;
+- a frame or paragraph with more content;
+- a transform with more content;
+- an alignment environment with more content;
+- any other environment around the transform (`{minipage}`, whose panel width a hoist would shrink; `{framed}`, whose
+  frame would move onto the float);
+- an environment not directly in the float.
+
+The `ltx_figure_panel` wrap that would keep such a box valid with its own id, labels and tags is a follow-up
+(task #193; RED `captions-floats/subcaption_labels_in_scaled_panels_stay_on_their_panels`). Guards
+`perfect_kernel_batch65a::{caption_in_a_rotated_parbox_stays_with_its_figure,
+caption_first_box_in_a_transform_keeps_its_content, captioned_box_beside_other_content_in_a_transform_stays_inside,
+caption_hoist_never_merges_two_captions, caption_hoist_never_moves_content_beside_the_box,
+caption_hoist_through_an_environment_holding_only_the_transform}`.
+
+### 530. `\left`, `\middle` and `\right` scan their delimiter as tex.web §1160 does, and `\middle`/`\right` require the `\left` group (Perl: `TeXDelimiter` invokes any token, no group check)
+
+tex.web §1188 makes `\left`, `\middle` and `\right` one unexpandable command, `left_right`; §1160 `scan_delimiter`
+reads its delimiter when it executes; §1191 opens a `math_left_group` for `\left` and requires one for `\middle` and
+`\right`. Until 65d the port deviated (Rust-only): `\left` was an expandable macro reading its delimiter as an XToken
+and trampolining to `\lx@delim@left` + `\lx@hidden@bgroup`, `\lx@right` a macro of the same shape, `\middle` unchecked.
+
+**Delimiter scan** (`tex_math::scan_delimiter`, the `DelimiterToken` parameter; Perl `TeXDelimiter`,
+TeX_Math.pool.ltxml:712-724). `get_x_token` past blanks and `\relax` (protected macros expand, as at execution in TeX),
+then by meaning:
+- a letter/other character, or a `\let` copy of one, with a `\delcode` ≥ 0 or in the delimiter map (the base route
+  loads no `\delcode` table; a Unicode fence typed directly is what unicode-math's `\Udelcode` gives one);
+- `\delimiter` (§1160 `delim_num`) and `\Udelimiter`, or a `\let` copy, matched by the defining cs: the code is scanned
+  right there and becomes its glyph's character token (the map's character when the glyph is in the map, else the
+  glyph — the null delimiter before);
+- a LaTeXML math symbol: a `DefMath` symbol, or a parameterless primitive/constructor other than `\left`/`\middle`/
+  `\right` that typesets one — digested in a group of its own it gives a glyph box or a construct with a math role
+  (`\lmoustache`, `\lx@math@lbrace`; `typesets_a_symbol`) — LaTeXML's stand-ins for TeX's `\delimiter` macros; TeX
+  would refuse a non-delimiter symbol such as `\alpha`, which these cannot tell apart. `\displaystyle`, `\nonumber`,
+  `\par`, `\hfill`, `\,` typeset nothing to fence with and are "Missing delimiter". The trial digestion reports
+  nothing (Perl's `IGNORE_ERRORS` probing scope, `set_ignore_diagnostics`): the command reports its diagnostics once,
+  where it is digested;
+- an undefined control sequence passes through (its digestion reports it);
+- the input ending (an argument's own tokens, `\frac{a\left}{b}`): the null delimiter, with the Warning below;
+- anything else — `{`, `}` (or `\bgroup`/`\egroup`), `$`, `&`, a command reading arguments (`\big`, `\mathopen`, `\vphantom`), a register — is
+  TeX's "Missing delimiter (. inserted)": the token put back, the null delimiter returned. A Warning (user ruling
+  2026-10-11: a TeX-only error whose recovery is semantic — pdflatex errs, Perl is silent, the token is still typeset).
+
+In text mode (a `\left` TeX would have refused after inserting `$`, reached where a beamer frame stripped the `$`) every
+token is taken, as Perl takes it. A brace takes TeX's path (§1160-1166), not Perl's unwrap (`readBalanced` on `{`, which
+turns the typo `\left{ x \right}` into a delimiter `x`) nor 65a's reading as `\{`: a brace cannot tell the typo from a
+brace-bodied macro (`\newcommand\lb{{[}}`, LaTeX's `\dag`), and the PDF shows no brace either way; the typo then reads
+as pdflatex shows it — null delimiters, `x` in a group, the trailing `}` deleted (16 of 3,194 sampled papers hold
+`\left{`/`\right}`, nearly all `\newcommand{\lt}{\left}`-style definitions). This closes both gaps WISDOM #41 recorded for `\left`: the
+single-token read is §1160's loop, and the number of `\delimiter` is scanned at the token level, so Perl's
+`undigested => 1` invoke (an `ArgWrap::Digested` or `Parameter.undigested`) is not needed. A delimiter outside the map
+is emitted as digested and made stretchy, as Perl's `augmentDelimiterProperties` makes it (:800-823) — before, it
+warned "Missing delimiter; '.' inserted" and kept `stretchy="false"` (`\llbracket`, `\lparen`, the corners,
+`\lmoustache`, a right `\backslash`).
+
+**Commands.** `\left` is `DefConstructor('\left DelimiterToken')` as in Perl, its after-digest unreading
+`\lx@hidden@bgroup \lx@math@left@group`; the marker, the first thing digested in that group, writes the K9 group code
+`lx@group@code = \left`. `\lx@left`/`\lx@right` are `\let` copies of the private `\lx@delim@left`/`\lx@delim@right`
+constructors (alias `\left`/`\right`). `\right` keeps Perl's dispatching constructor (`\lx@hidden@egroup@right
+\lx@right`); `\middle` becomes a primitive dispatching to `\lx@delim@middle` (alias `\middle`; Perl's `\middle Token` is
+the constructor itself), so that a rejected `\middle` leaves nothing behind. When the innermost group is not the
+`\left` group (`tex_math::left_right_group`):
+- the formula's own group (a frame that switched mode — §1192 `math_shift_group`): "Extra \right." / "Extra
+  \middle.", an Error as in Perl ("Unbalanced \right, no balancing \left."; `\middle` unchecked there). TeX drops the
+  delimiter; it is kept, typeset where it stands without closing any group (user ruling 2026-10-12: author content
+  first — the delimiter is the author's);
+- a group the document opened with `{`/`\bgroup` or `\begingroup` (by `groupInitiator`): §1064 `off_save` — "Missing }
+  inserted" / "Missing \endgroup inserted", the closer inserted and the command read again; a Warning (TeX-only,
+  semantic recovery). The author's own closer has been used: the group `off_save` closed owes it (frame values
+  `lx@owed@braces` / `lx@owed@endgroups`), and at every pop the debt moves to the group then innermost (stomach.rs
+  `pop_stack_frame`), so it follows the stack to where the author's closer arrives. There a `}` meeting a group `}`
+  cannot close — any group not opened by a begin-group token: the formula's math shift, the `\left` group, a
+  `\begingroup` group, and the argument groups the engine opens to digest a constructor's argument (they carry a K9
+  group code; the style parameters `DisplayStyle` … `InFractionStyle` write it, base_parameter_types.rs
+  `mark_argument_group`) — is deleted as §1069 `extra_right_brace` deletes it ("Extra }, or forgotten $" / "\right." /
+  "\endgroup", a Warning; stomach.rs `delete_extra_brace`, before the digestion loops could take it for a group end).
+  TeX has no argument group of ours: LaTeX's `\frac` digests its argument in `\begingroup…\endgroup`, so the message
+  for those is TeX's "forgotten \endgroup" (`\frac{\left( {a \right)}}{b}`, pdflatex the same), where for `\sqrt` or
+  `\mathbf` TeX's group is a math group its `}` would close; and an owed `\endgroup` meeting a
+  group it cannot close is deleted ("Extra \endgroup."); a closable group closes normally and passes the debt on.
+  Before, the `}` met the formula's frame, inserted `$` and set the rest of the paragraph, and the paragraphs after
+  it, as math (review r1/r3 of 65d; 1703.04019);
+- any other group (one LaTeXML's machinery opened): Perl's recovery — `\right` closes it, `\middle` goes on.
+
+**Group ends inside the `\left` group** (Warnings: TeX-only errors with a semantic recovery, user ruling 2026-10-11):
+- a `}` closing it (stomach.rs `egroup`): "Extra }, or forgotten \right." — TeX deletes the brace (§1069); the group
+  closes here, as Perl closes it silently. Deleting it as TeX does needs our `$` to close the `{` group it leaves open
+  (§1065 inserts the `}`), so `$ {\left( a } b \right) $` keeps an "Extra \right." Error pdflatex does not give — +1
+  Error vs 65a (review5 d2: 5 → 6), the content intact (pdftotext "A (ab) B. / Next.") (SYNC_STATUS row MS). Since 65n
+  the `$` does insert that `}` (#553), so the deletion is unblocked; not done there (RED
+  paragraph-mode/brace_meeting_left_group_in_inline_math_is_deleted);
+- the primitive that meets it (§1065 `off_save` at the mismatching primitive): a formula's end (`$`, `$$`, `\]`, `\)`:
+  `\lx@dollar@default`, `tex_math::close_open_left`), an `\endgroup` (stomach.rs `endgroup`), a DefEnvironment's own
+  end constructor `\end{X}` (`\begin{equation}\left( x \end{equation}`; stomach.rs `is_environment_end` in
+  `digest_next_body` — no TeX-level `\endX` exists to read again), each read again after the `\right.`, or the end
+  of an argument's input (`\frac{\left( a}{b}`; stomach.rs `close_left_group_at_input_end` in `digest_next_body`): "Missing \right.
+  inserted" and a null `\right.`. A LaTeX environment whose end code holds the `\right` (`\newenvironment{paren}
+  {\left(}{\right)}`) closes the group itself, unchecked (round 3's `\end`-time check broke it and looped in an
+  `\edef`). Before, the formula ran on to the next `$` and swallowed the
+  paragraphs after it. A math ender read again after the inserted `\right.` leaves an empty whatsit in the group that
+  reverts as nothing (state value `lx@math@ender@reread`, so no thread-local outlives a document).
+
+**The `}` a delimiter scan put back** (`$\left\{ x \right}$`, `\mbox{$\left\{ x \right}$}`): after "Missing
+delimiter" the `}` is read again (§1160); meeting the formula's own math shift it is deleted per §1069, "Extra }, or
+forgotten $" — an Error, as TeX and Perl err (a Warning when it pays debt) — whatever group is outside the formula
+(tex_math.rs `missing_delimiter` → stomach.rs `mark_put_back_brace`). The mark lives as long as its brace: a serial
+bound on the frame innermost when the brace was put back (inside the formula, so it dies with the formula at the latest),
+valid only while it equals the live serial `lx@putback@live`, which the next `}` digested anywhere clears — in the
+digestion loops' `delete_extra_brace` and at `invoke_token`, the choke point: a cell's `}` and any `}` inside a
+`\noalign` body pass it; a loop's own closing `}` (the `\noalign` loop, tex_tables.rs:1291; the box-body loop,
+base_utilities.rs:7083) leaves the live serial set, which is harmless because the frame holding the mark closes with it
+(probe B1) (review r6: a global count outlived a cell's `}` and deleted a later, unrelated `}`; guard
+`perfect_kernel_batch65d::put_back_mark_lives_with_its_brace`). pdflatex: the same two
+diagnostics; pdftotext "Before {x c." for the `\mbox` shape. 65a closed the math at that `}` with 1 Error. The
+general §1069 deletion needed §1046-1047 (`\par` or `\end{X}` in inline math inserts `$`) first, without which a
+deleted `}` left the formula running on through the paragraphs; both landed in 65n (#553). Guards
+`perfect_kernel_batch65d::{argument_group_owes_the_brace, stray_brace_at_the_formula_level_is_deleted}`.
+
+**Residuals.** The `\right` delimiter is digested after the group's `\aftergroup` tokens run (TeX scans it before
+`unsave`; Perl the same order as here), so mathtools' documented `\def\right{\aftergroup\egroup\@right}` leaves the
+delimiter outside the `\mathclose` group (unparsed, as before). A `\right` inside a constructor's argument
+(`\frac{a}{b \right)}`, `\mathbf{x \right)}`) drops the argument and the `)` silently (RED
+boxes-groups/right_inside_an_argument_drops_the_argument; 65a the same). A stray `}` at a display formula's frame, or at
+an inline one whose `{` partner lies outside the formula (a box body, an argument's braces, an enclosing group), ends
+the formula there (#553).
+
+Witnesses: run 336's X1 (48 Fatal:Timeout:IfLimit with first error `unexpected:\right`, an xy cell scanner expanding
+`\left\{`: 0705.0452 0802.0663 0804.1292 0809.0095 0903.4903 …, all 48 converting, errors 3541 → 826 over 109
+witnesses); 2605.21750 (`\let\@left\left`); tests/parse/parens.tex:43 (`\left\delimiter"426830A`, byte-identical) and
+its `\let\mydelim\delimiter` twin (before: the code digested as math); 1207.4709 (byte-identical); 2008.11762 (an
+etoolbox `\robustify\left` now errs "\left not a macro" as in pdflatex), zhlineskip.tex:234 (`\env@cases`). Guards `perfect_kernel_batch65d::*`, golden
+`tests/parse/left_right_delimiters`, `perfect_kernel_batch56::{let_at_left_left_does_not_loop,
+left_right_in_text_mode_are_plain_text}`.
+
+### 532. A `\par` or skip inside an item's inline sectional block ends no paragraph (Perl: no paragraph above a section)
+
+**Perl behavior**: a sectioning unit in a list item nests in it (OD #189), never inside a paragraph, so a `\par` in the
+section's content finds no `ltx:para` above the section to close.
+**Rust behavior**: the item's block is bridged as `ltx:para > ltx:inline-sectional-block` (#189). A `\par`
+(`\lx@normal@par`) or a `\vskip` whose paragraph-close walk would pass through an open `ltx:inline-sectional-block`
+closes nothing, as when it would pass through a list open inside the paragraph
+(`document::helpers::list_or_block_open_inside_para`; KPE #456). The block ends with the item or the list (#189).
+**Why**: a blank line between the `\bibitem`s of a bibliography in such a block (a list left open before the
+bibliography: 1805.06896's bare `\itemize`, 2304.12197's lonely `\item`s, 2307.13461, hep-ex0406049, 0705.0894,
+2511.04367) closed the bridge paragraph, the block, the section and the bibliography; every later entry nested in the
+previous `bibblock` (one error each, Fatal:TooManyErrors since 64d). Witnesses' errors 101+Fatal → 2, 3, 47, 30, 2, 7
+(64c: 1, 10, 51, 38, 4, 9). Open: `\appendix` after such a bibliography, `ltx:appendix isn't allowed in
+ltx:inline-sectional-block` (5 of the 6). Guard `perfect_kernel_batch65e::par_in_item_bibliography_keeps_the_block`.
+
+### 533. The OmniBus theorem set declares only the names that are free, and each stub fires once (Perl: overwrites)
+
+**Perl behavior**: the first undeclared theorem environment runs `\newtheorem` for all 31 names of OmniBus.cls.ltxml:160-209,
+overwriting an author's macro or environment of the same name (KPE #609).
+**Rust behavior**: each `\newtheorem{X}` of the set runs under `\@ifundefined{X}`, LaTeX's own refusal of a defined name
+(latex.ltx:17174-17195 `\@ifdefinable`), silent since the author never wrote it. The `\begin{X}` stub fires once: it
+removes itself, and steps aside for an environment declared since it was installed (`\begin` finds the stub before
+`\X`: a raw class's `\newenvironment{proof}`, tlp.cls:494, read over OmniBus, cs0511055), which the set would refuse
+and the stub then run again for ever. A name the set cannot declare is LaTeX's undefined environment. The set's amsthm
+load keeps amsthm's `{proof}` (the set's numbered "Proof" theorem is refused) — as pdflatex with amsthm.
+**Why**: 1308.6566 and 0811.3048 (`\newcommand{\conj}[1]{…}`), cs0511055 (`\fact`): math `\conj{y}` opened a theorem in
+XMath, 101 errors + Fatal → 0. A name numbered within another's counter (`\newtheorem{cor}[thm]`) whose owner was
+refused for an author's macro gets a counter of its own (`\@ifundefined{c@thm}`), not an undefined `\thethm`. A
+binding that declared fewer theorems than its class, which the set then
+re-declared within the section, declares them as the class does (siamltex.cls:459-476, `onethmnum`; 2312.13144).
+Residual (shared with Perl): the set's amsthm load replaces a document's own
+`\newenvironment{proof}` (amsthm's binding defines `\begin{proof}` over the document's `\proof`). Guards
+`perfect_kernel_batch65e::{omnibus_theorem_set_keeps_author_macro, omnibus_stub_yields_to_declared_environment,
+omnibus_dependent_theorem_without_owner_counter}`.
+
+### 534. A replayed setter that errs is undone whole, its assignments with its diagnostics (Perl: never runs it)
+
+Addendum to #482. The replay of a refused `\author`/`\abstract` (`replay_class_setter`, sect05.rs) is a beyond-Perl
+surpass (64k): Perl's binding owns `\author` and the refused setter never runs. The replay runs under an assignment
+journal (state.rs `begin_assignment_journal`, an `AssignmentJournalGuard`): the first touch of each key since the
+journal began records the key's values and its counts in the frames then open, by frame id (`UndoFrame::id`), and
+`AssignmentJournalGuard::rollback` puts them back when the replay raised an error; a clean replay keeps them. An
+erring replay therefore ends exactly as Perl does: as if never run. Where pdflatex errs too, the PDF keeps what the
+setter assigned before the error and we do not — a divergence by design, the fail-safe (`sectioning-frontmatter/
+replayed_setter_error_rolls_back`: pdflatex Count 1, ours 0; the 65e review's docset3 probe, a document setter that
+`\global\advance`s then errs: pdflatex "Authors: 1.", ours "Authors: 0."). The journal covers every assignment however
+scoped, `\global` included, and the in-place edits of the tables (`push_value`, `assign_mapping`, `lookup_value_mut`,
+`checkout_value`/`checkin_value`, named-scope activation, `rebind_let_copies`, the graphics path list); not a font's
+parameter array (`Stored::FontDimens`, edited in place), the fallback/provide-only name sets, `tag_properties`,
+`pending_resources`, the prefixes or the conditional stack (state fields outside the tables). A rollback needs the
+very frames it began with (each one opened since closed, none of them closed); when it cannot apply, the replay's
+assignments and its diagnostics both stay, with an Info saying so. A journal whose guard dropped while the state was
+borrowed is stale — nothing records into it — and is discarded at the next begin (unit tests
+`assignment_journal_tests`; guard `replayed_setter_unbalanced_keeps_its_diagnostics` for the branch that cannot roll
+back). Package and document setters stay replayed, as pdflatex runs whatever setter
+is in force (`sectioning-frontmatter/package_setter_is_replayed`, a CONTROL: Count 1 as pdflatex).
+**Why**: jsty3-author.sty:542's xparse `\author` (a package; 2607.24171) erred half-way at each of its 4 replays,
+leaving its expl3 author sequence half-built; the printer looped over it: 991 errors, Fatal:TooManyErrors → 3 errors
+(the package's own `[T009] Float without caption`, as 64h). Open (RED `sectioning-frontmatter/
+replayed_document_setter_keeps_its_store`): a clean replay still puts back every store its body `\gdef`s (#482), so a
+document setter's `\gdef\myauth{#1}` read in the body prints empty. Guards
+`perfect_kernel_batch65e::{replayed_setter_error_rolls_back, package_setter_is_replayed}`.
+
+### 535. hyperref loads letltxmacro (Perl: commented out)
+
+**Perl behavior**: hyperref.sty.ltxml:35 `#RequirePackage('letltxmacro')`, so `\LetLtxMacro` is undefined after
+`\usepackage{hyperref}` alone.
+**Rust behavior**: the binding requires letltxmacro (raw), as hyperref did until v7.01h (ChangeLog 2023-12-19 "remove
+letltxmacro package"): one binding serves every version of a package, the union of what they provide (user ruling).
+**Why**: papers of hyperref's 2010-2023 years use `\LetLtxMacro` with hyperref alone (2106.06828: 101 errors + Fatal
+→ 0; 1911.11856 → 0). TL 2025's pdflatex errs on them (5 errors on the repro); TL 2023's does not. Guard
+`perfect_kernel_batch65e::hyperref_loads_letltxmacro`.
+
+### 536. A plain TeX document loads the LaTeX format only on a use of Perl's triggers, which it holds undefined (Perl: the triggers are defined macros)
+
+Perl's `TeX.pool.ltxml` L33-39 defines sixteen LaTeX commands as autoload triggers (`\documentclass`, `\newcommand`,
+`\begin`, `\RequirePackage`, `\ProvidesPackage`, `\ProvidesFile`, …): each is a macro that loads `LaTeX.pool` and
+re-reads itself. Generic-format files probe exactly these names to tell LaTeX from plain TeX, so in a plain document
+Perl's defined triggers answered "LaTeX" and the file took its LaTeX branch, loading the format mid-document:
+- pst-xkey.tex:44 `\ifx\ProvidesFile\@undefined` (pstricks: math0305287, math0111222);
+- iftex.sty:31-33 `\csname ProvidesPackage\endcsname`, which eplain.tex:47-49 inlines (the eplain papers on TL 2025:
+  `\cite` then locked, eplain.tex:721's `\@Fornoop` mis-tokenized, `Fatal:ParamSpec:Expected` — 1504.02513,
+  1402.1807, 1310.8121, 2405.04530);
+- atbegshi.sty:155-156 and the other Oberdiek packages `\csname RequirePackage\endcsname`;
+- dual-mode files `\ifx\documentclass\undefined` — when the probe sits in a file the main file inputs: a main file
+  naming `\documentclass` anywhere is a LaTeX document by the classification below.
+
+**Rust** (batch 65f): in a plain TeX document (`state::plain_tex_document`, arXiv AutoTeX's test,
+`converter::compile_route`) `tex.rs` defines none of the triggers (`latex_kernel::LATEX_TRIGGERS`), so a probe sees
+what TeX sees. A *use* of one still loads the format, now through the on-undefined hook
+(`latex_kernel::autoload_latex_kernel`), with or without a dump — Perl's behaviour on use is kept. Every other LaTeX
+kernel command in a plain document is undefined, as TeX and Perl report it: the on-undefined autoload, which acts on any
+command the kernel dump defines in a LaTeX document, does not fire there (it loaded LaTeX's `\verbatim` on 1504.02513's
+`\verbatim`, which read to the end of the file, `Fatal:Mouth:EoF`; LaTeX's `\title` in math9810192; the whole format
+through 1901.09683's `\let\big=\eightbig` of an undefined name). graphics' begin-document epstopdf hook is registered
+as pdftex.def:681-700 registers it, only when `\AtEndOfPackage` exists, so under miniltx (whose `\AtBeginDocument`
+runs its argument at once, miniltx.tex:477) its `\@ifpackageloaded` no longer loads LaTeX (1710.04722, 1802.06281:
+`Fatal:Timeout:Recursion`). KPE #610.
+
+**Limit** (each as TeX has it): a capture such as `\let\x\begin` in a plain document captures an undefined name; a
+trigger met in an expanded collection (`\edef`, `\write`, `\message`) is `Error:undefined`, the hook running only in
+`read_x_token` and the stomach; an ungrouped `\csname RequirePackage\endcsname` probe leaves the name `\relax`, so a
+later use never reaches the hook. A plain document's own fallback for a probed name (`\ifx\newcommand\undefined
+\def\newcommand…\fi`) now runs. pstricks on TL
+2025 under plain TeX still loads expl3 (pst-code-pspicture.tex:76 `\ExplSyntaxOn`) and LaTeX with it, and Perl's
+braced `\input{…}` loads LaTeX too (KPE #611), so math0305287 and math0111222 stay Fatal.
+
+**Limit of the classification** (`converter::has_latex_cue`): a main file is a LaTeX document when `\documentclass` or
+`\documentstyle` appears in its code at all, even inside a dual-mode test such as `\ifx\documentclass\undefined`. That
+is arXiv's own choice: its TeX-or-LaTeX test keys on those names appearing in the file, so such a main file was most
+likely compiled as LaTeX there, and it is read as one here.
+
+**Guards**: `perfect_kernel_batch65f::{plain_kernel_command_stays_undefined, plain_miniltx_graphicx_loads_no_latex,
+plain_provides_probes_see_plain}`, `preclass_kernel_autoload::plain_document_leaves_kernel_cs_undefined`.
+
+### 537. The figures a source includes choose its output mode; a pstricks load is a DVI cue (Perl: always DVI; #285: any PDF/PNG/JPEG in the tree)
+
+**Oracle**: arXiv's own compile route, read from the Producer of arXiv's PDF (`pdfinfo`): "dvips + GPL Ghostscript"
+means latex+dvips (DVI), "pdfTeX" means pdflatex (PDF). pdflatex itself is no oracle here — it prints PDF by
+definition.
+
+#285's cue read the source tree's file inventory: any `.pdf`/`.png`/`.jpg` anywhere selected PDF output. 1012.0815
+ships all-EPS figures beside `IEEEtran/IEEEtran_HOWTO.pdf`: PDF mode made `\ifCLASSINFOpdf` true, and the source's
+unclosed `\ifCLASSINFOpdf … \else` (IEEE_manuscript_v9-1.tex:8-25) swallowed the text (`Fatal:Document:Malformed`;
+arXiv built it with latex+dvips). 1002.1751 loads pstricks in its `\ifpdf` false branch beside three stale PDFs that
+nothing includes: PDF mode dropped pstricks, its `pspicture` bodies became math, 6.3 GB and 501 `Error:post:xpath`.
+
+**Rust** (batch 65f): `converter::figure_output_cue` reads the targets of `\includegraphics`, `\epsfig`/`\psfig`,
+`\epsfbox`/`\epsffile` and AASTeX's `\plotone`/`\plottwo` in the main file and the files it inputs (`\input`,
+`\include`, `\subfile`; not in `\iffalse … \fi`; four levels, 200 files), resolved in the source directory and the
+`\graphicspath` directories, by the name as written or with the extensions pdfTeX and dvips try.
+- **PDF**: a figure that exists only as PDF/PNG/JPEG (latex+dvips cannot include it).
+- **DVI**: a pstricks load (`pstricks`, `pst-*`; not with pst-pdf, auto-pst-pdf or pdftricks, its pdflatex front
+  ends), or every included figure resolved and each one PostScript only. epstopdf's conversions beside the figures
+  (`<stem>-eps-converted-to.pdf`) and an epstopdf load change nothing: arXiv compiled such sources with latex+dvips.
+  Witnesses (Producer "dvips + GPL Ghostscript"): 1806.00093, 1806.00188, 1806.00370 (conversions shipped; 1806.00284
+  likewise, its Producer plain "GPL Ghostscript"), and the epstopdf-loading EPS-only papers 1804.02991, 2104.01314,
+  1209.6096, 2210.10273, 1701.08490; 1908.04811 (main file `main.tex` — its `IEEECS_confs_LaTeX/bare_conf.tex`, a
+  template that also names `\documentclass`, is a decoy a naive main-file finder picks). Round 2 of this batch took the conversions and the epstopdf load as PDF cues and
+  got 2 of 13 such papers right; round 1's rule, kept here, 13 of 13.
+- **Undecided**, and #285's tree walk decides (`core_interface::establish_pdf_output_mode`): an included figure that
+  does not resolve (a name TeX builds at run time, `\figdir/a`, `#1`; an absolute or `..` name; a missing file), or
+  one the tree holds as both EPS and PDF/PNG/JPEG under the figure's own name.
+
+The class-option cues (`pdftex`, `dvips`, …) and a document's own `\pdfoutput` still come first.
+
+**Guards**: `perfect_kernel_batch65f::included_figures_choose_the_output_mode`,
+`converter::tests::figure_output_cue_of_sources`.
+
+### 538. The gullet's cycle guard fingerprints a token read from a file with its source position; a file level past TeX's `max_in_open` is a Fatal (Rust-only guard; Perl has neither)
+
+The gullet's cycle guard (`cycle_guard.rs`, `gullet.rs` `read_internal_token_checked`) reports a window of up to ten
+tokens repeated 100 times, past its activation floor, as `Fatal:Timeout:Recursion`. It fingerprinted every token read,
+including the Mouth's own input, and its backlog gate takes a level pushback as a loop's. So finite file text with a
+short period was a loop: 1009.1698's gnuplot label file holds 626 lines of `\color{black}%`, read as one argument with
+the pushback empty ("a window of 8 token(s) repeated 100+ times").
+
+**Rust** (batch 65f): a token read from the Mouth is fingerprinted by its meaning and its source position (line,
+column), so a file's repeated text is no period; expansion output (the pushback) is fingerprinted by meaning, as before.
+A loop that re-reads the same text through a new Mouth each period reads it at the same positions, so it can still
+form a period; fingerprinting a Mouth token by its read alone could not (`\def\x{\scantokens{\x}}` ran to the memory
+cap — it now stops at the input-level limit below, as in etex).
+
+A macro that `\input`s the file it is read from (`\def\x{\input loopf }\x`, loopf.tex holding `\x`) nests files
+instead: pdftex stops at "TeX capacity exceeded, sorry [text input levels=15]" (`max_in_open`, texmf.cnf:868; tex.web
+§328). `gullet::mark_everyeof_mouth`, which makes each `\input` file and `\scantokens` pseudo-file a file level, now
+raises that Fatal (`Fatal:Mouth:Recursion`) when a sixteenth opens. Before, such a run nested files until the process
+watchdog (armed by `latexml_oxide` and `cortex_worker` at `--timeout`) ended it: `Fatal:timeout:wallclock`, exit 124,
+no output, ~0.75 MB of log a second (65a: 15 MB in a 20 s run).
+
+The gullet now also checks the cooperative conversion deadline once per 65,536 token reads
+(`stomach::conversion_deadline_passed`), raising `Fatal:Timeout:Convert`. Before, that in-process Fatal never fired
+for a loop that stays in the gullet (it was checked only from the digestion loops). It matters on its own only to a
+caller that arms no watchdog: the test harness (`util::test`, `set_timeout(GUARD_TIMEOUT_SECS)`), and an embedder
+of `latexml::api`, which sets no deadline at all. **Known limitation — a race**: where a watchdog is armed, it
+shares the cooperative deadline, and either may end the run. When the cooperative `Fatal:Timeout:Convert` comes
+first, the document is built and written (rc=1), unless the watchdog ends the process while it is being built or
+rewritten (`Fatal:timeout:wallclock`, exit 124, no XML, after the cooperative Fatal was logged); when the watchdog comes
+first, it alone ends the run. With `--timeout=5`, `\def\a#1{\a{#1x}}\a{}` gave the cooperative Fatal and its XML in 6
+of 6 review runs, and `\loop\hbox{x}\iftrue\repeat` the watchdog alone in 5 of 6 (the cooperative Fatal and its XML in
+1). Under cortex the harness reports a watchdog-ended child by its exit cause, `Fatal:timeout:wallclock`, tagged
+retryable (pk/65g `exit_report.rs` `retryable`); a cooperative Fatal logged before it appears only in the partial log.
+A cooperative deadline set a grace before the watchdog's would settle the race (task #205).
+
+**Guards**: `perfect_kernel_batch65f::repeated_file_text_is_no_expansion_loop` (also: a two-token expansion loop and a
+`\scantokens` self-recursion past the floor still trip), `perfect_kernel_batch65f::self_input_stops_at_the_text_input_level_limit`.
+
+
+### 540. Misplaced alignment commands: the first in a group is an Error, the rest of that group its cascade, Warnings (TeX: an error each; Perl: silenced by `\let`s to `\relax`)
+
+A misplaced `\noalign`, `\omit` or `\span` (tex.web §1127-1129 `align_error`, `no_align_error`, `omit_error`) changes
+no meaning (OD #525). Since 65b each one was an Error, as TeX reports each. TeX stops at 100 errors only within one
+paragraph (§76, `error_count` reset by §1096 `end_graf`), and every `\hline`'s `\hrule` ends one. Perl's limit (and
+ours, `Fatal:TooManyErrors`) counts the whole document. So a table read outside any alignment went Fatal: `{longtable}`
+undefined, or a package `\longtable` calling a missing `\LT@array`. That was 107 of run 340's 287 Error→Fatal papers
+(astro-ph0407419: 64ze 13 errors, 65b 101 + Fatal).
+
+Perl (TeX_Tables.pool:120-135) reports the first one, then `\let`s `&`/`\noalign`/`\omit`/`\span` to `\relax` in a
+group around the rest, so it never reports them (KPE #191). Perl's Stomach.pm:187-189 does the same to a stray `&`
+"to prevent error flood".
+
+**Rust** (65h, `tex_tables::report_misplaced_alignment`): the first misplaced command in a group is the Error and sets
+a group-local flag (`lx@misplaced@alignment`). While the flag is set, each later misplaced `\noalign`/`\omit`/`\span`,
+and the first stray `&` (the later ones are Perl's `\relax` already), is a Warning naming the cascade. No meaning
+changes, so the content is what 65b gives. The cascade ends with the group (braced, `\begingroup…\endgroup`, or an
+environment), and a new alignment clears the flag in its own group (`alignment_bindings`), so a later table's misplaced
+command is an Error again. At top level the group is the document body: `\begin{document}` clears the flag
+(`tex_tables::end_misplaced_alignment_cascade`), so a misplaced command in the preamble does not make the body's
+Warnings (65h r1: a preamble `\noalign{}` left the whole body at 1 error + 8 warnings where pdflatex has 9 errors).
+
+Measured on the 107: 64ze 2147 errors, 65h 350, every paper Fatal-free and none with more errors than 64ze. Warnings
+rose from 667 to 1670. The remaining `\noalign` Errors are one per group, e.g. astro-ph0701701's
+`\caption{…}\hline\hline` without `\\` in each of 14 longtables, which TeX rejects too.
+
+Superseded: 65b's "each is an Error". OD #525 records that per-site counting as a main-session decision (2026-10-11),
+so this is an open question for the main session.
+
+**Guards**: `perfect_kernel_batch65h::{misplaced_alignment_cascade_is_one_error,
+misplaced_alignment_cascade_ends_with_its_group}` (the latter: braced groups, `\begingroup`, `{center}`, the preamble;
+6 errors + 3 warnings, pdflatex 9 errors), `perfect_kernel_batch65::misplaced_commands_are_each_reported`
+(4 → 1 error + 3 warnings).
+
+### 541. `\longtable` opens a group and calls `\LT@array`, as longtable.sty does; pasj00 without its class keeps `{longtable}` (Perl: `\longtable[]{}`, no `\LT@array`; no PASJ binding)
+
+Perl's binding is one macro, `\longtable[]{}`, with no `\LT@array`. A package that redefines `\longtable` in
+longtable.sty's shape, `\begingroup\@ifnextchar[\LT@array{\LT@array[x]}` (longtable.sty:105-106), calls an
+undefined `\LT@array` (KPE #612). Such packages include aalongtable.sty (EDP Sciences 2004, shipped by A&A papers)
+and anlongtable.sty. Each of their tables is then text, with a misplaced `\noalign` per `\hline`. That covered 81 of
+run 340's 107 longtable Error→Fatal papers: 0707.2342, 0708.2676, 0804.2184, 1102.5033, 1908.10340.
+
+**Rust** (65h, `longtable_sty.rs`): `\longtable` = `\begingroup\LT@array`. `\LT@array[]{}` carries Perl's body:
+the bindings, `\@@longtable`, `\lx@begin@alignment`. `\endlongtable` adds the `\endgroup` (longtable.sty:278). The same
+applies to `{longtable*}`.
+
+A wrapper that `\let`s and calls the original `\LT@array` now wraps ours. Examples are KOMA's (scrartcl.cls:6347-6360)
+and caption's ltcaption.sty:60-73, which set captions and the counter, then call it. Before 65h, `\renewcommand\LT@array`
+met an undefined command. floatrow likewise loads fr-longtable.sty when `\LT@array` is defined (floatrow.sty:1468-1469;
+fr-longtable.sty:27-43 wraps it): 2210.03190 gains the `fr-longtable` package line, its XML otherwise identical.
+
+One paper gains an error: 0906.4336 (emulateapj `deluxetable` markup inside `{longtable}`) goes 5 → 6 errors with a
+"`\endgroup` Attempt to close non-boxing group" from the new group; its XML is identical, the table was broken already.
+
+pasj00/pasj01/pasj02 (`pasj00_cls::pasj_unshipped_longtable`): a paper without the shipped class falls to OmniBus,
+which has no `{longtable}`. The class defines its own (pasj00.cls:884-916, pasj01.cls:967-1000, pasj02.cls:956-989),
+with longtable.sty's `\endfirsthead`/`\endhead`/`\endfoot`/`\endlastfoot` (pasj00.cls:1241-1244), so the binding
+builds it with the longtable binding's table. Its `\caption` and `\label` are the class's, not longtable.sty's: the
+class's `\@lt@init` lets them to `\@lt@setcaption`/`\@lt@label` (pasj00.cls:1068-1070, pasj01.cls:1152-1154,
+pasj02.cls:1141-1143), each a `\noalign` that gobbles a following `\\` if there is one (`\@lt@remove@cr`,
+pasj00.cls:1245-1270). So a caption is no row, and PASJ papers write `\caption{…}\label{…}`, then `\hline` and the
+head row; all 51 in-table captions of the eight witnesses do. The binding's `\longtable` lets the longtable binding's
+`\lx@longtable@caption`/`\lx@longtable@label` to `\noalign`s of the caption's text and the label
+(`\lx@longtable@caption@text`), reading past a `\\` as the class does. 65h r1 used longtable.sty's caption, a row
+ended by `\\`, so the head row after each caption was the caption's row and was dropped (OD #103): astro-ph0701701's
+"Trigger" appeared 28 times at 64ze, 0 at r1, 21 in pdflatex with the class. The optional argument
+(`\@lt@captionnumber`, a number in place of the counter's) is read as the kernel `\caption`'s short caption, as the
+binding reads every PASJ `\caption`; no witness uses it in a table. Witnesses astro-ph0407419, 0704.1713, 0705.1365,
+1108.4491, astro-ph0511689, astro-ph0605217, astro-ph0612753, astro-ph0701701.
+
+Open for the PASJ fallback (not attempted): the class's `\SetRunningHead`, `\FigureFile`, `\draft`, `\timeform` and
+amssymb's `\lesssim`/`\gtrsim` (pasj00.cls:3446).
+
+**Guards**: `perfect_kernel_batch65h::{package_longtable_calls_lt_array, pasj00_without_its_class_keeps_longtable,
+longtable_caption_row_without_its_cr_keeps_the_next_row}` (the last for OD #103's row drop).
+
+### 542. A construct the document ended inside of auto-closes its elements (Perl: only the elements tagged autoClose)
+
+Perl's document builder makes room for an element the current node cannot hold by closing auto-closeable ancestors
+(Document.pm `find_insertion_point` L994-1010): a node auto-closes when it carries `_autoclose` or its tag is declared
+`autoClose` (`canAutoClose` L245-257: `ltx:item`, `ltx:para`, `ltx:p`, `ltx:section`, `ltx:theorem`, `ltx:bibitem`…).
+A list, a formula, a script argument, an alignment and an `\fbox`'s `ltx:text` (`_noautoclose`) are not, so a section
+or a bibliography arriving inside one is `Error:malformed:<qname> … isn't allowed in <…>`, and inserted there anyway.
+Since 65c (OD #207) a group still open at `\end{document}` keeps its content, as in Perl; when an upstream defect left
+a list or a formula open, everything after it arrives inside it, each section, theorem, equation and bibitem an Error
+(1611.05714, 2007.11971, 1210.0368, nucl-th0401019, physics0505113: `Fatal:TooManyErrors`; cs0009011
+`Fatal:Document:Generic("add_child encountered NULL pointer")`, the insertion point left on a capture block the
+framed text's close had freed). Perl gives the same Errors (27 on repro list-structure/open_math_script_holds_the_section;
+4 on list-structure/open_description_holds_the_bibliography: `ltx:section` and `ltx:bibliography` "isn't allowed in
+<ltx:para>", "Attempt to close </ltx:itemize>, which isn't open", "Closing </ltx:document> whose open descendents do
+not auto-close").
+
+**Why a formula is open at the end** (the 2007.11971 class: `$d(S^{\si})$`, pst-all's `\si` eating the `}`): not the
+document ending inside it, but our recovery of a `$` meeting the open script group. TeX (tex.web §1131 `off_save`)
+inserts the `}` there ("Missing } inserted") and the `$` ends the formula, the rest of the paragraph following as text
+(`\showbox` of `Let $S^{x$ hold.`: `\mathon S \hbox{x} \mathoff`, then "hold."). tex_math.rs `end_math_or_defer`
+instead defers the math end to the end of that group, which an unbalanced paper never reaches, so the rest of the
+paper is digested as math until `\end{document}`. This entry only lets that formula close at the next structure; the
+deferral is RED paragraph-mode/dollar_closes_open_script_group, SYNC_STATUS row MS (task #204). Since 65n the `$`
+inserts the `}` and ends the formula there (#553); the auto-close stays for constructs the document really ended in.
+
+**Rust** (batch 65i): a construct the document ended inside of never ended. `\lx@finalize@document` records each end
+that abandons groups (`stomach::end_inside_groups`); a whatsit whose digestion — arguments, body, after-digest code —
+spanned one is marked `lx@unended` (`stomach::UNENDED`: `Constructor::digest_to_whatsit`, and tex_math.rs
+`script_handler`, which builds the script whatsit itself). Every element such a whatsit opens carries `_autoclose`
+(its `_noautoclose`, kept for a box that ends, dropped), and so does an element auto-opened inside one; a box that is
+not a whatsit (an alignment, a cell's content, a list) shares the state of the box absorbing it (`Document`
+`box_unended`, read when the box is set: an alignment is absorbed while mutably borrowed). The structure after the
+defect then closes the open list or formula through Perl's own `canAutoClose` walk, and lands where a closed one would
+have put it; the construct's own closer, finding its element closed already (`_unended`), closes nothing and reports
+nothing (`close_element`, `close_to_node`, `close_node_with_strictness`). The content stays (65c); what arrives while
+the construct is still the insertion point stays in it (the text of an open formula before the next section). Why
+the end is the test: a construct the end met while still digesting it has no end of its own in the document, so
+nothing after the defect belongs to it more than to its parent — the schema decides, as Perl's autoClose tags do.
+
+**Fidelity given up**: an environment the document ended inside of no longer marks the structure that closed it. An
+unended `center` (`Text A. \begin{center} open center \section{C} …`, pdflatex "\begin{center} … ended by
+\end{document}") kept `class="ltx_centering"` on the following `ltx:section` before 65i, as the PDF centres it; now the
+section closes the paragraph that held the centering and carries no class. An unended `minipage` around `\maketitle`
+and the sections likewise drops `class="ltx_minipage"` from the following section. Content and order are unchanged
+(probes `~/data/pk_wt/scratch_65i/review/` p3a, p7_fm).
+
+**Not changed**: a construct that ended keeps its rule — a `\section` inside a list that ends is an inline sectional
+block in its item (#189), the bibliography after it too (`perfect_kernel_batch65e::par_in_item_bibliography_keeps_the_block`);
+a body abandoned by a bounded terminal inside a group
+(`until_terminal_inside_group`, OD #207) is not marked (it ended at its terminal). Math content of an open formula
+arriving after its elements closed (`<ltx:XMTok> isn't allowed in <ltx:para>`, math9805003; XMArray/XMHint in a
+section, 2007.11971) is still an Error: those are the formula's own tokens outside it.
+
+**Witnesses** (65bundle → 65i): 1611.05714 2 → 1 Error (= 64ze), every bibitem kept; 1210.0368 Fatal → 30 (= 64ze);
+2007.11971 Fatal → 13 (64ze 9); physics0505113 Fatal → 75 (= 64ze); math9805003 Fatal → 97 (64ze 96); nucl-th0401019
+Fatal → 91 (64ze 89); 1204.0071 Fatal → 90 (64ze 88); cs0009011 Fatal → 13 (= 64ze; 3,164 → 41,531 text words, spaced).
+Where a formula was held open by the deferral above, the content after it is kept but run together, not regained
+words: 2007.11971 (text words outside math 1,698 → 5,268, of which 2,453 in script-font `ltx:text`, and 3,267 script-size
+letters still inside formulas; the review counts 7,157 run-together pseudo-words such as
+"Thenweextenddonatupleaofelementsof"), 1210.0368 (908 run-together runs of 20+ letters, ≈7,300 words by length), 1907.09124
+(148), math9805003 (25) — each with "Missing } inserted" warnings from `end_math_or_defer`; hep-lat9811036 (102) and
+nucl-th0401019 (40) run text together from another open math construct, not root-caused here. A bare `\itemize` ended by the outer list's
+`\end{itemize}` leaves that list open (65e's cluster C): 1805.06896 2 → 0, 2304.12197 3 → 0, 2511.04367 7 → 0,
+2307.13461 47 → 42, hep-ex0406049 30 → 29 (`ltx:appendix isn't allowed in ltx:inline-sectional-block` gone).
+**Guards**: `perfect_kernel_batch65i::{open_list_gives_way_to_the_bibliography, open_list_gives_way_to_the_section,
+open_formula_gives_way_to_the_section, unended_fbox_holding_figures_builds}`.
+
+### 543. A package loaded in a standalone sub-file's preamble adds to a macro locally (Perl: `AddToMacro` is global)
+
+Perl `AddToMacro` (Package.pm:2534-2548) redefines the macro with `scope => 'global'`. A standalone sub-file's preamble
+runs in a bracket (OD #63, #65; real standalone.sty skips it), where a package's own definitions are local: xcolor
+added `\@xcolor@tabular@before`/`\@tabular@row@before@xcolor`/`\@xcolor@row@after` to the kernel's tabular hooks for
+good, while their definitions ended with the bracket, so every table of the main document after the `\input` called
+three undefined macros and lost its alignment (2512.09430: 84 errors, 101 + `Fatal:TooManyErrors` once 65b reported
+each misplaced `\toprule`; Perl the same, KNOWN_PERL_ERRORS #614).
+
+**Rust** (batch 65i): `AddToMacro` in a package loaded inside the bracket (`require_package` with the
+`subfile:<depth>` scope active) assigns locally (binding/content.rs `add_to_macro_scope`), so the addition lives as
+long as the package's definitions. Outside the bracket the main document's tables carry no hook of a package only a
+sub-file loaded, as in pdflatex, where standalone.sty skips the sub-file's preamble. Everywhere else `AddToMacro` stays
+global. **Witness**: 2512.09430 84 → 5 Errors (the 5 left: fancyheadings' `\lhead`/`\chead`/`\rhead`/`\cfoot`/
+`\fancyplain` in the sub-file's own preamble, 64ze too). **Guard**: `perfect_kernel_batch65i::standalone_subfile_package_hooks_stay_in_its_preamble`.
+
+### 544. A `\left`, `\middle` or `\right` without its partner in a `\bm` or `\boldsymbol` argument stands at the command's level, its delimiter bold (Perl: the bounded `\bm` digests it in its argument group)
+
+**Perl behavior**: bm.sty.ltxml:20 `DefConstructor('\bm{}', '#1', bounded => 1, requireMath => 1, font => { forcebold
+=> 1 })` digests the whole argument in a group. `\bm{\left\langle} x \bm{\right\rangle}` then loses the ⟩ and bolds
+`x` (KPE #616). Since 65d `\left` opens a `math_left_group` (OD #530), and the argument's end closed it with "Missing
+\right. inserted", the next `\bm`'s `\right` closed that `\bm`'s own group, "\bm Attempt to close a group that
+switched to mode math" (2204.13665, macros.tex:37 `\newcommand*\lin[1]{\bm{\left\langle} #1 \bm{\right\rangle}}`:
+0 errors on 65a → 587 on the 65 bundle).
+**Rust behavior** (batch 65j, bm_sty.rs `bold_math`): bm.sty's `\bm` scans its argument token by token at the level it is
+used at (`\bm@general`, bm.sty:162-217), with `\left` and `\right` `\let` to `\holdinginserts` while it scans
+(:173-174): they are emitted as they are and the delimiter after them becomes a bold `\delimiter`
+(`\bm@delimiter`, :416). `\bm` is a protected macro (bm.sty:219-221 `\DeclareRobustCommand`): an argument without a
+top-level `\left`/`\middle`/`\right` (by meaning) is the bounded `\lx@bm@bold`, Perl's constructor reverting as
+`\bm`, unchanged, and so is an argument whose `\left`/`\middle`/`\right` pair up (each `\middle` and `\right`
+inside an open `\left`, every `\left` closed): the `math_left_group` opens and closes inside the bounded group, so
+the fenced whole keeps its scripts and primes, byte-identical to the 65 bundle (`\bm{\left(A+B\right)^\mathsf{T}}`,
+`\bm{x \left( y \right)_\text{L}}`, `\bm{\left(x\right)'}`; 2107.08152 `\bm{\left\langle z \right\rangle_{L,R}}`,
+1703.10645). With an unpaired one, the runs between the commands are each a `\lx@bm@bold{…}`, and each command stands
+outside them with its delimiter (one token after blanks and `\relax`, a `\delimiter`/`\Udelimiter` with its number),
+followed by `\lx@bm@delimiter`, which makes the delimiter's element (the current node's last element, as Perl's
+`augmentDelimiterProperties` finds it) bold; the null delimiter (`XMHint`) has nothing to bold. A run's leading
+scripts stay outside its group, on the fence before them, as bm.sty emits `_`/`^` where they stand, and their
+argument is bolded whole: bm.sty expands the argument as it scans it (`\bm@expand`, with `\protect` `\let` to
+`\@empty`, bm.sty:166-167, 286-287), so a command's own arguments go with it. A script argument that starts with a
+control sequence takes as many arguments as its definition has parameters (`\bm{\right\rangle_\mathrm{L}}` bolds
+`\mathrm{L}`; a `BRACED_ARGUMENT_TYPES` parameter takes an argument, an optional one its `[…]` when present). When
+that cannot be told without expanding (an undefined command, `\bgroup`, another parameter type, a parameterless
+macro before a `{`), the rest of the run is the script's argument, with a Warning `unexpected` "Cannot tell the
+argument of _ (starting \foo) after a \left, \middle or \right in the argument of \bm; the rest of the argument
+is taken as it". A leading prime is a bold `^{\prime}` (bm.sty:177 `\def'{\bm@prime\prime\relax}`), joined by a
+superscript right after it as `\active@math@prime` joins it. `\boldsymbol`, `\hm`
+and `\heavysymbol` are `\let` to `\bm` there, as bm.sty:468-469 lets them. Outside math the argument is the bounded
+constructor, and `\bm` itself warns "\bm should only appear in math mode" (Perl's `requireMath`).
+**Differences from pdflatex**: bm.sty treats a character after `\middle` as a math character (its `\ifx\bm@previous
+\left` sees `\left` and `\right` only), so `\bm{\middle|}` is pdflatex's "Missing delimiter (. inserted)" and a bold
+`|` that does not grow; here it is a bold MIDDLE delimiter, as Perl and 65a give it. `\bm{\left\relax[}` (bm.sty: a
+`\relax` between hides the delimiter, the same error) takes `[`, as tex.web §1160 does. The `tex` attribute of a
+formula keeps `\bm{…}` around the bolded runs only (`\left\langle x\right\rangle` for 2204.13665's `\lin{x}`).
+**Commands that box or group their argument** (`BoldArgument::Grouped`, 65j round 2): amsbsy's `\boldsymbol` (and
+`\pmb`, Let to it, Perl amsbsy.sty.ltxml:28) boxes its argument (amsbsy.sty:28-37, `\hbox{$…$}` in a `\mathchoice`),
+as do the `\bm` the World Scientific classes (ws-ijmpe.cls:226-230) and interact.cls (:134-138) define themselves;
+RevTeX 4.x asks for bm.sty (revtex4-2.cls:7573-7586 `\REV@bm` drops its first argument with "To use \bm, please load
+the bm package!" and leaves later ones as `\relax{…}`), and Perl keeps a bold bounded `\bm` there
+(revtex4_support.sty.ltxml:167). Each is a protected macro over a bounded constructor of its own reverting as the
+command (`\lx@boldsymbol@bold`, `\lx@bm@bold`; bm_sty.rs `define_grouped_bm` for the three classes). An argument
+whose top-level `\left`/`\middle`/`\right` pair up (each `\middle` and `\right` inside an open `\left`, every
+`\left` closed) is the bounded constructor, unchanged and byte-identical: TeX's box holds the pair too. An argument
+with an unpaired one (`\boldsymbol{\left\langle} x \boldsymbol{\right\rangle}`) is pdflatex's "Missing \right.
+inserted" at the box's end and "Extra \right." at the next box, ⟩ lost; here it is set at the outer level as bm.sty
+would set it, a bold ⟨ x ⟩ fenced in one formula, with one Warning per command, `unexpected` "\left, \middle or
+\right without its partner in the argument of \bm, whose box or group ends it in TeX ("Missing \right. inserted");
+set at the outer level" (a TeX error whose recovery is semantic). The 65 bundle and round 1 gave "\bm Attempt to
+close a group that switched to mode math" and lost the ⟩; 65a lost the ⟩ silently, the formula unparsed. RevTeX's
+own "please load the bm package" class warning is not reported (Perl keeps the bold `\bm` silently).
+Two or more bold primes after an unpaired `\right` (`\bm{\right)''}`) lose their bold when the math parser joins
+them into one `prime2` token, as `x^{\bm{\prime\prime}}` does on the 65 bundle (math parser, not this binding).
+`\DeclareBoldMathCommand\blangle{\langle}` used after `\left` is not a delimiter here (repro
+`bm_declared_bold_delimiter_after_left`, RED; witness 1205.4484).
+**Guards**: `perfect_kernel_batch65j::{bm_left_and_right_in_separate_arguments, bm_left_right_in_one_argument,
+bm_paired_left_right_keeps_its_superscript, bm_middle_bar, bm_without_delimiters_is_unchanged,
+bm_delimiter_codes_and_the_null_delimiter, bm_in_text_warns_naming_bm, bm_script_after_paired_right_stays_bounded,
+bm_script_command_argument_after_unpaired_right, bm_prime_after_unpaired_right_is_bold,
+bm_script_argument_that_cannot_be_told_warns, revtex_bm_unpaired_left_right_at_the_outer_level,
+ws_class_bm_unpaired_left_right_at_the_outer_level, interact_bm_unpaired_left_right_at_the_outer_level,
+boldsymbol_unpaired_left_right_at_the_outer_level, boldsymbol_paired_or_without_delimiters_is_unchanged}`; repros
+`tools/perfect_kernel/repros/boxes-groups/{bm_left_right_at_the_outer_level, bm_revtex_unpaired_left_right,
+bm_ws_class_unpaired_left_right, bm_interact_unpaired_left_right, boldsymbol_unpaired_left_right}.tex`.
+
+### 545. The MnSymbol binding declares every MnSymbol name, and a name already defined keeps its definition (Perl: no binding; MnSymbol.sty redeclares the whole AMS set)
+
+**Perl behavior**: there is no MnSymbol binding. Perl reads MnSymbol.sty raw, where `\DeclareMathSymbol` into its
+seven symbol fonts (`MnSyA`…`MnSyD`, its own `symbols`/`largesymbols`) gives no usable glyph. Our former binding
+(`latexml_contrib/src/mnsymbol_sty.rs`) was a stub of four names over amssymb, so every other MnSymbol name was
+undefined: run 340 had 13,470 MnSymbol papers, 3,724 of them in Error, their first errors `\nin` 175, `\udots` 173,
+`\sumint` 165, `\cupdot` 130, `\strokedint` 113, `\lsem` 108 and a long tail.
+**Rust behavior** (batch 65l): the binding declares every name of MnSymbol.sty — the 1,307 `\Decl@Mn@Char`/
+`\Decl@Mn@Alias` names of :250-1584 (but the internal `\@cdots`/`\@vdots`) in declaration order, the 55
+`\Decl@Mn@Op`/`\Decl@Mn@Int` operators of :1586-1650 as variable-size SUMOP/INTOP (math_common's `\sum`/`\int`), the
+`symbols` font's fixed `\t…`/`\d…` operators with `mathstyle` text/display, the delimiters of :1651-1710 (`\lsem`,
+`\rsem`, `\langlebar`, `\lwavy`, … OPEN/CLOSE, so they fence after `\left`/`\right`, #530), the brace pieces, the
+accents of :1822-1851, the spoon composites and `\coloneq`. A name's glyph is unicode-math's for the same name
+(`unicode-math-table.tex`), else the Unicode TeX4ht gives its font slot (`tex4ht/ht-fonts/unicode/MnSymbol/*.htf`;
+the slot is the running `\Set@Mn@Sym` count), else the base glyph with U+0338 for a negated `\n…` name, else one chosen
+from MnSymbol.pdf; a glyph Unicode lacks (most diagonal arrows, filled spoons, the smile/frown stacks) takes its
+family's rightward member's code point, the XMTok keeping the command's name. Roles follow the declared class as the
+sibling symbol bindings do (ARROW for the arrow/harpoon/spoon/mapsto families, else RELOP; ADDOP for the
+cup/cap/vee/wedge/plus/minus/triangle/diamond families, else MULOP; ID for the dots).
+**The divergence**: MnSymbol's `\Decl@Mn@Sym` `\let`s each name undefined and redeclares it, so the package replaces
+the AMS set. Here a name the kernel, amsmath or amssymb (which the binding loads) already defines keeps that
+definition — its role and meaning are richer than the slot's class — and a name declared in the same slot and class
+as a defined name is `\let` to it (`\nin` → `\notin` with `meaning="not-element-of"`, `\meddiamond` → `\Diamond`,
+`\cupplus` → `\uplus`, `\lcurvearrowright` → `\curvearrowright`). The same rule as OmniBus's theorem set (#533).
+Consequences: `\Mn@Fake@Missing` (:29-78) has nothing to fake, and its `\let\eth\undefined`, `\mho`, `\Finv`, `\Game`,
+`\Bbbk`, `\digamma`, `\varkappa`, `\backepsilon` are not carried out (a document using them keeps them, where pdflatex
+reports them undefined); `\lneq`/`\gneq`/`\precneqq`/`\succneqq` keep amssymb's ⪇ ⪈ ⪵ ⪶ instead of MnSymbol's stand-ins
+`\nleq` ≰, `\ngeq` ≱, `\npreceq`, `\nsucceq` (:57-60; the author's symbol, not the font's stand-in); `\not` stays the kernel's (SYNC_STATUS "Kept as is", 2605.05506).
+A document that undefines a name for MnSymbol to declare (2210.15345 `\let\vec\undefined`) gets it declared. The
+package's declarators (`\Decl@Mn@Char`, `\Decl@Mn@Open`, …, :85-107) are defined for documents that use them after
+loading the package (2410.20575 `\Decl@Mn@Open{\lsem}{MNlargesymbols}{'102}`), under the same rule
+(`\Mn@ifundefined` for the `\let#1\undefined`): a name already defined is kept, and a new one takes the glyph and
+role the binding's tables give its slot — font and position, the font one of `MnSyA`…`MnSyD`, `symbols`,
+`largesymbols` (`\Decl@Mn@Char\myrel{MnSyA}{\mathrel}` at the running `\Set@Mn@Sym` count, `\Decl@Mn@Open{\mylsem}
+{largesymbols}{'102}` ⟦); a slot the tables do not map (another font name, as 2410.20575's `MNlargesymbols`, or an
+unlisted position) goes to the kernel's `\DeclareMathSymbol`/`\DeclareMathDelimiter` with an
+`Info:unmapped:MnSymbol.sty` naming the font and slot (the kernel's glyph for an unknown `U` font is the slot's code
+point, U+FFFD for a control position). `\Decl@Mn@Op` keeps amsmath's `\slimits@` (`\displaylimits`; MnSymbol.sty
+never sets it). The glyph derivation decodes TeX4ht's HTML entities (`&gt;` at MnSyD 65, `\gtr`); the hand picks follow
+MnSymbol.pdf's drawings: the footlines' bar is on the side the name says (`\rightfootline` ⟞, `\leftfootline` ⟝,
+`\upfootline` ⟙, `\downfootline` ⟘), `\upmodels` ⫫ / `\downmodels` ⫪ (2604.25507), `\upVdash` ⍊ / `\downVdash` ⍑ (the
+code points MnSymbol.pdf and TeX4ht both give), `\ocirc` ⊚ (unicode-math's `\ocirc` is the ring accent),
+`\filledlargestar` ★. `\middlebar`, `\middleslash`, `\strokethrough` and `\underlinesegment` stay accents of their
+combining overlay character (no sibling binding renders an overlay accent otherwise). The former stub's `\lcurvearrow…`/`\rcurvearrow…` glyphs were reversed
+(it gave the `l` family ↶); MnSymbol's `l` family is clockwise (`\lcurvearrowright` is `\curvearrowright` ↷,
+:456-457).
+**Witnesses** (MnSymbol_err sample, 40 papers of run 340): 30 Error → OK/Warning, 78 → 39 errors, the 10 left
+non-MnSymbol (`RedViolet`, `\numberofauthors`, `\declaretheorem`, …); 1012.3905, 2012.10201, 2503.13091 (`\nin`),
+2608.11129, 2408.06194, 2510.15838 (`\sumint`), 1710.02994, 2305.00125 (`\strokedint`), 1505.03695, 2311.12218
+(`\cupdot`), 2502.09381 (`\udots`), 2112.14729, 2410.20575 (`\lsem`), 2010.00736, 2306.06344 (`\medstar`),
+1704.05595, 2303.04612 (`\leftmapsto`), 2210.15345 (`\vec`); earlier 2508.12496 (`\checkmark`), 2609.07645
+(`\llangle`), atableau (`\bigcircle`), biblatex-apa6-test (`\rcurvearrowse`), univie-ling (`\blacktriangleright`).
+**Guards**: `perfect_kernel_batch65l::{mnsymbol_symbols_are_defined, mnsymbol_declares_every_name,
+mnsymbol_delimiters_fence_after_left, mnsymbol_declares_an_undefined_vec, mnsymbol_own_declarators_keep_the_binding,
+mnsymbol_declarators_take_slot_glyphs}`, `latexml_contrib` `mnsymbol_sty::tests::{mnsymbol_table_glyphs_are_characters,
+mnsymbol_slots_resolve_to_glyphs}`, `perfect_kernel_batch56::{font_symbol_packages_carry_amssymb,
+sweep44_single_name_gaps}`; repros
+`tools/perfect_kernel/repros/class-bindings/mnsymbol_*`.
+Approximations with no exact Unicode glyph: the negated stacks `\lessneqqgtr`/`\gtrneqqless` render as ⪋̸/⪌̸ (the
+U+0338 negation step, like `\nlesseqqgtr`); `\rightY`/`\leftY`/`\downY` and the smile/frown stacks (`\smileeq`,
+`\doublesmile`, `\frowneq`) collapse to the nearest single glyph; a document-declared `\mathord` takes `ID`, as the
+kernel's `\DeclareMathSymbol` does. Known residual: the `\t…` text-size operators (`\tsum`, `\tbigcupdot`, …) keep
+`mathstyle="text"` in display math, where TeX's `NEXTLARGER` grows the glyph.
+
+### 546. The MnSymbol binding announces itself as `Info`, not the stub's `Warn` (Perl: no binding)
+
+**Before**: `mnsymbol_sty.rs` emitted `Warning:missing_file:MnSymbol.sty` "MnSymbol.sty is only minimally stubbed and
+will not be interpreted raw." at every load. **Rust** (batch 65l): `Info:bindings:MnSymbol.sty` "MnSymbol.sty is
+provided by a native binding, not interpreted raw.", as biblatex's binding (#62): the binding now declares the whole
+package (#545), so "minimally stubbed" is false, and an unconditional Warn ranked every MnSymbol paper `warning`
+however it converted. **Severity impact — read before quoting corpus deltas**: run 340 counts 13,470 papers with the
+Warn; those without another warning move from `warning` to `no_problem` for a logging reason. A run-over-run
+comparison of MnSymbol papers is attributable only when both runs sit on the same side of 65l. Guard
+`perfect_kernel_batch61::the_2609_classes_load_their_packages_and_commands` (the MnSymbol case: 0 warnings).
+
+### 547. Stub bindings load what their packages load, options included, and define the packages' public names (Perl: the ar5iv stubs load a subset and ignore the options)
+
+A stub binding stands in for a package that is not interpreted raw, so whatever the real package loads, a document or
+class may use without loading it. The ar5iv stubs (KPE #618, #619) load a subset and ignore the option-driven loads.
+
+**Rust** (batch 65k), each from the package's source:
+- mdframed (mdframed.sty:72-77) loads kvoptions, xparse, etoolbox, zref-abspage (whose zref-base brings pdftexcmds and
+  so iftex's `\ifpdf`), needspace and color; its `framemethod` key (:154-169; the void options `tikz`, `TikZ`, `ps`,
+  `pstricks`, `PSTricks`, :186-190) loads tikz for `pgf`/`tikz`/`1`, pst-node for `pstricks`/`ps`/`postscript`/`2`,
+  and the package named by any other non-default value if it exists; the `xcolor` key loads xcolor (:369-380, whose
+  option list is never passed on). `\mdfsetup` is `\kvsetkeys{mdf}` (:386), so a preamble `framemethod` loads its
+  package too; in the body the load is skipped with an Info (`unexpected:framemethod`), where pdflatex reports "Can be
+  used only in preamble" (mdframed's `\RequirePackage`, latex.ltx:18628 `\@onlypreamble`). The other keys are accepted and dropped (family handler): the frame is drawn by the binding. The
+  stub had loaded xcolor in place of color (Perl's choice); documents that use xcolor syntax load xcolor or tikz.
+  zref-abspage (and backref's rerunfilecheck below), which have no binding, load only where raw loading is on
+  (`INCLUDE_STYLES`, as `--preload=ar5iv.sty` sets it): without it their load would only add a missing-file warning.
+  Witness 2101.02817 (`{tikzpicture}`).
+- backref (backref.sty:61-62, 483) loads kvoptions, kvsetkeys and rerunfilecheck, and defines the language hooks
+  (:95-148, English by default), `\ifbackrefparscan` (:207-208), `\backref` by its options (`pageref`, the default,
+  `\backrefpagesname`; `ref` `\backrefsectionsname`; `hyperref`/`hyperpageref` empty, :79-92, 195-196),
+  `\backrefsetup` = `\kvsetkeys{backref}` (other keys dropped), `\backrefalt` and `\backrefentrycount` (:270-277),
+  which documents redefine; the back-reference line itself is still not rendered.
+- hyperref's `backref` (`section`/`slide` → backref's `hyperref` option, `page` → `hyperpageref`, `none`/`false` → none)
+  and `pagebackref` (`true` → `hyperpageref`) load backref after the options (hyperref.sty:2762-2810, 4587-4589), also
+  when `\PassOptionsToPackage` gives them, and set `\Hy@backreftrue` (:2775-2804), so `\ifHy@backref` is true while
+  backref is loaded. Witness 1809.07574. **Decision (main session, 65k review):** loaded through hyperref's option, the
+  backref stub's `missing_file` message is an **Info**, not a Warning — Perl is silent there (KPE #619), and the
+  back-reference lists are generated navigation, not author content; a document's own `\usepackage{backref}` keeps the
+  Warning. The hyperref binding sets `BACKREF_LOADED_BY_HYPERREF` before the load. Witness 2203.07162 (0 warnings, as
+  before 65k; round 1 had given it and 24 other OK/Warning sample papers +1 Warning).
+- mathpartir loads keyval (:34) and defines its separators `\mpr@and`, `\mpr@andcr`, `\mpr@cr`, `\mpr@goodbreakand`,
+  `\mpr@eqno` (:62-68), which ottalt.sty uses (2304.05276).
+- mciteplus defines its public switches (`\ifmciteErrorOnUnknown`, `\ifmciteResetBibitemCount`, … :72-87, 182-184),
+  its counters (:105-108), `\mciteSetSublistLabelBeginEnd` (:170), the `.aux` max-width/count stores (:390-418) and
+  `\mciteSubPageRef` (:783-784). Witness 0802.3383 (apsrevM `.bbl`).
+- arydshln defines `{Array}`, `{Tabular}`, `{Tabular*}` and (after longtable) `{Longtable}` when the names are free,
+  with arydshln's warning otherwise (:697-729), and `\ADLnoshorthanded` (:731-740). Witnesses 2502.17812
+  (`{Tabular}`, 5 → 0 errors), 2306.04970 (`{Array}`, 1 → 0).
+- epstopdf (a binding, not a stub) loads infwarerr, kvoptions and pdftexcmds (epstopdf.sty:149-152), whose iftex
+  defines `\ifpdf` (witnesses 2410.22009, 2305.04598, 2602.17971: `\ifpdf` after `\usepackage{epstopdf}`; a sample
+  of 52 epstopdf papers changed in these two only).
+- nag defines its rule commands with their arguments (`\ObsoleteEnv`, `\SuggestedPackage`, `\IncompatiblePackages`,
+  `\BadFileLoadOrder`, `\NotAnEnvironment`, `\NotASwitch`, `\NagDeclareFloat`; `\ObsoleteClass[reason]`), nag.sty:82-168,
+  265-334, 534. Witness 1303.5654 (`\ObsoleteEnv`, 1 → 0 errors).
+
+Cost: mdframed's loads add about 0.24 G instructions to a conversion (1.25 → 1.48 G on a one-frame document); a
+`framemethod=tikz` adds tikz's load (about 1.4 G).
+
+**Guards**: `perfect_kernel_batch65k::{mdframed_framemethod_tikz_loads_tikz, mdframed_loads_its_dependencies,
+mciteplus_bbl_switches, arydshln_shorthand_environments, nag_public_api, mathpartir_premise_separators,
+hyperref_pagebackref_loads_backref, hyperref_passoptions_pagebackref_info, backref_direct_load_warns,
+hyperref_backref_none_loads_nothing, mdframed_body_framemethod_loads_nothing, arydshln_longtable_shorthand,
+epstopdf_loads_pdftexcmds}`; repros `stub-dependencies/*`.
+
+### 548. The pnas-new and achemso class bindings load what their classes load and define their setters (Perl: no binding)
+
+pnas-new.cls (shipped with the paper, not in TeX Live) loads `[framemethod=tikz]{mdframed}` after xcolor and tikz
+(:53-55) and jabbrv (:173), and defines `\dates` (:270), `\dropcap` (:284), `\etal`, `\matmethods`/`\showmatmethods`,
+`\acknow`/`\showacknow` (:273-281, 402-428), `\verticaladjustment` (:321), `\numberthis`, `\addtabletext`,
+`\copyrightstatement`, the font commands (:61-68) and `{widetext}` (:441-450). achemso.cls loads xkeyval (:35), caption,
+float, graphicx, setspace and url (:309-315) and defines `\SectionsOn`/`\SectionsOff` (:1091-1102),
+`\AbstractOn`/`\AbstractOff` (:1160-1169) and the TOC graphic's lengths (:1266-1269).
+
+**Rust** (batch 65k): `pnas_new_cls.rs` loads mdframed with `framemethod=tikz` (hence tikz), jabbrv when the paper
+ships it (else `\JournalTitle{…}` prints its argument; pnas-new.bst writes it into every `.bbl` entry), and defines
+the commands: `\dates` is a frontmatter `ltx:date` (role `dates`), `\dropcap{T}` the letter, `\etal` and
+`\verticaladjustment` no-ops (page furniture), the stored sections printed where `\show…` is called. `achemso_cls.rs`
+loads xkeyval, caption, graphicx and url, and the section/abstract switches are no-ops (the content is kept either
+way). A `\caption*` in an achemso paper is now caption's unnumbered caption, so the figures after it keep their numbers
+(1804.04674). Witnesses: pnas-new 2304.12786, 2402.03593, 2507.04951, 2002.07301, 2303.10311, 1612.08995, 1708.03990;
+achemso 1710.02414, 2006.15922, 2112.07721, 2202.05883.
+
+**Guards**: `perfect_kernel_batch65k::{pnas_new_dates_dropcap_and_tikz, pnas_new_show_matmethods_acknow,
+achemso_section_abstract_switches}`.
+
+### 550. A copy TeX only writes to an auxiliary file is text: a `_` or `^` in a natbib label or a `[short]` form is its character (Perl: digested as typeset text, "Script _ can only appear in math mode")
+
+natbib's `\bibitem[label]` hands the label to `\NAT@wrout` (natbib.sty:822), which only writes it to the .aux as
+`\bibcite{key}{{num}{year}{{authors}}{{fullauthors}}}`; the numeric list prints `[num]`, the author-year list nothing,
+and only a `\citet`/`\citeauthor` typesets the authors. A caption's `[short]` form goes to the .lof
+(`\addcontentsline`, latex.ltx:17403-17404) and a heading's to the .toc (`\@sect`), typeset only by
+`\listoffigures`/`\tableofcontents`. So pdflatex raises nothing for `\bibitem[{MS_()}]{key}` or `\caption[fig_a]{…}`
+in a document without such a use. Perl digests the label into the `ltx:tags` (natbib.sty.ltxml:622-631) and the short
+form into `ltx:toccaption`/`ltx:toctitle` (latex_constructs.pool.ltxml:3189, :3370) as typeset text, and each `_` is
+"Script _ can only appear in math mode" (KNOWN_PERL_ERRORS #620): the first error of about 2,750 run-340 papers.
+
+**Rust** (batch 65m): such a copy is digested with the state value `tex_math::WRITTEN_COPY` set locally — by
+`\lx@written@copy`, which `\lx@toc@copy@neutralize` (latex_constructs_rust_only.rs, the toc copy's neutralization of
+notes and labels, #399) runs first, and by natbib's `\NAT@@wrout` in its own group. There a `_` or `^` met in text mode
+is its character, the box the script handler builds for it anyway, without the Error; in math it is a script as
+always. The text stays where we show it: the tags read `MS_`, `Data_Set (2020)`, the toccaption `fig_a`. A `\citet` that
+later shows the authors tag shows the text where pdflatex would err; no diagnostic is given at that use (the tag is
+copied in post-processing). **Witnesses** (65m base → 65m, Errors): natbib 1904.06560 1 → 0, 2205.04819 1 → 0,
+2109.10085 4 → 0, 1605.08253 1 → 0, 2109.10374 1 → 0, 0807.3242 1 → 0, 1505.07850 1 → 0, 2102.09024 3 → 1 (`\captionof`
+undefined), 2111.04920 2 → 0; `\caption[short_x]` 1303.1693 21 → 0, 1206.2108 1 → 0, astro-ph0412052 3 → 0,
+hep-lat9812022 3 → 0. **Guards**: `perfect_kernel_batch65m::{natbib_label_is_tag_text, short_forms_are_list_text}`.
+
+### 551. Arguments TeX gobbles or reads as names are not typeset: imsart's `\bdoi`, feynmp's `{fmffile}`, cas's `\bio`, aastex's `{interactive}`, achemso's `\email`, a raw class's stored `\doi`, a counter's name in its id (Perl: digested as text, or no binding)
+
+Each of these arguments is never typeset by TeX, and digested as text its `_` raised "Script _ can only appear in math
+mode":
+- imsart.sty:2583 (`:4151` in later copies) `\def\bdoi#1{\ignorespaces}` gobbles a .bbl entry's DOI; the binding
+  (latexml_contrib imsart_cls.rs) printed it with the other field macros. It gobbles now, so the DOI is absent from the
+  entry as in the PDF (Perl: `\bdoi` undefined, 2 errors). 1405.0671 2 → 0, 1511.07613 3 → 2 (imsart's `\setattribute`
+  and `\endbibitem` undefined), 2110.07639 1 → 0.
+- feynmp.sty:97-109 `\fmffile#1` names the MetaPost file; `{fmffile}` reads it Semiverbatim (Perl 6 errors).
+  1906.06341 2 → 0, 2512.17695 2 → 0.
+- cas-common.sty:2402-2412 `\bio{O{} m}` includes `#2` as the author's photo (`\WrapFigure`, :2375); `{bio}[]
+  Semiverbatim` (the optional was read as the file before). 2203.04264 3 → 0.
+- aastex701.cls:13650-13674 `\interactive#1#2` only tests the type and the file; both Semiverbatim (Perl
+  aas_support.sty.ltxml:229 the same as before). 2303.02355 28 → 7 (6 left are `\tablenotetext{^a}`,
+  deluxetable_sty.rs:128, not this mechanism).
+- achemso.cls:513-520 `\email` stores the address for the author's footnote; read Semiverbatim and given to the author
+  as the other classes' addresses are (`\lx@add@email{\lx@address@textfont{…}}`), an `ltx:contact role="email"` of the
+  creator instead of a frontmatter `ltx:note` (Perl raw-loads the class, 0 errors). 1803.03591 1 → 0.
+- A raw class's `\doi` store (sig-alternate-05-2015.cls:1639-1641 `\def\doi#1{\def\@doi{#1}}`, printed by `\url`),
+  rerouted to the frontmatter (K11, `store_setters.rs`), is set as a string: `\lx@add@pubnote[role=doi]{\lx@address@textfont
+  {\detokenize{#1}}}`. The DOI's source text is deliberate: the class prints `\@doi` through `\url`, which prints
+  `\_` and `\textless` as written (pdflatex: `\doi{10.1002/a\_b\textless{}c}` shows "10.1002/a\_b\textless{}c"), so
+  the pubnote holds `10.1002/a\_b` too. Residual: `\detokenize` adds a space after a control word (`\textless {}`),
+  which `\url` does not print. 1610.03579 1 → 0, 1710.01977 1 → 0. Open: a `.bbl` that calls the class's `\doi` again (1710.01977)
+  still adds a second DOI pubnote, where the class only re-sets the store that its title page had already printed.
+- A counter's `\the<ctr>@ID` (Perl Package.pm:695-702 builds it from a string tokenized with the standard catcodes) is
+  built from the counter's name as characters (`counter/dialect.rs` `id_name_chars`, letters and `@` letters as the
+  string reader made them, so the format dump's bodies are unchanged), so `\newcounter{claim_nb}` or
+  `\newfloat{ilp_formulation}` no longer puts a subscript into every id it steps (KNOWN_PERL_ERRORS #621). 2606.16543
+  17 → 0, 1912.04210 2 → 0.
+
+**Guards**: `perfect_kernel_batch65m::{imsart_bdoi_is_gobbled, file_arguments_are_not_typeset,
+raw_class_doi_is_a_string, counter_name_with_underscore_is_its_id}`.
+
+### 552. cleveref's `\label[type]{key}` right after `\caption` keeps its key (Perl: `[` is read as the label)
+
+`\@caption` moves a `\label` that follows the caption into it (`\@caption@postlabel … SkipMatch:\label Semiverbatim`,
+latex_constructs.pool.ltxml:3172), reading the label's key as the next argument. cleveref's `\label` takes an optional
+type, `\label[appendixtable]{tab:a_b}`, so the key read was `[`: `labels="LABEL:["`, the rest `appendixtable]tab:a_b`
+typeset in the float, and a `_` in the key an Error (Perl the same). **Rust** (batch 65m): `\@caption@postlabel` reads
+the optional and passes only the key on, as our cleveref binding's `\lx@cleverref@label[]` drops the type anyway.
+**Witness**: 2404.11739 8 → 0 (`labels="LABEL:tab:_app_sim_baranov_binM"`). Open: the type itself is lost, so `\cref`
+shows "table 1" where pdflatex shows "Appendix Table 1" (the binding's `[type]`, not this site); likewise a procedure's
+`\cref` shows our refnum `Proc` where pdflatex shows "Procedure -" (predates 65m). The two other sites that
+move a trailing `\label` the same way read the optional too: algorithm2e's procedure caption
+(`\lx@algocf@proccaption@postlabel`, algorithm2e_sty.rs) and caption.sty's `\captionof` (`\@captionof@postlabel`,
+caption_sty.rs; Perl caption.sty.ltxml:122 the same as pool:3172). subeqn's `\@lab@subeqnarray` (subeqn.sty:57 `[2]`, so
+pdflatex reads `[` too) is left as TeX has it. The label-mapping peek `maybe_peek_label` (counter/dialect.rs; Perl
+Package.pm:819ff the same) also reads `[` as the key, but runs only under a label-mapping hook, which only the test
+helper `labelled_tex.rs` sets. **Guard**: `perfect_kernel_batch65m::cleveref_label_type_after_caption`
+(repros captions-floats/cleveref_label_type_after_{caption,procedure_caption,captionof}).
+
+### 553. TeX's math-group recovery for an inline formula outside alignments: a math shift closes the groups opened in it, `\par` or an environment's end ends it, a `}` at its math shift ends it when it closes a construct digested as a unit, else is deleted (Perl: none of the three)
+
+tex.web: a math shift with `cur_group` not the math shift group goes through `off_save` (§1193 `mmode+math_shift`,
+§1064-1065): "Missing } inserted" for a `{`/`\bgroup` group (`simple_group`), "Missing \endgroup inserted" for
+`\begingroup` (`semi_simple_group`), "Missing \right. inserted" for `\left`, and the shift is read again. A `\par` in
+math mode is `insert_dollar_sign` (§1046-1047 `mmode+par_end`): "Missing $ inserted" and the `\par` read again; LaTeX's
+`\end{X}` gets the same through its `\par` or its `\endgroup` meeting the math shift group (§1064). A `}` meeting the
+math shift group is `extra_right_brace` (§1068-1069): "Extra }, or forgotten $", the brace deleted. Perl has none of
+these: `$` in a group inside the formula is "Attempt to end mode math" with the frame left open, `\par` in math is
+silent, and a `}` at the formula's frame closes it with an Error.
+
+**Rust** (batch 65n), for an *inline formula outside alignments* — one `\lx@begin@inline@math` opened with no alignment
+current (frame value `stomach::INLINE_FORMULA`), reached from the innermost frame through groups `off_save` closes only
+(`stomach::inline_formula_reachable`):
+- tex_math.rs `end_math_or_defer`: the math ender meeting a `{`/`\bgroup` or `\begingroup` group inserts its closer
+  (`stomach::off_save_closer`), Error "Missing } inserted" / "Missing \endgroup inserted" (TeX's error, and Perl's
+  "Attempt to end mode math"), the closer owed by the group as 65d's `\right` path owes it (`owe_inserted_closer`), and
+  the ender read again; the ender met first reverts as nothing. Before, the math end was deferred to the group's end,
+  which an unbalanced paper never reaches, and the rest of the paper was digested as math. The deferral stays for a
+  constructor's argument frame (`$\bm{\hat{m}$} b`, kblocks-doc; nicefrac; titlecaps — TeX has no group there), for
+  formulas in alignments and for display math.
+- stomach.rs `insert_dollar_sign`, called by `\lx@normal@par` (before digest) and by `digest_next_body` at a
+  DefEnvironment's own end: Error "Missing $ inserted", `\lx@end@inline@math@inserted` (the ender, reverting to nothing)
+  and the command read again; the `\par` whatsit left in the formula reverts as nothing (`lx@par@reread`).
+- stomach.rs `digest_next_body`: a `}` meeting the formula's math shift group, one rule (`formula_ends_with_its_unit`).
+  The `}` **ends the formula** when it closes a construct digested as a unit that holds the formula: a box body (the
+  mode frame just outside the formula switched by a command on its own `{` — `\mbox{$x}`, `\hbox{$x}`, `\fbox{$x}`; not
+  an environment `\begin{X}`) or an argument digested on its own (`\caption{$x} cap}`, `\section{$x} sec}`: the `}` is
+  the argument's own closing brace, gullet.rs `isolated_input_ends_here` — only `}`s left in the isolated context's
+  pushback and its mouth exhausted). The formula cannot escape such a construct: its end is inserted, the `}` read again
+  ends the construct, and the text after it stays text. **Every other `}` is deleted**, as TeX deletes it (§1069), and
+  the formula goes on to its own `$` — or, missing that, to the `\par` or environment end where §1047 inserts it:
+  `Before $x} y$ after.` at the paragraph's level or in an environment, `{\it a $x}$ y} after one.` and
+  `{\bf $x} y$ after one.` in a plain group (pdflatex's shape and count, 1 error, "after one." text; 65d review a1, a2,
+  a8, a16). One Error either way, TeX's message "Extra }, or forgotten $" — also where a display formula or a formula
+  in an alignment cell ends at the `}` (below). The `}` a `\right`/`\middle` delimiter scan put back (#530,
+  `$\left\{ x \right}$`, `\mbox{$\left\{ x \right}$}`) is deleted before the rule is asked: the author wrote it as a
+  delimiter, never as a construct's closer (the box's own `}` follows the `$`), as pdflatex deletes it (65d review g1).
+
+**Content first, against TeX, for a unit construct** (main session decision 2026-10-12): pdflatex deletes the `}` there
+too and runs the formula on — `\mbox{$x} after one.` swallows "after one." and the next paragraph into the box (3
+errors, pdftotext "Before xafterone.Second para."), and a macro argument's formula ends at the box's or heading's end
+(§1047, `\caption{$x}`, `\footnote{note $x}`, `\parbox`, `\makebox`, `\raisebox`: "Missing $ inserted"). Ours ends the
+formula at the `}` with one Error, so the text after the construct stays text (65d review a6, a7, a9, a10, a14).
+A round-2 draft extended the ending to every `}` whose `{` partner lies outside the formula (a plain `{…}` group
+included); it gained nothing on the probe set and lost the shapes where the author did write the closing `$` after the
+stray `}` (a1, a2, a16: "after one." became math, 2-3 errors) — settled, not to be re-attempted without evidence.
+
+**Residual, as pdflatex**: in a plain `{…}` group a forgotten `$` (`Before {\bf see $x} more text.`) has its `}`
+deleted, and the formula runs the text on as math to the paragraph's end ("Missing $ inserted" at the `\par`; Math
+"xmoretext.", 2 errors + the open group at the document's end — pdflatex's count and shape). Possible refinement (RED
+paragraph-mode/forgotten_dollar_in_a_plain_group_keeps_the_text, SYNC_STATUS row MS): `$`-parity evidence in the rest
+of the paragraph — odd, the author's closing `$` exists, so delete; even, the `$` was forgotten, so end at the `}`.
+
+**Display math is tolerant of `\par`** (main session decision 2026-10-12): no §1047 for display math, a blank line in
+an `equation` being common and tolerated.
+
+**Why only there**: a cell's `$` may be its template's (`align*`'s `$\displaystyle…$`): math9805003's undefined
+`{Sb}` in an `align*`, whose row template `$` closed the environment's `\begingroup`, lost the whole alignment
+(repro paragraph-mode/alignment_cell_formula_keeps_its_recovery, CONTROL). Display math has no §1047 (above), so a deleted brace would run `{\equation x=1}` on through the document.
+Open (SYNC_STATUS row MS): an author's formula in a cell (RED paragraph-mode/cell_end_in_inline_math_inserts_dollar;
+1210.0368, 1907.09124, whose deferrals sit in alignments) needs the template's `$` told from the author's.
+
+**Diagnostics given up for TeX's**: `$x} after one.` with no closing `$` at the paragraph's level now sets "after
+one." as math to the paragraph's end, as pdflatex ("xaf terone."); 65a's inserted `$` had guessed "forgotten $" and
+kept it text, but swapped text and math wherever the `$` came later (`$x} y$ after.`). Open (SYNC_STATUS row MS): a `}`
+meeting a `\left` group in an inline formula is not yet deleted (RED
+paragraph-mode/brace_meeting_left_group_in_inline_math_is_deleted).
+
+**Witnesses** (65int2 → 65n; errors / warnings / text words outside math / runs of 20+ letters): 2007.11971 13 / 2,643 /
+5,268 / 179 → 1 / 43 / 9,865 / 0; 1710.02165 29 / 35 / 12,121 / 1 → 21 / 27 / 12,501 / 0; 2008.11762 14 → 15 (a
+pre-existing `$` desync in the paragraph now ends at its `\par`, content unchanged); 1210.0368, 1907.09124,
+math9805003, hep-lat9811036, nucl-th0401019 unchanged. Probes `~/data/pk_wt/scratch_65n/` (pdflatex oracle per probe).
+
+**Guards**: `perfect_kernel_batch65n::{math_shift_closes_a_group_opened_in_the_formula,
+par_in_inline_math_ends_the_formula, environment_end_in_inline_math_ends_the_formula,
+stray_brace_in_a_formula_is_deleted, stray_brace_ending_a_unit_construct_ends_the_formula,
+alignment_cell_formula_keeps_its_recovery}`, `perfect_kernel_batch56::box_end_over_leaked_math_closes_it_into_the_box`;
+repros `paragraph-mode/*` (REDs cell_end_in_inline_math_inserts_dollar, brace_meeting_left_group_in_inline_math_is_deleted,
+forgotten_dollar_in_a_plain_group_keeps_the_text), boxes-groups/mbox_math_stray_brace_ends_box_not_math (GREEN).
+
+### 556. `\lefteqn` in a first column is one cell that spans the empty cells after it (Perl: `\multicolumn{3}`)
+
+latex.ltx:15800 defines `\lefteqn#1` as `\rlap{$\displaystyle #1$}`: a zero-width box inside its column's own u/v
+template (tex.web §788 `init_col`, §789), its ink printed over the columns to its right. TeX does not span there: each
+`&` closes the cell and opens the next preamble column whatever either holds (tex.web §791 `fin_col`), so the common
+`\lefteqn{lhs}&&\nonumber\\` and `\lefteqn{lhs}&\\` rows are three-cell rows, 0 errors in pdflatex. Perl
+(latex_constructs.pool.ltxml:2194-2197) makes a first-column `\lefteqn` a `\multicolumn{3}{l}`, so those `&` overflow
+the row (`Error:unexpected:&`, Perl and Rust alike; KNOWN_PERL_ERRORS #624), and the cells after it hold what they
+held as overflow cells (text-mode math, nucl-th9512020).
+
+**Rust** (batch 65o): the first-column `\lefteqn` is `\multicolumn{1}{l}{\lx@alignment@cell@overprint{ltx_eqn_lefteqn}
+…}`. `\lx@alignment@cell@overprint` (tex_tables.rs, Rust-only) marks the current cell `Cell::overprint` and classes it;
+`normalize_overprint_spans` (alignment/normalize.rs, between the cell sizes and `normalize_mark_spans`) extends an
+overprinting cell's span, since HTML cannot overprint, over the cells after it that TeX shows nothing for, up to the
+first that is not structurally skippable (`Digested::is_skippable`: spaces, empty or invisible boxes such as a
+`\phantom`, the template's empty `$\displaystyle$` shell), spans or is spanned, and on over the cells a short row lacks
+(amsmath's repeating templates; a row ended early has no boxes there, tex.web §§800-810) to the table's width. A cell
+measuring under 1pt is not therefore empty: an `\index` or a `\hypertarget` anchor ends the span (a covered cell is
+never absorbed). So the HTML keeps Perl's intent where the row is empty after the `\lefteqn` (one cell over the row:
+`colspan="3"` in an eqnarray, `2` in an `array{ll}` or an `align*`, where Perl's 3 overran the two columns), and a cell
+with content keeps its own column. The eqnarray's `_Capture_` carries the class, so `equationgroup_join_rows` classes
+the row `ltx_eqn_lefteqn` as Perl Base_XMath.pool.ltxml:956-957 means to; in Perl it never fires. The class is in the
+XML only: LaTeXML-block-xhtml.xsl writes the HTML row's own class (:703, :883), so LaTeXML.css's
+`tr.ltx_eqn_lefteqn + tr` rule never meets it. Run 340's `&` cluster R1 (about 2,050 papers, 29 of 55 sampled): the 31
+erroring witnesses go to 0 errors (0707.3929, 0801.4655, 0806.1442, 1103.1986, 1209.6494, 1409.4633, nucl-th9512020,
+0810.2247, 0810.2511, 1104.3567, 1109.2680, 1203.3852, 1301.5488, 1411.3238, 1503.01263, 1701.08456, 1704.07012,
+1706.08792, 1806.07473, 1903.02286, 2201.13255, astro-ph0111262, astro-ph0203455, cond-mat0209129, cond-mat9710308,
+hep-lat9711012, math0102211, math0407427, math9806075, 2411.04274, 2609.03020; 2205.04522 stays at 0).
+
+Residuals (RED repros): `\multicolumn{1}{l}` replaces column 1's template, so its `@{…}` material and `|` rules are
+lost, which TeX's `\rlap`, inside the template, keeps (alignment/lefteqn_overprint_keeps_template_material; Perl's
+`\multicolumn{3}` loses them too). An `\index` or anchor alone in the cell after the `\lefteqn` keeps its column but
+is still dropped, by the alignment's size-based skip that every eqnarray cell meets (KNOWN_PERL_ERRORS #625,
+alignment/eqnarray_side_content_only_cell); 65int2 kept it only as an overflow cell.
+
+**Guards**: `perfect_kernel_batch65o::{lefteqn_spans_empty_cells, lefteqn_spans_empty_cell, lefteqn_array_two_columns,
+lefteqn_cells_with_content, lefteqn_then_amp, lefteqn_stops_at_side_content}`,
+`perfect_kernel_batch61::eqnarray_continuation_after_lefteqn_does_not_panic`, `53_alignment::eqnarray_test`; repros
+`alignment/lefteqn_*`.
+
+### 557. eqnarray has latex.ltx's fourth column, the equation number's (Perl: three columns)
+
+latex.ltx:15756-15766 gives eqnarray's `\halign` four columns: the three of the equation and
+`\hb@xt@\z@\bgroup\hss##\egroup`, the zero-width number column that `\@@eqncr` (:15789-15796) fills with `\@eqnnum`.
+Columns 2-4 set `\@eqcnt` in their u-part; `\@@eqncr` reads it, pads the row with `&` to the number column, or raises
+"Too many columns in eqnarray environment" if the row reached it, and resets it. A row ended by `\cr` may write in the
+number column (`a &=& b &\cr`, 1804.05059; the text prints at the number's place, the row unnumbered). A fifth `&` is
+tex.web §792's "Extra alignment tab", which TeX turns into `\cr`. Perl's eqnarray template
+(latex_constructs.pool.ltxml:2231-2236) has three columns, so the fourth `&` overflows (`Error:unexpected:&`) wherever
+the row ends (KNOWN_PERL_ERRORS #624).
+
+**Rust** (batch 65o): `eqnarray_columns` adds the text column (`\hfil` before: right-aligned, as `\hss##`), the
+alignment records the equations' three columns (`eqnarray_columns` property; `_ncolumns` stays 3, so
+`rearrange_eqnarray` reads the rows as Perl), and, for eqnarray only (`_number_column` on the group; an
+`\IEEEeqnarray`'s cells are its specification's and stay as written), `drop_empty_number_cells` drops the trailing run
+of empty cells past the third column, ending a span that reaches into it at the third column: eqnarray rows keep their
+three `td`. An empty cell before a later one with content stays, since each `&` opens the next column whatever the
+cell holds (tex.web §791), so `k &=& l & & EXTRA` keeps `EXTRA` in the fifth `td`; a trailing empty cell is an empty
+unset box, set by `fin_align` as a row that ended before it (§§800-810), so dropping the run leaves what TeX prints. A
+written fourth cell keeps its text in a fourth `td`, where Perl's overflow cell put it (now `align="right"`, was
+`center`). `\lx@eqnarray@number@check` (sect07.rs), run by the eqnarray's `\\` (`\lx@eqnarray@newline`) and by
+`\endeqnarray` / `\endeqnarray*`, raises latex.ltx's error, `Error:unexpected:eqnarray Too many columns in eqnarray
+environment`, where the row has reached the fourth column; in the look-ahead before a cell the current column is the
+one before, so `&\\` counts the cell it opens, as TeX's u-part does (pdflatex's three errors on the repro, ours three).
+IEEEeqnarray (`eqnarray_bindings_with_columns`) has no number column and no check.
+
+Known residual: the check reads the current row's column, which is pdflatex's count only for rows ended by `\\` or the
+environment's end. A raw `\cr` skips `\@@eqncr`, so TeX's `\@eqcnt` is not reset and the next `\\` or end counts the
+`\cr` row's column (pdflatex 2 errors, ours 0: RED alignment/eqnarray_cr_row_column_count); for the same reason a
+`\cr`-ended row is unnumbered in TeX and numbered here, as in Perl (RED alignment/eqnarray_cr_row_unnumbered).
+
+**Guards**: `perfect_kernel_batch65o::{eqnarray_number_column, eqnarray_number_column_too_many,
+eqnarray_empty_cell_keeps_later_column}`, `perfect_kernel_batch64ra::eqnarray_extra_tab_keeps_three_columns`; repros
+`alignment/eqnarray_number_column*`, `alignment/eqnarray_empty_cell_keeps_later_column`.
+
+### 559. A `\multicolumn` paragraph cell lets `\\` to a line break inside its box; its nested alignments keep their own `\\` (Perl: the cell's `\\` ends the outer row)
+
+latex.ltx `\multicolumn` (:16603) splices the column's whole `\@preamble` after `\omit`, so a `\\` (`\@tabularcr`)
+in a `p{}`/`m{}`/`b{}`/`X` cell puts its `\cr` inside the open `\vtop` group: "Missing } inserted" in pdflatex, unless a
+`\centering`/`\raggedright` in the cell has let `\\` to `\@centercr`, which makes it a line break of the cell's
+paragraph (`\multicolumn{2}{|p{1cm}|}{\centering A\\ B}`: A and B stack in the merged cell). Perl's live
+`\lx@alignment@multicolumn` is the second of its two definitions (TeX_Tables.pool.ltxml:704-713):
+`\lx@alignment@altcolumn{<template>}\relax <body>`, whose `replaceColumn` makes the multicolumn's column the cell's
+template, so the column's before and after tokens wrap the body; its `\\` ends the outer row: B becomes a new row
+(KNOWN_PERL_ERRORS #626).
+
+**Rust** (`tex_tables.rs` `\lx@alignment@multicolumn`) ports the first, overridden definition (:693-702), the column's
+before tokens (through `beforeCellUnlist`), the body and the after tokens (through `afterCellUnlist`) spliced after the
+`\omit`s (OXIDIZED_DESIGN_DIVERGENCES #474), with `\let\\\lx@newline\let\tabularnewline\lx@newline` inside the box
+group the before tokens open when the column is a paragraph column (`align=Justify`): after the column type's own
+before tokens, ahead of its `>{…}` tokens (`Cell::prefix_at`, set by `Template::add_column`), so a prefix macro that
+takes arguments takes the `\ignorespaces` and the body, not the `\let`, and an `\arraybackslash` there keeps the same
+recovery (pdflatex: `\arraybackslash` lets `\\` to `\tabularnewline`, i.e. `\@tabularcr`, array.sty:247 and
+latex.ltx:16576, so pdflatex errs as without it, "Missing \endgroup inserted" with array.sty loaded: tex.web do_endv
+meets the cell box's group). The cell's `\\` is a line break, what pdflatex prints with `\centering` and the recovery of its error
+without (that error is not yet a Warning: repro `kernel-alignment/multicolumn_pcol_plain_newline_unwarned`, RED); a
+nested `tabular`/`array`/`tabularx` lets `\\` to its own row end and keeps its rows, and so does a math alignment in the
+cell (`pmatrix`, `cases`, `array`, `aligned` collapsed into one row). This replaces a rewrite of the body's brace-depth-0 `\\`
+tokens to `\lx@newline`, which also rewrote the row ends of a nested `\begin{tabular}…\end{tabular}` (an environment is
+no brace group): its rows collapsed into one cell, a multi-column one overflowed ("Extra alignment tab", then "\noalign
+cannot be used here" at the next `\hline`) and a one-column one lost its rows silently. And it replaces a re-boxing of
+tabularx `X`/tabulary `J`/tabu `X` cells as `\lx@tabular@p t{}{…}`, whose empty width was a "Missing number" Warning and
+`width="0.0pt"`; their `\vtop{` is spliced as Perl splices it, as in their ordinary cells. Witnesses 2607.14806
+(4 → 0 errors), 2010.13561 (29 → 0), 1808.05579 (18 → 0), unchanged 1610.00974 and 1805.01525 (`L{5cm}` =
+`>{\raggedright\arraybackslash}m{5cm}`).
+
+**Guards**: `perfect_kernel_batch65p::{multicolumn_pcol_nested_tabular_keeps_its_rows,
+multicolumn_pcol_nested_one_column_tabular_keeps_its_rows, multicolumn_x_nested_ruled_tabular_keeps_its_rows,
+multicolumn_pcol_text_then_nested_ptabular_keeps_its_rows, multicolumn_pcol_embedded_newline_is_a_line_break,
+multicolumn_pcol_pmatrix_keeps_its_rows, multicolumn_pcol_prefix_with_arguments_reads_the_body}`; repros
+`kernel-alignment/multicolumn_*`. Open: pdflatex's `>{\two}p{3cm}` reads `[|]xy` (array.sty `\insert@pcolumn`'s
+`\relax`), ours `[|x]y` as before 65p (RED repro `kernel-alignment/pcol_prefix_argument_takes_relax`).
+
+### 561. elsarticle's `1p`/`3p`/`5p` load geometry, and the one-column layouts give it their text width (Perl: the load is commented out)
+
+elsarticle.cls:1252-1300 loads geometry for the journal layouts and sets the page with `\geometry{twoside,
+paperwidth=210mm, paperheight=297mm, textheight=…, textwidth=…, centering, …}` (1p 384pt, 3p 468pt, 5p 522pt with
+`columnsep=18pt` and `\@twocolumntrue`). Perl's binding has `# RequirePackage('geometry')` (elsarticle.cls.ltxml:44,
+KNOWN_PERL_ERRORS #629), so a document's `\geometry`, `\newgeometry` or `\restoregeometry` is undefined.
+
+**Rust** (batch 65r, `elsarticle_cls.rs`): the three layouts load geometry. The one-column ones (1p, and 3p without
+`twocolumn`) pass the class's page and text width to it, which the geometry binding uses for measured SVG pictures only
+(#99); the two-column ones (5p, 3p with `twocolumn`) load it without the class's call, because our geometry has no
+column model: a full-width picture there is a column (252pt for 5p) wide, and `\Gm@tw` would make it the text width.
+Witnesses 2609.13883, 2404.14059, 2103.06107, 1904.12395 (`\geometry`), 2406.15044 (`\newgeometry`). **Guards**:
+`perfect_kernel_batch65r::{elsarticle_3p_loads_geometry, elsarticle_layouts_set_geometry_text_width}`; repro
+`stub-dependencies/elsarticle_3p_loads_geometry`.
+
+### 562. A repeat load of hyperref takes its new options through `\hypersetup`; a package that requires its requirer back ends the cycle with an Info (Perl: the options are dropped; Perl marks the package loaded first)
+
+A class binding may load a package its real class does not: revtex4_support (revtex4_support.sty.ltxml:23),
+elsarticle (elsarticle.cls.ltxml:52), PoS, jmlr and sagej load hyperref. The author's later
+`\usepackage[colorlinks]{hyperref}` is then a repeat load, which LaTeX would refuse with "Option clash" — but in real
+LaTeX it is the first hyperref load, and colorlinks loads color (hyperref.sty:4532-4537). Perl drops the options
+(KNOWN_PERL_ERRORS #628), so `\textcolor`, `\color` and `\definecolor` are undefined (about 860 run-340 first errors).
+
+**Rust** (batch 65r, `binding/content.rs` `apply_new_options_on_reload`): a binding may name its key-value setter in
+`<file>_keyval_setter`; the options a repeat load has that the first did not are digested as `<setter>{options}`, with
+an Info ("Applying options … from a repeat load"). hyperref names `\hypersetup`, whose `colorlinks` loads color. The
+"Option clash" Info stays. Witnesses 2609.24844, 2609.13110, 1711.02465, 1904.06989 (PoS). Guard
+`perfect_kernel_batch65r::hyperref_colorlinks_after_class_preload`.
+
+A binding-load re-entrance — a package required while it is itself being loaded — was a Warning. LaTeX ends such a
+cycle silently: `\ProvidesPackage` defines `\ver@<file>` before the body runs, and Perl marks `<request>_loaded` before
+`do $pathname` (Package.pm:2332). thm-restate.sty:26 and thmtools.sty:47-49 require each other, so a `.sty`/`.cls`
+re-entrance is now an Info; any other (a pool, task #260's natbib loop) keeps the Warning. Guard
+`perfect_kernel_batch65r::thm_restate_loads_thmtools`.
+
+### 563. amsrefs loads what amsrefs.sty loads, and `\bibselect` reads its database, printing the cited entries (Perl: no loads, no `\bibselect`)
+
+amsrefs.sty loads url (:45-46), rkeyval (:213) and, unless `lite` (:179, :214-218), textcmds and mathscinet, so a
+`\bib` entry's `\cprime`, `\germ`, `\scr`, `\Dbar` and `\url`, and a document's `\DefineSimpleKey`, are defined. Its
+`\bibselect{db}` (:1291-1340) reads the records of `db.ltb` (`.ltx`, `.tex`) that start with `\bib`, writes the cited
+ones (`\bibselect*`: all) to `\jobname.bbl` and inputs it. Perl's amsrefs binding loads nothing and has no
+`\bibselect` (KNOWN_PERL_ERRORS #627; about 1,860 run-340 first errors).
+
+**Rust** (batch 65r, `amsrefs_sty.rs`): the loads as amsrefs.sty (rkeyval and textcmds, which have no binding, only
+where raw loading is on); `\bibselect` reads the database records as `\ReadBibLoop` does (a record is a line extended
+while its braces are open) and digests them; with no database shipped it inputs the author's `\jobname.bbl` (the
+selection of their run). A non-starred selection marks its entries `class="ltx_bib_library"` (`bibtex.rs`
+`{bib@entry}`), and the bibliography (`latexml_post` make_bibliography) prints those when cited, as the entries of a
+`.bib` — an amsrefs `biblist`'s own `\bib`s stay printed whether cited or not (#57, 1012.2719). Also `{biblist}[…]`
+and `{biblist*}` take their settings (`\resetbiblist`, :569, :651), `\BibSpecAlias` is ignored as `\BibSpec` is,
+`\bysame` is its rule, `\ocite`/`\ocites` cite. Witnesses 1907.08888, 2602.02342, math0410226 (`\cprime`, `\germ`),
+1904.05225 (`CF.ltb`), 2103.06687 (`.bbl`), 2604.08274 (`\DefineSimpleKey`), 1904.00652 (`\resetbiblist`). **Guards**:
+`perfect_kernel_batch65r::{amsrefs_loads_mathscinet_url, amsrefs_lite_rkeyval}`,
+`06_cluster_bibliography::{amsrefs_bibselect_database, amsrefs_bibselect_star_database}`.
+
+### 564. xy's frame feature requires curve, as the pdf driver's frame support does (Perl: curve only on request)
+
+Under pdflatex xy.sty selects the pdf driver, whose frame support (xypdf-fr.tex:60) does `\xyrequire{curve}`; so
+`\usepackage{xypic}` (xyv2.tex:154 `\xyrequire{frame}`) has curves, and a curved arrow `\ar@/^/[r]`
+(xyarrow.tex:517-519) its `\crvi` (xycurve.tex:69). Our latexml driver supports frames in the pdf driver's place
+(`xylatexml_tex.rs` `\xyaddsupport{frame}`), but curve loaded only through `[all]` or `\xyoption{curve}`, so
+`\crvi` was undefined (about 380 run-340 first errors).
+
+**Rust** (batch 65r, `xy_sty.rs`): loading the frame feature requires curve. Witnesses 2604.10154, 1207.7025,
+2004.14742, 2508.01041. Guard `perfect_kernel_batch65r::xypic_curved_arrow`; repro `stub-dependencies/xypic_curved_arrow`.
+
+### 565. SIunits defines its own commands and units over the siunitx shim (Perl: a siunitx shim with `\squaren` only)
+
+Perl's SIunits.sty.ltxml requires siunitx, lets `\unit` be `\SI` and defines `\squaren`; SIunits.sty's own
+commands (`\addunit`, `\usk`, `\per`, `\power`, `\reciprocal`, `\rp…`, `\SIunits[…]`, L51-193) and its units
+(`\metre`, `\meter`, `\second`, `\kilo`, … `\addunit`/`\addprefix` at L195-543) are undefined there, and the shim leaves
+siunitx's unit names `\relax` outside `\si`, so `$221\usk\meter$` lost its unit (2103.01586; run 340: 440 first
+errors in SIunits' own commands).
+
+**Rust** (batch 65y, `siunits_sty.rs`): the commands, and the units and prefixes as a table of SIunits.sty's top-level
+calls, all by `\providecommand`, which replaces the shim's `\relax` and keeps a definition a paper or package made
+first; `\si`/`\SI` still rebind siunitx's names in their argument. Also: the `derived`/`derivedinbase` sets
+(L302-393) for those options and `\SIunits[…]`; `\micro`, `\square` (an amssymb `\square` is kept, SIunits' error
+for it is not raised) and `\gray`/`\Gray` at the document's start as the options decide (L125-150, 201-209, 271-301);
+`\meter`/`\deka`/`\dekad` (L92-94); `\degree`, `\arcminute`, `\arcsecond` and `\degreecelsius` as their glyphs (° ′ ″
+℃) so a number before them parses. Left out: SIunits' global `\cdot` and `\stepcounter` redefinitions (L80-91,
+L104), the `italian` option's names, the `DeclareOption*` warning. Like the real `\addunit` (`\newcommand`), a
+paper's later `\newcommand` of one of these names (`\rem`, `\rad`, `\gal`, `\are`, `\bel`, `\ton`, `\hour`,
+`\minute`, `\ohm`) keeps the unit — pdflatex stops on "already defined", we drop the paper's definition silently.
+Witnesses 0709.1649, 2103.01586, 1904.06264, 2407.13230. Guard `perfect_kernel_batch65y::siunits_unit_commands`; repro
+`stub-dependencies/siunits_unit_commands`.
+

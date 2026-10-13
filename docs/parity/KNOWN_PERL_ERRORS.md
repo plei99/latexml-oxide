@@ -10632,7 +10632,8 @@ $f(x) = \frac{1}{2}(a+b)$
 
 pdflatex: f(x) = ½(a+b) with stretched parentheses — tex.web §1160 `scan_delimiter` takes a letter or other character
 by its `\delcode`, never its `\mathcode`. Perl: `Fatal` deep recursion (`Constructor[\left T…` repeated). Rust (62y): the
-`DelimiterToken` parameter of `\lx@delim@left`/`\lx@delim@right`/`\middle` digests under
+`DelimiterToken` parameter of `\left`/`\lx@delim@left`/`\lx@delim@right`/`\lx@delim@middle` (65d: scanned as
+§1160 does, OXIDIZED_DESIGN #530) digests under
 `stomach::digest_as_delimiter`, in which a math-active character is the character itself; so does the one-token
 argument of `\bigl(` and its family (the `TeXDelimiter` parameter), where Perl's active-meaning reading lost the `)`.
 Witness 2609.40266. Guard `perfect_kernel_batch61::math_active_delimiter_is_its_character` (paragraphs p1.1, p2.1).
@@ -11615,9 +11616,9 @@ fdsymbol_requires_amsmath, wileyasna_apacite, cas_moreverb_comment, ulem_declara
 Fixed in Rust (63v): `\verb` matches its delimiter token as read within tabularx (`read_verb_invocation`), caption's
 longtable `\captionsetup` is bound, `\if@in@firstcolumn` is true only before the first cell, the template adds the
 `\ignorespaces`, and the rest of a listing's `\end` line stays the current line of its input (`restore_raw_line_rest`,
-the line with its `\endlinechar`), as TeX keeps one input line, so any raw reader begun on it reads on below. Open:
-`\lefteqn{x=} & …` in the first column still spans three columns and overruns (RED alignment/lefteqn_then_amp, a
-ruling); a tabularx `\verb` inside a `\footnote` or `\textbf` still errs (RED alignment/tabularx_verb_in_footnote); a
+the line with its `\endlinechar`), as TeX keeps one input line, so any raw reader begun on it reads on below. The
+first-column `\lefteqn{x=} & …` overrun is fixed in 65o (#624: the `\lefteqn` spans only the empty cells after it).
+Open: a tabularx `\verb` inside a `\footnote` or `\textbf` still errs (RED alignment/tabularx_verb_in_footnote); a
 `\lefteqn` in a middle column writes the joined `tex=` as an `\mbox` (RED alignment/lefteqn_rlap_tex_reversion);
 `\verb*` in a pre-read argument shows no visible spaces (its spaces were read as spaces); the rest of a `\end{verbatim}`
 line is still reopened as an input of its own, so a listing begun there loses its body (RED
@@ -11796,7 +11797,15 @@ Fixed in Rust (64a):
   text in the kernel author splitter (63z8 had read its digits as a name, joining the names around it).
 - An author mark nothing answers — no entry labelled by it, no affiliation printing it (`_bymark`: llncs's
   `$^{1,3}$ Univ A` answers an `\inst{3}`) — stays in the name, as LaTeX prints it (`show_unanswered_marks`; repro
-  sectioning-frontmatter/author_unmatched_numeric_mark, RED since 63x). In a marked author block a line of names
+  sectioning-frontmatter/author_unmatched_numeric_mark, RED since 63x); since 65e a superscript footnote symbol too
+  (`$^{\dag}$`, `$^{*}$`, which label affiliations as marks), shown as its glyph (`unanswered_mark_text`;
+  2203.01270, class-bindings/ptephy_symbol_marks_and_legend_lines), unless the mark placed one of that author's
+  contacts and was dropped from it (`$^\dagger$baker@y.edu`, `answered_symbol_key`), which answers it on that author
+  only; a mark the author's email shows as well (`$^{*}$ghunt@wm.edu`, 1910.00401) stays on the name too, as printed; its
+  glyph follows its mode (a math `*` is `∗`, a `\textsuperscript{*}` stays `*`). Residual: a `$^{*}$` the kernel shows
+  itself (keepsup, an email line) keeps ASCII `*` where pdflatex prints `∗` (1910.00401 email, probe hb)
+  (1807.01584,
+  1805.02699; repro sectioning-frontmatter/symbol_mark_shown_on_each_author). In a marked author block a line of names
   continuing an unfinished list goes on as names (`names_continue`, as in an unmarked block): `Gus
   Gray\IEEEauthorrefmark{1}, …, Ida Ivy,~\IEEEmembership{Fellow,~IEEE,}\\ Jon Jay, … and~Kim Key` (2408.02464).
 - `\IEEEauthorblockA` is a marked affiliation list (`\lx@add@affiliation@marked`). IEEEtran's `\IEEEauthorrefmark`
@@ -12464,3 +12473,311 @@ expands to nothing for `0pt` (`\ifdim#1=\z@ \else …\fi`), so `\tablewidth{0pt}
 `tabular` leaves both `\hline`s as the row's `\noalign`s. Perl's assignment opens a cell and the `\hline`s become
 misplaced. Trigger: `class-bindings/aastex_tablewidth_zero_in_tabular.tex`. Rust (65b):
 `\ifdim#1=\z@\else\pt@width=#1\relax\fi`. Witness 1805.09353.
+
+## 606. A font switch in `\refname`, `\bibname` or `\indexname` leaks into the bibliography or index
+
+Perl digests the bibliography's and the index's title bare (`DigestIf('\refname') || DigestIf('\bibname')`,
+latex_constructs.pool.ltxml:3885; `DigestIf('\indexname')`, :4523), outside any group, so an unbraced switch in the name
+stays in force for the entries. pdflatex sets the name in `\section*{\refname}`, whose group scopes it. Trigger
+`\documentclass{article}\renewcommand{\refname}{\bfseries\Large References}\begin{document}\cite{a}
+\begin{thebibliography}{9}\bibitem{a} A. Author, Some title.\end{thebibliography}\end{document}` → the `<bibblock>`
+in bold 144 % (Perl 0.8.8). Fixed in Rust (65a, OD #528; repro index-bib/refname_font_stays_in_the_bibliography_title).
+
+## 607. braket's `\Set` splits at the bar of a `\left|`, losing the rest of the set
+
+Perl's `splitBraketArg` (braket.sty.ltxml:27-54) splits `\set`/`\Set`/`\braket` at the first `|` token, whatever comes
+before it. braket.sty makes `|` math-active inside `\Set` (`\mathcode`\|="8000`), but tex.web §1160 `scan_delimiter`
+never activates a delimiter — it takes the character's `\delcode` — so a `\left|`, `\right|` or `\bigl|` keeps its bar.
+Trigger `\documentclass{article}\usepackage{braket}\begin{document}$\Set{\omega : \left|f(\omega)\right| < 1}$
+\end{document}` → Perl (0.8.8) `\Set{\omega:\left.}{f(\omega)}`, "set@(omega colon absent, f * omega)", the `< 1`
+lost; pdflatex prints one set. Fixed in Rust (65d): a bar right after `\left`/`\middle`/`\right` or a `\big` size is
+that command's delimiter (`braket_sty.rs` `reads_a_delimiter`). Witness 2107.02628 (`\Set{… \begin{array}{l}\left|…`,
+an "Extra \middle." once 65d checked the group). Guard `perfect_kernel_batch65d::braket_set_keeps_fence_bars`.
+
+## 608. aa's plain-TeX `\matrix{…\cr}` is read as amsmath's environment-only `\matrix`
+
+Perl aa.cls.ltxml:47-55 overrides `\pmatrix` and `\cases` with plain TeX's forms, as the old aa.cls loaded no amsmath,
+but not `\matrix`, which aa_support's amsmath (aa_support.sty.ltxml:55) makes the environment-only form
+(amsmath.sty.ltxml:802 `\lx@ams@matrix`, amsmath.sty:1068-1071 `\matrix@check`). An old A&A paper's
+`\left(\matrix{a&b\cr c&d\cr}\right)` opens an alignment nothing closes, and the display runs into the next section.
+Trigger `\documentclass{aa}\begin{document}\begin{equation}x=\left(\matrix{a & b\cr c & d\cr}\right).\end{equation}
+\section{Next}Text $a_1$.\end{document}` → 15 errors (`\@startsection Attempt to end mode display_math`, then `_`).
+Fixed in Rust (65e): aa_cls.rs gives `\matrix` the same `\@currenvir` dispatch as `\pmatrix`; the l-aa binding, which
+loads aa, regressed on it in 64u (astro-ph9609122, astro-ph9809009; repro class-bindings/laa_plain_matrix_in_display).
+
+## 609. The OmniBus theorem set replaces the author's macros and environments of the same names
+
+Perl OmniBus.cls.ltxml:160-209 runs `\newtheorem` for 31 names (`conj`, `fact`, `prop`, `proof`, `rem`, …) at the first
+undeclared theorem environment, and LaTeX.pool's `\newtheorem` overwrites a defined name, where latex.ltx:17174-17195
+(`\@ifdefinable`) and amsthm.sty:78-80 refuse it. The author's `\newcommand{\conj}[1]{\overline{#1}}` becomes the {conj}
+theorem, and `\conj{y}` in math opens a theorem there; a `\newtheorem{theorem}` of the document's own is renumbered;
+a class's `\newenvironment{proof}` becomes a numbered "Proof" theorem (the stub on `\begin{proof}` is found before
+`\proof`). Trigger `\documentclass{nosuchclassxyz}\newcommand{\conj}[1]{\overline{#1}}\begin{document}
+\begin{theorem}A theorem.\end{theorem}\begin{equation} x = \conj{y_1} + z_2 \end{equation}\end{document}` → 9 errors
+(`ltx:theorem isn't allowed in ltx:XMath`). Fixed in Rust (65e, OD #533; 1308.6566, 0811.3048, cs0511055).
+
+## 610. TeX.pool's LaTeX autoload triggers answer generic-format probes with "LaTeX" in a plain TeX document
+
+Perl `TeX.pool.ltxml` L33-39 `DefAutoload`s sixteen LaTeX commands (`\ProvidesFile`, `\ProvidesPackage`,
+`\RequirePackage`, `\documentclass`, …) as macros that load `LaTeX.pool`. A generic file's probe for one of them
+(pst-xkey.tex:44 `\ifx\ProvidesFile\@undefined`, iftex.sty:31-33 `\csname ProvidesPackage\endcsname`, inlined by
+eplain.tex:47-49, atbegshi.sty:155-156 `\csname RequirePackage\endcsname`) sees a defined command and takes its LaTeX branch,
+which loads the format in the middle of a plain document. Trigger: `\catcode`\@=11 \ifx\ProvidesFile\@undefined
+PLAIN\else LATEX\fi \bye` → "LATEX" (tex: "PLAIN"). Fixed in Rust (65f, OD #536; repro
+loader/plain_provides_probes_see_plain). Witnesses math0305287, math0111222, the eplain papers on TL 2025 (1504.02513).
+
+## 611. A braced `\input{…}` loads LaTeX.pool in a plain TeX document
+
+Perl `TeX_FileIO.pool.ltxml:161-170` loads `LaTeX.pool` whenever `\input`'s argument is braced. pdfTeX (1.40.21+)
+reads `\input{file}` as the file's name in plain TeX too, and TL 2025's pstricks.tex:1982 writes
+`\input{pstricks-dots}`, so a plain document that loads pstricks gets the LaTeX format mid-file. Trigger:
+`\input{story}\bye` → `LaTeX.pool` loaded (tex: story.tex read, no LaTeX). Kept in Rust (`tex_file_io.rs`); with
+pstricks's own `\ExplSyntaxOn` (pst-code-pspicture.tex:76) loading expl3 anyway, gating it alone rescued neither
+math0305287 nor math0111222 (65f measurement).
+
+
+## 612. The longtable binding has no `\LT@array`, so a package `\longtable` in longtable.sty's shape breaks the table
+
+Perl `longtable.sty.ltxml` defines `\longtable[]{}` in one piece. longtable.sty splits it: `\longtable` opens a group
+and calls `\LT@array[#1]#2` (:105-108), which builds the table, and `\endlongtable` closes the group (:278).
+aalongtable.sty (EDP Sciences 2004, shipped with A&A papers; anlongtable.sty the same) redefines `\longtable` as
+`\par\onecolumn\clearpage\begingroup\@ifnextchar[\LT@array{\LT@array[x]}`. Under Perl's binding `\LT@array` is
+undefined, and the table becomes text with a misplaced `\noalign` per `\hline`. Perl reaches this whenever the package
+is read raw (`INCLUDE_STYLES`, ar5iv's raw styles).
+
+Trigger: `\documentclass{article}\usepackage{longtable}\makeatletter\def\longtable{\begingroup\@ifnextchar[\LT@array
+{\LT@array[x]}}\makeatother\begin{document}\begin{longtable}{ll}\caption{Cap}\\\hline a & b \\\end{longtable}
+\end{document}`. Perl (latexmlc, this host): 3 errors (`\LT@array` undefined, `\caption` outside a float, `\noalign`
+cannot be used here). pdflatex: 0.
+
+Fixed in Rust (65h, OD #541; repro class-bindings/aalongtable_lt_array). Witnesses 1102.5033, 0707.2342, 0708.2676,
+0804.2184, 1908.10340.
+
+## 614. A package a standalone sub-file's preamble loads leaves its tabular hooks undefined in the main document
+
+Perl standalone.sty.ltxml:24-33 runs a sub-file's preamble in a group, and `AddToMacro` (Package.pm:2545-2547) adds to
+a macro globally: xcolor's `\@xcolor@tabular@before`, `\@tabular@row@before@xcolor` and `\@xcolor@row@after` stay in
+the kernel's tabular hooks after the group has dropped their definitions. Trigger: a sub-file `sub.tex` holding
+`\documentclass{article}\usepackage{xcolor}\begin{document}Sub.\end{document}`, and
+`\documentclass{article}\usepackage{standalone}\begin{document}\input{sub}\begin{tabular}{ll}a&b\\\end{tabular}
+\end{document}` → 8 errors (`\@xcolor@tabular@before` undefined, then the alignment's groups mismatched); pdflatex 0
+(the sub-file's preamble is skipped). Fixed in Rust (65i, OD #543; 2512.09430, repro
+loader/standalone_subfile_xcolor_tabular_hooks).
+
+## 615. rccol's `R` column is read as tokens: the number unformatted and an extra alignment tab
+
+rccol.sty:46-69 rewrites `R[-][<in>][<out>]{<int>}{<frac>}` by assignments and an `\edef` (`\rc@digits{…}`,
+`\def\rc@withsign{…}`, `\edef\rc@rewrite@scratch{…}`) run by array.sty's column-type search. Perl's
+`ReadAlignmentTemplate` (Alignment.pm:895-921) expands `\NC@rewrite@R` and takes the assignments for template tokens
+("Unrecognized tabular template", skipped), so the cell is set unformatted. Trigger
+`\documentclass{article}\usepackage{natbib}\usepackage{rccol}\begin{document}\begin{tabular}{lR{1}{2}}a & 1.5 \\
+\end{tabular}\end{document}` → Perl 1 error ("Extra alignment tab '&'"), the cell "1.5"; pdflatex 0 errors,
+"15,00." (rccol's default decimal comma). Fixed in Rust (65i): a binding (latexml_contrib rccol_sty.rs) gives `R` the
+result of the `\edef`, and the raw cell code formats the number. 64ze-65h ran into `Fatal:Timeout:PushbackLimit`
+instead (natbib's `\appdef` left `\@temptokena` filled; the template reader now empties it as array.sty:361 does);
+witnesses 1101.1265, 0812.2309, 2609.37147 and 15 more run-340 papers; repro
+alignment-bindings/rccol_with_natbib_pushback_loop.
+
+## 616. The bounded `\bm` swallows the `\right` of a `\left` it holds
+
+Perl bm.sty.ltxml:20 `DefConstructor('\bm{}', '#1', bounded => 1, …)` digests the argument in a group, while bm.sty
+emits `\left`/`\right` at the level `\bm` is used at with a bold delimiter (bm.sty:162-217, :416). With the `\left` in
+one `\bm` and the `\right` in another, the hidden group `\left` opens (`\lx@hidden@bgroup`, TeX_Math.pool.ltxml:773-778)
+nests with the argument groups: the `\right\rangle` is lost and the text between is bolded (Perl 0.8.8, same host).
+Trigger: `\usepackage{bm}` … `$\bm{\left\langle} x \bm{\right\rangle}$` → `tex="\bm{\left\langle}x\bm{}"`, ⟨ and a
+bold x, unparsed (pdflatex: bold ⟨ x ⟩). The same bounded constructor is Perl's amsbsy `\boldsymbol`
+(amsbsy.sty.ltxml:23, with `\pmb` Let to it) and RevTeX's `\bm` (revtex4_support.sty.ltxml:167), with the same loss;
+there pdflatex errs as well (the argument is boxed), and loses the ⟩. Fixed in Rust (65j, OD #544; 2204.13665).
+
+## 618. The ar5iv stub bindings drop their packages' dependency loads, option-driven loads and public switches
+
+ar5iv-bindings mdframed.sty.ltxml:15-18 loads kvoptions, xparse, etoolbox and xcolor, where mdframed.sty:72-77 loads
+kvoptions, xparse, etoolbox, zref-abspage, needspace and color, and its `\DeclareOption`s are absent, so
+`framemethod=TikZ` (mdframed.sty:154-169, which loads tikz) is ignored: a document that draws with the tikz mdframed
+loaded gets `{tikzpicture}` undefined. Trigger `\documentclass{article}\usepackage[framemethod=TikZ]{mdframed}
+\begin{document}\begin{tikzpicture}\draw (0,0)--(1,1);\end{tikzpicture}\end{document}` → `Error:undefined:{tikzpicture}`
+(pdflatex: 0 errors); `\usepackage{mdframed}` then `\ifpdf` (iftex, under zref-base) or `\needspace` likewise. The
+mciteplus binding (mciteplus.sty.ltxml:71) declares only `\ifmciteBstWouldAddEndPunct` of the package's switches, and an
+apsrevM `.bbl` opens with `\mciteErrorOnUnknownfalse` (mciteplus.sty:184): trigger `\usepackage{mciteplus}` then
+`\mciteErrorOnUnknownfalse` → `Error:undefined`. The arydshln binding comments out `{Array}`/`{Tabular}`
+(arydshln.sty.ltxml:48-50; arydshln.sty:697-715 defines them). LaTeXML's own epstopdf.sty.ltxml loads none of
+epstopdf.sty:149-152's infwarerr, kvoptions and pdftexcmds, so `\usepackage{epstopdf}\ifpdf…\fi` errors on `\ifpdf`
+(pdflatex: iftex, under pdftexcmds). Fixed in Rust (65k, OD #547; witnesses 2101.02817,
+0802.3383, 2410.22009).
+
+## 619. hyperref's `backref`/`pagebackref` options never load backref
+
+Perl hyperref.sty.ltxml:68 declares `backref` and `pagebackref` as no-op options, where hyperref.sty:2762-2810 and
+:4587-4589 load backref with its `hyperref`/`hyperpageref` option, so backref's `\ifbackrefparscan`, `\backrefsep`,
+`\backrefalt` and `\backref` stay undefined for the documents that set them. Trigger `\documentclass{article}
+\usepackage[pagebackref]{hyperref}\begin{document}\begin{thebibliography}{1}\backrefparscanfalse\bibitem{b} B.
+\end{thebibliography}\end{document}` → `Error:undefined:\backrefparscanfalse` (pdflatex: 0 errors). Fixed in Rust (65k,
+OD #547; witness 1809.07574).
+
+## 620. A natbib label and a caption's or heading's short form are digested as typeset text
+
+natbib.sty.ltxml:622-631 digests the `\bibitem[label]` pieces into `ltx:tag`s, and latex_constructs.pool.ltxml:3189 and
+:3370 digest a `\caption[short]` / `\section[short]` into `ltx:toccaption` / `ltx:toctitle`, all as typeset text; TeX
+only writes them to the .aux / .lof / .toc (natbib.sty:822, latex.ltx:17403-17404, `\@sect`). Trigger
+`\documentclass{revtex4-2}\begin{document}Text \cite{k}.\begin{thebibliography}{1}\bibitem [{MS_()}]{k} A.
+\end{thebibliography}\end{document}` → Perl 1 error ("Script _ can only appear in math mode"); likewise
+`\documentclass{article}\begin{document}\begin{figure}A\caption[fig_a]{A.}\end{figure}\end{document}` → 1; pdflatex 0.
+Fixed in Rust (65m, OD #550; 1904.06560, 1303.1693; repros index-bib/natbib_bibitem_label_is_aux_only,
+captions-floats/caption_short_form_is_lof_only).
+
+## 621. A counter whose name holds `_` errs at every step: its `\the<ctr>@ID` re-reads the name with live catcodes
+
+Package.pm:695-702 `NewCounter` defines `\the<ctr>@ID` from a string holding the counter's (and its parent's) name,
+tokenized with the standard catcodes, so a `_` in the name is a subscript, digested whenever an id is made. Trigger
+`\documentclass{article}\newcounter{c_n}\begin{document}\refstepcounter{c_n}\label{x}A\end{document}` → Perl 1 error
+("Script _ can only appear in math mode"); pdflatex 0. Fixed in Rust (65m, OD #551; 2606.16543, 1912.04210; repro
+macro-state/counter_name_with_underscore).
+
+## 624. `\lefteqn` spans three columns, eqnarray has no number column, the `ltx_eqn_lefteqn` row class is dead
+
+- latex_constructs.pool.ltxml:2194-2197 makes a first-column `\lefteqn{…}` a `\multicolumn{3}{l}`, where latex.ltx:15800
+  is `\rlap{$\displaystyle #1$}` in its own column, so the `&` an author writes after it overflow. Trigger
+  `\documentclass{article}\begin{document}\begin{eqnarray}\lefteqn{a+b}&&\nonumber\\&=&c\end{eqnarray}\end{document}`
+  → 2 x `Error:unexpected:&` (pdflatex: 0 errors). In a two-column `array{ll}` one `&` overflows. Run 340's `&`
+  cluster R1, about 2,050 papers (0707.3929, 0801.4655, 1209.6494, 1409.4633, nucl-th9512020).
+- eqnarrayBindings (:2231-2236) builds a three-column template; latex.ltx:15764 has a fourth, the equation number's.
+  Trigger `\begin{eqnarray}K &=& a &\cr&& + b\end{eqnarray}` → `Error:unexpected:&` (pdflatex: 0 errors; 1804.05059).
+- Base_XMath.pool.ltxml:956-957 classes a `\lefteqn` row `ltx_eqn_lefteqn`, reading the first `_Capture_`'s class,
+  but `\lx@add@cssclass` cannot set a class on the `_Capture_` (not in the schema), and `/\blefteqn\b/` would not
+  match `ltx_eqn_lefteqn` anyway (`_` is a word character): the class never lands. (Where it lands, it stays in the
+  XML: LaTeXML-block-xhtml.xsl:703/883 write the HTML row's own class.)
+
+Fixed in Rust (65o, OXIDIZED_DESIGN_DIVERGENCES #556-557): the `\lefteqn` cell stays in its column and spans the empty
+cells after it at normalization, the eqnarray has the number column (and latex.ltx's "Too many columns" error), and
+the row carries the class. Completes #547's open `\lefteqn{x=} & …` residual (2205.04522, 2411.04274).
+
+## 625. An alignment cell holding only an `\index` or an anchor is dropped; an eqnarray row drops what its math floated up
+
+- Alignment.pm:464-477 counts a cell empty when its content measures under 1pt (and holds no `alignmentPreserve`
+  box, which only `\label` sets, latex_constructs.pool.ltxml:3792), and skippable when empty; `beAbsorbed`
+  (Alignment.pm:370) absorbs only cells that are not skippable. A cell whose only content is an `\index` or a
+  `\hypertarget{…}{}` anchor (in an eqnarray, inside the template's math) measures 0pt, so the indexmark and the
+  anchor are lost. Trigger `\documentclass{article}\usepackage{makeidx}\makeindex\usepackage{hyperref}
+  \begin{document}\begin{eqnarray}a &\index{alone}& b\\ a &\hypertarget{tone}{}& b\end{eqnarray}
+  \hyperlink{tone}{one}\end{document}` → no `indexmark`, no anchor `tone`, a dangling `\hyperlink` (pdflatex: both
+  exist).
+- Base_XMath.pool.ltxml:951-960 (`equationgroupJoinRows`) rebuilds each eqnarray row from its `_Capture_` cells and
+  unbinds the row, so anything else the row holds is lost: in Rust, the indexmark that `float_meta_out_of_math`
+  (OXIDIZED_DESIGN_DIVERGENCES #272) moves from a cell's math up to the row (`a &=\index{withrel}& b`); Perl loses the
+  same entry.
+
+Open in Rust as in Perl (65o; RED alignment/eqnarray_side_content_only_cell). 65int2 kept the side content of a
+`\lefteqn` row's next cells only by accident: Perl's `\multicolumn{3}` left them overflow cells outside the template
+(review probe p1 of 65o).
+
+## 626. A `\\` in a `\multicolumn` paragraph cell ends the outer row
+
+Perl's live `\lx@alignment@multicolumn` (TeX_Tables.pool.ltxml:704-713, which overrides :693-702) expands to
+`\lx@alignment@altcolumn{<template>}\relax <body>`; its `replaceColumn` makes the `p{}` column the cell's template, so
+`\lx@tabular@p t{<w>}{` … `}` wraps the cell body, and a `\\` in it is the tabular's `\lx@alignment@newline`, which
+ends the outer row: the rest of the cell becomes a new row. In pdflatex the `\multicolumn` cell is one box; with a
+`\centering` or `\raggedright` in it `\\` is `\@centercr`, a line break (without, "Missing } inserted"). Trigger
+`\begin{tabular}{|c|c|}\multicolumn{2}{|p{1cm}|}{\centering A\\ B} \\ y & z \\\end{tabular}` → Perl: A in the merged
+cell, B a new row `<td>B</td><td/>` (pdflatex: A and B stacked in the merged cell, then `y z`). Fixed in Rust (65p, OD
+#559, which splices the template as the overridden :693-702 does, OD #474; witness 1610.00974).
+
+## 627. amsrefs loads none of amsrefs.sty's packages and has no `\bibselect`
+
+Perl amsrefs.sty.ltxml loads only the BibTeX pool, where amsrefs.sty:45-46, 213, 216-217 load url, rkeyval, textcmds
+and mathscinet, and it defines no `\bibselect` (:1291), `\resetbiblist` (:651) or `{biblist*}` (:538). Trigger
+`\documentclass{amsart}\usepackage{amsrefs}\begin{document}\cite{G}\begin{bibdiv}\begin{biblist}
+\bib{G}{article}{author={Gel\cprime fand, I.}, title={On ${\germ g}$}, note={\url{http://x.org}}, journal={J},
+year={1950}}\end{biblist}\end{bibdiv}\end{document}` → 3 errors (`\cprime`, `\germ`, `\url` undefined); pdflatex 0.
+Fixed in Rust (65r, OD #563; 1907.08888, 1904.05225).
+
+## 628. A class binding's hyperref load swallows the author's hyperref options
+
+revtex4_support.sty.ltxml:23 and elsarticle.cls.ltxml:52 load hyperref where the real classes do not, so the author's
+`\usepackage[colorlinks]{hyperref}` is a repeat load whose options are dropped, and color (hyperref.sty:4532-4537)
+never loads. Trigger `\documentclass{elsarticle}\usepackage[colorlinks=true]{hyperref}\begin{document}
+\textcolor{red}{red}\end{document}` → 1 error (`\textcolor` undefined); pdflatex 0. Fixed in Rust (65r, OD #562;
+2609.24844, 1711.02465).
+
+## 629. A binding drops a load its real file makes: thm-restate → thmtools, elsarticle 1p/3p/5p → geometry, PoS → color
+
+thm-restate.sty.ltxml loads nothing (thm-restate.sty:26 `\RequirePackage{thmtools}`), and elsarticle.cls.ltxml:44 has
+`# RequirePackage('geometry')` (elsarticle.cls:1252-1300 loads it for the journal layouts), and PoS.cls.ltxml:24-27
+omits PoS.cls's `\RequirePackage{color}` (v1.2.6 :162; 1904.06989). Triggers
+`\documentclass{article}\usepackage{amsthm,thm-restate}\declaretheorem{theorem}\begin{document}
+\begin{theorem}x\end{theorem}\end{document}` → 2 errors (`\declaretheorem`, `{theorem}`);
+`\documentclass[3p]{elsarticle}\geometry{left=2cm}\begin{document}Text.\end{document}` → 1 error (`\geometry`);
+pdflatex 0 on both. Fixed in Rust (65r, OD #561, #562; 2412.02079, 2609.13883).
+
+## 630. amsmath's internals that documents call are undefined
+
+amsmath.sty defines internals that authors reach from their own macros: `\bBigg@` (:726-734, the scaled delimiter
+behind `\big` … `\Bigg`, restated as `\newcommand{\vast}{\bBigg@{4}}`), `\big@size` (:739), `\Let@`,
+`\restore@math@cr` and `\default@tag` (:1144-1145, :1176-1209, used by `\subalign` and `{subarray}` copies),
+`\maketag@@@` (:1210-1211), `\@mathmeasure` (:149-150), `\spread@equation` (:1340-1342), `\start@align`,
+`\intertext@`, `\mdots@`, and the kernel `\ltx@label` amsmath keeps (:1228). Perl's amsmath.sty.ltxml defines none of
+them, so each use is "undefined" (run 340: `\bBigg@` 595 papers, `\Let@` 264, `\big@size` 132). Trigger
+`\makeatletter\newcommand{\vast}{\bBigg@{4}}\makeatother` … `\[\vast( x \vast)\]` → Perl: undefined `\bBigg@`
+(pdflatex 0 errors). Fixed in Rust (65s, amsmath_sty.rs `ams_author_called_internals`; witnesses 1412.0919,
+2509.20301, 1606.05562, 2508.13749, 2103.12630, 2103.14974, 1109.5733).
+
+## 631. amscd reads the space after `@` as the connector, and lacks `\atdef@` and `\CDat`
+
+amscd.sty:56-62 reads the connector after `@` as an undelimited argument (`\at@@#1`), so `A @ >f>> B` and `@ VVV` are
+the arrows `@>>>` and `@VVV`. Perl's amscd.sty.ltxml:42-44 reads it with `\cd@ Token`, which takes the space: the
+connector is the undefined `@ `. Perl also lacks amscd's `\atdef@` (:43-55, a document's own connector) and `\CDat`
+(:93-97, `@` as the connector reader outside `{CD}`). Trigger `\begin{CD} A @ >>> B\end{CD}` → Perl: undefined `@ `
+(pdflatex 0 errors). Fixed in Rust (65s, amscd_sty.rs; witnesses 1403.4347, 2112.10343, 1304.1461, 0709.3322,
+1408.6469; run 340 ~838 papers).
+
+## 632. amsfonts' `\newsymbol` is undefined
+
+amsfonts.sty:117-138 keeps AMSTeX's `\newsymbol\cs <font><class><hex><hex>` (font 1 = msam, 2 = msbm), with an
+"Obsolete command" warning. Perl's amsfonts.sty.ltxml lacks it, so the declaration and every use of the declared
+symbol are errors. Trigger `\usepackage{amsfonts}\newsymbol\mylneqq 2308` … `$a\mylneqq b$` → Perl: undefined
+`\newsymbol` (pdflatex 0 errors, 1 warning, ≨). Fixed in Rust (65s, amsfonts_sty.rs, through `\DeclareMathSymbol`
+of the same class, font and slot; witnesses 1302.6049, 2112.15557; run 340 ~300 papers).
+
+## 633. The AASTeX binding lacks the commands of the AASTeX 6.x class files
+
+Perl's aas_support.sty.ltxml covers AASTeX 5.2 and the 7 front matter but not the commands the 6.x class files
+(aastex6.cls, aastex61.cls, aastex62.cls, aastex63.cls, aastex631.cls) define: `\reportnum` (aastex631.cls:651),
+`\journalinfo` (:1494), `\submitted` (aastex6.cls:972), the edit switches `\turnoffedit`, `\turnoffedits`,
+`\turnoffediting`, `\turnoffeditone` and `\listofchanges` (:5789-5798, :6108), the layout switches
+`\suppressAffiliations`, `\NewPageAfterKeywords`, `\setwatermarkfontsize` (:7323, :6816, :5856), the author-limit count
+`\AuthorCollaborationLimit`/`\AuthorCallLimit` (:6427-6430), `\tablefontsize` (:1930), `\abovedeluxetableskip`
+(:2096), `\fullcollaborationName` (aastex6.cls:5212), `\lambdabar`, and the journal names `\aas`, `\dps`, `\jaavso`,
+`\maps`. A paper that ships one of these classes gets the binding in its place, so each use is "undefined" (run 340:
+~1,700 papers, `\listofchanges` 409, `\AuthorCallLimit` 369). Trigger `\documentclass{aastex631}\reportnum{X}` →
+Perl: undefined `\reportnum` (pdflatex with the class: 0 errors). Fixed in Rust (65t, aas_support_sty.rs and
+aas_macros_sty.rs; witnesses 2604.07983, 2508.14467, 2604.22347, 1609.08711, 2103.02219, 2103.07688).
+
+## 634. iopart journal abbreviations drop the class's trailing space
+
+iopart.cls defines each journal abbreviation with a space after the italic name (`\newcommand{\PRL}{{\it Phys. Rev.
+Lett.} }`, 2603.00348's :972-1125), so `\PRL \textbf{98} 1` reads "Phys. Rev. Lett. 98". Perl's
+iopart_support.sty.ltxml:253-330 defines them as `\textit{…}` alone, so the volume follows the name with no space
+("Phys. Rev. Lett.98"). Trigger `\documentclass{iopart}\begin{document}\PRL \textbf{98}\end{document}` → Perl:
+"Phys. Rev. Lett.98". Fixed in Rust (65x, iopart_support_sty.rs `def_iop_journal`; witness 2603.00348).
+
+## 635. gensymb's `\celsius` is spelled `\celcius`
+
+gensymb.sty defines `\celsius` (:38 and :64, `\ifmmode\tccelsius\else\textcelsius\fi`). Perl's
+gensymb.sty.ltxml:20-34 defines `\celcius` (and its `\lx@text@celcius`/`\lx@math@celcius`) instead, so every
+`\celsius` is undefined. Trigger `\usepackage{gensymb}\begin{document}20\,\celsius\end{document}` → Perl:
+undefined `\celsius` (pdflatex: 20 ℃). Run 340: the first error of 214 papers. Fixed in Rust (65y,
+gensymb_sty.rs, `\celcius` kept beside it; witnesses 2604.04150, 2508.00245).
+
+## 636. titling's `\thetitle` loops when the title is `\thetitle`
+
+titling.sty:245-268 appends to `\title`, `\author` and `\date` a `\protected@xdef` of `\thetitle`, `\theauthor` and
+`\thedate` from the argument (with `\thanks` dropped, `\and` as a comma), so they exist from the call on and the
+template idiom `\newcommand{\thetitle}{T}\title{\thetitle}` takes the paper's text once. Perl's
+titling.sty.ltxml:85 instead `\let`s them to `\@title`, `\@author`, `\@date` at `\maketitle`; with `\title{\thetitle}`,
+`\@title` is `\thetitle`, so `\thetitle` expands to itself. Trigger
+`\usepackage{titling}\newcommand{\thetitle}{T}\title{\thetitle}\begin{document}\maketitle\thetitle\end{document}`
+→ Perl: an endless expansion (pdflatex: "T"). Fixed in Rust (65z r3-r4): the kernel `\title`, `\author`, `\date`
+(and the revtex4 and authblk `\author`) run `\lx@title@after`, `\lx@author@after`, `\lx@date@after` with the stored
+argument, onto which titling_sty.rs chains titling's code; a name whose slot never fired (amsart, mnras, IEEEtran
+setters) is set at `\begin{document}` and at `\maketitle` from `\@title`/`\@author`/`\@date`. Guards
+`perfect_kernel_batch65z::{titling_own_thetitle_does_not_loop, titling_under_class_and_package_setters}`.
+

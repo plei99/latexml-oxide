@@ -832,12 +832,12 @@ adaptations for missing Rust ParameterTypes, not parity bugs.
 | CS | Perl | Rust | Root cause |
 |----|------|------|------------|
 | `\mathchar` | `DefPrimitive('\mathchar Number', …decodeMathChar…Box)` | `DefConstructor("\\mathchar Number", "<ltx:XMTok …>", after_digest => …)` | Rust emits `<ltx:XMTok>` directly; Perl emits a Box the post-processor promotes. Rust is the more precise shape — kind-flip would regress output. |
-| `\left` / `\lx@right` | `DefConstructor('\left TeXDelimiter', "#1", …)` | `DefMacro!("\\left XToken", sub { …manual \delimiter<Number> handling… })` | Rust's `TeXDelimiter` ParameterType is incomplete — see detailed plan below. Current DefMacro workaround at `tex_math.rs:836` peels `\delimiter` + reads number + decodes glyph manually. |
+| `\left` / `\lx@right` | `DefConstructor('\left TeXDelimiter', "#1", …)` | **CLOSED 65d** (was `DefMacro!("\\left XToken", …)`): `DefConstructor!("\\left DelimiterToken", …)`, `\lx@right` a `\let` of `\lx@delim@right` | The delimiter is read by tex.web §1160 `scan_delimiter` (`tex_math::scan_delimiter`) — see the closed plan below. Witnesses `tests/parse/parens.tex`:43 (`\left\delimiter"426830A`, byte-identical), 1207.4709, run 336's X1 xymatrix IfLimit Fatals. OXIDIZED_DESIGN #530. |
 | picture primitives (`\line`/`\vector`/`\oval`/`\qbezier`/`\lx@pic@bezier`) | `DefPrimitive('\\line Pair:Number {Float}', …)` | `DefMacro!` unpacking `Match:( Until:, Until:) {Float}` into 3 args + forwarding to `\lx@pic@XXX{}{}{}` DefConstructor | Rust lacks `Pair:Number` as a ParameterType. Same functional parity, different factoring. |
 | amsmath `\aligned` / `\alignedat` | `DefConstructor('\aligned alignsafeOptional {}', …)` | `DefPrimitive!` with explicit `local_align_group_count(1000000)` + manual `gullet::read_optional` + unread | Rust lacks `alignsafeOptional`. Plain `[]` would trip handle_template's `&`-interception inside nested alignments. See `amsmath_sty.rs:1168`. |
 
-**Wisdom:** do NOT flip these to Perl-matching kinds naively. Each is
-load-bearing. The proper path to parity for any of them goes through
+**Wisdom:** do NOT flip these to Perl-matching kinds naively. Each was
+load-bearing (the `\left` row until its reader was ported, 65d). The proper path to parity for any of them goes through
 porting the missing ParameterType first, then migrating the call sites.
 
 ### ParameterType port candidates (ROI-ordered)
@@ -856,7 +856,28 @@ bindings add more.
   Lowest ROI but simplest port (reads `[…]` with alignment-safe
   wrapping).
 
-### TeXDelimiter enhancement plan (current truth, cycle 64 verified)
+### TeXDelimiter enhancement plan — CLOSED for `\left`/`\middle`/`\right` by 65d
+
+**How 65d closed it (OXIDIZED_DESIGN #530).** Not by porting Perl's reader: by porting TeX's. The `\left`/`\middle`/
+`\right` delimiter is the `DelimiterToken` parameter, whose reader is tex.web §1160 `scan_delimiter`
+(`tex_math::scan_delimiter`): `get_x_token` past blanks and `\relax`, then by meaning — a letter/other character by its
+`\delcode` (or the delimiter map), a `delim_num` command (`\delimiter`, `\Udelimiter`, or a `\let` copy of either) whose
+code is scanned right there and turned into its glyph's character token, a LaTeXML math symbol (`DefMath`, a
+parameterless primitive/constructor), and anything else "Missing delimiter (. inserted)" with the token put back.
+- **Dimension 1 (reader shape):** the single-X-token read is §1160's `get_x_token` loop. The BEGIN-unwrap is not
+  taken: a `{`/`}` met as the delimiter is "Missing delimiter (. inserted)" and read again, as in TeX (Perl's
+  `readBalanced` unwrap of the typo `\left{ x \right}` reads `x\right` as the content; reading the brace as `\{` cannot
+  tell the typo from a brace-bodied macro such as LaTeX's `\dag`; corpus: 16 of 3,194 sampled papers hold
+  `\left{`/`\right}`, nearly all macro definitions like `\newcommand{\lt}{\left}`). 1207.4709 converts byte-identically,
+  and `\big`'s braced `TeXDelimiter` reader keeps its END-peek (that witness) unchanged.
+- **Dimension 2 (`undigested => 1`):** not needed. Perl invokes the token so that `\delimiter` consumes its number;
+  §1160 scans the number at the token level instead (`delim_num`), so no `ArgWrap::Digested` variant and no
+  `Parameter.undigested` flag were added. The argument is a token, digested by the existing `predigest`
+  (`digest_as_delimiter`).
+
+The `\big` family keeps the braced `TeXDelimiter` reader described below (open: Perl's reader there).
+
+### TeXDelimiter enhancement plan (historical, cycle 64)
 
 **Rust already has `TeXDelimiter`** at `base_parameter_types.rs:693`
 and it's used successfully by `\big`/`\Big`/`\bigg`/`\Bigg` at
@@ -3032,3 +3053,22 @@ alignment cells). Then sweep every class the mechanism reaches (59p: the 299 TL 
 minimal document each, before/after) and look at the result rendered: 59p's overlay passed every XML check and rendered
 upside-down (a picture nested in a picture, OXIDIZED_DESIGN_DIVERGENCES #414). Guards
 `perfect_kernel_batch59::{discarded_replay_takes_back_its_stubs, maketitle_replay_adds_nothing_the_frontmatter_has}`.
+
+## 97. A TeX recovery keyed on "the formula's math shift" must know whose `$` opened the formula
+
+LaTeXML's alignment templates carry real `$` tokens (amsmath `align*` cells are `\hfil$\displaystyle…$`, `\array`
+rebinds `$`), so a frame that switched to math is not always a formula the author opened. tex.web's recoveries at the
+math shift group (§1193 `off_save` at `$`, §1047 `insert_dollar_sign`, §1069 `extra_right_brace`) are faithful for an
+author's `$…$`, but applied to a template's `$` they close the author's groups at row ends: math9805003's undefined
+`{Sb}` in an `align*` lost the whole alignment when the row's template `$` closed its `\begingroup` (65n). Mark the
+author's formula where it opens (`stomach::INLINE_FORMULA`, set by `\lx@begin@inline@math` only with no alignment
+current) and gate every such recovery on it and on a frame walk of off_save-closable groups only
+(`stomach::inline_formula_reachable`), so the inserted `$` is guaranteed to reach the formula (no re-read loop). Probe
+each change on a math alignment holding an author group as well as on plain paragraphs. A `}` at the math shift
+group ends the formula only when it closes a construct digested as a unit (a box body: the mode frame just outside the
+formula; an argument digested on its own: gullet.rs `isolated_input_ends_here` — `stomach::formula_ends_with_its_unit`),
+which the formula cannot escape; any other `}` is deleted as TeX deletes it. Asking instead whether the `}` has a `{`
+partner outside the formula (a plain `{…}` group included) looks more general but guesses "forgotten `$`" wrongly
+wherever the author's `$` follows (`{\bf $x} y$ after.` — "after." became math); the frame stack cannot tell a
+forgotten `$` from a stray `}` inside a plain group, only `$`-parity in the rest of the paragraph could. OXIDIZED_DESIGN
+#553.

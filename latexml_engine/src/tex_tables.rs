@@ -78,8 +78,21 @@ LoadDefinitions!({
 
   // & gives an error except within the right context
   // (which should redefine it!)
-  DefConstructor!("&", {
-    Error!("unexpected", "&", "Stray alignment \"&\"");
+  // In the cascade of a misplaced `\noalign`/`\omit`/`\span` it is a Warning: Perl lets `&` to `\relax` there
+  // (TeX_Tables.pool:120-135), see `report_misplaced_alignment` (astro-ph0407419, a pasj00 table read outside any
+  // alignment). Decided where it is digested, reported where it is constructed (Perl's construction-time error).
+  DefConstructor!("&", sub[_document, _args, props] {
+    if props.get("misplaced_cascade").is_some() {
+      Warn!("unexpected", "&", "Stray alignment \"&\" (in the cascade of a misplaced alignment command above)");
+    } else {
+      Error!("unexpected", "&", "Stray alignment \"&\"");
+    }
+  },
+  after_digest => sub[whatsit] {
+    if lookup_bool(MISPLACED_ALIGNMENT) {
+      whatsit.set_property("misplaced_cascade", Stored::Bool(true));
+    }
+    Ok(Vec::new())
   });
 
   Tag!("ltx:td", after_close => sub[doc, node] { doc.trim_node_whitespace(node)?; });
@@ -148,20 +161,10 @@ LoadDefinitions!({
       ..Cell::default()}));
   });
 
-  // Perl TeX_Tables L76-80: the paragraph cell as a *VBox* (a real, `\\`-capable
-  // paragraph) emitting `width=` on an `<ltx:inline-block>`.
-  //
-  // NOTE: the global `p{Dimension}` column type above is a pre-existing Rust
-  // divergence — it wraps cells in `\vtop{\hbox to <w>..}` (an `\hbox`, hence
-  // single-line, no embedded `\\`, and no `width=` attribute). Porting that
-  // globally to this VBox form (faithful to Perl) is the correct end state but
-  // exposes a latent alignment span/sizing bug when a `\multicolumn` spans *over*
-  // p-columns (witness: graphics/graphrot's `\multicolumn{10}{|l}` over `p{1in}`
-  // columns); see SYNC_STATUS "1610.00974". Until that span/sizing bug is fixed,
-  // we keep the global `\vtop\hbox` form and use this Perl-faithful VBox form ONLY
-  // for `\multicolumn{}{p{}}{}` cells (see `\lx@alignment@multicolumn`), where an
-  // embedded `\\` MUST be a line break rather than the alignment row terminator.
-  // This fixes the #1 corpus fatal (1610.00974) with no fixture regression.
+  // Perl TeX_Tables L76-80: the paragraph cell as a *VBox* (a real paragraph) emitting `width=` on an
+  // `<ltx:inline-block>`. Every `p{}` cell takes it, a `\multicolumn` over a `p{}` column too (`\lx@alignment@multicolumn`
+  // splices it as Perl does; the earlier `\vtop{\hbox to <w>…}` form and its multicolumn-only rewrite are gone,
+  // 1610.00974).
   // The interline values a vertical box's lines are set with (latex.ltx:16284-16286, the part of
   // `\\@arrayparboxrestore` that `\\@array`'s zero `\\lineskip`/`\\baselineskip` concerns, `\\lx@begin@alignment`):
   // a p cell (`\\@startpbox`, :16755), tabularx's X and tabulary's columns, `\\parbox` and minipage set them back.
@@ -252,7 +255,7 @@ LoadDefinitions!({
   // stray_hline_in_a_paragraph_is_one_error, misplaced_commands_are_each_reported,
   // misplaced_hline_in_a_cell_draws_no_rule, misplaced_noalign_in_math_keeps_its_braces}`.
   DefPrimitive!("\\noalign", {
-    Error!("unexpected", "\\noalign", "\\noalign cannot be used here");
+    report_misplaced_alignment("\\noalign")?;
     // Spaces before the group are typeset as they come. §1129 reads nothing more: the brace is opened on the next
     // `main_control` pass (§1063 `non_math(left_brace)`: `new_save_level(simple_group)`; §1150 `mmode+left_brace`),
     // for a left brace by meaning (`cur_cmd=left_brace`, so `\bgroup` too); it gets the mark as its group's first token.
@@ -285,10 +288,10 @@ LoadDefinitions!({
   // / `omit_column`). Guard:
   // `perfect_kernel_batch54::misplaced_omit_does_not_open_a_group`.
   DefPrimitive!("\\omit", {
-    Error!("unexpected", "\\omit", "\\omit cannot be used here");
+    report_misplaced_alignment("\\omit")?;
   });
   DefPrimitive!("\\span", {
-    Error!("unexpected", "\\span", "\\span cannot be used here");
+    report_misplaced_alignment("\\span")?;
   });
   // The frozen `\span` of the alignment machinery (user ruling 2026-10-11): `\multicolumn`
   // (`\lx@alignment@multicolumn`), `\multispan` and latex.ltx's `\sp@n` span their columns with this copy of the
@@ -572,6 +575,26 @@ LoadDefinitions!({
   Let!("\\@tabular@begin@heading", "\\lx@alignment@begin@heading");
   Let!("\\@tabular@end@heading", "\\lx@alignment@end@heading");
 
+  // Rust-only: the current cell's content overprints the cells to its right, as an `\rlap` does (`\lefteqn`,
+  // latex.ltx:15800): at normalization the empty cells after it join its span, and a cell with content keeps its
+  // column (`Cell::overprint`, OXIDIZED_DESIGN_DIVERGENCES #556). The argument is a class for the cell (empty for
+  // none), which its column's element carries.
+  DefPrimitive!("\\lx@alignment@cell@overprint Semiverbatim", sub[(class)] {
+    let class = class.to_string();
+    if let Some(alignment_stored) = lookup_alignment()
+      && let Some(data) = alignment_stored.alignment_cell()
+      && let Some(cell) = data.borrow_mut().current_column()
+    {
+      cell.overprint = true;
+      if !class.trim().is_empty() {
+        cell.class = Some(match cell.class.take() {
+          Some(old) => s!("{old} {}", class.trim()),
+          None => class.trim().to_string(),
+        });
+      }
+    }
+  });
+
   //======================================================================
   // Multicolumn support
   // Perl: DefRegisterI('\lx@alignment@ncolumns', undef, Dimension(0), getter => sub { ... })
@@ -599,8 +622,11 @@ LoadDefinitions!({
     }
   );
 
-  // Perl: DefMacro('\lx@alignment@multicolumn {Number} AlignmentTemplate {}', sub { ... })
-  // Expands to \omit + (span-1) × (\span \omit) + before_cell_tokens + body + after_cell_tokens
+  // Perl: DefMacro('\lx@alignment@multicolumn {Number} AlignmentTemplate {}', sub { ... }), the first of Perl's two
+  // definitions (TeX_Tables.pool.ltxml:693-702): \omit + (span-1) × (\span \omit) + the column's before tokens + body +
+  // its after tokens, the template spliced in-line since it is used once. Perl overrides it with :704-713
+  // (`\lx@alignment@altcolumn{template}\relax body`, which `replaceColumn`s the cell's template); the port keeps the
+  // splice (OXIDIZED_DESIGN_DIVERGENCES #474, #559).
   DefMacro!("\\lx@alignment@multicolumn {Number} AlignmentTemplate {}", sub[(span, template, body)] {
     let n = span.value_of();
     let column = template.get_columns().first();
@@ -610,144 +636,41 @@ LoadDefinitions!({
       tks.push(frozen_span());
       tks.push(T_CS!("\\omit"));
     }
-    // A paragraph (p/m/b) multicolumn cell must render as a *VBox* via
-    // `\lx@tabular@p` (Perl-faithful, see above), so that an embedded `\\` is a
-    // paragraph line break rather than the alignment row terminator. The global
-    // `p{}` column type wraps in `\vtop{\hbox to..}` (an `\hbox` that cannot hold
-    // `\\`), so we substitute the VBox form here and rebind top-level `\\` to
-    // `\lx@newline` in the body. Fixes 1610.00974 (the #1 corpus fatal); a normal
-    // `\\`-less p-cell, and every non-paragraph column, are unaffected.
-    let is_pcol = column.map(|c| c.align == Some(Align::Justify)).unwrap_or(false);
-    if is_pcol {
-      // A paragraph column (`p{}`, `m{}`, `b{}` — all `align=Justify`). Each wraps
-      // the cell in a box, but the `before`/`after` token *shape* differs:
-      //   * global `p{}`: before `[border] \vtop { \hbox to <w> \relax {`,
-      //     after `} } [border]` — two opening braces, width inside `\hbox to`;
-      //   * array.sty `m{}`/`b{}`: before `\vtop {` / `\vbox {`, after `}` —
-      //     one opening brace, width carried on the Cell's `width` field.
-      // For a multicolumn cell an embedded top-level `\\` must be a *paragraph
-      // line break*, not the row terminator, so we replace the box construct with
-      // the Perl-faithful VBox form `\lx@tabular@p <t|m|b> {<width>} { … }` (one
-      // open / one close brace), preserving surrounding `|`-borders. This handles
-      // all three forms uniformly — it was previously `p{}`-only, so a
-      // `\multicolumn` over an `m{}`/`b{}` column spliced the wrong brace count and
-      // corrupted the group stack (witness 1805.01525: `\multicolumn{1}{L{5cm}}`
-      // over `m{}` → `\@end@tabular Attempt to close boxing group`).
-      let before_toks: Vec<Token> =
-        column.and_then(|c| c.before.as_ref()).map(|b| b.unlist_ref().clone()).unwrap_or_default();
-      let after_toks: Vec<Token> =
-        column.and_then(|c| c.after.as_ref()).map(|a| a.unlist_ref().clone()).unwrap_or_default();
-      // Rebind only top-level `\\` (depth 0) in the body to `\lx@newline`, so an
-      // embedded `\\` is a paragraph line break, not the alignment row terminator.
-      let rebind_newline = |body: &Tokens, out: &mut Vec<Token>| {
-        let dbl = T_CS!("\\\\");
-        let nl = T_CS!("\\lx@newline");
-        let mut depth = 0i32;
-        for t in body.unlist_ref().iter() {
-          match t.get_catcode() {
-            Catcode::BEGIN => { depth += 1; out.push(*t); },
-            Catcode::END => { depth -= 1; out.push(*t); },
-            _ if depth == 0 && *t == dbl => out.push(nl),
-            _ => out.push(*t),
-          }
+    // A paragraph column (`p{}`, array.sty `m{}`/`b{}`, tabularx `X`, tabulary `J`: `align=Justify`) boxes the cell, and
+    // an embedded `\\` of a `\multicolumn` cell is a line break in that box, not the row end: `\let\\\lx@newline` (and
+    // `\tabularnewline`, so an `\arraybackslash` in the prefix keeps that recovery: pdflatex reads that `\\` as
+    // `\@tabularcr` too, array.sty:247 / latex.ltx:16576: "Missing \endgroup inserted") inside the box group the
+    // before tokens opened, ahead of the column's `>{…}` tokens (`Cell::prefix_at`), so a prefix macro that takes
+    // arguments takes the `\ignorespaces` and the body as in TeX, not the `\let`. In TeX that `\\` is `\@tabularcr`,
+    // whose `\cr` lands inside the omitted span's `\vtop` group ("Missing } inserted": latex.ltx `\multicolumn` splices
+    // the whole `\@preamble` after `\omit`), unless a `\centering`/`\raggedright` in the cell has let `\\` to
+    // `\@centercr`, the line break this recovery gives (1610.00974, the former #1 corpus fatal; Perl makes a new row of
+    // the rest, OXIDIZED_DESIGN_DIVERGENCES #559). A binding, not a rewrite of the body's brace-depth-0 `\\` tokens: an
+    // environment is no brace group, so the rewrite also turned the row ends of a nested `\begin{tabular}…\end{tabular}`
+    // (or of a `pmatrix`, `cases`, `aligned`) into line breaks; its rows collapsed into one, its `&` overflowed and a
+    // following `\hline` was a misplaced `\noalign` (2607.14806, 2010.13561, 1808.05579). A nested alignment lets `\\`
+    // to its own row end (latex_constructs/sect10.rs:177 `\@tabularcr`, :579 the math `\\`), as in TeX. The column's
+    // own box tokens are spliced as Perl splices them: the `\lx@tabular@p` form of `p{}`/`m{}`/`b{}`, or the `\vtop{` of
+    // `X` (1805.01525: `\multicolumn{1}{L{5cm}}` over `m{}`).
+    if let Some(col) = column
+      && let Some(before) = &col.before {
+        let mut before = before.unlist_ref().clone();
+        if col.align == Some(Align::Justify) {
+          let at = col.prefix_at.unwrap_or(before.len()).min(before.len());
+          before.splice(at..at, [
+            T_CS!("\\let"), T_CS!("\\\\"), T_CS!("\\lx@newline"),
+            T_CS!("\\let"), T_CS!("\\tabularnewline"), T_CS!("\\lx@newline"),
+          ]);
         }
-      };
-      // The global `p{}` column is now ALREADY in the Perl-faithful `\lx@tabular@p`
-      // VBox form (TeX_Tables L69-74), so Perl's `\lx@alignment@multicolumn` just
-      // splices before+body+after with no box rewrite. Mirror that. Only array.sty
-      // `m{}`/`b{}` (raw `\vtop{`/`\vbox{`) still need the transform below.
-      if before_toks.iter().any(|t| *t == T_CS!("\\lx@tabular@p")) {
-        tks.extend(before_toks.iter().copied());
-        rebind_newline(&body, &mut tks);
-        tks.extend(after_toks.iter().copied());
-        return Ok(Tokens::new(tks));
+        // beforeCellUnlist: reorder $ and \hfil (move \hfil before $)
+        tks.extend(before_cell_unlist(before));
       }
-      // Width: the global `p{}` encodes it in `\hbox to <w> \relax`; `m{}`/`b{}`
-      // carry it on the Cell — fall back to that when the tokens lack it.
-      let mut width = extract_pcol_width(&before_toks);
-      if width.is_empty()
-        && let Some(w) = column.and_then(|c| c.width.as_ref())
-        && let Ok(rev) = w.revert() {
-          width = rev.unlist();
-        }
-      // The box command (`\vtop` for p/m, `\vbox` for b) marks where the box
-      // construct begins; everything before it is the `|`-border prefix.
-      let box_idx = before_toks.iter()
-        .position(|t| *t == T_CS!("\\vtop") || *t == T_CS!("\\vbox"))
-        .unwrap_or(before_toks.len());
-      let tail = &before_toks[box_idx..];
-      // Extent of the box construct itself: `\vtop {` / `\vbox {` (one opening
-      // brace), or the global `p{}` form `\vtop { \hbox to <w> \relax {` (two).
-      // We count ONLY those braces — `column.before` is built (template.rs
-      // `add_column`) as `[\lx@intercol] <box-open> <`>{}`-prefix decls>`, so a
-      // `\hspace{0pt}` in a `>{…}` prefix sits AFTER the box-open; its balanced
-      // `{` must NOT inflate the close-brace count, and its decls must be kept
-      // INSIDE the cell (they are cell-content setup like `\raggedright`).
-      let first_brace = tail.iter().position(|t| t.get_catcode() == Catcode::BEGIN);
-      let (box_open_len, box_open_braces) = match first_brace {
-        // `p{}`: `\hbox` right after the first brace → a 2nd brace follows `\relax`.
-        Some(fb) if tail.get(fb + 1) == Some(&T_CS!("\\hbox")) => {
-          match tail[fb + 1..].iter().position(|t| t.get_catcode() == Catcode::BEGIN) {
-            Some(j) => (fb + 1 + j + 1, 2),
-            None => (fb + 1, 1),
-          }
-        }
-        // `m{}`/`b{}`: a single brace closes the construct.
-        Some(fb) => (fb + 1, 1),
-        None => (tail.len(), 1),
-      };
-      // `>{…}` cell-prefix declarations that followed the box-open — kept inside.
-      let decls: Vec<Token> = tail[box_open_len..].to_vec();
-      // Vertical attachment letter for `\lx@tabular@p` (t=top, m=middle, b=bottom).
-      let letter = match column.and_then(|c| c.vattach.as_deref()) {
-        Some("middle") => "m",
-        Some("bottom") => "b",
-        _ => "t",
-      };
-      // `after` is `[<inner> }×N <border suffix>]` — the N closing braces match the
-      // box's opens; `<inner>` (e.g. `\lx@column@trimright`) is inside the box and
-      // `<border suffix>` follows. Locate that run of N consecutive `}`.
-      let is_end = |t: &Token| t.get_catcode() == Catcode::END;
-      let close_run = if after_toks.len() >= box_open_braces {
-        (0..=after_toks.len() - box_open_braces)
-          .find(|&i| (0..box_open_braces).all(|k| is_end(&after_toks[i + k])))
-      } else {
-        None
-      };
-      let (inner_after, border_suffix): (&[Token], &[Token]) = match close_run {
-        Some(i) => (&after_toks[..i], &after_toks[i + box_open_braces..]),
-        None => (&after_toks[..], &[]),
-      };
-      // Border prefix (everything before the box command), unchanged.
-      tks.extend(before_toks[..box_idx].iter().copied());
-      // VBox cell: \lx@tabular@p <letter> {<width>} {
-      tks.push(T_CS!("\\lx@tabular@p"));
-      tks.extend(ExplodeText!(letter));
-      tks.push(T_BEGIN!());
-      tks.extend(width);
-      tks.push(T_END!());
-      tks.push(T_BEGIN!());
-      // `>{…}` declarations belong inside the cell, before the body.
-      tks.extend(decls);
-      // Rebind top-level `\\` (depth 0); nested groups keep their meaning.
-      rebind_newline(&body, &mut tks);
-      tks.extend(inner_after.iter().copied()); // e.g. \lx@column@trimright, inside the box
-      tks.push(T_END!()); // close the VBoxContents
-      tks.extend(border_suffix.iter().copied()); // trailing border / intercolumn
-    } else {
-      // Next part: put the template in-line, since it's only used once.
-      // beforeCellUnlist: reorder $ and \hfil (move \hfil before $)
-      if let Some(col) = column
-        && let Some(before) = &col.before {
-          tks.extend(before_cell_unlist(before.unlist_ref().clone()));
-        }
-      tks.extend(body.unlist_ref().iter().copied());
-      // afterCellUnlist: reorder $ and \hfil (move \hfil after $)
-      if let Some(col) = column
-        && let Some(after) = &col.after {
-          tks.extend(after_cell_unlist(after.unlist_ref().clone()));
-        }
-    }
+    tks.extend(body.unlist_ref().iter().copied());
+    // afterCellUnlist: reorder $ and \hfil (move \hfil after $)
+    if let Some(col) = column
+      && let Some(after) = &col.after {
+        tks.extend(after_cell_unlist(after.unlist_ref().clone()));
+      }
     Ok(Tokens::new(tks))
   });
 
@@ -903,6 +826,8 @@ pub fn alignment_bindings(
   };
   // A new alignment's own `\hline`s rule its rows, even inside a misplaced `\noalign`'s body.
   assign_value("lx@noalign@misplaced", Stored::Bool(false), None);
+  // ... and its own misplaced commands start no cascade of an outer one ([`report_misplaced_alignment`]).
+  assign_value(MISPLACED_ALIGNMENT, Stored::Bool(false), None);
   let is_math = mode.ends_with("math");
   let (container, rowtype, coltype) = if is_math {
     ("ltx:XMArray", "ltx:XMRow", "ltx:XMCell")
@@ -1029,6 +954,10 @@ pub fn digest_alignment_body(whatsit: &mut Whatsit) -> Result<()> {
       break;
     } else if vtype.as_deref() == Some("align") {
       alignment_cell.borrow_mut().end_column()?;
+      // A longtable caption's row with an `&` after the caption holds more than the caption: kept (see below).
+      if lookup_bool("LONGTABLE_CAPTION_ROW") {
+        remove_value("LONGTABLE_CAPTION_ROW");
+      }
       if !hidden {
         reversion.push(next.unwrap()); // and record the &
         creversion.push(next.unwrap()); // and record the &
@@ -1042,8 +971,13 @@ pub fn digest_alignment_body(whatsit: &mut Whatsit) -> Result<()> {
       // so discard the just-committed (now box-balanced) row. Ending via the
       // normal cr path closes the column boxes cleanly first (avoiding the
       // locked-frame FATAL of removing it mid-cell). Witness 2010.09763.
+      // A longtable `\caption`'s row, the caption's alone, goes the same way: its text is the table's `<caption>`
+      // (OXIDIZED_DESIGN_DIVERGENCES #103, longtable_sty.rs `\lx@longtable@caption@row`).
       if lookup_bool("LONGTABLE_KILL_NEXT") {
         remove_value("LONGTABLE_KILL_NEXT");
+        alignment_cell.borrow_mut().remove_row();
+      } else if lookup_bool("LONGTABLE_CAPTION_ROW") {
+        remove_value("LONGTABLE_CAPTION_ROW");
         alignment_cell.borrow_mut().remove_row();
       }
       if !hidden {
@@ -1818,6 +1752,41 @@ pub fn alignment_to_rule() -> Option<Digested> {
   lookup_alignment().filter(|_| !lookup_bool("lx@noalign@misplaced"))
 }
 
+/// The group-local flag of [`report_misplaced_alignment`]: a misplaced alignment command was reported in this group.
+const MISPLACED_ALIGNMENT: &str = "lx@misplaced@alignment";
+
+/// Report a misplaced `\noalign`, `\omit` or `\span` (tex.web §1127-1129 `align_error`/`no_align_error`/`omit_error`;
+/// none changes a meaning, as in TeX). The first in a group is an Error; the later ones in that group, and its stray
+/// `&`s, are its cascade and Warnings: Perl's recovery reports the first and `\let`s `&`/`\noalign`/`\omit`/`\span` to
+/// `\relax` in a group around the rest (TeX_Tables.pool:120-135), so they are silent there; TeX reports each, but its
+/// 100-error stop counts one paragraph (tex.web §76, reset by §1096 `end_graf`) and every `\hline`'s `\hrule` ends one,
+/// where a document-wide count of 100 (Perl's, `Fatal:TooManyErrors`) made a table read outside any alignment fatal:
+/// 107 of run 340's 287 Error→Fatal papers (astro-ph0407419 pasj00 without its class, 1405.2337, 1411.6016; 64ze, with
+/// Perl's `\let`s, gave 13 errors on astro-ph0407419; 65b, each an Error, 101 + Fatal). A new alignment clears the
+/// flag in its own group ([`alignment_bindings`]); at top level the group is the document body, the flag cleared at
+/// `\begin{document}` ([`end_misplaced_alignment_cascade`]). Guards
+/// `perfect_kernel_batch65h::{misplaced_alignment_cascade_is_one_error,
+/// misplaced_alignment_cascade_ends_with_its_group}`, `perfect_kernel_batch65::misplaced_commands_are_each_reported`.
+fn report_misplaced_alignment(cs: &str) -> Result<()> {
+  if lookup_bool(MISPLACED_ALIGNMENT) {
+    Warn!(
+      "unexpected",
+      cs,
+      format!("{cs} cannot be used here (in the cascade of a misplaced alignment command above)")
+    );
+  } else {
+    Error!("unexpected", cs, format!("{cs} cannot be used here"));
+    assign_value(MISPLACED_ALIGNMENT, Stored::Bool(true), None);
+  }
+  Ok(())
+}
+
+/// End the cascade of a misplaced alignment command (`report_misplaced_alignment`) at `\begin{document}`: one in the
+/// preamble, where no group closes before the body, does not make the body's first one a Warning.
+pub fn end_misplaced_alignment_cascade() {
+  assign_value(MISPLACED_ALIGNMENT, Stored::Bool(false), None);
+}
+
 /// Report, once per document, that the frozen `\span` stands in for a redefined one: the document's `\span` no longer
 /// has the primitive's command code ([`is_column_end`]), so the alignment machinery's own spans (`\multicolumn`,
 /// `\multispan`, `\sp@n`; user ruling 2026-10-11) make a recovery TeX does not make (there the author's macro runs and
@@ -2001,25 +1970,6 @@ pub fn parse_halign_template(whatsit: &mut Whatsit) -> Result<Template> {
     })
   };
   Ok(template)
-}
-
-/// Recover the `<width>` token slice from a `p{Dimension}` column's `before`
-/// list, which `DefColumnType("p{Dimension}")` builds as
-/// `\vtop { \hbox to <width> \relax {`. Returns the tokens strictly between
-/// `\hbox to` and `\relax` (empty if the shape is unexpected). Used by
-/// `\lx@alignment@multicolumn` to drive the Perl-faithful VBox cell form for
-/// paragraph multicolumns without re-parsing the dimension.
-fn extract_pcol_width(before: &[Token]) -> Vec<Token> {
-  // `before` may carry an intercolumn/border prefix (`\vrule \relax \lx@intercol`)
-  // from a `|`, so locate the `\relax` that follows `\hbox to`, not the border's.
-  let Some(h) = before.iter().position(|t| *t == T_CS!("\\hbox")) else {
-    return Vec::new();
-  };
-  match before[h..].iter().position(|t| *t == T_CS!("\\relax")) {
-    // skip `\hbox`, `t`, `o` (the "to") → width runs up to the next `\relax`
-    Some(off) if off > 3 => before[h + 3..h + off].to_vec(),
-    _ => Vec::new(),
-  }
 }
 
 // Perl TeX_Tables L735-745: beforeCellUnlist

@@ -510,6 +510,13 @@ fn input_definitions_impl(raw_file: &str, mut options: InputDefinitionOptions) -
   // ~483-paper \cellcolor error cluster in sandbox-arxiv-2605). For each
   // option of a repeat load that the first load did not have, digest the
   // surviving handler.
+  //
+  // A key-value package whose binding names its setter in `<file>_keyval_setter` (hyperref's
+  // `\hypersetup`) takes the new options of a repeat load through that setter, as its keys. This is the
+  // load a document makes after a class binding has loaded the package where the real class does not:
+  // revtex4_support, elsarticle, PoS, jmlr and sagej load hyperref, so the author's
+  // `\usepackage[colorlinks]{hyperref}` is the first hyperref load real LaTeX sees, and colorlinks loads
+  // color (hyperref.sty:4532-4537). Witnesses 2609.24844, 2609.13110, 1711.02465 (`\textcolor`).
   let apply_new_options_on_reload = |fkey: &str| -> Result<()> {
     if options.options.is_empty() || !options.handleoptions {
       return Ok(());
@@ -522,6 +529,31 @@ fn input_definitions_impl(raw_file: &str, mut options: InputDefinitionOptions) -
       } else {
         HashSet::default()
       };
+    if let Some(Stored::String(setter)) = lookup_value(&s!("{fkey}_keyval_setter")) {
+      let new_options: Vec<&str> = options
+        .options
+        .iter()
+        .map(|opt| opt.trim())
+        .filter(|opt| !opt.is_empty() && !prev.contains(*opt))
+        .collect();
+      if !new_options.is_empty() {
+        let keyvals = new_options.join(",");
+        Info!(
+          "unexpected",
+          "options",
+          s!(
+            "Applying options '{}' from a repeat load of {}",
+            keyvals,
+            fkey
+          )
+        );
+        let mut tokens = vec![T_CS!(arena::to_string(setter)), T_BEGIN!()];
+        tokens.extend(crate::mouth::tokenize_internal(TeXString::assembled(keyvals)).unlist());
+        tokens.push(T_END!());
+        digest(Tokens::new(tokens))?;
+      }
+      return Ok(());
+    }
     for opt in &options.options {
       let opt = opt.trim();
       if opt.is_empty() || prev.contains(opt) {
@@ -1312,17 +1344,24 @@ fn _load_binding(internal: bool, request: &str, reloadable: bool) -> Result<Opti
   let request_key = request.to_string();
   let already_loading = IN_PROGRESS.with(|s| s.borrow().contains(&request_key));
   if already_loading {
-    Warn!(
-      "recursion",
-      &request_key,
-      s!(
-        "Binding-load re-entrance for '{}' (transitive require_package \
-         during its own LoadDefinitions). Short-circuiting to break the \
-         loop; binding's pending side-effects (DefMacro, Let, etc.) \
-         will still complete in the outer frame.",
-        request_key
-      )
+    // A package or class that requires a package which requires it back (thmtools.sty:47-49
+    // `\RequirePackage{thm-restate}`, thm-restate.sty:26 `\RequirePackage{thmtools}`) ends the cycle
+    // silently in LaTeX: `\ProvidesPackage` defines `\ver@<file>` before the body runs, so the inner
+    // `\RequirePackage` finds it loaded. Perl does the same by marking `<request>_loaded` before `do
+    // $pathname` (Package.pm:2332). So a re-entrant .sty/.cls request is an Info; any other re-entrance (a
+    // pool, task #260's natbib loop) keeps the Warning.
+    let message = s!(
+      "Binding-load re-entrance for '{}' (transitive require_package \
+       during its own LoadDefinitions). Short-circuiting to break the \
+       loop; binding's pending side-effects (DefMacro, Let, etc.) \
+       will still complete in the outer frame.",
+      request_key
     );
+    if request_key.ends_with(".sty") || request_key.ends_with(".cls") {
+      Info!("recursion", &request_key, message);
+    } else {
+      Warn!("recursion", &request_key, message);
+    }
     return Ok(Some(None));
   }
 
@@ -2088,8 +2127,7 @@ pub fn load_tex_content(path: &str, _options: InputOptions) -> Result<()> {
   // Without the mark the reader ran into the enclosing document and looped at
   // its true end (tikzmarmots-doc 0→501 errors + Fatal, tikzlings-doc 35→536,
   // sweep 28). Guard: `perfect_kernel_batch51::input_file_end_inserts_everyeof`.
-  gullet::mark_everyeof_mouth();
-  Ok(())
+  gullet::mark_everyeof_mouth()
 }
 
 /// Pass the sequence of @options to the package $name (if $ext is 'sty'),
@@ -2666,6 +2704,7 @@ pub fn require_package(name: &str, mut options: RequireOptions) -> Result<()> {
   } else {
     None
   };
+  let subfile_load = SubfilePackageLoad::enter(pre_keys.is_some());
   let result = input_definitions(name, InputDefinitionOptions {
     extension: options.extension,
     handleoptions: true,
@@ -2683,6 +2722,7 @@ pub fn require_package(name: &str, mut options: RequireOptions) -> Result<()> {
     after: options.after,
     ..InputDefinitionOptions::default()
   });
+  drop(subfile_load);
   if let Some(pre_keys) = pre_keys {
     hoist_top_frame_conditional_delta(&pre_keys);
   }
@@ -2699,6 +2739,55 @@ pub fn require_package(name: &str, mut options: RequireOptions) -> Result<()> {
     maybe_require_dependencies(name, "sty");
   }
   result
+}
+
+thread_local! {
+  /// How many package loads in a standalone subfile bracket ([`require_package`]) are running.
+  static SUBFILE_PACKAGE_LOAD: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// One package load's place in [`SUBFILE_PACKAGE_LOAD`]: entering counts the load when it runs in a
+/// standalone subfile bracket, and dropping restores the outer count — also when the load unwinds (a
+/// panic caught per paper by a reused worker thread), so a later conversion's `AddToMacro` is not
+/// left local.
+struct SubfilePackageLoad {
+  outer: usize,
+}
+
+impl SubfilePackageLoad {
+  fn enter(in_bracket: bool) -> Self {
+    let outer = SUBFILE_PACKAGE_LOAD.with(|depth| {
+      let outer = depth.get();
+      if in_bracket {
+        depth.set(outer + 1);
+      }
+      outer
+    });
+    SubfilePackageLoad { outer }
+  }
+}
+
+impl Drop for SubfilePackageLoad {
+  fn drop(&mut self) { let _ = SUBFILE_PACKAGE_LOAD.try_with(|depth| depth.set(self.outer)); }
+}
+
+/// Clears the count of package loads in a standalone subfile bracket, for a thread that starts over
+/// ([`crate::reset_thread_engine`]).
+pub fn reset_subfile_package_load() { SUBFILE_PACKAGE_LOAD.with(|depth| depth.set(0)); }
+
+/// The scope of a binding's `AddToMacro`: global (Perl Package.pm:2545-2547), except in a package
+/// loaded inside a standalone subfile bracket (OXIDIZED_DESIGN #63/#65), where the package's own
+/// definitions are local to the bracket: a global addition outlived them, and every later table of
+/// the main document called xcolor's undefined `\@xcolor@tabular@before` (2512.09430; Perl the
+/// same, KNOWN_PERL_ERRORS #614). The addition then lives as long as the package does — and as in
+/// pdflatex, where standalone.sty skips the sub-file's preamble, the main document's tables carry
+/// no hook of a package only a sub-file loaded. OXIDIZED_DESIGN #543.
+pub fn add_to_macro_scope() -> Scope {
+  if SUBFILE_PACKAGE_LOAD.with(std::cell::Cell::get) > 0 {
+    Scope::Local
+  } else {
+    Scope::Global
+  }
 }
 
 /// The calling file's option list — latex.ltx:18637 `\@loadwithoptions`
@@ -4396,6 +4485,28 @@ pub fn digest_if(token: Token) -> Result<Option<Digested>> {
       Ok(t) => Ok(Some(t)),
       Err(e) => Err(e),
     }
+  } else {
+    Ok(None)
+  }
+}
+
+/// A name macro a heading is set from (`\contentsname`, `\refname`, `\indexname`, `\acknowledgmentsname`, …)
+/// digested in a group of its own, `{\name}`, as a class's `\section*{\name}` sets it: a font switch it makes
+/// unbraced stays in the heading (RecipeBook.cls:207-209 `\renewcommand{\contentsname}{\hypertarget{contents}{\bfseries
+/// \fontsize{…}{…}\selectfont Recipes}}` leaked into every later heading and paragraph; recipebook/LongSample), and a
+/// `\centering` in it, applied at the group's end, still centres the heading (tidyres-doc.tex:9). Perl digests the
+/// list names as text (`DigestText`, latex_constructs.pool.ltxml:734; Package.pm:405-411, a restricted-horizontal
+/// mode frame that scopes the font but drops the `\centering`; the port's bare digest leaked, Rust-only) and
+/// `\refname`/`\bibname`/`\indexname` bare (`DigestIf`, :3885, :4523), which leaks the font in Perl too.
+/// OXIDIZED_DESIGN #528, KNOWN_PERL_ERRORS #606.
+pub fn digest_in_group(token: Token) -> Result<Digested> {
+  digest(Tokens::new(vec![T_BEGIN!(), token, T_END!()]))
+}
+
+/// [`digest_in_group`] for a name that may be undefined (Perl's `DigestIf`).
+pub fn digest_in_group_if(token: Token) -> Result<Option<Digested>> {
+  if lookup_definition(&token)?.is_some() {
+    digest_in_group(token).map(Some)
   } else {
     Ok(None)
   }

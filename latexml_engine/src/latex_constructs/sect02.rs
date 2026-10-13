@@ -87,6 +87,8 @@ pub(crate) fn load() -> Result<()> {
     let expanded_id = Expand!(T_CS!("\\thedocument@ID"));
     whatsit.set_property("id", expanded_id);
     Let!("\\@nodocument", "\\relax", Scope::Global);
+    // A misplaced alignment command in the preamble starts no cascade in the body (OXIDIZED_DESIGN_DIVERGENCES #540).
+    crate::tex_tables::end_misplaced_alignment_cascade();
     // Clear \everypar at document start (Perl `AssignRegister('\everypar', Tokens(), 'global')`,
     // latex_constructs.pool L319) through its current meaning, as latex.ltx:9498 `\everypar{}`
     // does. A package that re-pointed `\everypar` in the preamble at a register chained from the
@@ -590,6 +592,8 @@ pub(crate) fn load() -> Result<()> {
           // Read by the constructor above: the `ltx:document` close is
           // deferred to the end of the build.
           AssignValue!("lx@end@document@abandoned" => true, Some(Scope::Global));
+          // Every construct still digesting never ended (OXIDIZED_DESIGN #542; 1611.05714).
+          end_inside_groups();
         }
         // tex.web §1335 reports ONE line with the total level count.
         let level_note = if plain_groups > 0 {

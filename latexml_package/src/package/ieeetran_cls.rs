@@ -768,6 +768,35 @@ LoadDefinitions!({
   // \newcommand is silently ignored (Perl-parity: already-defined →
   // dropped on the floor).
   DefMacro!("\\newlineauthors", "\\par");
+  // IEEEtran.cls (TL 2025 v1.8b, as nearly every sampled copy, 42-58 of 58), what papers call that the binding lacked
+  // (run 340: `{LaTeXdescription}` 9 of 58 sampled papers that ship IEEEtran.cls, `\IEEEstrut` 5,
+  // `\IEEEsettopmargin` 4, `\yesnumber` 2, `\IEEEeqnarraystrutmode` 2; ~100 first errors; witnesses 2009.01542,
+  // 2403.19006, 2001.00914, 2510.10761, 2001.00708):
+  // - `{LaTeXdescription}` (:2226-2229), LaTeX's own description list, which the class keeps beside its IEEE one;
+  // - `\yesnumber` (:3068), the opposite of `\nonumber`: `\IEEEyesnumber`;
+  // - `\IEEEstrut[<height>][<depth>][<font>]` (:3585-3590), `\IEEEsettopmargin[<sample>]{<mode>}{<margin>}` (:1394),
+  //   `\IEEEeqnarraystrutmode` and `\IEEEeqnarraystrutsize{<height>}{<depth>}[<font>]` (:3600-3613): struts and
+  //   page geometry, which set nothing here.
+  RawTeX!(r"\newenvironment{LaTeXdescription}{\begin{description}}{\end{description}}
+\providecommand{\yesnumber}{\IEEEyesnumber\relax}");
+  DefMacro!("\\IEEEstrut[][][]", "");
+  DefMacro!("\\IEEEsettopmargin[]{}{}", "");
+  // :1190 `\IEEEsettextheight[<sample>]{<top margin>}{<bottom margin>}`, page geometry too (65z; witnesses 2605.04966, 1905.10846).
+  DefMacro!("\\IEEEsettextheight[]{}{}", "");
+  // The rest of that page-geometry family (65z): :1354 `\IEEEquantizetextheight[<unit>]{<mode>}`, :1113
+  // `\IEEEsettextwidth{<inner>}{<outer>}`, :1133 `\IEEEsetsidemargin{<mode>}{<margin>}`, :1478/:1570
+  // `\IEEEsetheadermargin`/`\IEEEsetfootermargin[<sample>][<text sample>]{<mode>}{<margin>}`; :3506
+  // `\IEEEeqnarraystrutsizeadd{<height>}{<depth>}[<font>]` beside the strut size below.
+  DefMacro!("\\IEEEquantizetextheight[]{}", "");
+  DefMacro!("\\IEEEsettextwidth{}{}", "");
+  DefMacro!("\\IEEEsetsidemargin{}{}", "");
+  DefMacro!("\\IEEEsetheadermargin[][]{}{}", "");
+  DefMacro!("\\IEEEsetfootermargin[][]{}{}", "");
+  DefMacro!("\\IEEEeqnarraystrutsizeadd{}{}[]", "");
+  if lookup_definition(&T_CS!("\\IEEEeqnarraystrutsize"))?.is_none() {
+    DefMacro!("\\IEEEeqnarraystrutsize{}{}[]", "");
+  }
+  def_macro_noop("\\IEEEeqnarraystrutmode")?;
 });
 
 /// Split `tokens` at each TOP-LEVEL (brace-depth 0) occurrence of `delim`.

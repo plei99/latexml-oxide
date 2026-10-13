@@ -48,7 +48,10 @@ LoadDefinitions!({
   RequirePackage!("kvdefinekeys");
   //RequirePackage("pdfescape");   // not ported
   //RequirePackage("hycolor");     // not ported
-  //RequirePackage("letltxmacro"); // not ported
+  // hyperref loaded letltxmacro until v7.01h (ChangeLog 2023-12-19 "remove letltxmacro package"), so papers of its
+  // years use `\LetLtxMacro` with hyperref alone (2106.06828, 1911.11856); one binding serves every version of the
+  // package, the union of what they provide. Perl comments the load out.
+  RequirePackage!("letltxmacro");
   //RequirePackage("auxhook");     // not ported
   RequirePackage!("kvoptions");
   //RequirePackage("intcalc");     // not ported
@@ -340,6 +343,9 @@ LoadDefinitions!({
   DefMacro!("\\@pdfremotestartview", "/Fit");
   DefMacro!("\\@pdfstartpage", "1");
 
+  // The options of a later `\usepackage[…]{hyperref}` are keys `\hypersetup` takes (the repeat load after a
+  // class binding's own hyperref load; binding/content.rs `apply_new_options_on_reload`).
+  AssignValue!("hyperref.sty_keyval_setter" => "\\hypersetup", Scope::Global);
   // Digest & store the options
   // Perl: DefPrimitive('\hypersetup RequiredKeyVals:Hyp', sub {
   //   hyperref_setoption($key, Digest($value)); });
@@ -1434,6 +1440,11 @@ LoadDefinitions!({
   // until we come up with a nice, clean formal scheme, just hack through...
 
   // Process hyperref package options (keyval-style)
+  // hyperref.sty:2762-2810 and :4587-4589: the `backref` (`section`, `slide`, `page`, `none`/`false`; bare =
+  // `section`) and `pagebackref` (`true`/`false`; bare = `true`) options load backref with its `hyperref` or
+  // `hyperpageref` option once the options are read (witness 1809.07574, `[pagebackref]{hyperref}` and then
+  // `\backrefparscanfalse` in the bibliography). The last of the two options given wins, as `\Hy@backref` does.
+  let mut backref_option: Option<&str> = None;
   if let Some(Stored::VecDequeStored(vdq)) = lookup_value("opt@hyperref.sty") {
     for entry in vdq {
       // Each entry is Stored::Strings from PassOptionsToPackage/\usepackage
@@ -1443,6 +1454,27 @@ LoadDefinitions!({
         other => vec![other.to_string()],
       };
       for option in &opt_strs {
+        let (name, given) = match option.find('=') {
+          Some(eq_pos) => (
+            option[..eq_pos].trim(),
+            Some(option[eq_pos + 1..].trim().to_lowercase()),
+          ),
+          None => (option.trim(), None),
+        };
+        if name == "backref" {
+          backref_option = match given.as_deref().unwrap_or("section") {
+            "" | "section" | "slide" => Some("hyperref"),
+            "page" => Some("hyperpageref"),
+            "none" | "false" => None,
+            _ => backref_option,
+          };
+        } else if name == "pagebackref" {
+          backref_option = match given.as_deref().unwrap_or("true") {
+            "" | "true" => Some("hyperpageref"),
+            "false" => None,
+            _ => backref_option,
+          };
+        }
         if option == "colorlinks" {
           RequirePackage!("color");
         } else if let Some(eq_pos) = option.find('=') {
@@ -1477,6 +1509,16 @@ LoadDefinitions!({
         }
       }
     }
+  }
+
+  // hyperref.sty:2775-2804 `\Hy@backreftrue` with the option, so `\ifHy@backref` is true while backref is loaded.
+  // backref's back-reference lists are generated navigation, not author content, and Perl ignores the option
+  // silently (KNOWN_PERL_ERRORS #619): loaded through hyperref's option, the backref stub reports itself as an Info,
+  // not the Warning a direct `\usepackage{backref}` gives (OXIDIZED_DESIGN_DIVERGENCES #547; witness 2203.07162).
+  if let Some(option) = backref_option {
+    TeX!(r"\Hy@backreftrue");
+    AssignValue!("BACKREF_LOADED_BY_HYPERREF" => true);
+    RequirePackage!("backref", options => vec![option.to_string()]);
   }
 
   TeX!(

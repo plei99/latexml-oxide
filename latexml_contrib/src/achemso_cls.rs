@@ -33,6 +33,12 @@ LoadDefinitions!({
   // Perl raw-loads the class). Guard:
   // `perfect_kernel_batch54::achemso_declares_its_scheme_floats`.
   RequirePackage!("float");
+  // achemso.cls:35 xkeyval and :309-315 the rest of the class's package list, caption, graphicx and url: documents
+  // use `\captionsetup`/`\captionof` without loading caption (witness 2202.05883).
+  RequirePackage!("xkeyval");
+  RequirePackage!("caption");
+  RequirePackage!("graphicx");
+  RequirePackage!("url");
   // achemso.cls:1413-1414 loads mciteplus when installed (`\mciteSubRef`).
   RequirePackage!("mciteplus");
   // achemso.cls:144-165 (its embedded notes2bib): `\bibnote[label]{text}` files
@@ -69,7 +75,14 @@ LoadDefinitions!({
     "\\altaffiliation[]{}",
     "\\@add@frontmatter{ltx:note}[role=affiliation]{#2}"
   );
-  DefMacro!("\\email{}", "\\@add@frontmatter{ltx:note}[role=email]{#1}");
+  // achemso.cls:513-520 `\email` stores the address for the author's footnote (`\@email@<n>`): an address, read as
+  // the other classes' are (`\lx@address@textfont`, revtex4_support_sty.rs), so `ranojoy_bose@apple.com` is no
+  // subscript ("Script _ can only appear in math mode", 1803.03591; OXIDIZED_DESIGN #551). Guard
+  // `perfect_kernel_batch65m::file_arguments_are_not_typeset`.
+  DefMacro!(
+    "\\email Semiverbatim",
+    "\\lx@add@email{\\lx@address@textfont{#1}}"
+  );
   DefMacro!("\\phone{}", "\\@add@frontmatter{ltx:note}[role=phone]{#1}");
   DefMacro!("\\fax{}", "\\@add@frontmatter{ltx:note}[role=fax]{#1}");
   // achemso.cls:1115-1124: `suppinfo` is an environment that opens an unnumbered "Supporting Information Available"
@@ -157,5 +170,17 @@ LoadDefinitions!({
   // wrapper for italicized Latin abbreviations. Witness 2312.12737.
   DefMacro!("\\SectionNumbersOn", None);
   DefMacro!("\\SectionNumbersOff", None);
+  // achemso.cls:1091-1102 `\SectionsOff`/`\SectionsOn` and :1160-1169 `\AbstractOff`/`\AbstractOn` switch the
+  // section headings and the abstract per manuscript type (preamble only); the content is kept either way, so
+  // both are no-ops here. :1266-1269 the TOC graphic's box size, which documents set (`{tocentry}` is skipped).
+  // Witnesses 1710.02414 (`\AbstractOn`), 2006.15922 and 2112.07721 (`\acs@tocentry@height`).
+  DefMacro!("\\SectionsOn", None);
+  DefMacro!("\\SectionsOff", None);
+  DefMacro!("\\AbstractOn", None);
+  DefMacro!("\\AbstractOff", None);
+  RawTeX!(
+    r"\newlength{\acs@tocentry@height}\newlength{\acs@tocentry@width}
+\setlength{\acs@tocentry@height}{1.75in}\setlength{\acs@tocentry@width}{3.25in}"
+  );
   DefMacro!("\\latin{}", "#1");
 });

@@ -25,6 +25,11 @@ LoadDefinitions!({
   // LaTeX does — so we must provide its expected infrastructure.)
   // Witness: 1904.07479 (AIAA.cls). Format-version probing (\IfFormatAtLeastTF)
   // is omitted — not needed for the switch semantics.
+  // revtex4.cls:4476, revtex4-1.cls:2378, revtex4-2.cls:2399 `\sanitize@url`: `%`, `~` and `_` read as other
+  // characters, so an address keeps them. Classes and styles built on revtex call it for their own address
+  // commands: JASA.cls, ujp.sty, cej.cls (witnesses 2006.04679, 1702.04290, 1510.07897, 1309.5259,
+  // 2508.01050, 2103.00255).
+  TeX!(r"\def\sanitize@url{\@makeother\%\@makeother\~\@makeother\_}");
   TeX!(r"\long\def\true@sw#1#2{#1}%
 \long\def\false@sw#1#2{#2}%
 \def\@boolean#1#2{\long\def#1{#2\expandafter\true@sw\else\expandafter\false@sw\fi}}%
@@ -55,7 +60,8 @@ LoadDefinitions!({
   // otherwise, \author should be followed by \affiliation
   // `\author{Brent Preston and Eric Poisson}` names two (gr-qc0606093): the article `\author`'s parse, each author
   // with the labels (Perl revtex4_support makes it one author; 63e).
-  DefMacro!("\\author[]{}",    "\\lx@add@authors@append[annotations={#1}]{#2}");
+  // `\lx@author@after` (sect05.rs): what a package appends to `\author` (titling's `\theauthor`) runs here too.
+  DefMacro!("\\author[]{}",    "\\lx@add@authors@append[annotations={#1}]{#2}\\lx@author@after{#2}");
   // An `\affiliation` that starts with a letter or number mark (all `\author{Name$^{a}$}`s first, then `$^{a}$`-marked
   // lines: 2011.01984, 2301.08449) is labelled by its marks under marked authors, and goes to the authors showing them
   // (relocate_annotations); any other is revtex's group rule, every author before it without one (`annotate=new`): a
@@ -131,7 +137,7 @@ LoadDefinitions!({
   // ltx:acknowledgements Tag (autoClose + inlist=toc) is global — set in
   // latex_constructs.rs (arXiv-fork 23771504 removed the binding-local copies).
   DefConstructor!("\\acknowledgments", "<ltx:acknowledgements name='#name'>",
-    properties => { Ok(stored_map!("name" => digest(T_CS!("\\acknowledgmentsname"))?)) });
+    properties => { Ok(stored_map!("name" => digest_in_group(T_CS!("\\acknowledgmentsname"))?)) });
   // Tolerant close — see omnibus_cls.rs commentary on the
   // \begin{acknowledgments} ... \bibliography ... \end{acknowledgments}
   // pattern that auto-closes the env via \bibliography opening
@@ -212,8 +218,12 @@ LoadDefinitions!({
   DefConstructor!("\\text{}", "<ltx:text _noautoclose='true'>#1</ltx:text>",
     mode => "restricted_horizontal", locked => true);
 
-  // RevTeX3 bold math (obsolete in RevTeX4) — Perl L165-171
-  DefConstructor!("\\bm{}", "#1", bounded => true, require_math => true, font => { forcebold => true });
+  // RevTeX3 bold math (obsolete in RevTeX4) — Perl L165-171. RevTeX 4.x's own `\bm` (revtex4-2.cls:7573-7586,
+  // revtex4-1.cls:7552-7565, revtex4.cls:6018-6032) asks for bm.sty ("To use \bm, please load the bm package!"),
+  // drops its first argument and leaves later ones in a `\relax{…}` group; Perl keeps a bold `\bm`, its argument in a
+  // group: a `\left` without its `\right` there is set at the outer level with a Warning (bm_sty.rs
+  // `define_grouped_bm`, OXIDIZED_DESIGN #544).
+  bm_sty::define_grouped_bm()?;
   // Perl L166-168: `locked => 1` keeps \bbox bold-wrapped even when a
   // user or co-loaded package redefines it.
   DefConstructor!("\\bbox{}", "#1", bounded => true, require_math => true,

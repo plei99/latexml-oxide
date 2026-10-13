@@ -1,5 +1,7 @@
 //! acmart.cls — ACM article class
 //! Perl: acmart.cls.ltxml (259 lines)
+use latexml_core::definition::origin::{DefinitionOrigin, OriginGuard};
+
 use crate::{
   engine::latex_constructs::{after_float, before_float},
   prelude::*,
@@ -567,7 +569,10 @@ LoadDefinitions!({
   def_macro_noop("\\startPage")?;
   def_macro_noop("\\settopmatter{}")?;
   def_macro_noop("\\copyrightpermissionfootnoterule")?;
-  def_macro_noop("\\acmBadgeL")?;
+  // acmart.cls (TL 2025 :1770-1798) `\acmBadgeR[<url>]{<image>}`, `\acmBadgeL`, the artifact badges set by the title,
+  // each a linked image: page decoration, dropped, its arguments with it (Perl's `\acmBadgeL` took none, so they were
+  // printed as text; 2108.06610, 2404.15510).
+  RawTeX!(r"\newcommand\acmBadgeR[2][]{}\let\acmBadgeL\acmBadgeR\let\acmBadge\acmBadgeR");
 
   //======================================================================
   // Natbib cite aliases
@@ -607,7 +612,7 @@ LoadDefinitions!({
   // matches the Perl form.
   DefConstructor!("\\acks", "<ltx:acknowledgements name='#name'>",
     properties => {
-      let name_toks = DigestIf!(T_CS!("\\acknowledgmentsname"))?;
+      let name_toks = digest_in_group_if(T_CS!("\\acknowledgmentsname"))?;
       stored_map!("name" => name_toks)
     });
   DefConstructor!("\\endacks", "</ltx:acknowledgements>");
@@ -1145,6 +1150,38 @@ LoadDefinitions!({
     }
   }
   AddToMacro!("\\lx@maketitle@body", "\\lx@acm@copyright");
+
+  // What the acmart 2.x versions add (TL 2025's acmart.cls, as the newer shipped copies; older copies lack them, so a
+  // paper's own definition replaces them: `DefinitionOrigin::Fallback`). Run 340: `\noindentparagraph` 15 of 120
+  // sampled papers that ship acmart.cls (2601.17422, 2207.02746), `\acmArticleType` 10 (2604.20381), `\AtBeginMaketitle` 7,
+  // `\acmCodeLink` 7 (2604.10117), `\anon` 6 (2305.20042, 2601.10468)
+  // (~150 first errors):
+  // - `\noindentparagraph` (:3323-3327), `\paragraph` without the indent;
+  // - `\anon[<replacement>]{<text>}` (:2211-2216), the text, or under `anonymous` the replacement in ACM orange;
+  // - `\AtBeginMaketitle{<code>}` (:2217-2220), code run as `\maketitle` begins, before the title block reads the
+  //   copyright and conference setters papers put there (2203.08314, 2603.15453);
+  // - `\acmArticleType`, `\acmCodeLink`/`\acmDataLink`, `\acmContributions` (:1895-1915) store what the `acmcp`
+  //   format's title block prints;
+  // - `\translatedtitle`/`\translatedsubtitle`/`\translatedkeywords{<language>}{<text>}` (:453-461), the title page's
+  //   other-language title, subtitle and keywords, as notes; `{translatedabstract}{<language>}` (:462-469), an abstract
+  //   in another language, its text where it is written (2409.04499, 2507.13923).
+  {
+    let _guess = OriginGuard::new(DefinitionOrigin::Fallback);
+    RawTeX!(
+      r"\newcommand\noindentparagraph{\paragraph}
+\newcommand{\anon}[2][ANONYMIZED]{\if@ACM@anonymous{\color{ACMOrange}#1}\else#2\fi}
+\let\@beginmaketitlehook\@empty\def\AtBeginMaketitle{\g@addto@macro\@beginmaketitlehook}
+\def\acmArticleType#1{\gdef\@acmArticleType{#1}}
+\def\@acmCodeDataLink{}\def\acmCodeLink#1{\ifx\@acmCodeDataLink\@empty\gdef\@acmCodeDataLink{\url{#1}}\else
+  \g@addto@macro{\@acmCodeDataLink}{\\ \url{#1}}\fi}\let\acmDataLink\acmCodeLink
+\def\acmContributions#1{\gdef\@acmContributions{#1}}
+\newcommand\translatedtitle[2]{\@add@frontmatter{ltx:note}[role=translatedtitle]{#2}}
+\newcommand\translatedsubtitle[2]{\@add@frontmatter{ltx:note}[role=translatedsubtitle]{#2}}
+\newcommand\translatedkeywords[2]{\@add@frontmatter{ltx:note}[role=translatedkeywords]{#2}}
+\newenvironment{translatedabstract}[1]{\par\noindent}{\par}"
+    );
+  }
+  AddToMacro!("\\lx@maketitle@begin", "\\@beginmaketitlehook");
 });
 
 /// A comma between names in an acmart `\author` argument: outside groups and math, or inside the one group that wraps

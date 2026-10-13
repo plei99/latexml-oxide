@@ -1,4 +1,9 @@
-use crate::prelude::*;
+use latexml_core::definition::origin::{DefinitionOrigin, OriginGuard};
+
+use crate::{
+  prelude::*,
+  shipped_class::{class_text_loads, shipped_class_text},
+};
 
 #[rustfmt::skip]
 LoadDefinitions!({
@@ -25,6 +30,14 @@ LoadDefinitions!({
   // whose {pmatrix}/{cases} start with `\matrix@check` (amsmath.sty:1077-1082): the environment when `\@currenvir` names
   // it, the old Plain-TeX form otherwise. Perl's plain-only override read `\begin{cases}`'s first cell as its argument,
   // and the `&`s after it went stray (2609.02726, 2609.04318: Perl errors the same way).
+  // amsmath's {matrix} checks alike (amsmath.sty:1068-1071 `\matrix@check\matrix`): the old aa.cls and l-aa.sty (the
+  // `l-aa` binding loads this class) give plain TeX's `\matrix{…\cr}` (plain.tex:1093, latex.ltx:15634), whose
+  // amsmath reading opened an alignment that nothing closed, the display running into the next section
+  // (astro-ph9609122, astro-ph9809009, astro-ph9503122).
+  DefMacro!("\\matrix",
+    r"\expandafter\ifx\csname\@currenvir\endcsname\matrix\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi
+{\lx@ams@matrix{name=matrix,datameaning=matrix}}
+{\lx@gen@plain@matrix{name=matrix,datameaning=matrix}}");
   DefMacro!("\\pmatrix",
     r"\expandafter\ifx\csname\@currenvir\endcsname\pmatrix\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi
 {\lx@ams@matrix{name=pmatrix,datameaning=matrix,left=\lx@left(,right=\lx@right)}}
@@ -68,4 +81,48 @@ LoadDefinitions!({
   // require it (options irrelevant to the XML stubs). Perl's aa.cls.ltxml
   // lacks this (\nolinenumbers undefined there); candidate to upstream.
   RequirePackage!("lineno");
+
+  // aa.cls's online-only floats, which the class sets at `\AtEndDocument` under an "Online Material" page (`\Online`,
+  // page furniture, empty here as in Perl's aa_support). The versions differ in arity: up to v7 (41 of 98 sampled
+  // copies; 0801.4139's :931-940) `\onltab{N}{table}`, `\onlfig{N}{figure}`, `\onllongtab{N}{longtable}` and
+  // `\onllongtabL` defer the float numbered N and step the counter to N for what follows, and the landscape
+  // `\longtabL{N}{longtable}` sets it in place, numbered N; v8.x (24 copies; 1403.1122's v8.1 :1366-1395) `\onltab
+  // {table}`, `\onlfig{figure}`, `\onllongtab{longtable}` (`\onlfloat`: the float deferred, keeping the number it
+  // reserves where it is called); v9.x defines none. A first argument that is a number is the older form's N. Run 340
+  // first errors: `\onltab` 171, `\onlfig` 152, `\onllongtab` 111, `\longtabL` 49 (witnesses 0709.2515, 0709.0404,
+  // 0709.4508, 0811.2397, 1403.1122, 1505.04356).
+  DefMacro!("\\lx@aa@onl{}{}{}", sub[(mode, counter, first)] {
+    let text = first.clone().untex();
+    let text = text.trim();
+    let numbered = !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit());
+    let deferred = mode.untex() == "d";
+    Ok(match (numbered, deferred) {
+      (true, true) => Invocation!(T_CS!("\\lx@aa@onl@numbered"), vec![Some(counter), Some(first)]),
+      (true, false) => Invocation!(T_CS!("\\lx@aa@onl@inplace"), vec![Some(counter), Some(first)]),
+      (false, true) => Invocation!(T_CS!("\\lx@aa@onl@float"), vec![Some(counter), Some(first)]),
+      (false, false) => first,
+    })
+  });
+  RawTeX!(r"\long\def\lx@aa@onl@numbered#1#2#3{\AtEndDocument{\setcounter{#1}{#2}\addtocounter{#1}{-1}#3}\setcounter{#1}{#2}}
+\long\def\lx@aa@onl@inplace#1#2#3{\setcounter{#1}{#2}\addtocounter{#1}{-1}#3\setcounter{#1}{#2}}
+\long\def\lx@aa@onl@float#1#2{\edef\lx@aa@nombre{\the\value{#1}}%
+  \expandafter\lx@aa@onl@defer\expandafter{\lx@aa@nombre}{#1}{#2}\stepcounter{#1}}
+\long\def\lx@aa@onl@defer#1#2#3{\AtEndDocument{\edef\lx@aa@saved{\the\value{#2}}\setcounter{#2}{#1}#3%
+  \setcounter{#2}{\lx@aa@saved}}}
+\def\onltab{\lx@aa@onl{d}{table}}\def\onlfig{\lx@aa@onl{d}{figure}}\def\onllongtab{\lx@aa@onl{d}{table}}
+\def\onllongtabL{\lx@aa@onl{d}{table}}\def\longtabL{\lx@aa@onl{p}{table}}");
+  // v9.x: `\AANum{N}` (56 copies), the article number the page furniture prints; `\psj` (the Planetary Science Journal,
+  // `PSJ` in 4 of the 6 copies with it, 9 of 98 in all: a guess a paper's own definition replaces; 44 first errors,
+  // 2508.13727).
+  RawTeX!(r"\providecommand*\aa@numarticle{}\newcommand*\AANum[1]{\renewcommand*\aa@numarticle{#1}}");
+  {
+    let _guess = OriginGuard::new(DefinitionOrigin::Fallback);
+    RawTeX!(r"\providecommand*\psj{PSJ}");
+  }
+  // The v9.x copies load hyperref at the document's start unless the paper has (2409.03418's :2035-2037,
+  // `\AtBeginDocument{\@ifpackageloaded{hyperref}{}{\RequirePackage[colorlinks=true,…]{hyperref}}}`, 17 of 98 sampled),
+  // so their papers call `\href` (60 first errors, 2406.05179): the paper's own copy decides.
+  if shipped_class_text("aa")?.is_some_and(|text| class_text_loads(&text, "hyperref")) {
+    RawTeX!(r"\AtBeginDocument{\@ifpackageloaded{hyperref}{}{\RequirePackage{hyperref}}}");
+  }
 });

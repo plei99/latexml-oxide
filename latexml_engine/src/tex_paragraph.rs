@@ -203,13 +203,21 @@ LoadDefinitions!({
         }
         // A `\par` ends a paragraph, never a list (a TeX list is a paragraph shape, not a group): a `\trivlist`
         // begun inside the paragraph, `_autoclose` as Perl's, stays open (csquotes' `{quotesample}`, a blank line
-        // before its first `\item`; KNOWN_PERL_ERRORS #456).
-        if !prop_bool!(props, "internal_par") && !document::helpers::list_open_inside_para(document) {
+        // before its first `\item`; KNOWN_PERL_ERRORS #456). Nor the inline sectional block an item's heading opens
+        // in its paragraph, with the section in it (`list_or_block_open_inside_para`; 1805.06896).
+        if !prop_bool!(props, "internal_par") && !document::helpers::list_or_block_open_inside_para(document) {
           document.maybe_close_element("ltx:para")?;
         }
       }
     },
     before_digest => {
+      // tex.web §1046-1047 `mmode+par_end`: "Missing $ inserted", the inline formula ended and this `\par` read again
+      // after it; this whatsit, left in the formula, reverts as nothing (`lx@par@reread`). OXIDIZED_DESIGN #553.
+      let again = get_current_token().unwrap_or_else(|| T_CS!("\\par"));
+      if insert_dollar_sign(Tokens!(again))? {
+        assign_value("lx@par@reread", true, None);
+        return Ok(Vec::new());
+      }
       // Perl: combine any digested horizontal material into a horizontal List
       let mode = lookup_string_from_sym(pin!("MODE"));
       let bound = lookup_string_from_sym(pin!("BOUND_MODE"));
@@ -226,6 +234,12 @@ LoadDefinitions!({
       assign_value("interlinepenalties", Stored::None, None);
     },
     after_digest => sub[whatsit] {
+      if lookup_bool("lx@par@reread") {
+        assign_value("lx@par@reread", false, None);
+        whatsit.set_property("noop", true);
+        whatsit.set_property("reversion", Tokens!());
+        return Ok(Vec::new());
+      }
       whatsit.set_property("mode", lookup_string_from_sym(pin!("MODE")));
       // When invoked by leave_horizontal: no reversion, don't close ltx:para
       if LookupBool!("INTERNAL_PAR") {
