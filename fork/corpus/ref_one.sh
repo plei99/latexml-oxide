@@ -14,8 +14,9 @@ eng=$(grep -m1 -oiE '^%\s*!\s*TEX\s+(TS-)?program\s*=\s*[a-z]+' "$src" | sed -E 
 case $eng in pdflatex|lualatex|xelatex) ;; *) eng= ;; esac
 if [ -z "$eng" ]; then
   eng=pdflatex
-  grep -qE '\\usepackage(\[[^]]*\])?\{[^}]*(fontspec|unicode-math)' "$src" && eng=lualatex
-  grep -qE '\\(usepackage|documentclass)(\[[^]]*\])?\{[^}]*(xeCJK|ctex)' "$src" && eng=xelatex
+  # Only uncommented lines: `% \usepackage{fontspec}` must not pick lualatex.
+  grep -qE '^[^%]*\\usepackage(\[[^]]*\])?\{[^}]*(fontspec|unicode-math)' "$src" && eng=lualatex
+  grep -qE '^[^%]*\\(usepackage|documentclass)(\[[^]]*\])?\{[^}]*(xeCJK|ctex)' "$src" && eng=xelatex
 fi
 typeset() {
   case $eng in pdflatex) flag=-pdf;; lualatex) flag=-lualatex;; xelatex) flag=-xelatex;; esac
