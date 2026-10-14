@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+  - **`\pmod` no longer errors under memoir.** Its `mod` was set with plain
+    TeX's `{\rm mod}`, and memoir makes `\rm` a class error, so every `\pmod`
+    reported "Font command \rm is not supported" and printed `mod` as italic
+    letters. The LaTeX layer now sets it in `\operator@font`, as latex.ltx
+    does. KNOWN_PERL_ERRORS #657.
+
   - **The XSLT recursion cap now applies in the statically linked release
     binaries.** `xsltMaxDepth = 1000` (Perl `XML::LibXSLT->max_depth(1000)`) was
     written through `dlsym`, which cannot see a global of a statically linked

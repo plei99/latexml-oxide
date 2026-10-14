@@ -12990,3 +12990,21 @@ class with chapters) and :2673-2690 `\strip@MRprefix`/`\MRhref` (with `msc-links
 missing; nor does its `msc-links` load hyperref (amsrefs.sty:198-205). Fixed in Rust (amsrefs_sty.rs; repros
 index-bib/amsrefs_bibchapter, index-bib/amsrefs_document_mr_redress).
 
+
+## 657. `\pmod` sets `mod` with `\rm`, which memoir makes an error
+
+math_common.pool.ltxml:777 `DefMath('\pmod{}', '\;\;(\mathop{{\rm mod}} #1)', …)` is plain.tex:1089's body; latex.ltx:15560
+(and amsmath.sty:909) sets `mod` in `\operator@font`. memoir.cls:6903 makes `\rm` a class error unless the
+`oldfontcommands` option is given (`\@memoldfonterr`, :6891), so under memoir every `\pmod` reports it. Trigger:
+
+```tex
+\documentclass{memoir}
+\begin{document}
+$a \equiv b \pmod{2}$
+\end{document}
+```
+
+→ Perl: 1 `Error:latex:(memoir)` "Font command \rm is not supported" per `\pmod` (simulated with `\def\rm{\ClassError…}`,
+as Perl does not load memoir.cls raw to the end), and `mod` as three italic letters; pdflatex 0 errors. Fixed in Rust:
+the LaTeX layer (latex_constructs sect07.rs, beside `\operator@font`) defines `\pmod` with `{\operator@font mod}`; plain
+keeps `{\rm mod}`. Guard `pmod_operator_font::pmod_under_memoir_is_an_upright_operator_without_errors`.

@@ -72,6 +72,7 @@ mod openright_kernel_contract;
 mod package_leads_56;
 mod picture_makebox_offset;
 mod picture_sizing;
+mod pmod_operator_font;
 mod preclass_kernel_autoload;
 mod process_key_options_sees_load_options;
 mod pstricks_drawing;

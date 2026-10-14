@@ -603,6 +603,11 @@ pub(crate) fn load() -> Result<()> {
 
   DefPrimitive!("\\operator@font", None,
     font => {family => "serif", series => "medium", shape => "upright"});
+  // latex.ltx:15560 (and amsmath.sty:909) sets `mod` in `\operator@font`; plain.tex:1089's `{\rm mod}`, which
+  // math_common keeps for plain, would reach a class's `\rm`: memoir (memoir.cls:6903) makes `\rm` an error unless
+  // `oldfontcommands` is given, so every `\pmod` raised "Font command \rm is not supported" and its "mod" came out as
+  // italic letters. Perl the same (math_common.pool.ltxml:777): KNOWN_PERL_ERRORS #657.
+  DefMath!("\\pmod{}", r"\;\;(\mathop{{\operator@font mod}} #1)", role => "MODIFIER");
 
   Ok(())
 }
