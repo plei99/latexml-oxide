@@ -62,3 +62,26 @@ A changed SVG digest on its own is reported as a change. Look at it before accep
 
 Per-document facts are written to `runs/<label>/index/{docs,errors,pictures}.tsv`. Their
 meanings are documented in `corpus/index.py`.
+
+## Upstream's Linux CI, locally
+
+Upstream CI tests on Ubuntu 24.04 with TeX Live 2023 from apt. A macOS run differs from CI in
+two ways:
+
+- Some guards count warnings that come from a specific TeX Live's packages, or need fonts this
+  TeX Live lacks.
+- Lints for Linux-only `cfg` code fire only on macOS, or never there.
+
+Before opening an upstream PR, run CI's gates in Docker:
+
+```sh
+fork/linux/check.sh <branch> [formats nextest lint]   # logs: /tmp/linux-check/<sha>/<step>.log
+```
+
+The branch is exported with `git archive`, so only committed code is tested and the macOS
+checkout is never touched. The Linux `target/`, the cargo registry and the rustup toolchains live
+in the Docker volumes `lxo-target`, `lxo-registry` and `lxo-rustup`. If the `formats` step fails,
+the script stops, because without dumps the tests fail spuriously.
+
+On this Mac, Docker Desktop has 8 GB of RAM, half of CI's runner. The script keeps CI's settings
+(the `ci` profile, 2 build jobs, 2 test threads, mold).
