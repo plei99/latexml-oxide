@@ -56,8 +56,10 @@ fn left_right_are_unexpandable() {
 
 /// The mathtools-documentation idiom `\let\@left\left \def\left{\mathopen{}\mathclose\bgroup\@left}` (and the
 /// `\right` twin, 2605.21750's shape): the copies are the constructors themselves, nothing re-enters a trampoline.
-/// 0 errors; the three formulas keep 65a's readings (the right delimiter digests after the `\mathclose` group's
-/// `\aftergroup\egroup`, as in Perl: unparsed, one warning each).
+/// 0 errors. The right delimiter is read before the `\left` group closes, so the `\aftergroup\egroup` closes the
+/// `\mathclose` group after it (tex.web §1191; Perl reads it after, leaving `(` unmatched), and the parser lets the
+/// empty OPEN and the CLOSE wrap of one fence through: the formulas read as their `\left…\right` do, 0 warnings
+/// (OXIDIZED_DESIGN #576; Perl leaves them unparsed, one warning each).
 #[test]
 fn let_left_wrapped_in_mathclose() {
   let (log, xml) = convert_with(
@@ -67,13 +69,13 @@ fn let_left_wrapped_in_mathclose() {
     Some("ar5iv.sty"),
   );
   assert_eq!(error_count(&log), 0, "{log}");
-  assert_eq!(warning_count(&log), 3, "{log}");
+  assert_eq!(warning_count(&log), 0, "{log}");
   assert_eq!(
     math_tags(&xml),
     [
-      r#"class="ltx_math_unparsed" mode="inline" tex="f\mathopen{}\mathclose{{\left(x}}\right)" xml:id="p1.m1""#,
-      r#"class="ltx_math_unparsed" mode="inline" tex="\mathopen{}\mathclose{{\left[a+b}}\right]^{2}" xml:id="p1.m2""#,
-      r#"class="ltx_math_unparsed" mode="inline" tex="\mathopen{}\mathclose{{\left\{y\middle|y&gt;0}}\right\}" xml:id="p1.m3""#,
+      r#"mode="inline" tex="f\mathopen{}\mathclose{{\left(x\right)}}" text="f@(x)" xml:id="p1.m1""#,
+      r#"mode="inline" tex="\mathopen{}\mathclose{{\left[a+b\right]}}^{2}" text="(delimited-[]@(a + b)) ^ 2" xml:id="p1.m2""#,
+      r#"mode="inline" tex="\mathopen{}\mathclose{{\left\{y\middle|y&gt;0\right\}}}" text="conditional-set@(y, y &gt; 0)" xml:id="p1.m3""#,
     ],
     "{xml}"
   );

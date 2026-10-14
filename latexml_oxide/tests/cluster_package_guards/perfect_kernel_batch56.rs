@@ -6062,10 +6062,11 @@ fn let_at_left_left_does_not_loop() {
     xml.contains(r#"role="CLOSE" stretchy="true">)</XMTok>"#),
     "{xml}"
   );
-  // The `\mathopen{}\mathclose\bgroup\left` idiom is left unparsed, as in Perl,
-  // not parsed into an empty `list@()` that drops the operands (56is).
+  // The `\mathopen{}\mathclose\bgroup\left` idiom reads as its `\left…\right`
+  // (OXIDIZED_DESIGN #576; Perl leaves it unparsed), never as an empty `list@()`
+  // that drops the operands (56is).
   assert!(!xml.contains("list@()"), "{xml}");
-  assert_eq!(warning_count(&stderr), 1, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
 }
 
 /// bytedance_seed's binding defined `\author[]{}` as `\author{#2}` — itself: a
@@ -9475,18 +9476,35 @@ fn biber_bib_percent_comments_keep_the_entry() {
 
 /// An empty fence parses only when its close balances its open (Perl
 /// MathGrammar:463-464 `balancedClose`; MathParser.pm:1348-1384 `%balanced`,
-/// `isMatchingClose`). `\mathopen{}\mathclose{\left(x\right)}` lexes as an empty
+/// `isMatchingClose`). `\mathopen{}\mathclose{\left(x\right)}` lexed as an empty
 /// OPEN and a CLOSE that carries the `x`: the generic `open close` alternative
 /// built `list@()` and dropped the `x` from the content tree, silently (arXiv
 /// 2605.13448: 98 formulas; 2605.22010: 160). Perl leaves it unparsed with its
-/// content kept, and warns once; so do we. A balanced empty fence still parses.
+/// content kept. Since OXIDIZED_DESIGN #576 the empty OPEN is dropped and the CLOSE wrap
+/// of one fence let through before parsing, so it reads as `\left(x\right)` does: `x`,
+/// never `list@()`. An OPEN atom before a CLOSE that is no fence (`\mathopen{y}\mathclose{x}`)
+/// still meets the empty-fence alternative and is rejected. A balanced empty fence still parses.
 #[test]
 fn empty_fence_needs_a_balanced_close() {
   let tex =
     include_str!("../../../tools/perfect_kernel/repros/math-parse/empty_fence_balanced_close.tex");
   let (stderr, xml) = convert(tex, false);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
-  assert_eq!(warning_count(&stderr), 1, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  latexml::util::test::assert_element(
+    &xml,
+    "XMath",
+    &[],
+    r#"<XMath><XMDual><XMRef idref="p1.m1.1"/><XMWrap><XMTok role="OPEN" stretchy="true">(</XMTok><XMTok font="italic" role="UNKNOWN" xml:id="p1.m1.1">x</XMTok><XMTok role="CLOSE" stretchy="true">)</XMTok></XMWrap></XMDual></XMath>"#,
+  );
+  assert!(!xml.contains("list@()"), "{xml}");
+  // An OPEN atom and a CLOSE that is no fence still meet the empty-fence alternative, whose unbalanced close is
+  // rejected: unparsed, the `x` kept.
+  let (stderr, xml) = convert(
+    "\\documentclass{article}\\begin{document}$\\mathopen{y}\\mathclose{x}$\\end{document}\n",
+    false,
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert_eq!(
     stderr.matches("Warning:unparsed_math:").count(),
     1,
@@ -9496,7 +9514,7 @@ fn empty_fence_needs_a_balanced_close() {
     &xml,
     "XMath",
     &[],
-    r#"<XMath><XMTok meaning="absent" role="OPEN"/><XMDual role="CLOSE"><XMRef idref="p1.m1.1"/><XMWrap><XMTok role="OPEN" stretchy="true">(</XMTok><XMTok font="italic" role="UNKNOWN" xml:id="p1.m1.1">x</XMTok><XMTok role="CLOSE" stretchy="true">)</XMTok></XMWrap></XMDual></XMath>"#,
+    r#"<XMath><XMTok font="italic" role="OPEN">y</XMTok><XMTok font="italic" role="CLOSE">x</XMTok></XMath>"#,
   );
   assert!(!xml.contains("list@()"), "{xml}");
   let (stderr, xml) = convert(

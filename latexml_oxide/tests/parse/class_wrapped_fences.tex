@@ -1,0 +1,56 @@
+% The spacing idiom `\mathopen{}\mathclose{\left( … \right)}` reads as its `\left( … \right)` (OXIDIZED_DESIGN
+% #576): `\right` reads its delimiter before it closes its group (tex.web §1191), so the
+% `\aftergroup\egroup` of `\mathclose\bgroup\left … \aftergroup\egroup\right` closes the `\mathclose` group after the
+% fence; the parser drops the empty OPEN atom and lets the CLOSE wrap holding one fence through
+% (`parser.rs::dissolve_class_wraps`). Perl: `not_parsed:>OPEN` for every row (KNOWN_PERL_ERRORS #644).
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+% physics2 phy-ab.sty:38-39 `\delopen`/`\delclose` (physics2.sty:83-84); mleftright.sty:246-253, mathtools.sty:831 the
+% same (both bound natively here)
+\section{The macro idiom}
+\makeatletter
+\def\delopen{\mathopen{}\mathclose\bgroup\left}
+\def\delclose{\aftergroup\egroup\right}
+\makeatother
+$\delopen( x \delclose)$\par
+$f\delopen( x \delclose)$\par
+$a\delopen( x+y \delclose) = b$\par
+$\delopen| \frac{1}{x} \delclose|$\par
+$\delopen[ a, b \delclose)$\par
+$\delopen\{ y \middle| y>0 \delclose\}$\par
+$\delopen( x \delclose)^2$\par
+$\delopen. f(x) \delclose|_{0}^{1}$\par
+$\delopen( \delopen( x \delclose) + 1 \delclose)$
+
+% witnesses 2605.22010 (old_macros.tex:119), 2605.21750 (shortcuts-bare.sty:45): the author's `\left`/`\right`
+\section{Redefined left and right}
+\makeatletter
+\begingroup
+\let\@left\left \let\@right\right
+\def\left{\mathopen{}\mathclose\bgroup\@left}
+\def\right{\aftergroup\egroup\@right}
+$f\left( x \right)$\par
+$\sum_k \left( k + \frac12 \right) x^k$
+\endgroup
+\makeatother
+
+% A split row's MathFork reads the cells through XMRefs: the dissolved wraps' references follow their children.
+\section{A split row}
+\begin{equation}
+\begin{split}
+a &= f\mathopen{}\mathclose{\left( x \right)} \\
+  &= g
+\end{split}
+\end{equation}
+
+% An empty OPEN or CLOSE atom alone is spacing too.
+\section{Empty class atoms}
+$f\mathopen{}(x)$\par
+$a \mathclose{} b$
+
+% Not an idiom: a wrap holding more than one fence keeps its role and reads as written.
+\section{A wrap of two fences}
+$\mathclose{\left(a\right)+\left(b\right)}$
+\end{document}

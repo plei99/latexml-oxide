@@ -2359,10 +2359,11 @@ MathParser.pm L683 `Absent()`), so it renders as a zero-width `<m:mphantom/>` �
 too. (Without the meaning, the MathML fallback for an empty token printed its
 role: a visible "CLOSE"/"OPEN" in every repaired formula; guard
 `06_cluster_regressions::cluster_null_delimiter_renders_invisible`. The repair
-also reaches physics2's `\ab(x)` — `\mathopen{}\mathclose\bgroup\left( x
-\aftergroup\egroup\right)` — whose `\mathclose` group LaTeXML closes before
-`\right`'s `)`, leaving its `(` unmatched; see SYNC_STATUS "`\right` closes its
-group before its delimiter"; guard `cluster_mathclose_aftergroup_right_prints_no_role`.)
+reached physics2's `\ab(x)` — `\mathopen{}\mathclose\bgroup\left( x
+\aftergroup\egroup\right)` — whose `\mathclose` group Perl's `\right` closed before
+its `)`, leaving its `(` unmatched, until #576 made `\right` read its delimiter
+first and let the idiom through to the parser; guard
+`cluster_mathclose_aftergroup_right_prints_no_role`.)
 `tex=` reversions stay verbatim
 (`\left(a+b\right.`). The cells then parse through the *existing* open/close
 fence semantics as `delimited-(@(…)` / `delimited-)@(…)`.
@@ -17181,3 +17182,44 @@ amstex_row_tag_cell_ends_at_par_and_extra_brace, amstex_row_tag_open_group_stops
 amstex_tag_in_latex_equation_row_ends_at_extra_brace, amstex_tag_stops_at_the_document_end,
 amstex_tag_inline_maths_are_not_a_display_end}`; repros `amstex/amstex_row_tag_runaway_group`,
 `amstex/amstex_row_tag_open_group_in_enclosing_group`.
+
+### 576. `\right` reads its delimiter before it closes its group, and `\mathopen{}\mathclose{\left…\right}` reads as its fence
+
+**Perl.** `\right` (TeX_Math.pool.ltxml L786-799) unreads `\lx@hidden@egroup@right` before `\lx@right`: the `\left`
+group closes, then the delimiter is read. TeX's `\right` scans its delimiter, finishes the list and only then unsaves
+(tex.web §1191), so an `\aftergroup` inside `\left…\right` comes after the delimiter. The spacing idiom
+`\mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right)` — physics2's `\delopen`/`\delclose`
+(physics2.sty:83-84, raw-loaded) and the `\renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}` papers
+carry (mleftright.sty:246-253 and mathtools' starred delimiters, mathtools.sty:831, are the same in TeX, but both are
+bound to plain `\left`/`\right`) — therefore ends `\mathclose` before
+the `)`: `\mathclose{{\left(x}}\right)`, where pdflatex's `\showlists` has `\mathclose{\mathinner{\left( x \right)}}`.
+With TeX's grouping no grammar rule reads it either: the empty `\mathopen{}` is an absent OPEN that pairs with the next
+CLOSE as an empty fence `balanced_empty_fenced` rejects, and the CLOSE wrap, parsed on its own, hides the `(` that makes
+`f(x)` an application. Every such formula is `not_parsed:>OPEN` (KNOWN_PERL_ERRORS #644).
+
+**Rust.**
+1. `\right` (tex_math.rs) scans its delimiter (`scan_delimiter`), closes the group (`egroup_right`, which unreads the
+   group's `\aftergroup` tokens), then unreads `\lx@delim@right@scanned` and the scanned token in front of them. The
+   delimiter is digested outside the group as before (its font unchanged), and the `\aftergroup` tokens follow it. A `}`
+   the scan put back after "Missing delimiter" has its put-back mark moved from the popped group's frame to the frame
+   it now meets (guard `perfect_kernel_batch65d::stray_brace_at_the_formula_level_is_deleted`).
+2. Before a formula is parsed, `parser.rs::dissolve_class_wraps` drops each OPEN/CLOSE `XMWrap` holding only hints (an
+   empty `\mathopen{}`/`\mathclose{}`, spacing in TeX), and replaces each holding exactly one `\left…\right` fence by
+   its children: its first child the stretchy left delimiter (or `\left.`'s bare hint), its last the partner (or
+   `\right.`'s), nothing closing the first earlier. Innermost wraps go first; a split row's `MathFork` references to
+   a dissolved wrap are retargeted to its children, unless a reference is a fixed argument of a built structure
+   rather than an item of a stream the parser reads. The parser pass leaves the construction alone: `--nomathparse`
+   output is item 1's.
+   Other class atoms keep their wraps (`\mathrel{}`, `\mathbin{}`, `{}^{14}C`, and `\mathinner` by user ruling
+   2026-10-14: OPEN/CLOSE only), as does a wrap of more than one fence (`\mathclose{\left(a\right)+\left(b\right)}`).
+
+The idiom reads exactly as its `\left…\right`: `f@(x)`, `absolute-value@(1 / x)`, `conditional-set@(y, y > 0)`,
+`evaluated-at@(f@(x), 0, 1)`, a split row `a = f@(x) = g`. Witnesses (default CLI, TL 2026): 2605.22010 unparsed
+formulas 287 → 5, warnings 249 → 49, and all 1,853 of its readings equal to those of the same paper with its
+`\left`/`\right` redefinition removed; 2605.13448 unparsed 280 → 18, warnings 150 → 20; 2605.21750 unchanged (its 4
+unparsed formulas are not the idiom). Residual: in `\[\mathopen{}\mathclose\bgroup\left\{ x \aftergroup\egroup\right}\]`
+(a `}` where the delimiter belongs) the put-back `}`'s mark moves to the `\mathclose` group's frame, which the
+`\aftergroup`'d `\egroup` then pops, so the `}` is not deleted at the display's end (3 errors; pdflatex 2: "Missing
+delimiter", "Extra }, or forgotten $"). Guards: `tests/parse/class_wrapped_fences` (a warning-free group),
+`perfect_kernel_batch65d::let_left_wrapped_in_mathclose`, `perfect_kernel_batch56::{empty_fence_needs_a_balanced_close,
+let_at_left_left_does_not_loop}`, `06_cluster_regressions::cluster_mathclose_aftergroup_right_prints_no_role`.

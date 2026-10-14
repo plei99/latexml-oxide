@@ -1088,6 +1088,8 @@ and semtex. TeX's `\right` scans its delimiter, finishes the inner list and only
 group closes, the `\egroup` fires and ends `\mathclose`, and only then is `)` read: `(` unmatched inside the CLOSE
 wrap, `)` outside, the formula unparsed (Perl `not_parsed`, Rust `unparsed_math`). SHARED. The re-supplied close the
 parser adds inside the wrap printed "CLOSE" until it became `absent` (OXIDIZED_DESIGN #67; guard
-`cluster_mathclose_aftergroup_right_prints_no_role`); the rendering has been right since; the structure is not. Fix site:
+`cluster_mathclose_aftergroup_right_prints_no_role`). Fix site:
 `\right` reads its delimiter before `\lx@hidden@egroup@right`. Even then the formula need not parse: `\mathopen{}`
-(an absent OPEN) followed by a CLOSE wrap is unparsed in both engines with the grouping written out by hand. Not fixed.
+(an absent OPEN) followed by a CLOSE wrap is unparsed in both engines with the grouping written out by hand. Fixed by
+OXIDIZED_DESIGN #576: `\right` scans, closes its group, then digests the scanned delimiter, and the parser drops an
+empty OPEN/CLOSE wrap and lets one holding a single fence through (`parser.rs::dissolve_class_wraps`).

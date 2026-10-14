@@ -2,9 +2,10 @@
 % delimiters use the same idiom, both bound natively here) end the \mathclose group with an \aftergroup'd
 % \egroup inside \left...\right. TeX's \right reads its delimiter before it
 % closes the group (tex.web §1191), so \mathclose holds `\left(x\right)`.
-% LaTeXML's \right closes the group first (Perl TeX_Math.pool.ltxml L786-799),
-% so the \egroup ends \mathclose before `)` and leaves its `(` unmatched; the
-% parser's re-supplied close then printed "CLOSE": "(x CLOSE)".
+% Perl's \right closes the group first (TeX_Math.pool.ltxml L786-799), so the
+% \egroup ended \mathclose before `)` and left its `(` unmatched; the parser's
+% re-supplied close then printed "CLOSE": "(x CLOSE)". Now (OXIDIZED_DESIGN #576)
+% it reads `x`.
 \documentclass{article}
 \begin{document}
 \[ \mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right) \]

@@ -1081,6 +1081,7 @@ mod parse_groups_are_warning_free {
     aligned_content_branch,
     bar_pairs,
     bigop_operands,
+    class_wrapped_fences,
     count_parses,
     ellipsis_products,
     enumerations,

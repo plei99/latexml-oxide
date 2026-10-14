@@ -967,32 +967,23 @@ fn cluster_null_delimiter_renders_invisible() {
     );
   }
 }
-/// physics2's `\ab(x)` (`\mathopen{}\mathclose\bgroup\left( … \aftergroup\egroup\right)`): LaTeXML's
-/// `\right` closes its group before reading the delimiter (TeX after it), so the `\aftergroup`'d
-/// `\egroup` ends `\mathclose` with `(` unmatched inside it (Perl the same; SYNC_STATUS). The close
-/// the parser re-supplies there must not print "CLOSE" either.
+/// physics2's `\ab(x)` (`\mathopen{}\mathclose\bgroup\left( … \aftergroup\egroup\right)`): Perl's `\right` closed its
+/// group before reading its delimiter, so the `\aftergroup`'d `\egroup` ended `\mathclose` with `(` unmatched inside
+/// it, and the close the parser re-supplied there printed "CLOSE". `\right` now reads first (tex.web §1191) and the
+/// parser lets the idiom through (OXIDIZED_DESIGN #576): it reads `x`, nothing re-supplied, no role text.
 #[test]
 fn cluster_mathclose_aftergroup_right_prints_no_role() {
   let src = "tests/cluster_regressions/mathclose_aftergroup_right.tex";
-  // The formula stays unparsed until the kernel gap is closed (SYNC_STATUS "`\\right` closes its
-  // group before its delimiter"): exactly that one warning.
   let log = convert_log(src);
-  assert_eq!(
-    (
-      latexml::util::test::warning_count(&log),
-      log.matches("Warning:unparsed_math").count()
-    ),
-    (1, 1),
-    "expected only the known unparsed_math warning:\n{log}"
-  );
-  // The repair re-supplies the close of the `(` left unmatched inside `\\mathclose`.
+  assert_eq!(latexml::util::test::warning_count(&log), 0, "{log}");
   let xml = convert_to_xml(src);
-  assert_eq!(
-    xml
-      .matches(r#"<XMTok meaning="absent" role="CLOSE"/>"#)
-      .count(),
-    1,
-    "expected the re-supplied close inside the \\mathclose wrap:\n{xml}"
+  assert!(
+    xml.contains(r#"tex="\mathopen{}\mathclose{{\left(x\right)}}" text="x""#),
+    "the `)` must be read inside the \\mathclose group, and the idiom read as its fence:\n{xml}"
+  );
+  assert!(
+    !xml.contains(r#"meaning="absent""#),
+    "nothing is re-supplied once the fence is whole:\n{xml}"
   );
   let post = convert_and_post_pmml_clean(src);
   assert!(

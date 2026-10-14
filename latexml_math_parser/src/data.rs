@@ -126,6 +126,25 @@ pub fn set_math_idstore(idstore: FxHashMap<String, Node>) {
   });
 }
 
+/// Record `node` under `id` in the snapshot: an id the parser gives a node (`dissolve_class_wrap`) that an `XMRef`
+/// then names.
+pub fn record_math_id(id: String, node: Node) {
+  MATH_IDSTORE.with(|cell| {
+    if let Some(store) = cell.borrow_mut().as_mut() {
+      store.insert(id, node);
+    }
+  });
+}
+
+/// Drop `id` alone from the snapshot: its node is released while its descendants stay.
+pub fn forget_math_id(id: &str) {
+  MATH_IDSTORE.with(|cell| {
+    if let Some(store) = cell.borrow_mut().as_mut() {
+      store.remove(id);
+    }
+  });
+}
+
 /// Clear the idstore after math parsing.
 pub fn clear_math_idstore() {
   MATH_IDSTORE.with(|cell| {
