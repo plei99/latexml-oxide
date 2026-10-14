@@ -185,6 +185,23 @@ pub struct Graphics {
   /// so a caller can guarantee its conversions actually run — see
   /// [`crate::graphics_cache::CachePolicy`] and `with_cache_policy`.
   cache_policy:     crate::graphics_cache::CachePolicy,
+  /// The resource names given out in each destination directory. Perl keeps them in that directory's
+  /// `LaTeXML.cache` (`Post.pm` L192-200, L1538-1548), which every page of a split document shares: kept per call,
+  /// each page numbered from `x1` again and wrote over another page's `x1.png`. Open: kept in memory, not in the
+  /// destination, so the page-range worker processes of `LATEXML_RENDER_JOBS` > 1 (opt-in) each number their own.
+  dest_names:       HashMap<String, DestNames>,
+}
+
+/// The names [`Graphics`] has given out in one destination directory.
+#[derive(Default)]
+struct DestNames {
+  /// The last generated `xN`.
+  counter: u32,
+  /// Each destination file (`stem.ext`, or a source's relative path) to the source that claimed it, so two different
+  /// sources never share one (#6922).
+  used:    HashMap<String, String>,
+  /// A source copied under a generated name (it lies outside the site directory), by source: one copy for all uses.
+  escaped: HashMap<String, String>,
 }
 
 impl Graphics {
@@ -278,6 +295,7 @@ impl Graphics {
       background: "#FFFFFF".to_string(),
       svg_threshold_kb: 0,
       cache_policy: crate::graphics_cache::CachePolicy::default(),
+      dest_names: HashMap::default(),
     }
   }
 
@@ -2102,8 +2120,13 @@ impl Processor for Graphics {
     let n_to_process = nodes.len();
     latexml_core::telemetry::set_graphics_assets(n_to_process as u32);
 
-    // Counter for generating unique resource names (like Perl's generateResourcePathname)
-    let mut resource_counter: u32 = 0;
+    // The names given out in this destination so far, by earlier pages too (like Perl's generateResourcePathname,
+    // whose counter is in the destination's cache). Put back once phase 1 has given out this page's.
+    let DestNames {
+      counter: mut resource_counter,
+      used: mut used_dests,
+      escaped: mut escaped_copies,
+    } = self.dest_names.remove(&dest_dir).unwrap_or_default();
 
     // Two-phase plan so the slow per-image `convert` subprocess and
     // `read_image_dimensions` calls can run in parallel without touching
@@ -2189,11 +2212,6 @@ impl Processor for Graphics {
     }
     let mut copy_dedup: HashMap<CopyKey, String> = HashMap::default();
     let mut convert_source_counts: HashMap<String, u32> = HashMap::default();
-    // Maps a stem-based destination file (`stem.ext`) to the source that claimed
-    // it, so two different sources sharing a basename don't collide (#6922).
-    let mut used_dests: HashMap<String, String> = HashMap::default();
-    // A source copied under a generated name (it lies outside the site directory), by source: one copy for all uses.
-    let mut escaped_copies: HashMap<String, String> = HashMap::default();
     // Every source first, so a generated `xN` name (or a converted `fig.eps`'s
     // `fig.png`) never lands on a file another node copies — an author's own
     // `x1.png`, which a crop's output would otherwise overwrite.
@@ -2361,6 +2379,11 @@ impl Processor for Graphics {
         plans.push(Plan::Copy { idx, source, options, dest });
       }
     }
+    self.dest_names.insert(dest_dir.clone(), DestNames {
+      counter: resource_counter,
+      used:    used_dests,
+      escaped: escaped_copies,
+    });
 
     // Phase 2: parallel conversions. Bounded worker count to avoid
     // oversubscribing when many images are in flight. `convert` itself

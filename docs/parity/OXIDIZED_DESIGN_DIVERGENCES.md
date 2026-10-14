@@ -17252,3 +17252,19 @@ them works as in LaTeX. Residual: letter.cls, without floats, defines neither, b
 falls back to loads the article binding; so a letter-based class's `\newcommand` of them (newlfm.cls:1006/1012), which
 LaTeX accepts, is ignored with an Info `Ignoring redefinition`, and its captions keep the composed tag. Guard
 `perfect_kernel_batch66h::babel_ini_caption_template_needs_fnum`.
+
+### 581. Table cells take no paragraph indent, and raw markup in math keeps its edge spaces but not its indentation
+
+LaTeXML.css (Perl's too) leaves `text-indent` alone on tables, and `text-indent` inherits: a table in the first line of
+an indented paragraph (ltx-article.css `.ltx_para > .ltx_p:first-child { text-indent:2em }`, loaded by article and
+amsart) indented each cell's first line by 2em, which widened ytableau's square boxes and pushed their entries right.
+Ours resets it on `.ltx_tabular`, as in TeX, where an l/c/r cell is restricted horizontal mode and a p-column's
+`\@arrayparboxrestore` sets `\parindent` to 0pt; an explicit indent on a cell's own `.ltx_p` still applies.
+
+Perl's `pmml_text_aux` (MathML.pm L1051-1061) carries raw markup into an `m:mtext` with `cloneNode`, its text as it
+is. Ours gives the text's edge whitespace NBSP, as `convertXMTextContent` does, so `$\mbox{\fbox{ q }}$` keeps the
+spaces TeX's `\fbox` keeps as glue (plain spaces at the edge of the frame's inline block collapse); a whitespace-only
+text node stays as Perl leaves it, since as NBSP the indentation between a tabular's `<tr>`s was text in table context,
+which the HTML parser moves in front of the `<table>`, a line of spaces that dropped `$\lambda = \ydiagram{2,1}$` below
+its line. Code LaTeXML.css, latexml_post/src/mathml/mod.rs (`rebuild_raw_subtree`); guards
+`ytableau_boxes::a_diagram_in_math_renders_on_its_line`, `ytableau_boxes::a_framed_box_in_math_keeps_its_spaces`.

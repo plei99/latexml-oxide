@@ -992,7 +992,8 @@ pub fn relative(pathname: &str, base: &str) -> String {
 }
 
 /// `pathname` relative to `base` when it lies under `base`, else `None`.
-/// Port of Perl's pathname_is_contained($pathname, $base) (Pathname.pm L178-185).
+/// Port of Perl's pathname_is_contained($pathname, $base) (Pathname.pm L178-185), whose `^\.\.(?:/|SEP)` lets a bare
+/// `..` (the base's parent) through; that is not under `base`, and is refused here.
 pub fn is_contained(pathname: &str, base: &str) -> Option<String> {
   let rel = canonical(&relative(&absolute(pathname), &absolute(base)));
   (!(rel == ".." || rel.starts_with("../"))).then_some(rel)
