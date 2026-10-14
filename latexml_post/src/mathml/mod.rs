@@ -1138,8 +1138,13 @@ pub fn pmml_text_aux(doc: &PostDocument, node: &Node, attrs: &TextAttrs) -> Vec<
           // see OXIDIZED_DESIGN #101.
           // Perl `my ($ignore, %mmlattr) = …` — the raw subtree is carried over
           // verbatim below, so only the attributes are wanted here.
+          //
+          // A whitespace-only text node in the subtree stays as it is, as Perl's `cloneNode` keeps it: as NBSP, the
+          // indentation between a tabular's `<tr>`s was text in table context, which the HTML parser moves out in
+          // front of the `<table>` — a line of spaces that dropped `$\lambda = \ydiagram{2,1}$` below its line.
+          // Other text keeps its edge spaces as NBSP (surpass-Perl: `\fbox{ q }` in math keeps its spaces).
           let (_, attributes) = stylize_text_content(Some(node), &attrs, &node.get_content());
-          let cloned = rebuild_text_subtree_with_doc(node, true, Some(doc))
+          let cloned = rebuild_raw_subtree(doc, node)
             .unwrap_or_else(|| NodeData::Text("\u{00A0}".to_string()));
           vec![NodeData::Element {
             tag:        "m:mtext".to_string(),
@@ -1247,11 +1252,42 @@ pub fn rebuild_text_subtree_with_doc(
   convert_spaces: bool,
   doc: Option<&PostDocument>,
 ) -> Option<NodeData> {
+  let spaces = if convert_spaces {
+    Spaces::Nbsp
+  } else {
+    Spaces::Keep
+  };
+  rebuild_subtree(node, spaces, doc)
+}
+
+/// The raw markup `pmml_text_aux` carries into an `m:mtext`, as `rebuild_text_subtree_with_doc` with spaces converted,
+/// except for whitespace-only text nodes, which stay as they are (see its raw-markup arm).
+fn rebuild_raw_subtree(doc: &PostDocument, node: &Node) -> Option<NodeData> {
+  rebuild_subtree(node, Spaces::NbspUnlessBlank, Some(doc))
+}
+
+/// What a rebuilt subtree's text nodes do with their edge whitespace.
+#[derive(Clone, Copy, PartialEq)]
+enum Spaces {
+  /// Keep it.
+  Keep,
+  /// Each leading and trailing whitespace run becomes one NBSP (Perl `convertXMTextContent($convertspaces)`).
+  Nbsp,
+  /// As `Nbsp`, but a whitespace-only node stays as it is.
+  NbspUnlessBlank,
+}
+
+fn rebuild_subtree(node: &Node, spaces: Spaces, doc: Option<&PostDocument>) -> Option<NodeData> {
   use libxml::tree::NodeType;
   match node.get_type() {
     Some(NodeType::TextNode) => {
       let mut text = node.get_content();
-      if convert_spaces {
+      let convert = match spaces {
+        Spaces::Keep => false,
+        Spaces::Nbsp => true,
+        Spaces::NbspUnlessBlank => !text.trim().is_empty(),
+      };
+      if convert {
         if text.starts_with(char::is_whitespace) {
           text = format!("\u{00A0}{}", text.trim_start());
         }
@@ -1326,7 +1362,7 @@ pub fn rebuild_text_subtree_with_doc(
       let children: Vec<NodeData> = node
         .get_child_nodes()
         .iter()
-        .filter_map(|c| rebuild_text_subtree_with_doc(c, convert_spaces, doc))
+        .filter_map(|c| rebuild_subtree(c, spaces, doc))
         .collect();
       Some(NodeData::Element {
         tag,

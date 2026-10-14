@@ -185,6 +185,23 @@ pub struct Graphics {
   /// so a caller can guarantee its conversions actually run — see
   /// [`crate::graphics_cache::CachePolicy`] and `with_cache_policy`.
   cache_policy:     crate::graphics_cache::CachePolicy,
+  /// The resource names given out in each destination directory. Perl keeps them in that directory's
+  /// `LaTeXML.cache` (`Post.pm` L192-200, L1538-1548), which every page of a split document shares: kept per call,
+  /// each page numbered from `x1` again and wrote over another page's `x1.png`. Open: kept in memory, not in the
+  /// destination, so the page-range worker processes of `LATEXML_RENDER_JOBS` > 1 (opt-in) each number their own.
+  dest_names:       HashMap<String, DestNames>,
+}
+
+/// The names [`Graphics`] has given out in one destination directory.
+#[derive(Default)]
+struct DestNames {
+  /// The last generated `xN`.
+  counter: u32,
+  /// Each destination file (`stem.ext`, or a source's relative path) to the source that claimed it, so two different
+  /// sources never share one (#6922).
+  used:    HashMap<String, String>,
+  /// A source copied under a generated name (it lies outside the site directory), by source: one copy for all uses.
+  escaped: HashMap<String, String>,
 }
 
 impl Graphics {
@@ -278,6 +295,7 @@ impl Graphics {
       background: "#FFFFFF".to_string(),
       svg_threshold_kb: 0,
       cache_policy: crate::graphics_cache::CachePolicy::default(),
+      dest_names: HashMap::default(),
     }
   }
 
@@ -939,15 +957,10 @@ impl Graphics {
     Ok(crop.map(|(_, _, cw, ch)| (cw, ch)))
   }
 
-  /// Copy a source image to the destination directory, preserving relative paths.
-  /// Returns the destination path (relative to dest_dir).
-  fn copy_to_destination(source: &str, source_dir: &str, dest_dir: &str) -> Option<String> {
-    // Relativize like Perl's pathname_relative (→ File::Spec->abs2rel): a
-    // source OUTSIDE source_dir comes back as `../…`, never the raw absolute
-    // path. A bare `strip_prefix` used to leak the absolute path for a graphic
-    // reached through `\subimport*{../A/child/}` (issue #698 class).
-    let rel = latexml_core::util::pathname::relative(source, source_dir);
-    let rel_path = Path::new(&rel);
+  /// Copy a source image to `rel` in the destination directory (its path relative to the source directory, or a
+  /// generated name when that path would leave the site directory — see `Plan::Copy`). Returns `rel`.
+  fn copy_to_destination(source: &str, rel: &str, dest_dir: &str) -> Option<String> {
+    let rel_path = Path::new(rel);
 
     // Build absolute destination path
     let abs_dest = PathBuf::from(dest_dir).join(rel_path);
@@ -2107,8 +2120,13 @@ impl Processor for Graphics {
     let n_to_process = nodes.len();
     latexml_core::telemetry::set_graphics_assets(n_to_process as u32);
 
-    // Counter for generating unique resource names (like Perl's generateResourcePathname)
-    let mut resource_counter: u32 = 0;
+    // The names given out in this destination so far, by earlier pages too (like Perl's generateResourcePathname,
+    // whose counter is in the destination's cache). Put back once phase 1 has given out this page's.
+    let DestNames {
+      counter: mut resource_counter,
+      used: mut used_dests,
+      escaped: mut escaped_copies,
+    } = self.dest_names.remove(&dest_dir).unwrap_or_default();
 
     // Two-phase plan so the slow per-image `convert` subprocess and
     // `read_image_dimensions` calls can run in parallel without touching
@@ -2132,6 +2150,8 @@ impl Processor for Graphics {
         idx:     usize,
         source:  String,
         options: String,
+        /// Where the copy goes, relative to the destination directory.
+        dest:    String,
       },
       Convert {
         idx:     usize,
@@ -2192,9 +2212,6 @@ impl Processor for Graphics {
     }
     let mut copy_dedup: HashMap<CopyKey, String> = HashMap::default();
     let mut convert_source_counts: HashMap<String, u32> = HashMap::default();
-    // Maps a stem-based destination file (`stem.ext`) to the source that claimed
-    // it, so two different sources sharing a basename don't collide (#6922).
-    let mut used_dests: HashMap<String, String> = HashMap::default();
     // Every source first, so a generated `xN` name (or a converted `fig.eps`'s
     // `fig.png`) never lands on a file another node copies — an author's own
     // `x1.png`, which a crop's output would otherwise overwrite.
@@ -2330,9 +2347,43 @@ impl Processor for Graphics {
         };
         plans.push(Plan::Convert { idx, options, job_id });
       } else {
-        plans.push(Plan::Copy { idx, source, options });
+        // Perl `Post/Graphics.pm` L288-300: the copy keeps the source's path relative to the source directory only
+        // if that path stays within the site directory; else it gets a generated name. A `../fig.png` (a graphic
+        // outside the source directory) was copied OUT of the destination, and the page pointed at it there. The path
+        // is relativized like Perl's pathname_relative (File::Spec->abs2rel), never left absolute: a bare
+        // `strip_prefix` leaked the absolute path for a graphic reached through `\subimport*{../A/child/}` (#698).
+        let rel = latexml_core::util::pathname::relative(&source, &source_dir);
+        let site_dir = doc.get_site_directory().unwrap_or(&dest_dir);
+        let contained = latexml_core::util::pathname::is_contained(
+          &PathBuf::from(&dest_dir).join(&rel).to_string_lossy(),
+          site_dir,
+        )
+        .is_some();
+        let dest = if contained {
+          rel
+        } else if let Some(dest) = escaped_copies.get(&source) {
+          dest.clone()
+        } else {
+          let name = Self::assign_dest_name(
+            &source,
+            &src_ext,
+            true,
+            0,
+            &mut used_dests,
+            &mut resource_counter,
+          );
+          let dest = format!("{name}.{src_ext}");
+          escaped_copies.insert(source.clone(), dest.clone());
+          dest
+        };
+        plans.push(Plan::Copy { idx, source, options, dest });
       }
     }
+    self.dest_names.insert(dest_dir.clone(), DestNames {
+      counter: resource_counter,
+      used:    used_dests,
+      escaped: escaped_copies,
+    });
 
     // Phase 2: parallel conversions. Bounded worker count to avoid
     // oversubscribing when many images are in flight. `convert` itself
@@ -2678,7 +2729,7 @@ impl Processor for Graphics {
             graphic
           );
         },
-        Plan::Copy { idx, source, options } => {
+        Plan::Copy { idx, source, options, dest } => {
           let mut node_mut = nodes[*idx].clone();
           // Content-hash dedup: if a byte-identical source with the
           // same options was already copied, point this
@@ -2693,11 +2744,10 @@ impl Processor for Graphics {
           let rel = if let Some(existing) = copy_dedup.get(&key) {
             existing.clone()
           } else {
-            let rel_opt = Self::copy_to_destination(source, &source_dir, &dest_dir);
-            // If the copy itself failed, still emit a RELATIVE URL (abs2rel),
-            // never the raw absolute source path (issue #698 class).
-            let rel = rel_opt
-              .unwrap_or_else(|| latexml_core::util::pathname::relative(source, &source_dir));
+            // If the copy itself failed, still emit the RELATIVE URL, never the
+            // raw absolute source path (issue #698 class).
+            let rel =
+              Self::copy_to_destination(source, dest, &dest_dir).unwrap_or_else(|| dest.clone());
             copy_dedup.insert(key, rel.clone());
             rel
           };

@@ -456,6 +456,10 @@ span.ltx_rowspan { position:absolute; top:0; bottom:0; }
 
 .ltx_tabular .ltx_td,
 .ltx_tabular .ltx_th { padding:0.1em 0.5em; }
+/* A cell is no paragraph of the text around its table: text-indent inherits, and a tabular in the first line of an
+   indented paragraph (ltx-article.css `.ltx_para > .ltx_p:first-child`) indented every cell by 2em (ytableau boxes
+   widened, their entries pushed right). */
+.ltx_tabular { text-indent:0; }
 .ltx_tabular .ltx_td.ltx_nopad_l,
 .ltx_tabular .ltx_th.ltx_nopad_l { padding-left:0; }
 .ltx_tabular .ltx_td.ltx_nopad_r,

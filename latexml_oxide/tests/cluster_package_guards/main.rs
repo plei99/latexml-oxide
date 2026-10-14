@@ -45,6 +45,7 @@ mod filelist_letter_catcodes;
 mod forest_chemnum;
 mod frontespizio_inline;
 mod graphics_asset_memo;
+mod graphics_copy_stays_in_site;
 mod graphics_kpsewhich;
 mod graphicx_internals;
 mod greek_text;

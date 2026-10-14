@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+  - **A graphic outside the source directory is copied into the site, not
+    out of it.** `\includegraphics{../img/p.png}` was copied to
+    `<destination>/../img/p.png`, outside the destination, and the page linked
+    it there. As in Perl (`pathname_is_contained`), a copy keeps its relative
+    path only when it stays within the site directory, and otherwise gets a
+    generated name (`x1.png`). The names given out in a destination are kept
+    across the pages of a split document, as in Perl's `LaTeXML.cache`, so two
+    pages no longer both write `x1.png`. Guards
+    `graphics_copy_stays_in_site::a_graphic_outside_the_source_directory_is_copied_into_the_site`,
+    `graphics_copy_stays_in_site::split_pages_give_their_graphics_distinct_names`.
+
+  - **A table in math keeps its line, and table cells take no paragraph
+    indent.** Raw markup in an `m:mtext` (a `\ydiagram` in `$\lambda = …$`)
+    keeps its whitespace-only text as whitespace, as Perl does: as NBSP, the
+    indentation between a tabular's rows was text in table context, which the
+    HTML parser moved in front of the `<table>`, a line of spaces that dropped
+    the table below its line. Edge spaces of other text stay NBSP
+    (`\fbox{ q }` in math keeps them). OXIDIZED_DESIGN_DIVERGENCES #581. And `.ltx_tabular` resets
+    `text-indent`, which cells otherwise inherit from an indented paragraph
+    (each ytableau box sat 2em right in a widened cell). Guards
+    `ytableau_boxes::a_diagram_in_math_renders_on_its_line`,
+    `ytableau_boxes::a_framed_box_in_math_keeps_its_spaces`.
+
   - **`\setbeamertemplate{…}[option]` no longer prints its option.** The beamer
     stub read two mandatory arguments, so `\setbeamertemplate{theorems}[numbered]`
     left `numbered]` in the document; it now reads a body or `[…]` options, as
