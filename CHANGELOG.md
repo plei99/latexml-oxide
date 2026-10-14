@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+  - **A math `'` followed by `\sp` is one superscript.** The prime absorbed a
+    following `^` only as that token, not by meaning as LaTeX's `\pr@m@s` does,
+    so `\sp` (derivative.sty's `\pdv[order=2]{}{x'}`) gave "Double
+    superscript". KNOWN_PERL_ERRORS #658.
+
   - **`\pmod` no longer errors under memoir.** Its `mod` was set with plain
     TeX's `{\rm mod}`, and memoir makes `\rm` a class error, so every `\pmod`
     reported "Font command \rm is not supported" and printed `mod` as italic

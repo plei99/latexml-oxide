@@ -13008,3 +13008,20 @@ $a \equiv b \pmod{2}$
 as Perl does not load memoir.cls raw to the end), and `mod` as three italic letters; pdflatex 0 errors. Fixed in Rust:
 the LaTeX layer (latex_constructs sect07.rs, beside `\operator@font`) defines `\pmod` with `{\operator@font mod}`; plain
 keeps `{\rm mod}`. Guard `pmod_operator_font::pmod_under_memoir_is_an_upright_operator_without_errors`.
+
+## 658. A math `'` does not absorb `\sp`
+
+math_common.pool.ltxml:109-124 `\active@math@prime` combines a following superscript only when `$gullet->ifNext(T_SUPER)`,
+which compares the token itself (Gullet.pm:596-600). latex.ltx's `\pr@m@s` (:15687) tests `\ifx^\@let@token`, a comparison
+by meaning, and `\sp` is `\let\sp=^` (:15666). derivative.sty writes a variable's order with `\sp`, so `\pdv[order=2]{}{x'}`
+gives `x'\sp{2}`. Trigger:
+
+```tex
+\documentclass{article}
+\begin{document}
+$x'\sp{2}$
+\end{document}
+```
+
+→ Perl: "Double superscript"; pdflatex 0 errors, `x^{\prime 2}`. Fixed in Rust: `\active@math@prime` (math_common.rs)
+tests the next token with `defined_as(T_SUPER)`. Guard `math_prime_meaning_superscript::prime_then_sp_is_one_superscript`.

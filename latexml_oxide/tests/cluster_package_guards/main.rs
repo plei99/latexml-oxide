@@ -59,6 +59,7 @@ mod luatex_babel_api;
 mod luatex_direction_scan;
 mod luatex_profile;
 mod makeindex_allocates_indexfile;
+mod math_prime_meaning_superscript;
 mod memoir_output_streams;
 mod natbib_label_dotless_i;
 mod neurips_anonymous;
