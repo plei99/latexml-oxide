@@ -13022,3 +13022,25 @@ has its scripts in text, and in an alignment cell the error recovery opened math
 `alt={\Psi' = (\id_A \ot U)(\Psi)}` in `{alignat}`). Minimal trigger: `\includegraphics[alt={a_1}]{x}` in an `align`
 cell. Fixed in Rust (graphicx_sty.rs reads `alt` and `actualtext` undigested, spelled as TeX writes them; repro
 package-bindings/includegraphics_alt_is_a_string).
+
+## 661. A rule inside a box in an alignment cell is read as a border of the alignment
+
+TeX_Box.pool.ltxml:811-814 (`\vrule`) and :846-850 (`\hrule`) mark a rule as a cell border whenever an alignment is
+active (`LookupValue('Alignment')`), whether or not the rule lies inside a box in the cell; an `\hrule` then calls
+`addLine('t')`, which restarts the row's columns (`Alignment.pm:126`, "Pretend doesn't occupy any columns"), so the next
+`&` overwrites the cell. In TeX such a rule is part of its box. ytableau draws every box so (`\fcolorbox@YT`, a `\vbox` of
+kerned `\hrule`s and `\vrule`s, ytableau.sty:272-296, the `\@frameb@x` idiom). Trigger:
+
+```tex
+\documentclass{article}
+\usepackage{ytableau}
+\begin{document}
+\begin{ytableau} 1 & 2 & 4 \\ 3 & 5 \end{ytableau}
+\end{document}
+```
+
+→ Perl: 0 errors, rows `1 4` and `3 5` (entry 2 lost), no box drawn; pdflatex: the tableau. Fixed in Rust: a box's
+contents set the group-local `lx@rule@boxed` (base_utilities.rs `predigest_list_in_mode`), which an alignment clears, and
+`\vrule`/`\hrule` border only through `tex_tables::alignment_for_raw_rule`; a ytableau binding makes each box its cell's
+borders around a sized inline block. Guards `ytableau_boxes::{a_boxed_rule_in_a_cell_keeps_the_row,
+young_tableau_cells_are_bordered_boxes}`.

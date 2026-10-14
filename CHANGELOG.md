@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+  - **ytableau diagrams render as boxes, and a boxed rule in a table cell no
+    longer eats the row.** A `\vrule`/`\hrule` inside a box in an alignment cell
+    was read as a border of the alignment, and an `\hrule`'s border restarted
+    the row's columns, so ytableau's boxes kept only a row's first and last
+    entries and drew no box. Such a rule is now the box's own, as in TeX, and a
+    ytableau binding makes each box its cell's four borders, sized and centred
+    as in the PDF (fills included). KNOWN_PERL_ERRORS #661.
+
   - **The XSLT recursion cap now applies in the statically linked release
     binaries.** `xsltMaxDepth = 1000` (Perl `XML::LibXSLT->max_depth(1000)`) was
     written through `dlsym`, which cannot see a global of a statically linked

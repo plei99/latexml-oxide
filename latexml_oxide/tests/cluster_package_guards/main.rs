@@ -121,6 +121,7 @@ mod token_kernel_gaps;
 mod unicode_format_encoding;
 mod vfs_file_end;
 mod xkeyval_internals;
+mod ytableau_boxes;
 
 mod accent_composite_expansion;
 mod beamer_includegraphics_overlay;

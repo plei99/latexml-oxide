@@ -270,6 +270,7 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("SIunits", "sty", package::siunits_sty::load_definitions),
   ("overpic", "sty", package::overpic_sty::load_definitions),
   ("yfonts", "sty", package::yfonts_sty::load_definitions),
+  ("ytableau", "sty", package::ytableau_sty::load_definitions),
   ("setspace", "sty", package::setspace_sty::load_definitions),
   ("moderncv", "cls", package::moderncv_cls::load_definitions),
   ("slides", "cls", package::slides_cls::load_definitions),
