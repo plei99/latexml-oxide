@@ -18,6 +18,9 @@ if [ -z "$eng" ]; then
   grep -qE '^[^%]*\\usepackage(\[[^]]*\])?\{[^}]*(fontspec|unicode-math)' "$src" && eng=lualatex
   grep -qE '^[^%]*\\(usepackage|documentclass)(\[[^]]*\])?\{[^}]*(xeCJK|ctex)' "$src" && eng=xelatex
 fi
+# A figure mini-document names its document's directory on its first line (fork/figures/extract.py).
+extra=$(sed -n '1s/^% lxo-path: //p' "$src")
+[ -n "$extra" ] && export TEXINPUTS="$extra//:" BIBINPUTS="$extra//:"
 typeset() {
   case $eng in pdflatex) flag=-pdf;; lualatex) flag=-lualatex;; xelatex) flag=-xelatex;; esac
   rm -rf "$out/aux"; mkdir -p "$out/aux"

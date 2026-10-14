@@ -17,9 +17,15 @@ if [ -f "$r/doc.pdf" ]; then
 fi
 if [ -s "$o/doc.html" ]; then
   # hide page furniture so the shot is the content alone
-  sed 's|</head>|<style>.ltx_page_footer,.ltx_page_header,.ltx_page_logo{display:none!important}body{margin:0}.ltx_page_main{padding:8px!important}</style></head>|' "$o/doc.html" > "$o/shot.html"
-  cap 40 "$CHROME" --headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check \
+  # FIG_ONLY (fork/figures): the figure alone; the preamble's \title/\author render as a title block without \maketitle
+  hide=".ltx_page_footer,.ltx_page_header,.ltx_page_logo"
+  [ -n "${FIG_ONLY:-}" ] && hide="$hide,.ltx_title_document,.ltx_authors,.ltx_dates,.ltx_abstract,.ltx_keywords,.ltx_classification,.ltx_acknowledgements"
+  sed "s|</head>|<style>$hide{display:none!important}body{margin:0}.ltx_page_main{padding:8px!important}</style></head>|" "$o/doc.html" > "$o/shot.html"
+  # its own profile, so several shots can run at once (one shared profile makes instances collide)
+  prof=$(mktemp -d)
+  cap 40 "$CHROME" --headless=new --user-data-dir="$prof" --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check \
     --disable-extensions --blink-settings=preferredColorScheme=1 --force-device-scale-factor=1.5 --window-size=900,2400 --screenshot="$o/oxide-full.png" "file://$o/shot.html"
+  rm -rf "$prof"
   [ -s "$o/oxide-full.png" ] && magick "$o/oxide-full.png" -trim +repage -bordercolor white -border 12 "$o/oxide.png" 2>/dev/null
   rm -f "$o/oxide-full.png" "$o/shot.html"
 fi
