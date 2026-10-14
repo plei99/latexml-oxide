@@ -1,0 +1,15 @@
+% TeX's null delimiter is an empty fence. When a fence's partner is the null
+% delimiter, the parser re-supplies it as an empty token (OXIDIZED_DESIGN #67,
+% `balance_null_delimiters`). That token had no text and no meaning, so the
+% MathML fallback for an empty token printed its role: `\left( a+b \right.`
+% showed a visible "CLOSE", `\left. a+b \right)` an "OPEN".
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+\[ \left( a+b \right. \]
+\[ \left. a+b \right) \]
+\begin{align}
+  H & = \left( a + b \right. \nonumber \\
+    & \quad \left. + c \right).
+\end{align}
+\end{document}

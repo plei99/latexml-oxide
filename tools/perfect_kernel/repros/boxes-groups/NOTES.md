@@ -1077,3 +1077,17 @@ bm.sty's `\bm@define` (:307-316) `\xdef`s `\blangle` to a bold `\delimiter` (`\b
 stretchy bold ⟨ with 0 errors. Ours defines it as `\bm{\langle}`, which `\left`'s delimiter scan cannot read: Warning
 "Missing delimiter (. inserted)" (naming `\bm` on the 65 bundle, `\lx@bm@bold` on 65j), a null `\left`, a non-stretchy
 bold ⟨ after it. SYNC_STATUS row BD. Not fixed.
+
+## `right_closes_group_before_delimiter_physics2` — `\right` ends its group before reading the delimiter
+
+physics2's `\ab(x)` (`\delopen` = `\mathopen{}\mathclose\bgroup\left`, `\delclose` = `\aftergroup\egroup\right`,
+physics2.sty:83-84) and the same idiom in mathtools' starred `\DeclarePairedDelimiter` (mathtools.sty:831), interval
+and semtex. TeX's `\right` scans its delimiter, finishes the inner list and only then unsaves (tex.web §1191), so the
+`\aftergroup`'d `\egroup` closes `\mathclose` after `)`: `\mathclose{\mathinner{\left( x \right)}}`. LaTeXML's `\right`
+(Perl TeX_Math.pool.ltxml L786-799; Rust `tex_math.rs`) unreads `\lx@hidden@egroup@right` before `\lx@right`, so the
+group closes, the `\egroup` fires and ends `\mathclose`, and only then is `)` read: `(` unmatched inside the CLOSE
+wrap, `)` outside, the formula unparsed (Perl `not_parsed`, Rust `unparsed_math`). SHARED. The re-supplied close the
+parser adds inside the wrap printed "CLOSE" until it became `absent` (OXIDIZED_DESIGN #67; guard
+`cluster_mathclose_aftergroup_right_prints_no_role`); the rendering has been right since; the structure is not. Fix site:
+`\right` reads its delimiter before `\lx@hidden@egroup@right`. Even then the formula need not parse: `\mathopen{}`
+(an absent OPEN) followed by a CLOSE wrap is unparsed in both engines with the grouping written out by hand. Not fixed.

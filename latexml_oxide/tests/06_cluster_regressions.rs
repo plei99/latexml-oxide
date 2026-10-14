@@ -912,6 +912,98 @@ fn cluster_siunitx_empty_unit_renders_invisible() {
     "empty unit must be an <m:mphantom> and the quantity 5 must still render:\n{post}"
   );
 }
+/// TeX's null delimiter is an empty fence. The partner the parser re-supplies for it
+/// (`balance_null_delimiters`, OXIDIZED_DESIGN #67) is an empty token; without a meaning the MathML
+/// fallback for empty content printed its role, so `\left( a+b \right.` showed "CLOSE" and
+/// `\left. a+b \right)` "OPEN". The re-supplied token is `absent`, an invisible placeholder at the
+/// fence's place, and the formulas still parse.
+#[test]
+fn cluster_null_delimiter_renders_invisible() {
+  let src = "tests/cluster_regressions/null_delimiter_renders_invisible.tex";
+  let log = convert_log(src);
+  assert_eq!(
+    latexml::util::test::warning_count(&log),
+    0,
+    "the repaired fences must parse without warnings:\n{log}"
+  );
+  let xml = convert_to_xml(src);
+  assert!(
+    !xml.contains("ltx_math_unparsed"),
+    "a repaired fence fell back to unparsed:\n{xml}"
+  );
+  // `\left( a+b \right.` and the align's first row each get a close; `\left. a+b \right)` and
+  // the second row an open. An align row is parsed twice (its cells, and the whole row in its
+  // MathFork), so each split fence is re-supplied twice: 1 + 2 of each.
+  for (tok, n) in [
+    (r#"<XMTok meaning="absent" role="CLOSE"/>"#, 3),
+    (r#"<XMTok meaning="absent" role="OPEN"/>"#, 3),
+  ] {
+    assert_eq!(
+      xml.matches(tok).count(),
+      n,
+      "expected {n} re-supplied {tok}:\n{xml}"
+    );
+  }
+  let post = convert_and_post_pmml_clean(src);
+  for role in [">CLOSE<", ">OPEN<"] {
+    assert!(
+      !post.contains(role),
+      "a re-supplied null delimiter leaked its role {role} as visible MathML text:\n{post}"
+    );
+  }
+  // The placeholder sits where the missing fence would: last in the row the `(` opens, first in
+  // the row the `)` closes — in the two displays and in each split row.
+  let close = regex::Regex::new(r"(?s)<m:mo[^>]*>\(</m:mo>.*<m:mphantom/></m:mrow>").unwrap();
+  let open = regex::Regex::new(r"(?s)<m:mrow><m:mphantom/>.*<m:mo[^>]*>\)</m:mo>").unwrap();
+  let formulas: Vec<&str> = post.split("<m:math").skip(1).collect();
+  for (re, what) in [
+    (&close, "`(` row ending in"),
+    (&open, "`)` row starting with"),
+  ] {
+    let n = formulas.iter().filter(|f| re.is_match(f)).count();
+    assert!(
+      n >= 2,
+      "expected 2 formulas with a {what} its placeholder, got {n}:\n{post}"
+    );
+  }
+}
+/// physics2's `\ab(x)` (`\mathopen{}\mathclose\bgroup\left( … \aftergroup\egroup\right)`): LaTeXML's
+/// `\right` closes its group before reading the delimiter (TeX after it), so the `\aftergroup`'d
+/// `\egroup` ends `\mathclose` with `(` unmatched inside it (Perl the same; SYNC_STATUS). The close
+/// the parser re-supplies there must not print "CLOSE" either.
+#[test]
+fn cluster_mathclose_aftergroup_right_prints_no_role() {
+  let src = "tests/cluster_regressions/mathclose_aftergroup_right.tex";
+  // The formula stays unparsed until the kernel gap is closed (SYNC_STATUS "`\\right` closes its
+  // group before its delimiter"): exactly that one warning.
+  let log = convert_log(src);
+  assert_eq!(
+    (
+      latexml::util::test::warning_count(&log),
+      log.matches("Warning:unparsed_math").count()
+    ),
+    (1, 1),
+    "expected only the known unparsed_math warning:\n{log}"
+  );
+  // The repair re-supplies the close of the `(` left unmatched inside `\\mathclose`.
+  let xml = convert_to_xml(src);
+  assert_eq!(
+    xml
+      .matches(r#"<XMTok meaning="absent" role="CLOSE"/>"#)
+      .count(),
+    1,
+    "expected the re-supplied close inside the \\mathclose wrap:\n{xml}"
+  );
+  let post = convert_and_post_pmml_clean(src);
+  assert!(
+    !post.contains(">CLOSE<") && !post.contains(">OPEN<"),
+    "the \\mathclose\\bgroup\\left idiom leaked a fence role as visible MathML text:\n{post}"
+  );
+  assert!(
+    post.contains(">(<") && post.contains(">)<") && post.contains(">x<"),
+    "the author's fences and operand must still render:\n{post}"
+  );
+}
 /// An UNBOUND journal class (`sn-jnl`, `wlpeerj`, `sagej`, Wiley, …) falls back
 /// to the OmniBus class, whose lazy natbib autoload triggers (`\citep`/`\citet`/
 /// `\citeyear`/…) must load natbib EXACTLY ONCE and resolve to natbib's real

@@ -1,0 +1,16 @@
+% witness: physics2 `\ab(x)` (phy-ab.sty:38-39 \delopen/\delclose, physics2.sty:83-84); the same
+%   idiom in mathtools.sty:831 (\DeclarePairedDelimiter*, bound natively here), interval, semtex
+% oracle:  pdflatex 0 errors; \showlists: \mathopen{} \mathclose{\mathinner{\left( x \right)}}
+% engines: rust 0 errors, 1 unparsed_math warning; Perl 0 errors, not_parsed (2026-10-14); both
+%          tex="\mathopen{}\mathclose{{\left(x}}\right)"
+% expect:  0 errors; the CLOSE XMWrap holds both fences and the formula parses
+% status:  RED (kernel root, latexml_engine tex_math.rs \right; SHARED with Perl)
+% mechanism: \delclose is `\aftergroup\egroup\right`. TeX's \right scans its delimiter, finishes
+%   the list, then unsaves (tex.web §1191), so the \aftergroup'd \egroup closes \mathclose
+%   after `)`. LaTeXML's \right unreads \lx@hidden@egroup@right before \lx@right
+%   (TeX_Math.pool.ltxml L786-799, tex_math.rs), so the \egroup fires before the delimiter is
+%   read: `(` stays unmatched inside \mathclose and `)` lands outside it.
+\documentclass{article}
+\begin{document}
+\[ \mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right) \]
+\end{document}
