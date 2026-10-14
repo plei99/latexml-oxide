@@ -96,11 +96,11 @@ fn split_pages_give_their_graphics_distinct_names() {
     &["--split", "--splitat=section"],
   );
   let (out, img) = (work.path().join("src/out"), work.path().join("img"));
+  let src = regex::Regex::new(r#"<img src="([^"]+)""#).unwrap();
   let mut srcs = Vec::new();
   for page in ["S1.html", "S2.html"] {
     let html =
       std::fs::read_to_string(out.join(page)).unwrap_or_else(|e| panic!("read {page}: {e}"));
-    let src = regex::Regex::new(r#"<img src="([^"]+)""#).unwrap();
     let name = src
       .captures(&html)
       .unwrap_or_else(|| panic!("{page} has its graphic:\n{html}"))[1]
