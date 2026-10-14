@@ -10,11 +10,19 @@
     last-row depth above its arrows. The alignment now passes
     `rowheights`/`rowdepths`/`columnwidths` to the container callback as Perl
     does. Guard `picture_sizing::tikz_matrix_places_last_row_baseline_at_origin`.
+
   - **`--init` no longer segfaults intermittently on Linux.** `LATEXML_INI_MODE`
     was set after the kpathsea prewarm thread started, so glibc's `setenv`
     reallocated `environ` under that thread's `getenv` (7 of 200
     `--init=latex.ltx` runs on Linux aarch64), failing `tools/make_formats.sh`.
     It is now set before the thread exists (STABILITY_WITNESSES Cluster J).
+
+  - **A symbolic link among the cached format dumps is never trusted on macOS.**
+    `private_to_user` rejected a link by its mode bits, which are `0o777` on
+    Linux but follow the umask on macOS, so a link to another file passed there.
+    It now rejects links by file type. Guard
+    `only_this_users_files_no_one_else_can_write_are_trusted`, red on macOS
+    before.
 
   - **The XSLT recursion cap now applies in the statically linked release
     binaries.** `xsltMaxDepth = 1000` (Perl `XML::LibXSLT->max_depth(1000)`) was
