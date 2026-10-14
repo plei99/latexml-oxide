@@ -1979,29 +1979,12 @@ LoadDefinitions!({
 \def\pgfsys@functionalshading#1#2#3#4{\pgf@sys@noshading{#1}}
 ");
 
-  //===================================================================
-  // PGF sentinel tokens — make non-expandable
-  //===================================================================
-  // PGF defines self-referential sentinel macros like:
-  //   \def\pgfkeys@mainstop{\pgfkeys@mainstop}
-  //   \def\pgfkeysnovalue{\pgfkeys@novalue}
-  //   \def\pgfkeysvaluerequired{\pgfkeysvaluerequired}
-  // These are used with \ifx for sentinel comparisons and as delimiters
-  // in parameter patterns. They should NEVER be expanded.
-  //
-  // In our engine, self-referential macros trigger recursion detection
-  // which replaces the expansion with empty tokens, breaking the
-  // sentinel pattern (the sentinel disappears, causing pgfkeys to read
-  // past it). This manifests as an infinite loop when babel + tikz
-  // are loaded together (babel's AtBeginDocument hooks trigger pgfkeys
-  // processing where the sentinel is expanded).
-  //
-  // Fix: override as locked non-expandable primitives. This preserves:
-  // - \ifx comparisons: \futurelet + \ifx compares meanings, and
-  //   \let-copied primitives have equal meaning.
-  // - Delimiter matching: TeX matches delimiters by token identity
-  //   (CS name), not meaning, so Primitives work as delimiters.
-  DefPrimitive!("\\pgfkeys@mainstop", {}, locked => true);
-  DefPrimitive!("\\pgfkeysvaluerequired", {}, locked => true);
+  // pgfkeys' sentinels `\pgfkeys@mainstop` and `\pgfkeysvaluerequired` stay pgf's self-referential macros
+  // (pgfkeys.code.tex:363, :367), as in Perl: pgf compares them with `\ifx` to other macros whose body is the sentinel
+  // (`\pgfkeys@searchalso@appendentry`'s `\def\pgfkeys@searchalso@nexttok{#2}`, :982-986; `\pgfkeyscurrentvalue`, :382),
+  // and a primitive is never `\ifx`-equal to a macro. Defined as primitives (c090e3a91, against a babel + tikz loop no
+  // witness kept), every `.search also` path got `/.try`, so a bare colour, a `!` mix or an arrow spec that only
+  // `/tikz/.unknown` resolves was dropped silently: `\addplot[blue]`, the cycle list, dynkin-diagrams, circuitikz
+  // (Rust-only). Guard `pgfkeys_sentinels::bare_colour_in_search_also_path_is_applied`.
 
 });

@@ -7199,6 +7199,8 @@ fn predigest_list_in_mode(
     // instead: `egroup` reports and drops it (tex.web §1069
     // `extra_right_brace`) and the box goes on to its own `}`.
     let own_frame = current_frame_id();
+    // A rule in these contents is the box's own, not a border of an alignment the box sits in.
+    assign_value(crate::tex_tables::RULE_IN_BOX, Stored::Bool(true), None);
     new_local_box_list(); // Perl: local @LaTeXML::LIST = ()
     // The box's contents are digested outside any number scan in progress
     // (`gullet::NumberScan::suspend`, as `stomach::digest` does): this loop is

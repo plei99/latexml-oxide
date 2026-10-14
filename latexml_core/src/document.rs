@@ -3683,7 +3683,7 @@ impl Document {
           // A `quote`/`quotation`/`verse` is a list in TeX (article.cls:405-408), and a theorem (a `\trivlist`,
           // latex.ltx:17205) or a sectioning unit inside it is typeset there, indented. Its `ltx:quote` admits blocks
           // and paragraphs (OXIDIZED_DESIGN_DIVERGENCES #271), not a theorem or a unit, and is not auto-closable, so
-          // both were "isn't allowed in <ltx:quote>" (Perl the same, Document.pm:974-1010; KNOWN_PERL_ERRORS #659):
+          // both were "isn't allowed in <ltx:quote>" (Perl the same, Document.pm:974-1010; KNOWN_PERL_ERRORS #664):
           // an author's theorem in a quote, a class `\tableofcontents` that wraps its `\section*` in a quote
           // (moduli.cls:543-547). The unit opens an `ltx:sectional-block` in the quote, the theorem (or proof, TOC) an
           // `ltx:logical-block`, which the quote's end closes; the quote stays whole. Guards

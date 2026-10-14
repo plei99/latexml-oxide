@@ -652,13 +652,38 @@ LoadDefinitions!({
   // Witnesses 2405.19976, 2406.12553.
   DefMacro!("\\@ifundefinedcolor{}", "\\@firstoftwo");
 
-  // xcolor.sty L815: `\InputIfFileExists{mathcolor.ltx}` — pulls in
-  // `\mathcolor[<model>]{<color>}{<expr>}`, a math-mode color wrap.
-  // The raw .ltx isn't on Rust's load path, so authors writing
-  // `\mathcolor{red}{x+y}` hit Error:undefined. Stub directly as the
-  // group form `{\color{<color>} <expr>}` (semantically identical in
-  // math). Witness 2402.00349.
-  DefMacro!("\\mathcolor[]{}{}", "{\\color[#1]{#2}#3}");
+  // xcolor.sty:819 `\InputIfFileExists{mathcolor.ltx}` — pulls in
+  // `\mathcolor[<model>]{<color>}{<expr>}`, a math-mode color wrap
+  // (witness 2402.00349: Error:undefined without it). mathcolor.ltx:20-29
+  // pushes the current color (`\g__mathcolor_seq`), sets the new one,
+  // typesets #3 with NO group around it, and restores the color it found
+  // (`\seq_gpop:NN … \current@color` + `\reset@color`), so a `\left` in #3
+  // pairs with a `\right` in another call (nlo-shower.sty:802
+  // `\mathcolor{red}{\left[}…\mathcolor{red}{\right]}`, 2605.11792: a group
+  // here made it "Attempt to close boxing group"). The scripts that follow
+  // take the surrounding color, as `\__mathcolor_handle_scripts:Nw` sets the
+  // pushed one on them (mathcolor.ltx:71-72). The restore is by TeX group,
+  // LaTeX's by the driver's color stack: a `\left` in one call and its
+  // `\right` outside one leave the text after `\right` in the new color.
+  DefMacro!(
+    "\\mathcolor[]{}{}",
+    "\\lx@mathcolor@push\\color[#1]{#2}#3\\lx@mathcolor@pop"
+  );
+  DefPrimitive!("\\lx@mathcolor@push", {
+    let current = lookup_font()
+      .and_then(|font| font.get_color().map(Color::to_stored))
+      .unwrap_or_default();
+    push_value("lx@mathcolor@stack", Stored::String(pin(current)))?;
+  });
+  DefPrimitive!("\\lx@mathcolor@pop", {
+    let saved = match pop_value("lx@mathcolor@stack")? {
+      Some(Stored::String(sym)) => with(sym, Color::from_stored),
+      _ => None,
+    };
+    let color = saved.unwrap_or(BLACK);
+    def_color(".", &color, None)?;
+    merge_font(fontmap!(color => color));
+  });
 
   // Target-model options — xcolor.sty:149-153 declares one option per core /
   // extended model whose code is `\selectcolormodel{<model>}` (below).

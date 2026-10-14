@@ -1,4 +1,4 @@
-//! `\pmod` sets `mod` in `\operator@font`, as latex.ltx:15560 does (KNOWN_PERL_ERRORS #657): plain.tex's `{\rm mod}`
+//! `\pmod` sets `mod` in `\operator@font`, as latex.ltx:15560 does (KNOWN_PERL_ERRORS #662): plain.tex's `{\rm mod}`
 //! met memoir's error-raising `\rm` (memoir.cls:6903, without `oldfontcommands`), one "Font command \rm is not
 //! supported" per `\pmod`, and the `mod` came out as italic letters.
 

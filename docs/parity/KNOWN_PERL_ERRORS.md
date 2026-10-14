@@ -12973,14 +12973,16 @@ token `\fnum@table` itself and the first table caption recurses (2605.29738; Per
 `\usepackage[english]{babel} … \foreignlanguage{lithuanian}{x} \begin{table}\caption{A}\end{table}`. Fixed in Rust
 (OXIDIZED_DESIGN_DIVERGENCES #579; repro captions-floats/babel_ini_caption_template_needs_fnum).
 
-## 655. The REVTeX binding lacks `\@email`, `\@homepage` and `\frontmatter@footnote`
+## 655. The REVTeX binding lacks `\@email`, `\@homepage`, `\@AF@join` and `\frontmatter@footnote`
 
 revtex4_support.sty.ltxml:55-56 binds `\email` and `\homepage` alone. revtex4-1.cls:2383-2392 (4.0 and 4.2 alike) has `\email` =
 `\begingroup\sanitize@url\@email{#1}` with `\@email` closing the group, which classes re-dress (cej.cls:88; 0710.1022,
 1201.4230: with only `\sanitize@url` defined the group stayed open, `%` other to the document's end); and revtex4-2.cls:2472
-`\frontmatter@footnote`, which documents call for a note on several authors (2605.04155). Fixed in Rust
-(revtex4_support_sty.rs, revtex4_cls.rs; repros class-bindings/revtex_email_redressed_over_sanitize_url,
-sectioning-frontmatter/revtex_frontmatter_footnote_on_two_authors).
+`\frontmatter@footnote`, which documents call for a note on several authors (2605.04155); and revtex4-2.cls:2120/2160/2236
+`\@AF@join`, the join every `\email`/`\homepage`/`\thanks`/`\altaffiliation` ends in, which JASA.cls:1232-1238 calls from
+its own `\@email` (2605.18495, 2605.23416: undefined). Fixed in Rust (revtex4_support_sty.rs, revtex4_cls.rs; repros
+class-bindings/revtex_email_redressed_over_sanitize_url, sectioning-frontmatter/revtex_frontmatter_footnote_on_two_authors,
+sectioning-frontmatter/revtex_af_join_from_redressed_email).
 
 ## 656. The amsrefs binding lacks `{bibchapter}` and the `\MR` internals
 
@@ -12991,7 +12993,59 @@ missing; nor does its `msc-links` load hyperref (amsrefs.sty:198-205). Fixed in 
 index-bib/amsrefs_bibchapter, index-bib/amsrefs_document_mr_redress).
 
 
-## 657. `\pmod` sets `mod` with `\rm`, which memoir makes an error
+## 657. `\ProcessOptions` never runs a `\ds@<option>` that `\DeclareOption` did not declare
+
+In declared order (non-star `\ProcessOptions`), Package.pm:2476-2478 sends every option outside `@declaredoptions` to
+`\default@ds`. latex.ltx:18587-18592
+`\@process@pti@ns` runs such an option's `\ds@<option>` when it is defined (not `\relax`), the default only otherwise —
+and 2.09-style classes `\def` their handlers directly: gji.cls:61-70 (2605.19951), biom.cls:48
+`\def\ds@usenatbib{\@usenatbibtrue}` with natbib loaded only `\if@usenatbib` (:1564-1566; 2606.12015, `\citep`
+undefined). Minimal trigger: a class with `\def\ds@extra{\RC@extratrue}\ProcessOptions` loaded as
+`\documentclass[extra]{…}`. Fixed in Rust (content.rs `process_options_by`; repro
+loader/ds_option_handler_without_declareoption).
+
+## 658. pstricks_support redefines `\scalebox` without a box
+
+pstricks_support.sty.ltxml:1010-1011 defines `\scalebox{}{}` as its argument (through `\@@scalebox` = `\@secondoftwo`),
+over graphics' `\scalebox`, which boxes it; pstricks itself never defines `\scalebox` (pstricks.sty:98 only saves it,
+pstricks.tex scales with `\psscalebox`). An inner `$…$` then closes the surrounding math: 2104.00361's
+`\newcommand*{\Scale}[2][4]{\scalebox{#1}{$#2$}}` inside `\substack` in an eqnarray, 2504.03865's scalerel `\scaleobj`.
+Minimal trigger: `\usepackage{graphicx,pstricks}` and `$F_{\scalebox{1}{$b_1$}}$`. Fixed in Rust (pstricks_support_sty.rs
+keeps a defined `\scalebox`; repros package-bindings/pstricks_keeps_graphics_scalebox,
+package-bindings/pstricks_scalerel_scaleobj_in_tabular).
+
+## 659. graphicx's `alt` is digested as text
+
+graphicx.sty.ltxml:36 `DefKeyVal('Gin','alt','')` digests the alt value under the image's `mode => 'restricted_horizontal'`
+(:77); graphicx.sty:110 `\define@key{Gin}{alt}{}` never typesets it — it is a tagging string. A formula in an alt then
+has its scripts in text, and in an alignment cell the error recovery opened math across the cell (2605.23217
+`alt={\Psi' = (\id_A \ot U)(\Psi)}` in `{alignat}`). Minimal trigger: `\includegraphics[alt={a_1}]{x}` in an `align`
+cell. Fixed in Rust (graphicx_sty.rs reads `alt` and `actualtext` undigested, spelled as TeX writes them; repro
+package-bindings/includegraphics_alt_is_a_string).
+
+## 661. A rule inside a box in an alignment cell is read as a border of the alignment
+
+TeX_Box.pool.ltxml:811-814 (`\vrule`) and :846-850 (`\hrule`) mark a rule as a cell border whenever an alignment is
+active (`LookupValue('Alignment')`), whether or not the rule lies inside a box in the cell; an `\hrule` then calls
+`addLine('t')`, which restarts the row's columns (`Alignment.pm:126`, "Pretend doesn't occupy any columns"), so the next
+`&` overwrites the cell. In TeX such a rule is part of its box. ytableau draws every box so (`\fcolorbox@YT`, a `\vbox` of
+kerned `\hrule`s and `\vrule`s, ytableau.sty:272-296, the `\@frameb@x` idiom). Trigger:
+
+```tex
+\documentclass{article}
+\usepackage{ytableau}
+\begin{document}
+\begin{ytableau} 1 & 2 & 4 \\ 3 & 5 \end{ytableau}
+\end{document}
+```
+
+→ Perl: 0 errors, rows `1 4` and `3 5` (entry 2 lost), no box drawn; pdflatex: the tableau. Fixed in Rust: a box's
+contents set the group-local `lx@rule@boxed` (base_utilities.rs `predigest_list_in_mode`), which an alignment clears, and
+`\vrule`/`\hrule` border only through `tex_tables::alignment_for_raw_rule`; a ytableau binding makes each box its cell's
+borders around a sized inline block. Guards `ytableau_boxes::{a_boxed_rule_in_a_cell_keeps_the_row,
+young_tableau_cells_are_bordered_boxes}`.
+
+## 662. `\pmod` sets `mod` with `\rm`, which memoir makes an error
 
 math_common.pool.ltxml:777 `DefMath('\pmod{}', '\;\;(\mathop{{\rm mod}} #1)', …)` is plain.tex:1089's body; latex.ltx:15560
 (and amsmath.sty:909) sets `mod` in `\operator@font`. memoir.cls:6903 makes `\rm` a class error unless the
@@ -13009,7 +13063,7 @@ as Perl does not load memoir.cls raw to the end), and `mod` as three italic lett
 the LaTeX layer (latex_constructs sect07.rs, beside `\operator@font`) defines `\pmod` with `{\operator@font mod}`; plain
 keeps `{\rm mod}`. Guard `pmod_operator_font::pmod_under_memoir_is_an_upright_operator_without_errors`.
 
-## 658. A math `'` does not absorb `\sp`
+## 663. A math `'` does not absorb `\sp`
 
 math_common.pool.ltxml:109-124 `\active@math@prime` combines a following superscript only when `$gullet->ifNext(T_SUPER)`,
 which compares the token itself (Gullet.pm:596-600). latex.ltx's `\pr@m@s` (:15687) tests `\ifx^\@let@token`, a comparison
@@ -13032,7 +13086,7 @@ $x'\sp{2}$
 → Perl: "Double superscript"; pdflatex 0 errors, `x^{\prime 2}`. Fixed in Rust: `\active@math@prime` (math_common.rs)
 tests the next token with `defined_as(T_SUPER)`. Guard `math_prime_meaning_superscript::prime_then_sp_is_one_superscript`.
 
-## 659. A theorem or a sectioning unit inside a `quote` is "isn't allowed in <ltx:quote>"
+## 664. A theorem or a sectioning unit inside a `quote` is "isn't allowed in <ltx:quote>"
 
 latex_constructs.pool.ltxml:1271-1278 builds `quote`/`quotation`/`verse` as `<ltx:quote>#body</ltx:quote>`; the schema's
 `quote_model` (`Block.model`) admits neither a theorem nor a sectioning unit, and `ltx:quote` is not auto-closable, so

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+  - **Bare colours in pgf `.search also` key paths are applied.**
+    `\pgfkeys@mainstop` and `\pgfkeysvaluerequired` were primitives, never
+    `\ifx`-equal to the macros pgf compares them with, so every search-also
+    path got `/.try` and a bare colour, `!` mix or arrow spec that only
+    `/tikz/.unknown` resolves was dropped silently (`\addplot[blue]`, cycle
+    lists, dynkin-diagrams, circuitikz). They are pgf's macros again.
+
+  - **ytableau diagrams render as boxes, and a boxed rule in a table cell no
+    longer eats the row.** A `\vrule`/`\hrule` inside a box in an alignment cell
+    was read as a border of the alignment, and an `\hrule`'s border restarted
+    the row's columns, so ytableau's boxes kept only a row's first and last
+    entries and drew no box. Such a rule is now the box's own, as in TeX, and a
+    ytableau binding makes each box its cell's four borders, sized and centred
+    as in the PDF (fills included). KNOWN_PERL_ERRORS #661.
+
   - **TikZ matrix and tikz-cd cells sit on their last row's baseline (#785).**
     `openTikzAlignment` placed a matrix at `y = h + d`; Perl
     (`pgfsys-latexml.def.ltxml` L952-975) subtracts the last row's depth, read
@@ -67,18 +82,18 @@
     "isn't allowed in <ltx:quote>" errors (an author's theorem in a quote; a
     class `\tableofcontents` wrapping its heading in one, as moduli.cls does).
     The unit now opens a sectional block in the quote, the theorem a logical
-    block. OXIDIZED_DESIGN #271 addendum, KNOWN_PERL_ERRORS #659.
+    block. OXIDIZED_DESIGN #271 addendum, KNOWN_PERL_ERRORS #664.
 
   - **A math `'` followed by `\sp` is one superscript.** The prime absorbed a
     following `^` only as that token, not by meaning as LaTeX's `\pr@m@s` does,
     so `\sp` (derivative.sty's `\pdv[order=2]{}{x'}`) gave "Double
-    superscript". KNOWN_PERL_ERRORS #658.
+    superscript". KNOWN_PERL_ERRORS #663.
 
   - **`\pmod` no longer errors under memoir.** Its `mod` was set with plain
     TeX's `{\rm mod}`, and memoir makes `\rm` a class error, so every `\pmod`
     reported "Font command \rm is not supported" and printed `mod` as italic
     letters. The LaTeX layer now sets it in `\operator@font`, as latex.ltx
-    does. KNOWN_PERL_ERRORS #657.
+    does. KNOWN_PERL_ERRORS #662.
 
   - **The XSLT recursion cap now applies in the statically linked release
     binaries.** `xsltMaxDepth = 1000` (Perl `XML::LibXSLT->max_depth(1000)`) was

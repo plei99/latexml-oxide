@@ -1049,6 +1049,26 @@ space where it is digested (1601.02132), and arxbj's IMS markup through a bindin
   heuristic firing on a package that sets `_` a letter itself (etextools, 2606.06323), N7 NFSS shape probes
   `\try@load@fontshape`/`\DeclareFontShape` no-ops (2606.07112, Perl the same), N10 a sectioning unit in `ltx:quote`
   (2606.19241) and an `\item[]` excluded from the OD #189 item bridge (2606.00118) — both await a ruling.
+- **66k** (K1's word-loss roots, root-causer report `agent_reports/2026-10-14_k1_wordloss_triggers.md`: in 19 of the
+  20 papers our engine read the `_`/`^` in text where pdflatex reads it in math): `\cancel`/`\bcancel`/`\xcancel` are
+  robust, as cancel.sty:70-78, so an aligned cell's start (§791) does not expand them before the template's `$`
+  (1801.01765, 2404.04195, 2505.00286, 2505.10361, 2512.10194); pstricks keeps graphics' boxing `\scalebox` (2104.00361,
+  2504.03865; KPE #658; 1208.6481 still 0 errors); graphicx's `alt`/`actualtext` are read undigested, as graphicx.sty
+  never typesets them (2605.23217, KPE #659). Guards `perfect_kernel_batch66k::*`. Open from the report: raw
+  `eqnarray.sty` (`equationarray`, 1605.07858, 2507.02169), array `w`/`W` columns, `\multicolumn`
+  in `aligned`, `\lx@marginpar` mode, forest `math content`, `\opt@` string re-tokenized, ytableau, two xy-pic gaps.
+- **66j** (2605/2606 sandbox regressions, root-causer reports `agent_reports/2026-10-13_sbx2605_regressions.md`,
+  `…_sbx2606_regressions.md`): an option no `\DeclareOption` declared runs its `\ds@<option>` when defined, latex.ltx's
+  `\@process@pti@ns` (C12; 2.09-style classes: gji.cls 2605.19951, biom.cls `usenatbib` 2606.12015; KPE #657); revtex's
+  `\@AF@join` for a class's own `\@email` (C11, JASA.cls: 2605.18495, 2605.23416; KPE #655); `\mathcolor` adds no group
+  and restores the color it found, as mathcolor.ltx:20-29, so a `\left` and `\right` in two calls pair (C7, 2605.11792);
+  the loader's expl3 scope-exit cleanup fires on expl3's own `\l__kernel_expl_bool`, not on `_` being a letter, so a
+  package that restores its own catcodes keeps them (N6, etextools: `/` stayed 8; 2606.06323). Review r1: the `\ds@`
+  lookup is the kernel `\ProcessOptions`'s only (not the key=value processors'); option handlers a binding defines but
+  never processes are retired as processed ones are — REVTeX 3's under a revtex4 class (`retire_option_handlers`; a later
+  package's `[draft]` ran revtex's no-op), hyperref's and minted's key names — and preview/floatflt/floatfig process
+  their options as their packages do. Guards `perfect_kernel_batch66j::*`. RED: `loader/etextools_translations_begin_document` (2606.06323's second error,
+  etextools + translations at `\begin{document}`); C3 (nomencl in a float) still open.
 - **66g** (payload, 2605/2606 cluster C5): an input's end closes only a `\left` group opened in that input — `\left`
   records the input it was read in (`gullet::reading_context`), so physics' `\left( \lx@xmarg{…}{#1} \right)` keeps its
   pair when `#1` (`\cosh(a\over 2)`, `\expval{a \over b}` in `aligned`) ends (OD #530; 2605.02768, 2606.01486 E 1 → 0;
@@ -1078,7 +1098,12 @@ space where it is digested (1601.02132), and arxbj's IMS markup through a bindin
   `<document/>` on the repro), so it was reverted — `\start@align` must open the alignment in a group whose `\egroup` ends
   it, with `\black@`/`\totwidth@` (amsmath.sty:1364/:1316) defined (RED `alignment/start_align_under_redressed_alignat`);
   K1 (31, 65n's
-  §1047 `\par`-closes-math without §1046's math-token-reopens-math: `$` parity flips; batch 66i, measured before landing),
+  §1047 `\par`-closes-math without §1046's math-token-reopens-math: `$` parity flips; RED
+  `paragraph-mode/script_in_text_after_par_closed_formula_reenters_math`. Batch 66i, §1046 for sub/superscript marks,
+  is parked: over 1,235 A/B papers errors 9,542 → 8,361 and Fatals 40 → 32, but 20 papers lost >1 % of their words
+  where an earlier wrong-mode bug puts a script in text — 2104.00361 `\scalebox{1}{$b_1$}` in `\substack` (the inner `$`
+  closes the outer math), several at binding-built strings — so those go first; root-causer report
+  `agent_reports/2026-10-14_k1_wordloss_triggers.md`),
   K2a (19, missing macro files: shared), K2d (4, Paul Taylor's diagrams.tex not in TL, now converting 2k-11k words), K5b
   (2, L3 papers' unshipped physics.sty), 5 singletons; 1309.7562's `$$` meeting an open `{` (13 Errors on every binary,
   pdflatex 1); `\bibselect` does not read a `filecontents` `.ltb` (`Info:missing_file`).

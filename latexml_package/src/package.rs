@@ -532,3 +532,4 @@ pub mod xylatexml_tex;
 pub mod xypic_sty;
 pub mod xypic_tex;
 pub mod yfonts_sty;
+pub mod ytableau_sty;

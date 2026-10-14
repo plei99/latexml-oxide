@@ -826,6 +826,8 @@ pub fn alignment_bindings(
   };
   // A new alignment's own `\hline`s rule its rows, even inside a misplaced `\noalign`'s body.
   assign_value("lx@noalign@misplaced", Stored::Bool(false), None);
+  // ... and its rules border its cells, though the alignment sits in a box ([`alignment_for_raw_rule`]) ...
+  assign_value(RULE_IN_BOX, Stored::Bool(false), None);
   // ... and its own misplaced commands start no cascade of an outer one ([`report_misplaced_alignment`]).
   assign_value(MISPLACED_ALIGNMENT, Stored::Bool(false), None);
   let is_math = mode.ends_with("math");
@@ -1750,6 +1752,20 @@ fn read_newline_args(skipspaces: bool) -> Result<(bool, Option<Tokens>)> {
 /// (2306.10087). Guard: `perfect_kernel_batch65::misplaced_hline_in_a_cell_draws_no_rule`.
 pub fn alignment_to_rule() -> Option<Digested> {
   lookup_alignment().filter(|_| !lookup_bool("lx@noalign@misplaced"))
+}
+
+/// The group-local flag set where a box's contents are digested (`base_utilities::predigest_list_in_mode`) and cleared
+/// where an alignment starts ([`alignment_bindings`]): a `\vrule`/`\hrule` inside a box is that box's rule.
+pub const RULE_IN_BOX: &str = "lx@rule@boxed";
+
+/// The alignment a raw `\vrule`/`\hrule` borders: [`alignment_to_rule`]'s, unless the rule lies inside a box in the
+/// cell. TeX typesets such a rule as part of the box (an `\hrule` borders rows only between them, in `\noalign`); the
+/// border heuristic (Perl TeX_Box.pool.ltxml:811-814, 846-850) read a box frame's rules as the table's, and an `\hrule`'s
+/// `add_line` restarts the row's columns (`Alignment.pm:126`), so the next `&` overwrote the cell: ytableau's boxes
+/// (`\fcolorbox@YT`, a `\vbox` of kerned `\hrule`s and `\vrule`s, ytableau.sty:272-296) kept only a row's first and
+/// last cells. KNOWN_PERL_ERRORS #661.
+pub fn alignment_for_raw_rule() -> Option<Digested> {
+  alignment_to_rule().filter(|_| !lookup_bool(RULE_IN_BOX))
 }
 
 /// The group-local flag of [`report_misplaced_alignment`]: a misplaced alignment command was reported in this group.

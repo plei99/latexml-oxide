@@ -1,6 +1,6 @@
 //! A math `'` absorbs a following superscript by meaning, as latex.ltx's `\pr@m@s` does (`\ifx^\@let@token`): `\sp`
 //! (`\let\sp=^`) included. derivative.sty's `\pdv[order=2]{}{x'}` writes `x'\sp{2}`, which was a double superscript
-//! (KNOWN_PERL_ERRORS #658).
+//! (KNOWN_PERL_ERRORS #663).
 
 #[test]
 fn prime_then_sp_is_one_superscript() {

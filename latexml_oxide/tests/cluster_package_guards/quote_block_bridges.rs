@@ -1,6 +1,6 @@
 //! A theorem or a sectioning unit inside a `quote` (a list in TeX, article.cls:405-408) is placed in a block of the
 //! quote — an `ltx:logical-block`, an `ltx:sectional-block` — instead of "isn't allowed in <ltx:quote>" (KNOWN_PERL_ERRORS
-//! #659; OXIDIZED_DESIGN_DIVERGENCES #271): an author's theorem in a quote, moduli.cls's `\tableofcontents` that wraps
+//! #664; OXIDIZED_DESIGN_DIVERGENCES #271): an author's theorem in a quote, moduli.cls's `\tableofcontents` that wraps
 //! its `\section*` in one. The quote stays whole and the text after it stays outside.
 
 #[test]

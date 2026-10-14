@@ -1638,7 +1638,7 @@ LoadDefinitions!({
     if w_pt == Some(0.0) {
       whatsit.set_property("invisible", true);
       whatsit.set_property("alignmentSkippable", true);
-    } else if lookup_alignment().is_some() {
+    } else if crate::tex_tables::alignment_for_raw_rule().is_some() {
       // Perl: set isVerticalRule only if dimensions suggest a real rule
       let dominated_by_height = match (h_pt, w_pt) {
         (None, None) => true,
@@ -1704,7 +1704,7 @@ LoadDefinitions!({
     whatsit.set_property("cached_depth", cdepth);
     // hrule defaults to full width — don't cache a specific width
 
-    if lookup_alignment().is_some() {
+    if crate::tex_tables::alignment_for_raw_rule().is_some() {
       // Perl: set isHorizontalRule only if dimensions suggest a real rule
       // A full-width (default) rule with an explicit height is a horizontal
       // rule too — `\noalign{\hrule height 1pt}` fell through the former
@@ -1718,7 +1718,7 @@ LoadDefinitions!({
       };
       if dominated_by_width {
         // no border from a misplaced `\noalign`'s body (`tex_tables::alignment_to_rule`)
-        if let Some(alignment) = crate::tex_tables::alignment_to_rule() {
+        if let Some(alignment) = crate::tex_tables::alignment_for_raw_rule() {
           alignment.alignment_cell().unwrap().borrow_mut().add_line("t", Vec::new());
         }
         whatsit.set_property("isHorizontalRule", true);

@@ -9286,7 +9286,7 @@ parts, validity unchanged (27/31), no diagnostic change. Guard
 (`\begin{quote}…\section*{\contentsname}…\end{quote}`, :543-547) — it auto-opens a container the quote admits: a unit
 an `ltx:sectional-block`, a theorem, proof or TOC an `ltx:logical-block`, both closed by the quote's end
 (`find_insertion_point_qsym`'s `AUTO_OPEN_BRIDGES`, document.rs). Perl reports "isn't allowed in <ltx:quote>"
-(KNOWN_PERL_ERRORS #659). Guards `quote_block_bridges::{theorem_in_a_quote_opens_a_logical_block,
+(KNOWN_PERL_ERRORS #664). Guards `quote_block_bridges::{theorem_in_a_quote_opens_a_logical_block,
 section_in_a_quote_opens_a_sectional_block}`.
 ### 272. Meta content in math text floats out of the Math, and an equation's footnotes render in HTML (Perl: stranded in `XMText`; equation-level notes not rendered)
 
