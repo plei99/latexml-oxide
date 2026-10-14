@@ -10,6 +10,11 @@
     last-row depth above its arrows. The alignment now passes
     `rowheights`/`rowdepths`/`columnwidths` to the container callback as Perl
     does. Guard `picture_sizing::tikz_matrix_places_last_row_baseline_at_origin`.
+  - **`--init` no longer segfaults intermittently on Linux.** `LATEXML_INI_MODE`
+    was set after the kpathsea prewarm thread started, so glibc's `setenv`
+    reallocated `environ` under that thread's `getenv` (7 of 200
+    `--init=latex.ltx` runs on Linux aarch64), failing `tools/make_formats.sh`.
+    It is now set before the thread exists (STABILITY_WITNESSES Cluster J).
 
   - **The XSLT recursion cap now applies in the statically linked release
     binaries.** `xsltMaxDepth = 1000` (Perl `XML::LibXSLT->max_depth(1000)`) was
