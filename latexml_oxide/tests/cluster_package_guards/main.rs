@@ -71,6 +71,7 @@ mod nul_byte_input;
 mod openright_kernel_contract;
 mod package_leads_56;
 mod picture_makebox_offset;
+mod pgfkeys_sentinels;
 mod picture_sizing;
 mod preclass_kernel_autoload;
 mod process_key_options_sees_load_options;

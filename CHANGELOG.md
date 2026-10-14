@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+  - **Bare colours in pgf `.search also` key paths are applied.**
+    `\pgfkeys@mainstop` and `\pgfkeysvaluerequired` were primitives, never
+    `\ifx`-equal to the macros pgf compares them with, so every search-also
+    path got `/.try` and a bare colour, `!` mix or arrow spec that only
+    `/tikz/.unknown` resolves was dropped silently (`\addplot[blue]`, cycle
+    lists, dynkin-diagrams, circuitikz). They are pgf's macros again.
+
   - **ytableau diagrams render as boxes, and a boxed rule in a table cell no
     longer eats the row.** A `\vrule`/`\hrule` inside a box in an alignment cell
     was read as a border of the alignment, and an `\hrule`'s border restarted
