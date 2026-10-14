@@ -2361,7 +2361,7 @@ role: a visible "CLOSE"/"OPEN" in every repaired formula; guard
 `06_cluster_regressions::cluster_null_delimiter_renders_invisible`. The repair
 reached physics2's `\ab(x)` — `\mathopen{}\mathclose\bgroup\left( x
 \aftergroup\egroup\right)` — whose `\mathclose` group Perl's `\right` closed before
-its `)`, leaving its `(` unmatched, until #576 made `\right` read its delimiter
+its `)`, leaving its `(` unmatched, until #580 made `\right` read its delimiter
 first and let the idiom through to the parser; guard
 `cluster_mathclose_aftergroup_right_prints_no_role`.)
 `tex=` reversions stay verbatim
@@ -7149,7 +7149,8 @@ of section 1 is section 2, `xml:id` S2, and `\ref`s read 2). The float's own id 
 counters it is made within (`pin_float_id_before_its_sectioning`; the caption takes it, `\@@add@caption@counters`), so
 the figure is S1.F1 where its caption made S2.F1 — in Perl too; the caption still numbers the float, so under
 `\numberwithin{figure}{section}` it reads 2.1 as pdflatex prints it. An appendix unit there is a section of class
-`ltx_appendix` (the block holds sections), its letter and id kept; a `minipage` holding such a unit is captured as the
+`ltx_appendix` (the block holds sections), its letter and id kept — an unnumbered one (`\section*` after `\appendix`)
+too since 66f (2605.02378, 2605.25534; guard `perfect_kernel_batch66f::unnumbered_appendix_section_in_float`); a `minipage` holding such a unit is captured as the
 inline sectional block, which keeps its class but not its `width`/`vattach` (layout only). 38 2609 papers, 117 errors
 (A/B over 187 2609 papers: 1,089 → 980 errors, 36 improved, 0 regressed; 2609.00179, 00943,
 03590, 05680). Guard `perfect_kernel_batch54::sections_inside_floats_keep_number_id_and_ref`;
@@ -9280,6 +9281,13 @@ parts, validity unchanged (27/31), no diagnostic change. Guard
 
 **Perl** (`LaTeXML-block.rnc` `quote_model = Block.model`, with the upstream comment "should be Block.model, perhaps even Para.model?"): a quote holds bare `ltx:p` and block-level items but no paragraph or box container. The trees are the same in both engines. A minipage in a quote holding `\tableofcontents` becomes a `logical-block` (webquiz), and one holding `\section*` becomes a `sectional-block` (aguplus); both are schema-invalid. A `\noindent` paragraph in a quote loses its `ltx:para` and `ltx_noindent` class, because `openElement` auto-closes the paragraph container (tagpair/sample).
 **Rust** (batch 56gw, user ruling 2026-09-23): `quote_model = (Block.class | Misc.class | Meta.class | para | logical-block | sectional-block)*`, set in `LaTeXML-block.rnc`/`.rng` and on the flattened `ltx:quote` line of `LaTeXML.model`. It is `Block.model` plus the three `Para.model` containers that caused the invalidity, not `Para.model` itself: taken literally, `Para.model` would drop `p`, `equation` and lists as direct quote children. Floats still escape a quote (they float to the page), and theorem, proof, TOC and bare sectioning units stay out; a `\section*` in a quote arrives inside its minipage's `sectional-block`. This is a pure widening, measured over the 383 quote-bearing s117 manuals: 25 change shape (a `para` is kept inside the quote), 0 lose words (`content_diff.py`), and validity goes from 369 to 371 (webquiz, aguplus) with 0 newly invalid. The precedent is #252. **Guard**: `cluster_schema::quote_holds_paragraph_and_box_blocks`. **Upstream**: worth filing, since it answers the rnc's own open question.
+**Addendum (theorems and units in a quote).** The model keeps theorems, proofs, TOCs and bare sectioning units out of
+`ltx:quote`. When one arrives in a quote — an author's `\begin{thm}` in a `quote`, moduli.cls's `\tableofcontents`
+(`\begin{quote}…\section*{\contentsname}…\end{quote}`, :543-547) — it auto-opens a container the quote admits: a unit
+an `ltx:sectional-block`, a theorem, proof or TOC an `ltx:logical-block`, both closed by the quote's end
+(`find_insertion_point_qsym`'s `AUTO_OPEN_BRIDGES`, document.rs). Perl reports "isn't allowed in <ltx:quote>"
+(KNOWN_PERL_ERRORS #659). Guards `quote_block_bridges::{theorem_in_a_quote_opens_a_logical_block,
+section_in_a_quote_opens_a_sectional_block}`.
 ### 272. Meta content in math text floats out of the Math, and an equation's footnotes render in HTML (Perl: stranded in `XMText`; equation-level notes not rendered)
 
 **Perl**: `\footnote`/`\index`/`\gls`/`\nomenclature` inside `\text{}` in math construct in the `ltx:text` that `\text` opens. That element admits them, so their `^` float (`floatToElement`, Document.pm:1052) stops there. `cleanup_XMText` (TeX_Math.pool.ltxml) then unwraps the `ltx:text` and leaves the marker as a direct `XMText` child. `XMText_model = (text | Inline.class | Misc.class)*` has no `Meta.class`, so the document is schema-invalid. The marker is also read into the formula: the footnote enters `text=` (`[b11footnote 1fn]`), and ryethesis's `\nomenclature` entries parse as a factor, `c² × [glossary]`. In an `align` cell, `addColumnToMathFork` (Base_XMath.pool.ltxml:880) clones any non-math element into the main branch's `XMText`, so the fork holds the footnote twice (a `.mf` copy). Separately, the XSLT renders "all of equation_model EXCEPT Meta" (LaTeXML-block-xhtml.xsl), so a footnote at equation level, a bare `\footnote` in `\[…\]` included, never reaches the HTML.
@@ -16011,7 +16019,16 @@ the constructor itself), so that a rejected `\middle` leaves nothing behind. Whe
   end constructor `\end{X}` (`\begin{equation}\left( x \end{equation}`; stomach.rs `is_environment_end` in
   `digest_next_body` — no TeX-level `\endX` exists to read again), each read again after the `\right.`, or the end
   of an argument's input (`\frac{\left( a}{b}`; stomach.rs `close_left_group_at_input_end` in `digest_next_body`): "Missing \right.
-  inserted" and a null `\right.`. A LaTeX environment whose end code holds the `\right` (`\newenvironment{paren}
+  inserted" and a null `\right.`. Only the end of the input the `\left` was read in closes its group: `\lx@math@left@group`
+  records the reading context (`gullet::reading_context`, the serial and depth of the `reading_from_mouth` context, 0
+  for the document's own input) on the group's frame, and an input's end closes the group when that context is the one
+  ending or one nested in it that has already ended. A `\left` read outside the ending input stays open, as tex.web
+  §1191-1192 keeps a `math_left_group` until its `\right` or an error: for TeX an argument's end is no end of input, the
+  argument being a `{…}` group inside the `\left` group. A binding's `\left( \lx@xmarg{…}{#1} \right)` (physics.sty's
+  `\left(#1\right)`) digests its argument from a mouth of its own, and from 65d to 66g that argument's end closed the
+  binding's own `\left`: "Extra \right." and a dangling XMRef for `\cosh(a\over 2)` (2605.02768), an `\expval{a \over b}`
+  in `aligned` whose `\right\rangle` met the row's `\begingroup` and lost the equation (2606.01486). Guards
+  `perfect_kernel_batch66g::*`. A LaTeX environment whose end code holds the `\right` (`\newenvironment{paren}
   {\left(}{\right)}`) closes the group itself, unchecked (round 3's `\end`-time check broke it and looped in an
   `\edef`). Before, the formula ran on to the next `$` and swallowed the
   paragraphs after it. A math ender read again after the inserted `\right.` leaves an empty whatsit in the group that
@@ -16045,9 +16062,17 @@ Witnesses: run 336's X1 (48 Fatal:Timeout:IfLimit with first error `unexpected:\
 `\left\{`: 0705.0452 0802.0663 0804.1292 0809.0095 0903.4903 …, all 48 converting, errors 3541 → 826 over 109
 witnesses); 2605.21750 (`\let\@left\left`); tests/parse/parens.tex:43 (`\left\delimiter"426830A`, byte-identical) and
 its `\let\mydelim\delimiter` twin (before: the code digested as math); 1207.4709 (byte-identical); 2008.11762 (an
-etoolbox `\robustify\left` now errs "\left not a macro" as in pdflatex), zhlineskip.tex:234 (`\env@cases`). Guards `perfect_kernel_batch65d::*`, golden
+etoolbox `\robustify\left` now errs "\left not a macro" as in pdflatex), zhlineskip.tex:234 (`\env@cases`); 2605.02768 and 2606.01486 (physics' `\left(#1\right)` around an isolated argument,
+66g). Guards `perfect_kernel_batch65d::*`, `perfect_kernel_batch66g::*`, golden
 `tests/parse/left_right_delimiters`, `perfect_kernel_batch56::{let_at_left_left_does_not_loop,
 left_right_in_text_mode_are_plain_text}`.
+
+Since 66h the `\right.` an input's end inserts into a `\left` group it opened is inserted once per group: a `\left` read
+in text (a document's `\newcommand\at[2]{\left.#1\right|_{#2}}` met outside math) opens a group the inserted `\right.`
+cannot close, which then met every later end of input and inserted it again without end (1404.4148 and 8 more svjour3
+papers: Fatal `Stomach:Recursion` after 25,640 Warnings). stomach.rs `close_left_group_at_input_end`, the frame value
+`lx@left@right@inserted`; repro `sectioning-frontmatter/svjour3_doubled_at_left_in_text_closes_once` (an `\at` the svjour3
+sentinel strip of KPE #652 leaves), guard `perfect_kernel_batch66h::svjour3_doubled_at_left_in_text_closes_once`.
 
 ### 532. A `\par` or skip inside an item's inline sectional block ends no paragraph (Perl: no paragraph above a section)
 
@@ -17079,6 +17104,14 @@ idiom: the test closes before either branch runs. A stray `\fi` is then "Didn't 
 an open `\if` stays open as in TeX. The 5 witnesses lose their Fatal (0807.3034: 0 errors). Guards
 `perfect_kernel_batch66d::caption_hoist_*`; repros `captions-floats/caption_hoist_{stray_fi,unbalanced_if}`.
 
+Since 66h the branch is a control sequence, not a braced argument:
+`\ifx.#5.\expandafter\lx@caption@nolabel\else\expandafter\@@@hack@caption@\fi{#1}{#2}{#3#4}#5\endcaption`. A caption
+that is a one-token box argument (`\parbox[b]{9cm}` then `\caption{…}`, mn2e) carries the box's `}` in as its `\@xdblarg`
+argument (Perl's readArg likewise, Gullet.pm:732-744); in 66d's braced branches that `}` closed the first early, the
+second ran, and its `\label` scan read to the end of the file (astro-ph0107461 and 15 more run-345 papers, Fatal
+`Mouth:EoF`). Now it is the "Attempt to close" Errors of before 66d (66cr4's 2). Guard
+`perfect_kernel_batch66h::caption_one_token_box_argument`; repro `captions-floats/caption_one_token_box_argument`.
+
 ### 571. AMS-TeX's `\abstract` is not the LaTeX kernel's locked one; amsppt.sty's own state for amsppt1.tex
 
 The kernel `\abstract` is locked (sect05.rs), and the lock survived into AMS-TeX mode, where the amsppt binding rebinds
@@ -17183,7 +17216,63 @@ amstex_tag_in_latex_equation_row_ends_at_extra_brace, amstex_tag_stops_at_the_do
 amstex_tag_inline_maths_are_not_a_display_end}`; repros `amstex/amstex_row_tag_runaway_group`,
 `amstex/amstex_row_tag_open_group_in_enclosing_group`.
 
-### 576. `\right` reads its delimiter before it closes its group, and `\mathopen{}\mathclose{\left…\right}` reads as its fence
+### 576. `\begin{document}` opens the `.aux` under the job's name, as latex.ltx's `\document` does (Perl: none)
+
+latex.ltx's `\document` (:9491-9494) does `\if@filesw \immediate\openout\@mainaux\jobname.aux
+\immediate\write\@mainaux{\relax}\fi`, so the `.aux` exists from then on. Perl's `\begin{document}` opens none; its only
+open is `latex_base`'s `\openout\@mainaux\jobname.aux` (latex_base.pool.ltxml:722), run when LaTeX.pool loads. Without
+a preload that is at `\documentclass` (TeX.pool.ltxml:33-39), after `\jobname` is installed (Core.pm:152), and the
+in-memory `.aux` (TeX_FileIO.pool.ltxml:120-126) is found by a later `\input` (Package.pm:2104). With the format
+preloaded (a preload such as `ar5iv.sty`, as on arXiv) it runs when the state is initialized (Core.pm:143), before
+`\jobname`, so the stream is not under the job's name. Ours (latex_base.rs:743) ran at that early point too, or, under a
+dump, at the dump's build, whose `output_file:*` streams the dump does not keep. A class or package `\enddocument` that does `\input
+\jobname.aux` under `\if@filesw` (jpsj3.cls:90-96, bio.cls, lamuphys.sty:1240-1247, caosp.sty:916) then met
+`Error:missing_file:<jobname>.aux`. Ours opens it in `\begin{document}`'s after-digest (latex_constructs/sect02.rs) in
+latex.ltx's place, so the `\input` reads the in-memory `.aux` (its `\relax` and whatever the document wrote). `\nofiles`
+stays Perl's no-op (latex_constructs.pool.ltxml:3773, sect11.rs), so `\if@filesw` stays true. Witnesses 2605.24927,
+2605.04825, 2605.28673, 2605.20125, cond-mat9607109, astro-ph9805185 (each 1 error → 0, text unchanged). Guard
+`perfect_kernel_batch66f::jobname_aux_exists_after_begin_document`; repro `loader/jobname_aux_exists_after_begin_document`.
+
+### 577. nicematrix `[opacity=…]` fills are flattened against a white page
+
+nicematrix.sty:5605-5616 (`\__nicematrix_color_opacity:w`) reads a `\CodeBefore` color command's optional argument as
+keys: `opacity=` sets the PDF fill opacity (`\pgfsetfillopacity`) over whatever lies beneath. Our cell and row fills are
+plain CSS background colors, so `opacity=o` is rendered as the color mixed with white at `o` — what the PDF shows on a
+white page and the same on a white HTML page, but not over a colored or dark background. Perl has no nicematrix binding.
+Witness 2605.25123 (`\columncolor[opacity=0.2]{blue}{3}`, "Unrecognized color model" Error before). Code
+latexml_contrib/src/nicematrix_sty.rs (`nice_color`); guard `perfect_kernel_batch66f::nicematrix_color_opacity_key`.
+
+### 578. `\hypertarget` in math: an empty anchor, its text after the mode test
+
+hyperref.sty:4805-4811 (nesting off, its default :323) sets the destination and then `#2` in every mode
+(`\hyper@@anchor{#1}{\relax}#2`); Perl (hyperref.sty.ltxml:258-266) digests `#2` as the anchor's own text in every mode.
+In text ours keeps Perl's shape (the anchor holds its text, `anchor_own_text`). In math, where an `ltx:anchor` holds no
+math, the anchor is empty and `#2` follows it in place, so a brace-less call takes one token there and a formula opened
+by it stays whole (`\hypertarget{e1}` before `\left( \frac{n}{p}\right)`: 2606.15438's `\left(` read as the anchor's
+text was closed at that argument's end, its `\right)` "Extra"). `#2` comes after the conditional: hyperref's own `#2`
+sits before its `\fi`, so a brace-less `\hypertarget{e2}\frac{n}{p}` has `\frac` read `\fi` as its numerator
+(pdflatex `\showbox`: the destination, an empty-over-n fraction, then p); ours renders n over p. A `\relax` before
+`\ifmmode` (amstex.tex:72's `\RIfM@`) keeps a row-initial call in `align`/`aligned`/`array` on the math branch, where
+TeX is still expanding in search of `\omit` before the cell's math begins. Open: the math anchor's `xml:id` is generated,
+not the target's name, so a `\hyperlink` to it dangles, and the anchor parses as an operand (RED
+`package-bindings/hypertarget_math_anchor_keeps_its_id`). Code hyperref_sty.rs `\hypertarget`/`\lx@hypertarget`; guard
+`perfect_kernel_batch66f::hypertarget_braceless_in_math`.
+
+### 579. The article/report/book bindings define `\fnum@figure`/`\fnum@table` as the tag LaTeXML composes (Perl: undefined)
+
+article.cls:457/469 (report, book alike) define `\fnum@figure`/`\fnum@table`; Perl defines neither and composes the
+tag in `\lx@@fnum@@` (Base_Utility.pool.ltxml:1041-1056), which an undefined `\fnum@<type>` falls back to. Code that
+takes their current body then found nothing: babel's ini caption templates (babel.sty:2959-2965
+`\gdef\fnum@table{…{\[fnum@table]}…}`, for a language loaded on demand such as Lithuanian) captured the undefined token
+itself, and the new `\fnum@table` called itself at the first caption (2605.29738: Fatal IfLimit; Perl loops too, KPE
+#654). Ours defines each as `\lx@@fnum@@{figure}`/`{table}` in the article, report and book bindings, where LaTeX's
+classes define them, and every caption's tag is the one composed before; a class or package `\def`/`\renewcommand` of
+them works as in LaTeX. Residual: letter.cls, without floats, defines neither, but has no binding, and the OmniBus it
+falls back to loads the article binding; so a letter-based class's `\newcommand` of them (newlfm.cls:1006/1012), which
+LaTeX accepts, is ignored with an Info `Ignoring redefinition`, and its captions keep the composed tag. Guard
+`perfect_kernel_batch66h::babel_ini_caption_template_needs_fnum`.
+
+### 580. `\right` reads its delimiter before it closes its group, and `\mathopen{}\mathclose{\left…\right}` reads as its fence
 
 **Perl.** `\right` (TeX_Math.pool.ltxml L786-799) unreads `\lx@hidden@egroup@right` before `\lx@right`: the `\left`
 group closes, then the delimiter is read. TeX's `\right` scans its delimiter, finishes the list and only then unsaves
@@ -17195,7 +17284,7 @@ bound to plain `\left`/`\right`) — therefore ends `\mathclose` before
 the `)`: `\mathclose{{\left(x}}\right)`, where pdflatex's `\showlists` has `\mathclose{\mathinner{\left( x \right)}}`.
 With TeX's grouping no grammar rule reads it either: the empty `\mathopen{}` is an absent OPEN that pairs with the next
 CLOSE as an empty fence `balanced_empty_fenced` rejects, and the CLOSE wrap, parsed on its own, hides the `(` that makes
-`f(x)` an application. Every such formula is `not_parsed:>OPEN` (KNOWN_PERL_ERRORS #644).
+`f(x)` an application. Every such formula is `not_parsed:>OPEN` (KNOWN_PERL_ERRORS #660).
 
 **Rust.**
 1. `\right` (tex_math.rs) scans its delimiter (`scan_delimiter`), closes the group (`egroup_right`, which unreads the

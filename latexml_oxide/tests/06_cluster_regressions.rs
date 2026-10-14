@@ -970,7 +970,7 @@ fn cluster_null_delimiter_renders_invisible() {
 /// physics2's `\ab(x)` (`\mathopen{}\mathclose\bgroup\left( … \aftergroup\egroup\right)`): Perl's `\right` closed its
 /// group before reading its delimiter, so the `\aftergroup`'d `\egroup` ended `\mathclose` with `(` unmatched inside
 /// it, and the close the parser re-supplied there printed "CLOSE". `\right` now reads first (tex.web §1191) and the
-/// parser lets the idiom through (OXIDIZED_DESIGN #576): it reads `x`, nothing re-supplied, no role text.
+/// parser lets the idiom through (OXIDIZED_DESIGN #580): it reads `x`, nothing re-supplied, no role text.
 #[test]
 fn cluster_mathclose_aftergroup_right_prints_no_role() {
   let src = "tests/cluster_regressions/mathclose_aftergroup_right.tex";

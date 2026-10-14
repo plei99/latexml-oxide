@@ -854,14 +854,33 @@ LoadDefinitions!({
   // `\hbox{\hypertarget{averylongtargetname}{}}` was 91.2pt wide where pdflatex gives 0pt, and each
   // glossaries-extra target grew its tcolorbox by 10pt. Perl L266 has no sizer either
   // (KNOWN_PERL_ERRORS #393).
-  DefConstructor!("\\hypertarget Semiverbatim {}",
+  // hyperref.sty:4805-4811 is not math-specific: with nesting off (its default, :323) it sets the
+  // anchor and puts #2 after it in the current list (`\hyper@@anchor{#1}{\relax}#2`) in every mode.
+  // The mode split is ours. In text, the anchor still holds its text (Perl's shape, above). In math,
+  // #2 follows an empty anchor, because the anchor holds no math. So a brace-less call takes one
+  // token there (`\hypertarget{e1}` before `\left( \frac{n}{p}\right)`, 2606.15438: its `\left(`
+  // read as the target's own text was closed at that argument's end, and the real `\right)` was
+  // "Extra").
+  // #2 is placed after the conditional, not inside it. hyperref's own #2 sits before `\fi`, so a
+  // brace-less `\hypertarget{e1}\frac{n}{p}` has `\frac` read `\fi` as its numerator (pdflatex:
+  // an empty-over-n fraction, then p).
+  // `\ifmmode` is tested when the macro expands, so inside an `\edef` the expansion-time mode decides. `\relax` comes
+  // first, as amstex.tex:72's `\RIfM@`: at an alignment cell's start TeX is still expanding in search of `\omit`, before
+  // the cell's math begins, so without it a row-initial call in `align`/`aligned`/`array` took the text branch and
+  // its brace-less `\left(` was closed at the argument's end ("Extra \right.").
+  DefMacro!(
+    "\\hypertarget Semiverbatim {}",
+    "\\relax\\ifmmode\\expandafter\\@firstoftwo\\else\\expandafter\\@secondoftwo\\fi\
+     {\\lx@hypertarget{#1}{}#2}{\\lx@hypertarget{#1}{#2}}"
+  );
+  DefConstructor!("\\lx@hypertarget Semiverbatim {}",
   sub[document, args, props] {
     anchor_own_text(document, &prop_string!(props, "id"), args[1].as_ref())?;
   },
   properties => sub[args] {
     let name = args[0].as_ref().map(|a| a.to_string()).unwrap_or_default();
     Ok(stored_map!("id" => clean_id(&name)))
-  }, sizer => "#2");
+  }, sizer => "#2", reversion => "\\hypertarget{#1}{#2}");
 
   // # Should create an anchor with automatically chosen name;
   // # But it's to be used where LaTeXML already would have created an anchor & link...

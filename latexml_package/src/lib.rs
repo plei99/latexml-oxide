@@ -546,6 +546,9 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   // svmono.cls is svmult.cls's monograph twin (same Springer code base and versions, v5.4 2007 to v5.11 2023: a book,
   // with chapters and front/main/back matter), not the journal class svjour3 (1508.02595, 2601.04515, 0801.1245).
   ("svmono", "cls", package::svmult_cls::load_definitions),
+  // SNmult.cls ("Springer Nature global LaTeX document class for multi authored books", v6.00 2025) is svmult.cls
+  // renamed: its `\institute`/`\at`/`\and` are SNmult.cls:2265-2283 (2605.13070).
+  ("SNmult", "cls", package::svmult_cls::load_definitions),
   (
     "inst_support",
     "sty",
@@ -716,11 +719,6 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("subfiles", "cls", package::subfiles_cls::load_definitions),
   ("subfiles", "sty", package::subfiles_sty::load_definitions),
   ("soul", "sty", package::soul_sty::load_definitions),
-  (
-    "spectralsequences",
-    "sty",
-    package::spectralsequences_sty::load_definitions,
-  ),
   ("stfloats", "sty", package::stfloats_sty::load_definitions),
   ("stmaryrd", "sty", package::stmaryrd_sty::load_definitions),
   ("mathabx", "sty", package::mathabx_sty::load_definitions),

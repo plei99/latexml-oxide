@@ -625,6 +625,13 @@ LoadDefinitions!({
     // lets the one to the other); documents call it by that name
     // (cdcmd-test.tex:42-55, input by cdcmd-cn.tex:144).
     RawTeX!(r"\let\strcmp\pdfstrcmp");
+    // XeTeX's line-breaking parameters for scripts without spaces (xetex.web: `\XeTeXlinebreaklocale` scans a file
+    // name, `\XeTeXlinebreakskip` a glue and `\XeTeXlinebreakpenalty` an integer parameter). They tune where a
+    // CJK line may break, which HTML leaves to the browser: read and kept, nothing more. Chinese notes set them
+    // directly after `\usepackage{xeCJK}` (`\XeTeXlinebreaklocale "zh"`), and were "undefined" errors.
+    DefPrimitive!("\\XeTeXlinebreaklocale SkipSpaces TeXFileName", None);
+    DefRegister!("\\XeTeXlinebreakskip" => Glue::new(0));
+    DefRegister!("\\XeTeXlinebreakpenalty" => Number::new(0));
     iftex_sty::define_xetex_interchar()?;
     set_l3sys_engine("xetex", "xelatex")?;
     // After `\XeTeXrevision`: tuenc.def:49 takes its XeTeX branch on it.

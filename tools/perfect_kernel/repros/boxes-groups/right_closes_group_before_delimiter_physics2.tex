@@ -2,8 +2,8 @@
 %   idiom in mathtools.sty:831 (\DeclarePairedDelimiter*, bound natively here), interval, semtex
 % oracle:  pdflatex 0 errors; \showlists: \mathopen{} \mathclose{\mathinner{\left( x \right)}}
 % engines: rust 0 errors, 0 warnings, tex="\mathopen{}\mathclose{{\left(x\right)}}", text="x"
-%          (OXIDIZED_DESIGN #576); Perl 0 errors, not_parsed, tex="\mathopen{}\mathclose{{\left(x}}\right)"
-%          (2026-10-14, KNOWN_PERL_ERRORS #644)
+%          (OXIDIZED_DESIGN #580); Perl 0 errors, not_parsed, tex="\mathopen{}\mathclose{{\left(x}}\right)"
+%          (2026-10-14, KNOWN_PERL_ERRORS #660)
 % expect:  0 errors; the CLOSE group holds both fences and the formula parses
 % status:  GREEN (\right scans before it closes its group; the parser lets the idiom through; guard
 %          06_cluster_regressions::cluster_mathclose_aftergroup_right_prints_no_role)

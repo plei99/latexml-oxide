@@ -3680,6 +3680,28 @@ impl Document {
             attrs:   &[],
             holder:  item_has_label,
           },
+          // A `quote`/`quotation`/`verse` is a list in TeX (article.cls:405-408), and a theorem (a `\trivlist`,
+          // latex.ltx:17205) or a sectioning unit inside it is typeset there, indented. Its `ltx:quote` admits blocks
+          // and paragraphs (OXIDIZED_DESIGN_DIVERGENCES #271), not a theorem or a unit, and is not auto-closable, so
+          // both were "isn't allowed in <ltx:quote>" (Perl the same, Document.pm:974-1010; KNOWN_PERL_ERRORS #659):
+          // an author's theorem in a quote, a class `\tableofcontents` that wraps its `\section*` in a quote
+          // (moduli.cls:543-547). The unit opens an `ltx:sectional-block` in the quote, the theorem (or proof, TOC) an
+          // `ltx:logical-block`, which the quote's end closes; the quote stays whole. Guards
+          // `quote_block_bridges::{section_in_a_quote_opens_a_sectional_block, theorem_in_a_quote_opens_a_logical_block}`.
+          AutoOpenBridge {
+            chain:   &["ltx:sectional-block"],
+            applies: |cur, qsym| cur == "ltx:quote" && is_sectioning_unit_name(qsym),
+            attrs:   &[],
+            holder:  |_| true,
+          },
+          AutoOpenBridge {
+            chain:   &["ltx:logical-block"],
+            applies: |cur, qsym| {
+              cur == "ltx:quote" && matches!(qsym, "ltx:theorem" | "ltx:proof" | "ltx:TOC")
+            },
+            attrs:   &[],
+            holder:  |_| true,
+          },
           AutoOpenBridge {
             chain:   &["ltx:item", "ltx:para"],
             applies: |cur, qsym| cur == qsym,

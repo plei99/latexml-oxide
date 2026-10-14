@@ -1654,7 +1654,7 @@ impl MathParser {
   /// hint), its last the partner (or `\right.`'s), nothing closing it earlier — is replaced by its children, so the
   /// parser sees the stream `\left( … \right)` gives; references to a dissolved wrap (a split row's `MathFork`) are
   /// retargeted to its children.
-  /// OXIDIZED_DESIGN #576 (Perl `not_parsed:>OPEN`, KNOWN_PERL_ERRORS #644).
+  /// OXIDIZED_DESIGN #580 (Perl `not_parsed:>OPEN`, KNOWN_PERL_ERRORS #660).
   ///
   /// Done for the whole formula before any of it is parsed, innermost wraps first: a split row's `MathFork` reads the
   /// cells through `XMRef`s, and its content branch is parsed before the cells.

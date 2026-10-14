@@ -12849,7 +12849,174 @@ col 17, the `$` after `'`; col 19, the closing `$$`), the tag math "1.2" with it
 `$$\align … \endalign$$` also land on the equationgroup rather than their rows. Fixed in Rust (amstex.rs `amstex_tag`:
 amsmath's `\tag` markup). Where TeX itself errs on a `\tag`, ours recovers: OXIDIZED_DESIGN_DIVERGENCES #575.
 
-## 644. `\right` closes its group before reading its delimiter; `\mathopen{}\mathclose\bgroup\left` is unparsed
+## 644. url's `\path` replaces a document's own `\path`
+
+url.sty.ltxml:85 `DefMacro('\path', …)` unconditionally; url.sty:204-205 declares it only if undefined
+(`\@ifundefined{path}{\DeclareUrlCommand\path{\urlstyle{tt}}}{}`, "picTeX defines \path"). Trigger:
+
+```latex
+\documentclass{article}
+\newcommand{\path}{\rho}
+\usepackage{url}
+\begin{document}
+A path $\path v\in W$ ends here.
+\end{document}
+```
+
+→ the math's `\path` reads `v\in W$ ends…` as a URL: "Missing $ inserted"; pdflatex 0 errors, ρ. Witness 2605.13185
+(url loaded late by orcidlink → hyperref). Fixed in Rust (url_sty.rs: `\path` only if undefined); repro
+package-bindings/url_path_keeps_user_definition.
+
+## 645. braket's lowercase `\set` splits at `\|`
+
+braket.sty.ltxml `splitBraketArg` splits `\set`'s argument at `|` or `\|` (L27-54, L117-121); braket.sty:61-64 makes
+only `|` special in `\set` (`\let|\midvert`), binding `\|` to `\SetDoubleVert` in `\Set` alone (:66-70). Trigger:
+
+```latex
+\documentclass{article}
+\usepackage{braket}
+\def\bz{\left(}\def\jz{\right)}
+\begin{document}
+$\set{D\bz a\|b\jz|M\in N}$
+\end{document}
+```
+
+→ the split falls inside the hidden `\left(…\right)`: "Extra \right."; pdflatex 0 errors. Witness 2605.31379. Fixed
+in Rust (braket_sty.rs `split_braket_arg(…, double_bar_splits)` false for `\set`); repro
+package-bindings/braket_set_double_bar_is_operand. The split also never cuts inside a visible `\left…\right` pair
+(`\braket{\phi|\left[m|R|^2\right]|\psi}`, 2606.06185; braket.sty:33's `\braket` splits nowhere); repro
+package-bindings/braket_bar_inside_left_right.
+
+## 646. `\mathversion` matches its argument unexpanded
+
+latex_constructs.pool.ltxml:5290-5297 `\mathversion{}` compares `ToString($version)` with `bold`/`normal`;
+latex.ltx:10545-10554 expands the name (`\csname mv@#1\endcsname`, `\edef\math@version{#1}`). figureversions.sty:169-179
+(XCharter, via fontaxes) calls `\mathversion{\l_tmpa_str}` from its `\boldmath`, an "Unknown math version" Error in both
+engines when the package is raw-loaded (Perl never loads XCharter: 0 errors there). Witnesses 2605.11518, 2605.12374,
+2605.22763. Fixed in Rust (sect13.rs `\mathversion Expanded`); repro fonts-nfss/mathversion_expands_its_argument.
+
+## 647. authblk's `\affil` is not robust
+
+authblk.sty.ltxml:57 `DefMacro('\affil OptionalSemiverbatim {}', …)`; authblk.sty:148 `\newcommand\affil[2][]` is
+robust (`\@protected@testopt`). An `\affil` inside `\author` is expanded by titling's `\protected@xdef\theauthor{\@author}`:
+
+```latex
+\documentclass{article}
+\usepackage{authblk}
+\usepackage{titling}
+\begin{document}
+\title{T}
+\author{Ann Author$^1$ \affil{$^1$Some University}}
+\maketitle
+Body.
+\end{document}
+```
+
+→ "\fi \iffalse" and the body lost (witness 2605.03796: 7,748 words → 15); pdflatex 0 errors. Fixed in Rust
+(authblk_sty.rs `\affil` robust); repro sectioning-frontmatter/authblk_affil_in_author_under_titling.
+
+## 648. appendix.sty's internal layer is missing
+
+appendix.sty.ltxml:41-45 defines the `\if@do…@pp` switches but not `\if@chapter@pp`, `\@resets@pp`, `\@resets@ppsub` or
+`\clear@ppage` (appendix.sty:36-40, :100-101, :181-205, :246-264). Classes that re-dress `appendices` over them
+(sn-jnl.cls; wlscirep.cls:221-245, "copied from sn-jnl.cls") then meet `Error:undefined:\@resets@pp` (witness 2606.09094;
+repro sectioning-frontmatter/appendix_internals_resets_pp). Fixed in Rust (appendix_sty.rs: the counter resets and
+lettering `\appendices` makes too; `\clear@ppage` a page break, nothing).
+
+## 649. The AMS classes lack `\@classname` and `\subjclassname@<year>`
+
+ams_support.sty.ltxml:131-137 defines `\subjclassname` from `\@subjclassyear` only; amsart.cls:58-60 defines
+`\@classname` (the top of `\@currnamestack`: the file that loaded amsart, or amsart itself under `\documentclass`) and :781-789 `\subjclassname@1991/2000/2010/2020`. A class built on
+amsart that re-dresses `\subjclass` over them (quantumdust.cls:278-286 `\@ifundefined{subjclassname@#1}{\ClassWarning
+{\@classname}…}`) meets `Error:undefined:\@classname` (witness 2606.20943; repro
+class-bindings/amsart_classname_and_subjclass_editions). Fixed in Rust: `\@classname` in the class bindings
+(amsart_cls.rs, amsproc_cls.rs, amsbook_cls.rs, read in the class's own load), the editions in ams_support_sty.rs.
+
+## 650. The AMS-TeX pool defines amsppt.sty's front matter
+
+AmSTeX.pool.ltxml:133-138 defines `\topmatter`, `\title … \endtitle`, `\author`, `\thanks`, `\abstract`; amstex.tex
+defines none of them (amsppt.sty:298-414 does). A document that defines its own `\title#1` before `\input amstex` (AGT's
+gtmacros.tex:806, agtout.tex:16) has it replaced, and `\title{…}` scans for `\endtitle` to the end of the file
+(math0103177 and 6 more: Fatal `Mouth:EoF`). Minimal: `\def\title#1{\def\thetitle{#1}} \input amstex
+\title{T} \thetitle \bye`. Fixed in Rust: the front matter is amsppt_sty.rs's (repro
+loader/amstex_title_before_input_stays_the_documents).
+
+## 651. The AMS-TeX pool lacks `\RIfM@` and `\RIfMIfI@`
+
+amstex.tex:72-73 `\def\RIfM@{\relax\ifmmode}`, `\def\RIfMIfI@{\relax\ifmmode\ifinner}` are the mode tests AMS-TeX's
+macro files use (Michor's diag.tex: math9611223 and 6 more, `Error:undefined:\RIfM@` then too many errors; 6 of the 7
+out of their Fatal). Fixed in
+Rust (amstex.rs; repro macro-state/amstex_rifm_mode_test).
+
+## 652. sv_support's `\institute` keeps its `\at` sentinel in a labelled affiliation
+
+sv_support.sty.ltxml:43-47 splits `\institute{name \at place \and …}` with `\lx@sv@institute@#1\at\done` and `Until:\at
+Until:\done`, so a labelled piece's text ends with the sentinel `\at`. `\at` is `\relax` there, but a document may define
+its own (`\newcommand\at[2]{\left.#1\right|_{#2}}`; `\relax` counts as undefined), which then runs at the affiliation's
+end with its arguments missing (1404.4148; Perl 4 Errors, ours a Fatal before 66h). Fixed in Rust: sv_support_sty.rs
+strips the sentinel (repro sectioning-frontmatter/svjour3_institute_with_document_at_macro).
+
+## 653. float.sty's `\newfloat` is a primitive
+
+float.sty.ltxml:39 `DefPrimitive('\newfloat{}{}{}[]', …)`; float.sty:54 `\newcommand\newfloat[3]{…}` is a macro, and
+scrhack's floatbytocbasic.sty:40-75 patches it (`\let\deffloat\newfloat` then `\xpretocmd\deffloat{…}{}{\PackageError…}`):
+on the primitive the patch fails and the failure branch's error is raised, its help text `\edef`'d (floatbytocbasic.sty:73's
+own `\Messagebreak` typo becomes an undefined-command error; 2606.04906, 2606.11358). Fixed in Rust: float_sty.rs, a macro
+over the primitive `\lx@float@newfloat` (repro package-bindings/scrhack_patches_newfloat).
+
+## 654. `\fnum@figure`/`\fnum@table` are undefined, so babel's ini caption templates loop
+
+Base_Utility.pool.ltxml:1041-1056 composes a float's tag without `\fnum@<type>`, which LaTeX's classes define
+(article.cls:457/469). babel.sty:2959-2965 re-defines `\fnum@table` over its current body for a language whose ini file
+carries caption templates (`\foreignlanguage{lithuanian}{x}` loads babel-lt.ini on demand); undefined, the body is the
+token `\fnum@table` itself and the first table caption recurses (2605.29738; Perl terminated). Minimal:
+`\usepackage[english]{babel} … \foreignlanguage{lithuanian}{x} \begin{table}\caption{A}\end{table}`. Fixed in Rust
+(OXIDIZED_DESIGN_DIVERGENCES #579; repro captions-floats/babel_ini_caption_template_needs_fnum).
+
+## 655. The REVTeX binding lacks `\@email`, `\@homepage` and `\frontmatter@footnote`
+
+revtex4_support.sty.ltxml:55-56 binds `\email` and `\homepage` alone. revtex4-1.cls:2383-2392 (4.0 and 4.2 alike) has `\email` =
+`\begingroup\sanitize@url\@email{#1}` with `\@email` closing the group, which classes re-dress (cej.cls:88; 0710.1022,
+1201.4230: with only `\sanitize@url` defined the group stayed open, `%` other to the document's end); and revtex4-2.cls:2472
+`\frontmatter@footnote`, which documents call for a note on several authors (2605.04155). Fixed in Rust
+(revtex4_support_sty.rs, revtex4_cls.rs; repros class-bindings/revtex_email_redressed_over_sanitize_url,
+sectioning-frontmatter/revtex_frontmatter_footnote_on_two_authors).
+
+## 656. The amsrefs binding lacks `{bibchapter}` and the `\MR` internals
+
+amsrefs.sty.ltxml binds `{bibdiv}`/`{biblist}`; amsrefs.sty:1242-1250 `{bibchapter}` (the heading `{bibdiv}` is under a
+class with chapters) and :2673-2690 `\strip@MRprefix`/`\MRhref` (with `msc-links` and `\href`, :2933-2950's linking
+`\MRhref` and `\parse@MR`), which a paper's own `\MR` re-dress calls (0806.1269, 1612.01009, 1706.05540 and 2 more), are
+missing; nor does its `msc-links` load hyperref (amsrefs.sty:198-205). Fixed in Rust (amsrefs_sty.rs; repros
+index-bib/amsrefs_bibchapter, index-bib/amsrefs_document_mr_redress).
+
+
+## 657. `\pmod` sets `mod` with `\rm`, which memoir makes an error
+
+math_common.pool.ltxml:777 `DefMath('\pmod{}', '\;\;(\mathop{{\rm mod}} #1)', …)` is plain.tex:1089's body; latex.ltx:15560
+(and amsmath.sty:909) sets `mod` in `\operator@font`. memoir.cls:6903 makes `\rm` a class error unless the
+`oldfontcommands` option is given (`\@memoldfonterr`, :6891), so under memoir every `\pmod` reports it. Trigger:
+
+```tex
+\documentclass{memoir}
+\begin{document}
+$a \equiv b \pmod{2}$
+\end{document}
+```
+
+→ Perl: 1 `Error:latex:(memoir)` "Font command \rm is not supported" per `\pmod` (simulated with `\def\rm{\ClassError…}`,
+as Perl does not load memoir.cls raw to the end), and `mod` as three italic letters; pdflatex 0 errors. Fixed in Rust:
+the LaTeX layer (latex_constructs sect07.rs, beside `\operator@font`) defines `\pmod` with `{\operator@font mod}`; plain
+keeps `{\rm mod}`. Guard `pmod_operator_font::pmod_under_memoir_is_an_upright_operator_without_errors`.
+
+## 658. A math `'` does not absorb `\sp`
+
+math_common.pool.ltxml:109-124 `\active@math@prime` combines a following superscript only when `$gullet->ifNext(T_SUPER)`,
+which compares the token itself (Gullet.pm:596-600). latex.ltx's `\pr@m@s` (:15687) tests `\ifx^\@let@token`, a comparison
+by meaning, and `\sp` is `\let\sp=^` (:15666). derivative.sty writes a variable's order with `\sp`, so `\pdv[order=2]{}{x'}`
+gives `x'\sp{2}`. Trigger:
+
+## 660. `\right` closes its group before reading its delimiter; `\mathopen{}\mathclose\bgroup\left` is unparsed
 
 TeX_Math.pool.ltxml:786-799: `\right` unreads `\lx@hidden@egroup@right` and `\lx@right`, so the `\left` group closes
 before the delimiter is read; tex.web §1191 reads the delimiter, then `unsave`s. An `\aftergroup` inside
@@ -12858,6 +13025,34 @@ before the delimiter is read; tex.web §1191 reads the delimiter, then `unsave`s
 ```tex
 \documentclass{article}
 \begin{document}
+$x'\sp{2}$
+\end{document}
+```
+
+→ Perl: "Double superscript"; pdflatex 0 errors, `x^{\prime 2}`. Fixed in Rust: `\active@math@prime` (math_common.rs)
+tests the next token with `defined_as(T_SUPER)`. Guard `math_prime_meaning_superscript::prime_then_sp_is_one_superscript`.
+
+## 659. A theorem or a sectioning unit inside a `quote` is "isn't allowed in <ltx:quote>"
+
+latex_constructs.pool.ltxml:1271-1278 builds `quote`/`quotation`/`verse` as `<ltx:quote>#body</ltx:quote>`; the schema's
+`quote_model` (`Block.model`) admits neither a theorem nor a sectioning unit, and `ltx:quote` is not auto-closable, so
+`find_insertion_point` (Document.pm:974-1010) finds no place. In TeX a quote is a list (article.cls:405-408) and both are
+typeset inside it, indented. Trigger:
+
+```tex
+\documentclass{article}
+\newtheorem{thm}{Theorem}
+\begin{document}
+\begin{quote}
+\begin{thm}Inner.\end{thm}
+\end{quote}
+\end{document}
+```
+
+→ Perl: `Error:malformed:ltx:theorem <ltx:theorem> isn't allowed in <ltx:quote>` (`\section*` in a quote likewise,
+`ltx:section`; moduli.cls's `\tableofcontents` does that); pdflatex 0 errors. Fixed in Rust: OXIDIZED_DESIGN_DIVERGENCES
+#271 addendum.
+
 \[ \mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right) \]
 \end{document}
 ```
@@ -12867,4 +13062,4 @@ before the delimiter is read; tex.web §1191 reads the delimiter, then `unsave`s
 grouping written out (`\mathopen{}\mathclose{\left( x \right)}`) Perl is still `not_parsed:>OPEN`: an empty OPEN atom
 and a CLOSE wrap no grammar rule reads. Raw-loaded physics2's `\ab` and papers' `\left` redefinitions produce it
 (2605.22010, 2605.13448; 2605.21750 carries the redefinition too, but its unparsed formulas are another shape); Perl's
-mleftright and mathtools bindings use plain `\left`/`\right`. Fixed in Rust: OXIDIZED_DESIGN_DIVERGENCES #576.
+mleftright and mathtools bindings use plain `\left`/`\right`. Fixed in Rust: OXIDIZED_DESIGN_DIVERGENCES #580.

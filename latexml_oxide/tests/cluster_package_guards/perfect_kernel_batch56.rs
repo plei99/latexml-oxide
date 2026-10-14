@@ -6063,7 +6063,7 @@ fn let_at_left_left_does_not_loop() {
     "{xml}"
   );
   // The `\mathopen{}\mathclose\bgroup\left` idiom reads as its `\left…\right`
-  // (OXIDIZED_DESIGN #576; Perl leaves it unparsed), never as an empty `list@()`
+  // (OXIDIZED_DESIGN #580; Perl leaves it unparsed), never as an empty `list@()`
   // that drops the operands (56is).
   assert!(!xml.contains("list@()"), "{xml}");
   assert_eq!(warning_count(&stderr), 0, "{stderr}");
@@ -9480,7 +9480,7 @@ fn biber_bib_percent_comments_keep_the_entry() {
 /// OPEN and a CLOSE that carries the `x`: the generic `open close` alternative
 /// built `list@()` and dropped the `x` from the content tree, silently (arXiv
 /// 2605.13448: 98 formulas; 2605.22010: 160). Perl leaves it unparsed with its
-/// content kept. Since OXIDIZED_DESIGN #576 the empty OPEN is dropped and the CLOSE wrap
+/// content kept. Since OXIDIZED_DESIGN #580 the empty OPEN is dropped and the CLOSE wrap
 /// of one fence let through before parsing, so it reads as `\left(x\right)` does: `x`,
 /// never `list@()`. An OPEN atom before a CLOSE that is no fence (`\mathopen{y}\mathclose{x}`)
 /// still meets the empty-fence alternative and is rejected. A balanced empty fence still parses.

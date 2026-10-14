@@ -445,7 +445,18 @@ LoadDefinitions!({
     // Combine with any following superscript!
     // However, this is semantically screwed up!
     // We really need to set up separate superscripts, but at same level!
-    if if_next(T_SUPER!())? {
+    // By meaning, as latex.ltx's `\pr@m@s` tests `\ifx^\@let@token` (:15687): `\sp` (`\let\sp=^`, :15666) is a
+    // superscript too. Perl's `ifNext` compares the token itself (math_common.pool.ltxml:118), so derivative.sty's
+    // `x'\sp{2}` (`\pdv[order=2]{}{x'}`) was a double superscript: KNOWN_PERL_ERRORS #658.
+    let superscript_next = match read_token()? {
+      Some(next) => {
+        let is_superscript = next.defined_as(&T_SUPER!());
+        unread_one(next);
+        is_superscript
+      },
+      None => false,
+    };
+    if superscript_next {
       read_token()?;
       let arg = read_arg(ExpansionLevel::Off)?;
       let arg_tks = arg.unlist();

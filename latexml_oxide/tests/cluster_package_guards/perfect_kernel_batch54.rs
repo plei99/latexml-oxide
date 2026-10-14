@@ -5621,7 +5621,7 @@ fn physics2_delopen_delclose_active_pipe_reduced() {
   let (stderr, xml) = convert(tex, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   // The `\langle … \rangle` fence the idiom wraps keeps both delimiters (its `\mathclose` wrap is let through
-  // before parsing, OXIDIZED_DESIGN #576).
+  // before parsing, OXIDIZED_DESIGN #580).
   assert!(
     xml.contains(r#"name="langle" role="OPEN" stretchy="true">⟨"#)
       && xml.contains(r#"name="rangle" role="CLOSE" stretchy="true">⟩"#),

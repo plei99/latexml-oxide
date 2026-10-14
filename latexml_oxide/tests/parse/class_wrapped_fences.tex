@@ -1,8 +1,8 @@
 % The spacing idiom `\mathopen{}\mathclose{\left( … \right)}` reads as its `\left( … \right)` (OXIDIZED_DESIGN
-% #576): `\right` reads its delimiter before it closes its group (tex.web §1191), so the
+% #580): `\right` reads its delimiter before it closes its group (tex.web §1191), so the
 % `\aftergroup\egroup` of `\mathclose\bgroup\left … \aftergroup\egroup\right` closes the `\mathclose` group after the
 % fence; the parser drops the empty OPEN atom and lets the CLOSE wrap holding one fence through
-% (`parser.rs::dissolve_class_wraps`). Perl: `not_parsed:>OPEN` for every row (KNOWN_PERL_ERRORS #644).
+% (`parser.rs::dissolve_class_wraps`). Perl: `not_parsed:>OPEN` for every row (KNOWN_PERL_ERRORS #660).
 \documentclass{article}
 \usepackage{amsmath}
 \begin{document}

@@ -59,7 +59,7 @@ fn left_right_are_unexpandable() {
 /// 0 errors. The right delimiter is read before the `\left` group closes, so the `\aftergroup\egroup` closes the
 /// `\mathclose` group after it (tex.web §1191; Perl reads it after, leaving `(` unmatched), and the parser lets the
 /// empty OPEN and the CLOSE wrap of one fence through: the formulas read as their `\left…\right` do, 0 warnings
-/// (OXIDIZED_DESIGN #576; Perl leaves them unparsed, one warning each).
+/// (OXIDIZED_DESIGN #580; Perl leaves them unparsed, one warning each).
 #[test]
 fn let_left_wrapped_in_mathclose() {
   let (log, xml) = convert_with(

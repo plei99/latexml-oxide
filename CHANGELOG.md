@@ -35,7 +35,7 @@
     is TeX's, and the parser reads an empty `\mathopen{}`/`\mathclose{}` and a
     `\mathclose`/`\mathopen` around one fence as spacing: the idiom parses as its
     `\left…\right` (2605.22010: unparsed formulas 287 → 5, every reading equal to
-    the paper's without its redefinition). OXIDIZED_DESIGN #576; guard
+    the paper's without its redefinition). OXIDIZED_DESIGN #580; guard
     `tests/parse/class_wrapped_fences`.
 
   - **A null delimiter no longer prints "CLOSE" or "OPEN".** The fence partner
@@ -48,6 +48,37 @@
     rendered as an invisible placeholder. Guards
     `cluster_null_delimiter_renders_invisible`,
     `cluster_mathclose_aftergroup_right_prints_no_role`.
+
+  - **spectralsequences loads raw; its diagrams are drawn.** A Rust-only stub
+    dropped every `sseqdata`/`sseqpage` diagram silently, never loaded the
+    `backgrounds` TikZ library the package loads (`on background layer`
+    unknown), and replaced the kernel's `\d` underdot accent with a gobbler
+    (`\d["g_0", ->]2(2,0)` left `g_0` as text). The stub is gone; the raw
+    package needs pgfmath's `\ifpgfmathunitsdeclared` set globally, as pgf and
+    Perl set it, since it parses inside a group. Witnesses 2503.01123,
+    2503.08789, 2503.01690, 2503.08930 unchanged.
+
+  - **XeTeX's line-breaking parameters under the `xetex` profile.**
+    `\XeTeXlinebreaklocale`, `\XeTeXlinebreakskip` and `\XeTeXlinebreakpenalty`
+    (set by Chinese documents after `\usepackage{xeCJK}`) were undefined; they
+    are now read and kept, as HTML leaves line breaking to the browser.
+
+  - **A theorem or section inside a `quote` stays in the quote.** Both were
+    "isn't allowed in <ltx:quote>" errors (an author's theorem in a quote; a
+    class `\tableofcontents` wrapping its heading in one, as moduli.cls does).
+    The unit now opens a sectional block in the quote, the theorem a logical
+    block. OXIDIZED_DESIGN #271 addendum, KNOWN_PERL_ERRORS #659.
+
+  - **A math `'` followed by `\sp` is one superscript.** The prime absorbed a
+    following `^` only as that token, not by meaning as LaTeX's `\pr@m@s` does,
+    so `\sp` (derivative.sty's `\pdv[order=2]{}{x'}`) gave "Double
+    superscript". KNOWN_PERL_ERRORS #658.
+
+  - **`\pmod` no longer errors under memoir.** Its `mod` was set with plain
+    TeX's `{\rm mod}`, and memoir makes `\rm` a class error, so every `\pmod`
+    reported "Font command \rm is not supported" and printed `mod` as italic
+    letters. The LaTeX layer now sets it in `\operator@font`, as latex.ltx
+    does. KNOWN_PERL_ERRORS #657.
 
   - **The XSLT recursion cap now applies in the statically linked release
     binaries.** `xsltMaxDepth = 1000` (Perl `XML::LibXSLT->max_depth(1000)`) was
