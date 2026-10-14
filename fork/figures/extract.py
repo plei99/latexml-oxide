@@ -119,7 +119,15 @@ def main():
             lead = sseqdata if kind == "printpage" else ""
             new = (f"% lxo-path: {os.path.dirname(path)}\n{pre}\\begin{{document}}\\pagestyle{{empty}}"
                    f"\\thispagestyle{{empty}}\n{lead}{fig}\n\\end{{document}}\n")
-            doc = os.path.join(src, ident + ".tex")
+            # Beside links to everything in the document's directory, so its images and \\input files resolve as in
+            # the document (an image outside the source's directory is copied by a path that leaves the destination).
+            ddir = os.path.join(src, doc_id)
+            if not os.path.isdir(ddir):
+                os.makedirs(ddir)
+                for entry in os.listdir(os.path.dirname(path)):
+                    if not entry.startswith("."):
+                        os.symlink(os.path.join(os.path.dirname(path), entry), os.path.join(ddir, entry))
+            doc = os.path.join(ddir, ident + ".tex")
             if not os.path.exists(doc) or open(doc).read() != new:  # stable mtimes for refs.sh
                 open(doc, "w").write(new)
             corpus.append(f"{ident}\t{doc}\n")
