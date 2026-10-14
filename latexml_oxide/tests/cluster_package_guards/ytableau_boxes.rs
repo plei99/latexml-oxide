@@ -33,5 +33,9 @@ fn young_tableau_cells_are_bordered_boxes() {
   }
   // 5 tableau boxes + 3 diagram boxes, each bordered on all four sides and sized as a box.
   assert_eq!(xml.matches(r#"border="b l r t""#).count(), 8, "{xml}");
-  assert_eq!(xml.matches(r#"height="15.0pt" width="15.0pt">"#).count(), 8, "{xml}");
+  assert_eq!(
+    xml.matches(r#"height="15.0pt" width="15.0pt">"#).count(),
+    8,
+    "{xml}"
+  );
 }

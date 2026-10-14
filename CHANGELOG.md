@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+  - **`\setbeamertemplate{…}[option]` no longer prints its option.** The beamer
+    stub read two mandatory arguments, so `\setbeamertemplate{theorems}[numbered]`
+    left `numbered]` in the document; it now reads a body or `[…]` options, as
+    beamer does.
+
   - **Bare colours in pgf `.search also` key paths are applied.**
     `\pgfkeys@mainstop` and `\pgfkeysvaluerequired` were primitives, never
     `\ifx`-equal to the macros pgf compares them with, so every search-also
