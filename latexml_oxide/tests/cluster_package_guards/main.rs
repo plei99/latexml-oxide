@@ -77,6 +77,7 @@ mod pmod_operator_font;
 mod preclass_kernel_autoload;
 mod process_key_options_sees_load_options;
 mod pstricks_drawing;
+mod quote_block_bridges;
 mod raw_classoptionslist_recorded;
 mod raw_provides_version_survives;
 mod rawclasses_binding_precedence_and_no_omnibus;

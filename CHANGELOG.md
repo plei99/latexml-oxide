@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+  - **A theorem or section inside a `quote` stays in the quote.** Both were
+    "isn't allowed in <ltx:quote>" errors (an author's theorem in a quote; a
+    class `\tableofcontents` wrapping its heading in one, as moduli.cls does).
+    The unit now opens a sectional block in the quote, the theorem a logical
+    block. OXIDIZED_DESIGN #271 addendum, KNOWN_PERL_ERRORS #659.
+
   - **A math `'` followed by `\sp` is one superscript.** The prime absorbed a
     following `^` only as that token, not by meaning as LaTeX's `\pr@m@s` does,
     so `\sp` (derivative.sty's `\pdv[order=2]{}{x'}`) gave "Double

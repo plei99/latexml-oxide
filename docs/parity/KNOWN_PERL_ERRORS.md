@@ -13025,3 +13025,24 @@ $x'\sp{2}$
 
 → Perl: "Double superscript"; pdflatex 0 errors, `x^{\prime 2}`. Fixed in Rust: `\active@math@prime` (math_common.rs)
 tests the next token with `defined_as(T_SUPER)`. Guard `math_prime_meaning_superscript::prime_then_sp_is_one_superscript`.
+
+## 659. A theorem or a sectioning unit inside a `quote` is "isn't allowed in <ltx:quote>"
+
+latex_constructs.pool.ltxml:1271-1278 builds `quote`/`quotation`/`verse` as `<ltx:quote>#body</ltx:quote>`; the schema's
+`quote_model` (`Block.model`) admits neither a theorem nor a sectioning unit, and `ltx:quote` is not auto-closable, so
+`find_insertion_point` (Document.pm:974-1010) finds no place. In TeX a quote is a list (article.cls:405-408) and both are
+typeset inside it, indented. Trigger:
+
+```tex
+\documentclass{article}
+\newtheorem{thm}{Theorem}
+\begin{document}
+\begin{quote}
+\begin{thm}Inner.\end{thm}
+\end{quote}
+\end{document}
+```
+
+→ Perl: `Error:malformed:ltx:theorem <ltx:theorem> isn't allowed in <ltx:quote>` (`\section*` in a quote likewise,
+`ltx:section`; moduli.cls's `\tableofcontents` does that); pdflatex 0 errors. Fixed in Rust: OXIDIZED_DESIGN_DIVERGENCES
+#271 addendum.
