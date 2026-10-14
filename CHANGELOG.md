@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+  - **spectralsequences loads raw; its diagrams are drawn.** A Rust-only stub
+    dropped every `sseqdata`/`sseqpage` diagram silently, never loaded the
+    `backgrounds` TikZ library the package loads (`on background layer`
+    unknown), and replaced the kernel's `\d` underdot accent with a gobbler
+    (`\d["g_0", ->]2(2,0)` left `g_0` as text). The stub is gone; the raw
+    package needs pgfmath's `\ifpgfmathunitsdeclared` set globally, as pgf and
+    Perl set it, since it parses inside a group. Witnesses 2503.01123,
+    2503.08789, 2503.01690, 2503.08930 unchanged.
+
   - **XeTeX's line-breaking parameters under the `xetex` profile.**
     `\XeTeXlinebreaklocale`, `\XeTeXlinebreakskip` and `\XeTeXlinebreakpenalty`
     (set by Chinese documents after `\usepackage{xeCJK}`) were undefined; they

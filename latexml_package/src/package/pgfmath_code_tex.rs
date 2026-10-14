@@ -731,7 +731,13 @@ fn pgfmath_apply_user(name: &str, args: &[f64], arg_ints: &[bool]) -> UserApply 
   // Perl, where `\ifpgfmathunitsdeclared` is a persistent global threaded
   // through nested evaluations. Fixes `bar shift={\pgfplotbarwidth}` under
   // `symbolic x coords` (2110.14597).
-  let _ = digest(Tokens::from(vec![T_CS!("\\pgfmathunitsdeclaredfalse")]));
+  // `\global`, as pgf sets the flag everywhere (pgfmathparser.code.tex:51-52, 443-526) and Perl does
+  // (`SetCondition(…, 'global')`): a parse inside a group (spectralsequences' `\sseq@pgfmathparse`,
+  // `\bgroup…\egroup`, sseqparsers.code.tex:41-49) must not lose it at the `\egroup`.
+  let _ = digest(Tokens::from(vec![
+    T_CS!("\\global"),
+    T_CS!("\\pgfmathunitsdeclaredfalse"),
+  ]));
   // Digest the invocation (sets \pgfmathresult) inside the parse's group
   // (`pgfmath_grammar::evaluate`): what the body defines locally — a tikzmath function's
   // parameters `\cx=#1` — is seen by later calls of the same parse and gone after it. Ungrouped
@@ -905,7 +911,7 @@ mod pgfmath_grammar {
         "\\pgfmathunitsdeclaredfalse"
       };
       let _ = digest(Tokens::from(vec![T_CS!("\\endgroup")]));
-      let _ = digest(Tokens::from(vec![T_CS!(units)]));
+      let _ = digest(Tokens::from(vec![T_CS!("\\global"), T_CS!(units)]));
     }
     (result, stream.state)
   }
@@ -2052,7 +2058,9 @@ LoadDefinitions!({
     let input = expanded.to_string();
     let (result, units) = pgfmathparse_eval_with_units(&input);
     let mut toks = pgfmath_result_tokens_str(&result);
-    // Perl: \ifpgfmathunitsdeclared flag — used by tikz's \tikz@checkunit
+    // Perl: \ifpgfmathunitsdeclared flag — used by tikz's \tikz@checkunit. Global, as pgf and Perl set it: a parse
+    // in a group (`\bgroup\pgfmathparse{2em}\egroup`) keeps it.
+    toks.push(T_CS!("\\global"));
     if units {
       toks.push(T_CS!("\\pgfmathunitsdeclaredtrue"));
     } else {

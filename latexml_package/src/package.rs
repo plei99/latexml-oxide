@@ -435,7 +435,6 @@ pub mod tu_fontmap;
 pub mod u_fontmap;
 // smfart_cls: removed; Perl has no binding either, falls through to OmniBus.
 pub mod soul_sty;
-pub mod spectralsequences_sty;
 // sprocl_sty removed — papers bundle their own sprocl.sty; raw-load now.
 pub mod srcltx_sty;
 pub mod standalone_cls;
