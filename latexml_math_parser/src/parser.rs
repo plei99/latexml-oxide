@@ -2206,8 +2206,11 @@ impl MathParser {
   /// Rather than add open-ended grammar rules — which would make every balanced
   /// `( … )` ambiguous with a dangling reading and inflate the parse forest on
   /// the ~99 % of math that is balanced — we re-supply the delimiter that TeX
-  /// says is there. The synthesized `XMTok` carries the fence `role` but **empty
-  /// text**, so it renders as nothing, which is exactly `\right.`'s semantics.
+  /// says is there. The synthesized `XMTok` carries the fence `role`, **empty
+  /// text** and `meaning="absent"`, so it renders as a zero-width invisible
+  /// placeholder: `\right.`'s empty fence, less the 1.2pt `\nulldelimiterspace`
+  /// (Perl drops it too). Empty text alone is not enough: the MathML fallback for
+  /// an empty token prints its role.
   ///
   /// Balanced input is untouched: the scan finds no imbalance and returns.
   ///
@@ -2230,6 +2233,11 @@ impl MathParser {
     let mut synth = |role: &str, text: &str, nodes: &mut Vec<Node>| -> Result<String> {
       let mut tok = document.open_element_at(mathnode, "ltx:XMTok", None, None)?;
       document.set_attribute(&mut tok, "role", role)?;
+      // `absent`, the XMath mark of an empty atom — an empty `\mathopen{}` wrap parses to the same
+      // (Perl MathParser.pm L683 `Absent()`, above) — so the presentation renders it invisibly. An
+      // empty token with no meaning falls back to its role name (Perl MathML.pm L709-714
+      // `stylizeContent`), and `\left( a+b \right.` printed "CLOSE".
+      document.set_attribute(&mut tok, "meaning", "absent")?;
       document.close_element_at(&mut tok)?;
       tok.unlink();
       nodes.push(tok);

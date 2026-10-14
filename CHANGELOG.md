@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+  - **A null delimiter no longer prints "CLOSE" or "OPEN".** The fence partner
+    the parser re-supplies for TeX's null delimiter (OXIDIZED_DESIGN #67) was an
+    empty token without a meaning, which the MathML fallback for empty content
+    renders as its role: `\left( a+b \right.` showed a visible "CLOSE" and
+    `\left. a+b \right)` an "OPEN". The same repair runs inside physics2's
+    `\ab(x)`, whose `\mathclose` group LaTeXML ends before `\right`'s `)`
+    (TeX after it), so it printed "(x CLOSE)". The token is now `absent`,
+    rendered as an invisible placeholder. Guards
+    `cluster_null_delimiter_renders_invisible`,
+    `cluster_mathclose_aftergroup_right_prints_no_role`.
+
   - **The XSLT recursion cap now applies in the statically linked release
     binaries.** `xsltMaxDepth = 1000` (Perl `XML::LibXSLT->max_depth(1000)`) was
     written through `dlsym`, which cannot see a global of a statically linked

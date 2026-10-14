@@ -2333,7 +2333,8 @@ content correctly and can never emit *fewer* errors than Perl.
 ### 67. A fence split by TeX's null delimiter is re-balanced before it is given up on
 
 **Perl.** `\left( a+b \right.` is a fence whose right delimiter is *empty*, and
-digestion emits no token for the `.` at all. When such a fence is split across an
+digestion emits only an `XMHint` for the `.` (`TeXDelimiter`, TeX_Math.pool.ltxml
+L721-730), which the parser drops with the other hints. When such a fence is split across an
 alignment break — the standard way to break a long parenthesised expression:
 
 ```latex
@@ -2351,8 +2352,18 @@ formula degrades to unstructured markup.
 unmatched `OPEN`, same bare `CLOSE` — so this is purely a parser difference. When
 the grammar returns **zero** derivations, `parser.rs::balance_null_delimiters`
 re-supplies the delimiter TeX says is there and retries once. The synthesized
-`XMTok` carries the fence `role` but empty text, so it renders as nothing, which
-is exactly `\right.`'s meaning; `tex=` reversions stay verbatim
+`XMTok` carries the fence `role`, empty text and `meaning="absent"` (the XMath
+mark of an empty atom: an empty `\mathopen{}` wrap parses to the same, Perl
+MathParser.pm L683 `Absent()`), so it renders as a zero-width `<m:mphantom/>` —
+`\right.`'s empty fence, less the 1.2pt `\nulldelimiterspace`, which Perl drops
+too. (Without the meaning, the MathML fallback for an empty token printed its
+role: a visible "CLOSE"/"OPEN" in every repaired formula; guard
+`06_cluster_regressions::cluster_null_delimiter_renders_invisible`. The repair
+also reaches physics2's `\ab(x)` — `\mathopen{}\mathclose\bgroup\left( x
+\aftergroup\egroup\right)` — whose `\mathclose` group LaTeXML closes before
+`\right`'s `)`, leaving its `(` unmatched; see SYNC_STATUS "`\right` closes its
+group before its delimiter"; guard `cluster_mathclose_aftergroup_right_prints_no_role`.)
+`tex=` reversions stay verbatim
 (`\left(a+b\right.`). The cells then parse through the *existing* open/close
 fence semantics as `delimited-(@(…)` / `delimited-)@(…)`.
 

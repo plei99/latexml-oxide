@@ -1,0 +1,11 @@
+% physics2's \delopen/\delclose (`\ab(x)`; mleftright.sty and mathtools' starred
+% delimiters use the same idiom, both bound natively here) end the \mathclose group with an \aftergroup'd
+% \egroup inside \left...\right. TeX's \right reads its delimiter before it
+% closes the group (tex.web §1191), so \mathclose holds `\left(x\right)`.
+% LaTeXML's \right closes the group first (Perl TeX_Math.pool.ltxml L786-799),
+% so the \egroup ends \mathclose before `)` and leaves its `(` unmatched; the
+% parser's re-supplied close then printed "CLOSE": "(x CLOSE)".
+\documentclass{article}
+\begin{document}
+\[ \mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right) \]
+\end{document}
