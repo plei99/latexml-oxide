@@ -24,6 +24,17 @@ LoadDefinitions!({
   // `\@mpargs`, whose `Until:[` scan swallows the next `[…]` (biblatex-oxref/oxalph-doc). Guard:
   // `perfect_kernel_batch54::memoir_keeps_native_endminipage`.
   InputDefinitions!("memoir", noltxml => true, extension => Some(Cow::Borrowed("cls")));
+  // memoir is a book: its chapters and sections take the book's sizes (book_cls.rs), not the bare text size.
+  RequireResource!("ltx-book.css");
+  // memoir's lists (`\newlistof`, memoir.cls:7074-7135, 12149-12156) typeset their title and then `\@starttoc`, which
+  // reads `\jobname.toc`: a stale one left by pdflatex printed each `\contentsline`'s hyperref destination as text
+  // (`chapter*.1section*.2…`), and without one the list was only its title; no `ltx:TOC` was made either way. The
+  // bodies they dispatch to (`\mem@tableofcontents{01}`, starred `{00}`) are LaTeXML's lists, built in post-processing
+  // (the kernel's `\lx@tableofcontents`, as tocloft_sty.rs puts them back).
+  RawTeX!(
+    r"\def\mem@tableofcontents#1{\lx@tableofcontents}\def\mem@listoffigures#1{\lx@listoffigures}
+\def\mem@listoftables#1{\lx@listoftables}"
+  );
   // memoir's `\ch@ngetext` (memoir.cls:11237-11245), which its `\changetext`/`\changepage` end
   // with, halves `\columnwidth` for two columns; LaTeXML sets one (changepage_sty.rs).
   RawTeX!(crate::changepage_sty::ONE_COLUMN_CH_NGETEXT);

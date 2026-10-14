@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+  - **memoir's table of contents is LaTeXML's, and memoir is styled as a
+    book.** memoir's `\tableofcontents` (and `\listoffigures`,
+    `\listoftables`, starred or not) read `\jobname.toc`: a stale one left by
+    pdflatex printed each entry's hyperref destination as text
+    (`chapter*.1section*.2…`), and no contents were built either way. They are
+    now the `ltx:TOC` built in post-processing, and memoir documents take
+    `ltx-book.css`, so chapter and section titles have the book's sizes.
+    Guard `memoir_tableofcontents::memoir_lists_are_latexml_tocs`.
+
   - **No gap after a Young diagram.** ytableau zeroes a tableau's width and
     kerns its width after it (to overlay `\ydiagram*`); HTML keeps the box's
     width, so every diagram was followed by as much space again. The binding
