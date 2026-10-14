@@ -39,3 +39,39 @@ fn young_tableau_cells_are_bordered_boxes() {
     "{xml}"
   );
 }
+
+/// In HTML a diagram in math keeps its line and its square boxes. The raw tabular in its `m:mtext` is copied as
+/// Perl's `cloneNode` copies it, its indentation whitespace kept as whitespace: as NBSP it was text in table context,
+/// which the HTML parser moves out in front of the `<table>`, a line of spaces that pushed the diagram below
+/// `\lambda =`. And a cell takes no paragraph indent: `text-indent` inherits, and in the first line of an indented
+/// paragraph each cell's box was pushed 2em right inside a widened cell.
+#[test]
+fn a_diagram_in_math_renders_on_its_line() {
+  let workdir = tempfile::tempdir().expect("create tempdir");
+  let tex = "\\documentclass{amsart}\n\\usepackage{ytableau}\n\\begin{document}\n$\\lambda = \\ydiagram{2,1}$\n\
+             \\end{document}\n";
+  std::fs::write(workdir.path().join("t.tex"), tex).expect("write t.tex");
+  let output = std::process::Command::new(env!("CARGO_BIN_EXE_latexml_oxide"))
+    .args(["t.tex", "--dest", "t.html", "--nocomments", "--timeout=110"])
+    .current_dir(workdir.path())
+    .output()
+    .expect("spawn latexml_oxide");
+  let stderr = String::from_utf8_lossy(&output.stderr).replace('\u{1b}', "");
+  assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+  let html = std::fs::read_to_string(workdir.path().join("t.html")).expect("read t.html");
+  let math =
+    &html[html.find("<math").expect("the formula")..html.find("</math>").expect("its end")];
+  let table = &math[math
+    .find("<table")
+    .expect("the diagram is a table in the formula:\n{html}")..];
+  let rows = &table[..table.find("<td").expect("a cell")];
+  assert!(
+    !rows.contains('\u{a0}'),
+    "no NBSP between the table's rows:\n{math}"
+  );
+  let css = std::fs::read_to_string(workdir.path().join("LaTeXML.css")).expect("read LaTeXML.css");
+  assert!(
+    css.contains(".ltx_tabular { text-indent:0; }"),
+    "a cell takes no paragraph indent"
+  );
+}

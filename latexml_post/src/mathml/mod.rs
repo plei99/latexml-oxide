@@ -1138,8 +1138,13 @@ pub fn pmml_text_aux(doc: &PostDocument, node: &Node, attrs: &TextAttrs) -> Vec<
           // see OXIDIZED_DESIGN #101.
           // Perl `my ($ignore, %mmlattr) = …` — the raw subtree is carried over
           // verbatim below, so only the attributes are wanted here.
+          //
+          // Perl's `cloneNode` keeps the subtree's text as it is: no NBSP for its whitespace, which only
+          // `convertXMTextContent($convertspaces)` and a bare text node (above) get. Converted, the indentation
+          // between a tabular's `<tr>`s became NBSP text, which the HTML parser foster-parents out in front of the
+          // `<table>` — a line of spaces that dropped `$\lambda = \ydiagram{2,1}$` below its line.
           let (_, attributes) = stylize_text_content(Some(node), &attrs, &node.get_content());
-          let cloned = rebuild_text_subtree_with_doc(node, true, Some(doc))
+          let cloned = rebuild_text_subtree_with_doc(node, false, Some(doc))
             .unwrap_or_else(|| NodeData::Text("\u{00A0}".to_string()));
           vec![NodeData::Element {
             tag:        "m:mtext".to_string(),

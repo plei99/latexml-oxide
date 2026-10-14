@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+  - **A graphic outside the source directory is copied into the site, not
+    out of it.** `\includegraphics{../img/p.png}` was copied to
+    `<destination>/../img/p.png`, outside the destination, and the page linked
+    it there. As in Perl (`pathname_is_contained`), a copy keeps its relative
+    path only when it stays within the site directory, and otherwise gets a
+    generated name (`x1.png`). Guard
+    `graphics_copy_stays_in_site::a_graphic_outside_the_source_directory_is_copied_into_the_site`.
+
+  - **A table in math keeps its line, and table cells take no paragraph
+    indent.** Raw markup in an `m:mtext` (a `\ydiagram` in `$\lambda = …$`) is
+    copied verbatim as in Perl, without NBSP for its whitespace: as text in
+    table context the HTML parser moved it in front of the `<table>`, a line of
+    spaces that dropped the table below its line. And `.ltx_tabular` resets
+    `text-indent`, which cells otherwise inherit from an indented paragraph
+    (each ytableau box sat 2em right in a widened cell). Guard
+    `ytableau_boxes::a_diagram_in_math_renders_on_its_line`.
+
   - **`\setbeamertemplate{…}[option]` no longer prints its option.** The beamer
     stub read two mandatory arguments, so `\setbeamertemplate{theorems}[numbered]`
     left `numbered]` in the document; it now reads a body or `[…]` options, as

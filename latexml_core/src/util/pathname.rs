@@ -991,6 +991,13 @@ pub fn relative(pathname: &str, base: &str) -> String {
   abs2rel(Path::new(&canonical_pathname), Path::new(&canonical_base))
 }
 
+/// `pathname` relative to `base` when it lies under `base`, else `None`.
+/// Port of Perl's pathname_is_contained($pathname, $base) (Pathname.pm L178-185).
+pub fn is_contained(pathname: &str, base: &str) -> Option<String> {
+  let rel = canonical(&relative(&absolute(pathname), &absolute(base)));
+  (!(rel == ".." || rel.starts_with("../"))).then_some(rel)
+}
+
 /// Find all matching files (like pathname_findall).
 /// Port of Perl's pathname_findall($pathname, %options).
 pub fn findall(pathname: &str, options: PathnameFindOptions) -> Vec<String> {
