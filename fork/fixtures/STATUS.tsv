@@ -16,8 +16,8 @@ physics__braket	ok
 physics__mqty	ok	
 physics__operators	partial	\grad, \div and \curl render a plain ∇ instead of a bold one.
 physics__vectors	ok	
-physics2__ab	wrong	The parser token "CLOSE" leaks as text: \ab(z q \odv{}{q}) gives "(zq d/dq CLOSE)". This is 1,632 leaks in 45 corpus documents.
-physics2__ab-legacy	wrong	"CLOSE" leaks inside \eval and \order, the \eval bar does not stretch, and the \sum limits sit beside the sign instead of under it.
+physics2__ab	partial	Renders right since the null-delimiter fix (no "CLOSE"), but every \ab formula stays unparsed: LaTeXML's \right closes its group before its delimiter, so \delclose's \aftergroup\egroup ends \mathclose before ")" (shared with Perl; upstream SYNC_STATUS row).
+physics2__ab-legacy	wrong	The \eval bar does not stretch, and the \sum limits sit beside the sign instead of under it. The "CLOSE" leak inside \eval and \order is fixed; the formula stays unparsed, as physics2__ab.
 physics2__braket	ok	
 physics2__diagmat	ok	
 physics2__xmat	partial	The ⋮ row of \bxmat* is empty.
