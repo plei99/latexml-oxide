@@ -16,8 +16,8 @@ physics__braket	ok
 physics__mqty	ok	
 physics__operators	partial	\grad, \div and \curl render a plain ∇ instead of a bold one.
 physics__vectors	ok	
-physics2__ab	partial	Parses as plain \left...\right since the \right grouping fix (OD #576): absolute-value, delimited, interval readings; renders without the CLOSE leak. Verdict pending a gallery review.
-physics2__ab-legacy	wrong	Parses since OD #576 (absolute-value, norm, evaluated-at, O(x^2)); not re-reviewed visually. Last review: the \eval bar does not stretch, and the \sum limits sit beside the sign instead of under it.
+physics2__ab	ok	
+physics2__ab-legacy	ok	
 physics2__braket	ok	
 physics2__diagmat	ok	
 physics2__xmat	partial	The ⋮ row of \bxmat* is empty.
@@ -62,11 +62,11 @@ figures__automata	ok
 figures__multiline-node	ok	
 figures__forest	wrong	The tree flattens to a bulleted list "• S • NP • D …" with no SVG. There is no tree in the corpus today.
 figures__circuitikz	partial	The voltage-source label floats to the left of the source.
-figures__pgfplots	partial	\addplot colours (blue, red) are dropped; plain TikZ colours work. The legend layout is right since the #785 fix.
+figures__pgfplots	ok	
 figures__tikz-3dplot	ok	
 figures__dynkin	ok	
-figures__sseq	wrong	The sseqpage output is empty and no error is reported. This affects 2 corpus documents with 25 diagrams.
-figures__ytableau	wrong	The Young diagrams lose their boxes, and the tableau drops entry 2. This affects 3 corpus documents.
+figures__sseq	ok	
+figures__ytableau	ok	Square boxes and entries as in the PDF, in text and in formulas (top-aligned, \tiny subscripts); a \ydiagram* overlay would follow its tableau instead.
 matrices__spalign	partial	The left parenthesis of \spalignmat, \spalignaugmat and \spalignvector does not stretch.
 matrices__cellspace	ok	
 matrices__array	ok	

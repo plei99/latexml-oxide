@@ -3,14 +3,17 @@
 #   ref.png (reference PDF, all pages, cropped), oxide.png (headless Chrome on doc.html, trimmed),
 #   pair.png (side by side: reference left, oxide right).
 set -uo pipefail
-o=$(cd "$1" && pwd); r=$2
+o=$(cd "$1" && pwd); r=$(cd "$2" 2>/dev/null && pwd || echo "$2")
 export PATH="${TEXBIN:-/usr/local/texlive/2026/bin/universal-darwin}:$PATH"
 FONT=${FONT:-/System/Library/Fonts/Supplemental/Arial.ttf}
 CHROME=${CHROME:-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}
 cap() { perl -e 'setpgrp(0,0); $SIG{ALRM}=sub{kill -9, 0}; alarm shift; system @ARGV' "$@" >/dev/null 2>&1; }
 rm -f "$o"/ref*.png "$o"/oxide*.png "$o"/pair.png "$o"/shot.html
 if [ -f "$r/doc.pdf" ]; then
-  cap 60 pdfcrop --margins 8 "$r/doc.pdf" "$o/ref-crop.pdf"
+  # from the shot's own directory: pdfcrop writes its tmp-pdfcrop-<pid>.tex to the working directory, and a timed-out
+  # one leaves it there
+  (cd "$o" && cap 60 pdfcrop --margins 8 "$r/doc.pdf" "$o/ref-crop.pdf")
+  rm -f "$o"/tmp-pdfcrop-*
   cap 60 pdftocairo -png -r 120 "$o/ref-crop.pdf" "$o/ref-p"
   magick "$o"/ref-p*.png -append -background white -flatten "$o/ref.png" 2>/dev/null
   rm -f "$o"/ref-p*.png "$o/ref-crop.pdf"
