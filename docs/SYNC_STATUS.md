@@ -950,7 +950,7 @@ space where it is digested (1601.02132), and arxbj's IMS markup through a bindin
   gaceta, homework, jwjournal byte-identical. Errors 766 → 1006 only because the R1 papers now convert and show their
   authors' stray conditionals (1904.11818 594, 2012.08626 112, 2210.17505 97, 1602.01884 20; pdflatex reports each).
   Still erroring: AMS-TeX `\tag 1.2$'$` (1012.3760 Fatal → TooManyErrors, 1108.6264 3, 1112.1423 4; RED
-  `amstex/amstex_tag_with_math_text`, next); 1905.04581 (paracol `\ifinner`, known); unchanged pre-existing errors in
+  `amstex/amstex_tag_with_math_text`, next — fixed in 66e); 1905.04581 (paracol `\ifinner`, known); unchanged pre-existing errors in
   2304.05575 (`\BAmulticolumn`), gr-qc9405068/gr-qc9406008 (the author's `\beginabstract` pair), gr-qc9507042
   (merged creators), math0012150 (active `@`), 2401.14559 (3), and the AMS-TeX amams/gtmacros Fatals of the 66b residual.
   Bundle A/B (1009 papers, `~/data/pk_agents/main/ab_66bundle`, 66cr2 vs 66d2): identical tallies (E 2241, F 1), 12
@@ -969,6 +969,51 @@ space where it is digested (1601.02132), and arxbj's IMS markup through a bindin
   `main_tex::tests::{driver_vetoes_the_preamble_it_inputs, wrapper_without_begin_document_keeps_its_main}`. Open:
   R2 aastex `D` vs preloaded dcolumn (~50), R7 xargs robustness (~21), R8 `\enddocument` tail (~21), R9 hyperref
   `\H@refstepcounter` (~12), R11 qbordermatrix IfLimit, R12 shipped core-file copies, R14-R16 singletons.
+- **66e** (AMS-TeX `\tag`, the 66d "next"): `\tag` was `\let` to `\eqno` (Perl too, KPE #643), whose tag is math up to
+  the first `$`, so `\tag 1.2$'$` closed the display ("Missing $" cascade). amstex.rs `amstex_tag` reads the tag text as
+  amstex.tex:597-605 does — unexpanded and brace-balanced up to the display's `$$` or, in a row (:629-640, 718-739, 797;
+  a `\multline` tag follows `\endmultline`, :903, a display tag), to `\\`/`\cr`/the environment's `\end…` — and sets it
+  with amsmath's `\tag` markup (`\tag*` for a quoted `"…"`, `$…$` under `\TagsAsMath`, amstex.tex:590-593, whose amsppt
+  no-op stubs are gone). With no equation row (a plain `$$` display, also `$$\align` = amsmath's `aligned`) the tags
+  float to the display (amstex.rs `\lx@equation@settag@float`, in the AmSTeX pool so a plain `\input amstex` + `\input
+  amsppt.sty` document without the LaTeX pool has it; `\documentstyle` makes the route LaTeX, whose amsfonts
+  `\DeclareSymbolFont` loads LaTeX.pool); one built in an `aligned` row is tied to it, and `rearrange_lone_ams_aligned`
+  gives it to that row's equation. A row's tag ends at every row ender (`\displaybreak`, `\allowdisplaybreak`,
+  `\intertext`, `\vspace`, a token meaning `\cr`/`\crcr`/`\\` or a macro expanding to one), the row test needs an
+  alignment opened in the display's own math, and a delimited `{…}` argument loses its braces (`\tag{"A"}$$` quoted). In
+  the `$$` form a `\par` abandons the call with TeX's runaway error and a `}` closing an outer group with TeX's two
+  (tex.web §395-396: "extra }", then the inserted `\par`'s runaway; the input goes on with `\par }`); a row's tag (a
+  LaTeX equation row's too) takes no argument, so there a `\par` outside the tag's own groups, or such a `}`, ends the
+  tag cell without error; a `\par` inside a group of the tag that closes stays in its text (`\tag{3\par}\\`), and a
+  row's or environment's end read inside an open group of the tag (`\tag{5\\ c&=d\endalign$$`) stops the scan at once:
+  TeX's "Missing } inserted" per open group (tex.web §1126-1127; the runaway error if a `\par` was read in a group
+  still open), the tag keeps its text with its groups closed, and the rest is read again, so no row, enclosing group
+  (`{\it …}`, `\vbox{…}`), later paragraph or `\enddocument` is lost (r3 read them into the tag; r4 still did when an
+  enclosing group's `}` came first); the document's end (`\enddocument`, `\bye`) is never read into a tag (a row end;
+  in the `$$` form TeX's "Forbidden control sequence", the call dropped), and a `$` closing inline math in a tag is never
+  the start of `$$` (`\tag{$a$$b$}\\`); the shapes where TeX errs and ours recovers are OD #575. In a LaTeX equation row a braced
+  `\tag{…}`/`\tag*{…}` is amsmath's (an `\input amstex` or `\NoBlackBoxes`-autoloaded LaTeX document read `a=b` into the
+  tag before 66e r3). r2 A/B (66d6 → 66e r2, 122 AMS-TeX zips): E 721 → 692, F 5 → 5, no paper worse, the 17 r1
+  regressions (math9412232, hep-th9308082, hep-th9206021, hep-th9111004, 1102.5649, …) back to 66d6's counts or better;
+  200 LaTeX `\tag` zips unchanged. Witnesses (66d6 → 66e, `wit66`): 1112.1423 E 4 → 0, 1108.6264 E 3 → 1 (merged
+  creators), 1012.3760 still E 101 + TooManyErrors, but its first error moved from line 134 to 904 (lines 1-902: E 7 →
+  1, all 60 tags text, 57 on their row/equation vs 51): the next class is `\Sb … \\ … \endSb` after `\input pictex` (RED
+  `amstex/amstex_pictex_sb_newline`). A/B over 30 AMS-TeX `\tag` papers: no paper worse; math0001138 and math-ph0001014
+  E 2 → 0. Residual: `$$\gather … \tag 1\\ … \endgather$$` keeps both tags on the one display equation (amsmath's
+  `gathered` is not split into rows); AMS-TeX tags sit on the left in the PDF (`\TagsOnLeft`, amstex.tex:590), ours on
+  the right; `\intertext` inside `$$\align` errs (RED `amstex/amstex_align_intertext`, before 66e too); `$$\gather` in a
+  plain document errs "`\ams@return@opt@arg` undefined" (amsmath_sty.rs `\lx@ams@start@box` lets it to `\@empty`, which
+  only the LaTeX pool defines; math9412232 and 6 more of the 122, 36 errors, before 66e too; RED
+  `amstex/amstex_plain_gather_return_opt_arg`); an unbraced inner alignment in a row tag (`\tag 1\matrix a\cr
+  b\endmatrix\\`) stops the tag at the inner `\cr` and errs; an active character let to `\\` (`\let~\\`) does not end a
+  row tag (`amstex_tag_row_end`'s `Catcode::CS` gate); a `\par` in `$$\align … \endalign$$` raises no error (TeX's
+  `\align` reads its body as an argument: "Paragraph ended before \align was complete"; before 66e too); an amsppt
+  `\footnote{` whose `}` never comes reads to the file's end, the later paragraphs inside the `<note>` (amsppt_sty.rs
+  `\footnote[]{}` reads `\long`, amsppt.sty:804/:814 `\nextiv@##1` does not; RED
+  `amstex/amsppt_footnote_argument_runs_past_par`); an alignment open at `\enddocument` drops its open row's last cells
+  without an error (RED `amstex/amstex_align_unclosed_at_enddocument`, before 66e too); a display open at `\enddocument`
+  takes `\enddocument` into its formula's `tex` (RED `amstex/amstex_display_unclosed_at_enddocument`, before 66e too). Guards
+  `perfect_kernel_batch66e::*`.
 - **63b** (landed): nameref's begin-document reset of `\ref`/`\pageref`/`\Ref` under its own hook label (KPE #519;
   2503.08060, 1908.01329, 1811.01873, which also needed nameref's `\NR@setref`), a nested alignment's rows run no
   enclosing row hook (KPE #518; arrays, `\halign`, TikZ matrices, tabbing), the 63a tag `~` binding narrowed to the
