@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+  - **XeTeX's line-breaking parameters under the `xetex` profile.**
+    `\XeTeXlinebreaklocale`, `\XeTeXlinebreakskip` and `\XeTeXlinebreakpenalty`
+    (set by Chinese documents after `\usepackage{xeCJK}`) were undefined; they
+    are now read and kept, as HTML leaves line breaking to the browser.
+
   - **A theorem or section inside a `quote` stays in the quote.** Both were
     "isn't allowed in <ltx:quote>" errors (an author's theorem in a quote; a
     class `\tableofcontents` wrapping its heading in one, as moduli.cls does).

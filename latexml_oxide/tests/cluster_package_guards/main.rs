@@ -123,6 +123,7 @@ mod scanner_status;
 mod token_kernel_gaps;
 mod unicode_format_encoding;
 mod vfs_file_end;
+mod xetex_linebreak_primitives;
 mod xkeyval_internals;
 
 mod accent_composite_expansion;
