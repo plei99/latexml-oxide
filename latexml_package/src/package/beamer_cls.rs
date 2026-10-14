@@ -1017,7 +1017,11 @@ LoadDefinitions!({
   );
   def_macro_noop("\\usebeamertemplate OptionalMatch:* OptionalMatch:* OptionalMatch:* {}")?;
   def_macro_noop("\\usebeamerfont OptionalMatch:* {}")?;
-  def_macro_noop("\\setbeamertemplate{}{}")?;
+  // beamerbasetemplates.sty: `\setbeamertemplate{element}` takes a body `{…}`, or a predefined template `[name]` and its
+  // own bracketed options (`[rounded][shadow=true]`). Read as two mandatory arguments, the `[` of
+  // `\setbeamertemplate{theorems}[numbered]` was the body and `numbered]` printed in the document.
+  RawTeX!(r"\def\setbeamertemplate#1{\@ifnextchar[\lx@beamer@templateopt\@gobble}
+\def\lx@beamer@templateopt[#1]{\@ifnextchar[\lx@beamer@templateopt\relax}");
   DefPrimitive!("\\setbeamercolor OptionalMatch:* {}{}", sub[(star, name, opts)] {
     let name = do_expand(name)?.to_string().trim().to_string();
     let opts = do_expand(opts)?.to_string();

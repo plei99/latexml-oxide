@@ -9,7 +9,10 @@ fn bare_colour_in_search_also_path_is_applied() {
              \\end{document}\n";
   let (stderr, xml) = super::convert(tex, true);
   assert_eq!(super::error_count(&stderr), 0, "{stderr}");
-  assert!(xml.contains(r##"stroke="#0000FF""##), "the bare colour reaches /tikz/.unknown:\n{xml}");
+  assert!(
+    xml.contains(r##"stroke="#0000FF""##),
+    "the bare colour reaches /tikz/.unknown:\n{xml}"
+  );
 }
 
 #[test]
