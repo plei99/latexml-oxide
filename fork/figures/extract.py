@@ -108,6 +108,10 @@ def main():
         cut = text.index("\\begin{document}")
         base = cut + len("\\begin{document}")
         pre, body = raw[:cut], text[base:]
+        # A preamble's relative package or input path (`\\usepackage{../../../notes}`) is the document directory's.
+        ddir_abs = os.path.dirname(path)
+        pre = re.sub(r"(\\(?:usepackage|RequirePackage|input|include)(?:\[[^]]*\])?\{)(\.\.?/[^}]*)\}",
+                     lambda m: m.group(1) + os.path.normpath(os.path.join(ddir_abs, m.group(2))) + "}", pre)
         body = body.rsplit("\\end{document}", 1)[0]
         orig = raw[base:base + len(body)]
         sseqdata = "".join(orig[m.start():env_end(body, "sseqdata", m.start())] + "\n"
