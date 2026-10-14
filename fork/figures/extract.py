@@ -102,15 +102,18 @@ def main():
         raw = open(path, errors="replace").read()
         if "\\begin{document}" not in raw:
             continue
+        # Figures are found in the comment-free text and cut from the original, at the same offsets: a blanked
+        # comment-only line would read as a blank line, a paragraph break, inside the figure.
         text = strip_comments(raw)
         cut = text.index("\\begin{document}")
-        pre, body = raw[:cut], text[cut + len("\\begin{document}"):]
-        body = body.rsplit("\\end{document}", 1)[0]
         base = cut + len("\\begin{document}")
-        sseqdata = "".join(body[m.start():env_end(body, "sseqdata", m.start())] + "\n"
+        pre, body = raw[:cut], text[base:]
+        body = body.rsplit("\\end{document}", 1)[0]
+        orig = raw[base:base + len(body)]
+        sseqdata = "".join(orig[m.start():env_end(body, "sseqdata", m.start())] + "\n"
                            for m in re.finditer(r"\\begin\{sseqdata\}", body))
         for n, (s, e, kind) in enumerate(figures(body), 1):
-            fig = body[s:e]
+            fig = orig[s:e]
             ident = f"{doc_id}-{n:03d}"
             lineno = raw.count("\n", 0, base + s) + 1
             lead = sseqdata if kind == "printpage" else ""
