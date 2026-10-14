@@ -1282,6 +1282,7 @@ impl MathParser {
     let outer_punctuation = std::mem::take(&mut self.punctuation);
     let outer_unparsed = std::mem::take(&mut self.unparsed);
     let math = xnode.get_parent();
+    Self::dissolve_class_wraps(&xnode, document)?;
     let result = self.parse_formula(xnode.clone(), document);
     // Perl MathParser.pm:300-303: a formula any of whose parses failed is `ltx_math_unparsed`
     // when the failure is genuine — not only in an XMDual's presentation branch (an author's
@@ -1639,6 +1640,173 @@ impl MathParser {
       }
     }
     Ok(())
+  }
+
+  /// The spacing idiom `\mathopen{}\mathclose{\left( … \right)}` (physics2's `\ab` raw-loaded, papers' `\left`/`\right`
+  /// redefined so — witnesses 2605.22010, 2605.13448; mleftright.sty and mathtools' starred delimiters are the same in
+  /// TeX, bound to plain `\left`/`\right` here) reads as its `\left( … \right)`. In TeX an empty
+  /// `\mathopen{}`/`\mathclose{}` is an empty atom of that class, and a `\mathclose`/`\mathopen` around one
+  /// `\left…\right` group changes its spacing only; Perl (and the construction here) keeps both as `XMWrap`s with
+  /// the class's role, which no grammar rule reads: the empty OPEN pairs with the next CLOSE as an empty fence that
+  /// `balanced_empty_fenced` rejects, and the wrap, parsed on its own, hides the `(` that makes `f(x)` an
+  /// application. So, before the formula is parsed, an OPEN/CLOSE `XMWrap` holding nothing (hints aside) is dropped,
+  /// and one holding exactly one `\left…\right` fence — its first child the stretchy left delimiter (or `\left.`'s
+  /// hint), its last the partner (or `\right.`'s), nothing closing it earlier — is replaced by its children, so the
+  /// parser sees the stream `\left( … \right)` gives; references to a dissolved wrap (a split row's `MathFork`) are
+  /// retargeted to its children.
+  /// OXIDIZED_DESIGN #576 (Perl `not_parsed:>OPEN`, KNOWN_PERL_ERRORS #644).
+  ///
+  /// Done for the whole formula before any of it is parsed, innermost wraps first: a split row's `MathFork` reads the
+  /// cells through `XMRef`s, and its content branch is parsed before the cells.
+  fn dissolve_class_wraps(xmath: &Node, document: &mut Document) -> Result<()> {
+    let wraps = document.findnodes(
+      "descendant::ltx:XMWrap[@role='OPEN' or @role='CLOSE']",
+      Some(xmath),
+    );
+    if wraps.is_empty() {
+      return Ok(());
+    }
+    // The formula's references, collected once: a split row's MathFork names its cells' nodes from inside the formula.
+    let refs = document.findnodes("descendant::ltx:XMRef[@idref]", Some(xmath));
+    for wrap in wraps.into_iter().rev() {
+      Self::dissolve_class_wrap(&wrap, &refs, document)?;
+    }
+    Ok(())
+  }
+
+  fn dissolve_class_wrap(wrap: &Node, refs: &[Node], document: &mut Document) -> Result<()> {
+    // Only a bare class wrap: its role, its id and the parser's own `_` marks (a wrap carrying anything else says more
+    // than its class).
+    if !wrap
+      .get_attributes()
+      .keys()
+      .all(|a| a == "role" || a == "id" || a.starts_with('_'))
+    {
+      return Ok(());
+    }
+    let kids = element_nodes(wrap);
+    let empty = kids.iter().all(|k| get_node_qname(k) == pin!("ltx:XMHint"));
+    if !empty && !Self::is_one_fence(&kids) {
+      return Ok(());
+    }
+    if let Some(id) = wrap.get_attribute_ns("id", XML_NS) {
+      let referring: Vec<Node> = refs
+        .iter()
+        .filter(|r| r.get_attribute("idref").as_deref() == Some(id.as_str()))
+        .cloned()
+        .collect();
+      // A reference standing for one argument of a built structure (an `XMApp`'s, an `XMDual`'s) cannot become several;
+      // only a stream the parser reads (an `XMWrap`, an `XMArg`) takes the wrap's children in its place.
+      if referring.iter().any(|r| {
+        r.get_parent().is_none_or(
+          |p| !matches!(get_node_qname(&p), q if q == pin!("ltx:XMWrap") || q == pin!("ltx:XMArg")),
+        )
+      }) {
+        return Ok(());
+      }
+      Self::retarget_wrap_refs(&id, referring, wrap, document)?;
+    }
+    document.unwrap_nodes(wrap.clone())?;
+    Ok(())
+  }
+
+  /// A dissolved wrap a split row's `MathFork` names (`XMRef idref=`): each reference becomes references to the wrap's
+  /// children, in order (none for an empty wrap), and the wrap's id is forgotten.
+  fn retarget_wrap_refs(
+    id: &str,
+    refs: Vec<Node>,
+    wrap: &Node,
+    document: &mut Document,
+  ) -> Result<()> {
+    let mut ids = Vec::new();
+    if !refs.is_empty() {
+      for mut target in element_nodes(wrap) {
+        if get_node_qname(&target) == pin!("ltx:XMHint") {
+          continue;
+        }
+        document.generate_id(&mut target, "")?;
+        if let Some(target_id) = target.get_attribute_ns("id", XML_NS) {
+          crate::data::record_math_id(target_id.clone(), target.clone());
+          ids.push(target_id);
+        }
+      }
+    }
+    for mut old in refs {
+      let Some(mut parent) = old.get_parent() else {
+        continue;
+      };
+      for target_id in &ids {
+        let attrs = Some(HashMap::from_iter([(s!("idref"), target_id.clone())]));
+        let mut xmref = document.open_element_at(&mut parent, "ltx:XMRef", attrs, None)?;
+        document.close_element_at(&mut xmref)?;
+        xmref.unlink();
+        old.add_prev_sibling(&mut xmref)?;
+      }
+      document.unrecord_node_ids(&old);
+      crate::data::defer_discard(old);
+    }
+    document.unrecord_id(id);
+    crate::data::forget_math_id(id);
+    Ok(())
+  }
+
+  /// Whether `kids` are one `\left…\right` fence: the stretchy delimiters balance, the first child opens and the last
+  /// child closes, and the first is closed only there. A bare `XMHint` at either end is a null delimiter (`\left.`,
+  /// `\right.`).
+  fn is_one_fence(kids: &[Node]) -> bool {
+    #[derive(PartialEq)]
+    enum Side {
+      Left,
+      Middle,
+      Right,
+    }
+    let n = kids.len();
+    if n < 2 {
+      return false;
+    }
+    let side = |k: &Node, i: usize| -> Option<Side> {
+      let qname = get_node_qname(k);
+      if qname == pin!("ltx:XMHint") {
+        // `\lx@delimiterdot`'s hint carries no attribute (the parser's own `_` marks aside); spacing hints carry
+        // their width.
+        let bare = k.get_attributes().keys().all(|a| a.starts_with('_'));
+        return (bare && (i == 0 || i == n - 1)).then_some(if i == 0 {
+          Side::Left
+        } else {
+          Side::Right
+        });
+      }
+      if qname != pin!("ltx:XMTok") || k.get_attribute("stretchy").as_deref() != Some("true") {
+        return None;
+      }
+      match k
+        .get_attribute("role_side")
+        .or_else(|| k.get_attribute("role"))
+        .as_deref()
+      {
+        Some("left" | "OPEN") => Some(Side::Left),
+        Some("right" | "CLOSE") => Some(Side::Right),
+        Some("middle" | "MIDDLE") => Some(Side::Middle),
+        _ => None,
+      }
+    };
+    let mut depth = 0;
+    for (i, k) in kids.iter().enumerate() {
+      match side(k, i) {
+        Some(Side::Left) => depth += 1,
+        Some(Side::Right) => {
+          depth -= 1;
+          if depth < 0 || (depth == 0 && i != n - 1) {
+            return false;
+          }
+        },
+        Some(Side::Middle) | None => {},
+      }
+      if i == 0 && depth != 1 {
+        return false;
+      }
+    }
+    depth == 0 && side(&kids[n - 1], n - 1) == Some(Side::Right)
   }
 
   //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

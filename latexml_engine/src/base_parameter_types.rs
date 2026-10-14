@@ -394,6 +394,13 @@ LoadDefinitions!({
   }, predigest => sub[arg] {
     Ok(Some(digest_as_delimiter(|| arg.be_digested())?))
   });
+  // A delimiter `scan_delimiter` has already read (`\right` scans before it closes its group, tex.web §1191): the
+  // token as it stands, digested as a delimiter.
+  DefParameterType!(ScannedDelimiter, sub[_inner, _extra] {
+    Ok(ArgWrap::Token(read_token()?.unwrap_or_else(|| T_OTHER!("."))))
+  }, predigest => sub[arg] {
+    Ok(Some(digest_as_delimiter(|| arg.be_digested())?))
+  });
 
   // A token read at `normal` scanner status whatever the enclosing scan:
   // tex.web §507 saves the status and sets `normal` for `\ifx`'s two

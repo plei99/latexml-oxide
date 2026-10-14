@@ -12848,3 +12848,23 @@ col 17, the `$` after `'`; col 19, the closing `$$`), the tag math "1.2" with it
 "(1.2′)". In papers the stray `$` cascades (1012.3760: TooManyErrors; 1112.1423, 1108.6264). Row tags of
 `$$\align … \endalign$$` also land on the equationgroup rather than their rows. Fixed in Rust (amstex.rs `amstex_tag`:
 amsmath's `\tag` markup). Where TeX itself errs on a `\tag`, ours recovers: OXIDIZED_DESIGN_DIVERGENCES #575.
+
+## 644. `\right` closes its group before reading its delimiter; `\mathopen{}\mathclose\bgroup\left` is unparsed
+
+TeX_Math.pool.ltxml:786-799: `\right` unreads `\lx@hidden@egroup@right` and `\lx@right`, so the `\left` group closes
+before the delimiter is read; tex.web §1191 reads the delimiter, then `unsave`s. An `\aftergroup` inside
+`\left…\right` therefore runs before the delimiter. Trigger:
+
+```tex
+\documentclass{article}
+\begin{document}
+\[ \mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right) \]
+\end{document}
+```
+
+→ Perl (the development tree at 0db6f47, run on this host, 2026-10-14): `tex="\mathopen{}\mathclose{{\left(x}}\right)"`,
+`Warning:not_parsed:>OPEN`; pdflatex 0 errors, `\showlists` `\mathclose{\mathinner{\left( x \right)}}`. With TeX's
+grouping written out (`\mathopen{}\mathclose{\left( x \right)}`) Perl is still `not_parsed:>OPEN`: an empty OPEN atom
+and a CLOSE wrap no grammar rule reads. Raw-loaded physics2's `\ab` and papers' `\left` redefinitions produce it
+(2605.22010, 2605.13448; 2605.21750 carries the redefinition too, but its unparsed formulas are another shape); Perl's
+mleftright and mathtools bindings use plain `\left`/`\right`. Fixed in Rust: OXIDIZED_DESIGN_DIVERGENCES #576.

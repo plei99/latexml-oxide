@@ -1186,24 +1186,32 @@ LoadDefinitions!({
 
   // \lx@hidden@egroup@right: like \lx@hidden@egroup, but softer about missing \left
   DefConstructor!("\\lx@hidden@egroup@right", "",
-    after_digest => {
-      if is_value_bound("MODE", Some(0)) // Last stack frame was a mode switch!?!?!
-        || lookup_bool_sym(pin!("groupNonBoxing")) { // or group was opened with \begingroup
-        Error!("unexpected", "\\right", "Unbalanced \\right, no balancing \\left."); }
-      else {
-        egroup()?;
-      }
-    },
+    after_digest => { egroup_right()?; },
     reversion => None);
 
   // \right is a constructor (non-expandable), so that LaTeX3 kernel can use it as a separator
-  // in \numexpr contexts. It unreads \lx@hidden@egroup@right and \lx@right into the input stream
-  // (Perl TeX_Math.pool.ltxml:782-791) — unless it has no `\left` to close (tex.web §1192).
+  // in \numexpr contexts. Perl (TeX_Math.pool.ltxml:782-791) unreads \lx@hidden@egroup@right and \lx@right, so the
+  // group closes before the delimiter is read. TeX's \right scans its delimiter, finishes the list and only then
+  // unsaves (tex.web §1191), so an `\aftergroup` inside `\left…\right` comes after the delimiter: physics2's `\ab(x)`
+  // and papers' `\left`/`\right` redefinitions (`\mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right)`;
+  // witnesses 2605.22010, 2605.13448) close the `\mathclose` group after the `)`. So the delimiter is scanned first,
+  // the group closed (its `\aftergroup` tokens unread), and the scanned delimiter unread in front of them — digested
+  // outside the group, as before. Unless it has no `\left` to close (tex.web §1192). OXIDIZED_DESIGN #576.
   DefConstructor!("\\right", "",
     before_digest => {
       match left_right_group("right")? {
         LeftRightGroup::Left | LeftRightGroup::Other => {
-          unread(Tokens::new(vec![T_CS!("\\lx@hidden@egroup@right"), T_CS!("\\lx@right")]));
+          let live = lookup_int(PUT_BACK_LIVE);
+          let delimiter = scan_delimiter()?;
+          let put_back = lookup_int(PUT_BACK_LIVE);
+          egroup_right()?;
+          // A `}` the scan put back ("Missing delimiter") was marked on the `\left` group's frame; it now stands
+          // outside that group, so its mark moves to the frame it meets (`missing_delimiter`; guard
+          // `perfect_kernel_batch65d::stray_brace_at_the_formula_level_is_deleted`).
+          if put_back != 0 && put_back != live {
+            assign_frame_value(PUT_BACK_BRACE, Stored::Int(put_back));
+          }
+          unread(Tokens::new(vec![T_CS!("\\lx@delim@right@scanned"), delimiter]));
         },
         // The delimiter alone, closing no group.
         LeftRightGroup::Extra => {
@@ -1212,7 +1220,7 @@ LoadDefinitions!({
         LeftRightGroup::Retried => {},
       }
     },
-    // Empty reversion — \lx@right provides the actual \right reversion via alias
+    // Empty reversion — `\lx@delim@right@scanned` (or `\lx@right`) provides the actual \right reversion via alias
     reversion => Tokens!());
 
   // `\lx@left`/`\lx@right` (Perl TeX_Math.pool.ltxml:764-770): `\left`/`\right` without the group. They are private
@@ -1228,6 +1236,16 @@ LoadDefinitions!({
     },
     after_construct => sub[document, whatsit] { stretch_delimiter(document, whatsit)?; },
     alias => "\\left");
+  // `\right`'s delimiter once `\right` has scanned it and closed its group.
+  DefConstructor!("\\lx@delim@right@scanned ScannedDelimiter",
+    "?#char(?#inmath(<ltx:XMTok role='#role' name='#name' ?#meaning(meaning='#meaning') stretchy='#stretchy' ?#role_side(role_side='#role_side')>#char</ltx:XMTok>)(#char))\
+      (?#hint(?#inmath(<ltx:XMHint/>)())(#1))",
+    after_digest => sub[whatsit] {
+      decorate_delimiter(whatsit, DelimiterSide::Right)?;
+      Ok(Vec::new())
+    },
+    after_construct => sub[document, whatsit] { stretch_delimiter(document, whatsit)?; },
+    alias => "\\right");
   DefConstructor!("\\lx@delim@right DelimiterToken",
     "?#char(?#inmath(<ltx:XMTok role='#role' name='#name' ?#meaning(meaning='#meaning') stretchy='#stretchy' ?#role_side(role_side='#role_side')>#char</ltx:XMTok>)(#char))\
       (?#hint(?#inmath(<ltx:XMHint/>)())(#1))",
@@ -2445,6 +2463,24 @@ pub enum LeftRightGroup {
   /// Any other group (one LaTeXML's machinery opened): Perl's recovery — `\right` closes it
   /// (`\lx@hidden@egroup@right`), `\middle` goes on (TeX_Math.pool.ltxml:782-802).
   Other,
+}
+
+/// `\lx@hidden@egroup@right` (Perl TeX_Math.pool.ltxml:792-799): close the `\left` group, or report a `\right` that
+/// meets a mode switch or a `\begingroup` and leave it open.
+fn egroup_right() -> Result<()> {
+  if is_value_bound("MODE", Some(0)) // Last stack frame was a mode switch!?!?!
+    || lookup_bool_sym(pin!("groupNonBoxing"))
+  {
+    // or group was opened with \begingroup
+    Error!(
+      "unexpected",
+      "\\right",
+      "Unbalanced \\right, no balancing \\left."
+    );
+    Ok(())
+  } else {
+    egroup()
+  }
 }
 
 /// tex.web §1191-1192 for `\middle` and `\right` (`name`): which group they meet, with its diagnostic and, for

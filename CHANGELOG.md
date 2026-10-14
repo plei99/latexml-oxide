@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+  - **`\right` reads its delimiter before it closes its group, and the
+    `\mathopen{}\mathclose{\left…\right}` spacing idiom parses.** TeX's `\right`
+    scans its delimiter before ending the `\left` group (tex.web §1191); ours, as
+    Perl's, ended the group first, so an `\aftergroup` inside `\left…\right` ran
+    before the delimiter. physics2's `\ab(x)` and papers redefining
+    `\left`/`\right` as
+    `\mathopen{}\mathclose\bgroup\left … \aftergroup\egroup\right` left the `(`
+    unmatched, and every such formula was unparsed (Perl too). Now the grouping
+    is TeX's, and the parser reads an empty `\mathopen{}`/`\mathclose{}` and a
+    `\mathclose`/`\mathopen` around one fence as spacing: the idiom parses as its
+    `\left…\right` (2605.22010: unparsed formulas 287 → 5, every reading equal to
+    the paper's without its redefinition). OXIDIZED_DESIGN #576; guard
+    `tests/parse/class_wrapped_fences`.
+
   - **A null delimiter no longer prints "CLOSE" or "OPEN".** The fence partner
     the parser re-supplies for TeX's null delimiter (OXIDIZED_DESIGN #67) was an
     empty token without a meaning, which the MathML fallback for empty content
