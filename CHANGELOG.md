@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+  - **No gap after a Young diagram.** ytableau zeroes a tableau's width and
+    kerns its width after it (to overlay `\ydiagram*`); HTML keeps the box's
+    width, so every diagram was followed by as much space again. The binding
+    ends a tableau without the overlay, the remaining `\fboxrule` as a
+    zero-width space, which also keeps a diagram in a formula top-aligned raw
+    markup rather than a centred `mtable`. Guard
+    `ytableau_boxes::a_diagram_leaves_no_space_after_it`.
+
   - **A graphic outside the source directory is copied into the site, not
     out of it.** `\includegraphics{../img/p.png}` was copied to
     `<destination>/../img/p.png`, outside the destination, and the page linked

@@ -108,3 +108,22 @@ fn a_framed_box_in_math_keeps_its_spaces() {
     "the frame keeps its spaces:\n{html}"
   );
 }
+
+/// A diagram is followed by nothing: ytableau's overlay kern, as wide as the diagram it zeroes, doubled the space
+/// after it, a box keeping its own width in HTML.
+#[test]
+fn a_diagram_leaves_no_space_after_it() {
+  let tex = "\\documentclass{article}\n\\usepackage{ytableau}\n\\begin{document}\n\
+             $\\ydiagram{3,2}$X\\begin{ytableau} 1 & 2 \\end{ytableau}Y\n\\end{document}\n";
+  let (stderr, xml) = super::convert(tex, true);
+  assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+  assert!(
+    !xml.contains(['\u{2002}', '\u{2003}', '\u{2009}']),
+    "no kern's spaces:\n{xml}"
+  );
+  assert_eq!(
+    xml.matches("<tabular").count(),
+    2,
+    "both diagrams are drawn:\n{xml}"
+  );
+}

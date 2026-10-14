@@ -39,4 +39,34 @@ LoadDefinitions!({
     \compare@@YT{#1}{clear}%
     \ifeq@YT\lx@ytableau@box\boxdim@YT{#2}\else\colorbox{#1}{\lx@ytableau@box\boxdim@YT{#2}}\fi}"
   );
+
+  // The end of a tableau (ytableau.sty:205-234) less its overlay: ytableau sets the tableau's box to width 0 and
+  // follows it with a kern of its width and `\fboxrule`, so that `\ydiagram*` draws the next tableau over it. HTML
+  // keeps a box's own width, so that kern doubled the space after every diagram. What is left of it, the
+  // `\fboxrule`, is narrower than any space, so it is a zero-width space (`\lx@ytableau@rule`): text after the tabular,
+  // which keeps a diagram in a formula raw markup in its `m:mtext`, top-aligned as in TeX, rather than an XMArray (a
+  // lone tabular, TeX_Math.pool.ltxml:281-310), which MathML centres on the axis. A `\ydiagram*` overlay now follows
+  // its tableau instead.
+  DefConstructor!("\\lx@ytableau@rule", "\u{200B}");
+  RawTeX!(
+    r"\def\endytableau{%
+     \crcr\egroup
+    \iffalse{\fi}%
+   \setbox\tableaux@YT=\hbox{\box\thistableau@YT\unhbox\tableaux@YT\lx@ytableau@rule}%
+   \ifstar@YT
+    {\ydiagram}%
+    {%
+     \leavevmode
+     \compare@@YT{\centering@YT}{center}%
+     \ifeq@YT
+      \hbox{$\vcenter{\box\tableaux@YT}$}%
+     \else\compare@@YT{\centering@YT}{bottom}%
+     \ifeq@YT
+      \hbox{\raise\dp\tableaux@YT\box\tableaux@YT}%
+     \fi
+      \box\tableaux@YT
+     \fi
+    }%
+  }"
+  );
 });
