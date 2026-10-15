@@ -409,6 +409,8 @@ fn bbl_flush() -> Tokens {
   else {
     return Tokens::default();
   };
+  // Only the `bibstyle`: the entries carry biber's labels (`labelalpha`/`extraalpha`), which MakeBibliography prints
+  // whatever the `citestyle` ([`blx_label_citestyle`] is for the `.bib` path, where no backend labelled them).
   assign_value("BIBSTYLE", pin(blx_bibstyle()), Some(Scope::Global));
   let mut tokens = vec![T_CS!("\\biblatex@bbl@thebibliography")];
   for key in keys {
@@ -2567,7 +2569,7 @@ LoadDefinitions!({
     None,
   )?;
   DefMacro!("\\biblatex@printbibliography[]", sub[(_opts)] {
-    assign_value("BIBSTYLE", pin(blx_bibstyle()), Some(Scope::Global));
+    blx_assign_bibstyle();
     // DEDUPLICATE. The same `.bib` can be registered twice — a document that
     // declares `\addbibresource{refs.bib}` while its shipped `.cls` declares
     // the same file, for instance — and naming it twice makes
@@ -3644,6 +3646,7 @@ LoadDefinitions!({
   if let Some(opts) = lookup_vecdeque("opt@biblatex.sty") {
     for opt in opts.iter() {
       blx_record_giveninits(&opt.to_string());
+      blx_record_label_option(&opt.to_string());
     }
   }
 });
@@ -3661,6 +3664,7 @@ fn blx_options_untyped(types: Option<&str>) -> bool { types.is_none_or(|t| t.tri
 fn blx_execute_options(options: &str) {
   for opt in options.split(',') {
     blx_record_giveninits(opt);
+    blx_record_label_option(opt);
     if let Some((key, value)) = blx_opt_kv(opt)
       && key == "refsection"
     {
@@ -3726,6 +3730,86 @@ fn blx_name_format_given_form(code: &str) -> &'static str {
     "full"
   } else {
     "switch"
+  }
+}
+
+/// Set `BIBSTYLE` (the style the `ltx:bibliography` records in `bibstyle`) and, for an alphabetic style, `CITE_STYLE`
+/// (its `citestyle`), as a bibliography is about to be built.
+fn blx_assign_bibstyle() {
+  assign_value("BIBSTYLE", pin(blx_bibstyle()), Some(Scope::Global));
+  if let Some(citestyle) = blx_label_citestyle() {
+    assign_value("CITE_STYLE", pin(&citestyle), Some(Scope::Global));
+  }
+}
+
+/// The `citestyle` of a bibliography whose entries are labelled alphabetically (`labelalpha`, biblatex.sty:7071): the
+/// kernel's `AY`, "the abbreviated `[AS64]` label" (`lookup_bibstyle_params`, Perl `$BIBSTYLES` for `alpha`), with the
+/// parameters of biblatex's label that MakeBibliography (`latexml_post`) has no other way to learn, `;`-separated:
+/// `maxalphanames`, `minalphanames` (biblatex.sty:16390 default 3 and 1, `\blx@maxmin@num` keeps the minimum within the
+/// maximum) and `useprefix`. Absent from a style that does not print the label and from an author-year one (whose
+/// citations name the author). Only the `.bib` path sets it ([`blx_assign_bibstyle`]): a `.bbl`'s bibliography
+/// ([`bbl_flush`]) keeps the entries' own labels and the `citestyle` it had, so the XML of a `.bbl` document is as before.
+fn blx_label_citestyle() -> Option<String> {
+  if !lookup_bool("biblatex_labelalpha")
+    || !lookup_bool("biblatex_alphabetic_style")
+    || !blx_is_labelstyle()
+    || blx_is_authoryear()
+  {
+    return None;
+  }
+  let names = |key: &str, default: u32| {
+    lookup_string(key)
+      .parse::<u32>()
+      .ok()
+      .filter(|n| *n >= 1)
+      .unwrap_or(default)
+  };
+  let max = names("biblatex_maxalphanames", 3);
+  let min = names("biblatex_minalphanames", 1).min(max);
+  let mut style = s!("AY;maxalphanames={max};minalphanames={min}");
+  if lookup_bool("biblatex_useprefix") {
+    style.push_str(";useprefix=true");
+  }
+  Some(style)
+}
+
+/// Record a biblatex option that shapes the alphabetic label: `labelalpha` (an alphabetic style's `.bbx`/`.cbx`
+/// `\ExecuteBibliographyOptions`, alphabetic.bbx:5), `maxalphanames`, `minalphanames` (biblatex.sty:15320-15323) and
+/// `useprefix`; a bare key means true and the last setting wins. See [`blx_label_citestyle`].
+fn blx_record_label_option(opt: &str) {
+  let (key, value) = blx_opt_kv(opt).unwrap_or_else(|| (opt.trim().to_string(), "true".into()));
+  match key.as_str() {
+    "labelalpha" | "useprefix" => assign_value(
+      &s!("biblatex_{key}"),
+      Stored::Bool(value == "true"),
+      Some(Scope::Global),
+    ),
+    "maxalphanames" | "minalphanames" if value.parse::<u32>().is_ok() => assign_value(
+      &s!("biblatex_{key}"),
+      Stored::from(value),
+      Some(Scope::Global),
+    ),
+    _ => {},
+  }
+}
+
+/// A native citation style's `.cbx` is not loaded ([`blx_load_style_file`]), but the option it sets that shapes the
+/// label still applies: alphabetic.cbx:4 and alphabetic-verb.cbx:4 `\ExecuteBibliographyOptions{labelalpha,…}`, which
+/// a `citestyle=alphabetic` under another `bibstyle` relies on. Read the file's top-level calls in order, following
+/// its `\RequireCitationStyle`.
+fn blx_read_native_citation_style_labels(name: &str) {
+  let Some(text) = blx_style_file_text(name, "cbx") else {
+    return;
+  };
+  for (cs, types, arg) in toplevel_calls(&text, &[
+    "ExecuteBibliographyOptions",
+    "RequireCitationStyle",
+  ]) {
+    if cs == "RequireCitationStyle" {
+      blx_load_style_file(&arg, "cbx");
+    } else if blx_options_untyped(types.as_deref()) {
+      arg.split(',').for_each(blx_record_label_option);
+    }
   }
 }
 
@@ -4177,7 +4261,20 @@ fn blx_load_style_file(name: &str, ext: &str) {
     return;
   }
   assign_value(&guard, Stored::from(true), Some(Scope::Global));
+  // An alphabetic style (alphabetic, alphabetic-verb, ieee-alphabetic, a third party's `ext-alphabetic`) prints
+  // `labelalpha`: alphabetic.bbx:22-25 in the list, alphabetic.cbx:25-31 in the citation. A style that only
+  // enables the option (`style=numeric,labelalpha`) prints numbers still. See [`blx_label_citestyle`].
+  if name.contains("alphabetic") {
+    assign_value(
+      "biblatex_alphabetic_style",
+      Stored::from(true),
+      Some(Scope::Global),
+    );
+  }
   if NATIVE_STYLES.contains(&name) {
+    if ext == "cbx" {
+      blx_read_native_citation_style_labels(name);
+    }
     if ext == "bbx" {
       blx_read_native_style_options(name);
       // Every built-in bibliography style but debug.bbx chains standard.bbx

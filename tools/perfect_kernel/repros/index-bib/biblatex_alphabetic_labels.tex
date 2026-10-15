@@ -1,0 +1,16 @@
+% biblatex's alphabetic styles label from the .bib when no biber .bbl is beside the source: the
+% citation and the list print biblatex's labelalpha (alphabetic.bbx:22-25, alphabetic.cbx:25-31),
+% "[AB24]" for two authors in 2024, not the numeric "[1]" the binding fell back to.
+% witness: oxsite bibliography notes (style=alphabetic, no .bbl; reporter's minimal case)
+% oracle:  pdflatex + biber: "[AB24]" in the text and in the References (biber Internals.pm
+%          _genlabel: first letter of each of two names, last two digits of the year)
+% engines: rust (before) = "[1]" in both; perl has no biblatex binding
+% expect:  0 errors; "[AB24]" for the citation and the bibitem (HTML)
+% status:  RED -> GREEN (biblatex_alphabetic_labels::alphabetic_style_without_bbl_labels_alphabetically)
+\documentclass{article}
+\usepackage[style=alphabetic]{biblatex}
+\addbibresource{biblatex_alphabetic_labels.bib}
+\begin{document}
+\cite{example}
+\printbibliography
+\end{document}

@@ -83,8 +83,13 @@ fn convert_split_html(tex: &str, files: &[(&str, &str)]) -> (String, String) {
 /// The rendered entry of `bib_given_names.bib` with `authors` in its first
 /// bibblock (`title` as the style's reader cases it).
 fn castro_bibitem(authors: &str, title: &str) -> String {
+  castro_bibitem_labelled("ltx_bib_key", "1", authors, title)
+}
+
+/// [`castro_bibitem`] with its refnum tag of class `tag_class` printing `[label]`.
+fn castro_bibitem_labelled(tag_class: &str, label: &str, authors: &str, title: &str) -> String {
   format!(
-    r#"<li id="bib.bib1" class="ltx_bibitem ltx_bib_book"><span class="ltx_tag ltx_bib_key ltx_role_refnum ltx_tag_bibitem">[1]</span>
+    r#"<li id="bib.bib1" class="ltx_bibitem ltx_bib_book"><span class="ltx_tag {tag_class} ltx_role_refnum ltx_tag_bibitem">[{label}]</span>
 <span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">{authors}</span><span class="ltx_text ltx_bib_year"> (2003)</span>
 </span>
 <span class="ltx_bibblock"><span class="ltx_text ltx_bib_title">{title}</span>.
@@ -192,15 +197,24 @@ fn biblatex_style_decides_given_names() {
   let tex =
     include_str!("../../../tools/perfect_kernel/repros/index-bib/bib_given_names_style_format.tex");
   let files = [("bib_given_names.bib", GIVEN_BIB)];
-  for (style, authors) in [
-    ("ieee", INITIALS),
-    ("ieee-alphabetic", INITIALS),
-    ("biblatex-cse", FULL),
-  ] {
+  for (style, authors) in [("ieee", INITIALS), ("biblatex-cse", FULL)] {
     let tex = tex.replace("style=ieee", &format!("style={style}"));
     let (stderr, html) = convert_html(&tex, &files);
     assert_castro(&stderr, &html, authors, "With Unclean Hands");
   }
+  // ieee-alphabetic labels alphabetically (ieee-alphabetic.bbx:13-17 `labelalpha`; pdflatex + biber
+  // "[CM03] A.-T. Castro and T. Morrison, …"): the numeric "[1]" it printed was the unlabelled
+  // fallback of every alphabetic biblatex style.
+  let alphabetic = tex.replace("style=ieee", "style=ieee-alphabetic");
+  let (stderr, html) = convert_html(&alphabetic, &files);
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  latexml::util::test::assert_element(
+    &html,
+    "li",
+    &[r#"class="ltx_bibitem"#],
+    &castro_bibitem_labelled("ltx_bib_abbrv", "CM03", INITIALS, "With Unclean Hands"),
+  );
   // The same rule without a style file, so it runs where biblatex-cse (2025)
   // is not installed (CI's TeX Live): an `author` format that prints
   // `\namepartgiven` wins over `giveninits`.

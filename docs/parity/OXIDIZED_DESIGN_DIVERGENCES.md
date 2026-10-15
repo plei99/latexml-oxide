@@ -9966,8 +9966,7 @@ release-dumps.yml pattern), so CI catches an init regression whenever the engine
 Measured (POST_MODE=mono, 340 bibliography manuals): recall up 0, down 0; mark-plus-period in
 bibliographies 356 → 1. arXiv: the 7 papers of the 3,003 sample that ship a biblatex `.bbl` keep
 their bibitem counts, 5 gain words (up to +50 %), labels are biber's; 2605.17646's duplicate
-datalist is gone (58 → 29 bibitems). Residuals: the `.bib` path's alphabetic labels (it prints
-`[1]`; porting biber's labelalpha would fix it), "Jr.", `maxbibnames`, apa's "&" in the
+datalist is gone (58 → 29 bibitems). Residuals: "Jr.", `maxbibnames`, apa's "&" in the
 bibliography and `\parencite` (apa.cbx:496-497, :727; `\textcite` joins with "and", :50-55).
 
 **Guards**: `bibliography_names_fields::{title_mark_takes_no_period_biblatex, title_mark_takes_no_period_bst, bbl_prints_what_its_bib_prints, bbl_keeps_bibers_alphabetic_labels_and_order, bbl_prints_the_default_refcontext_datalist, bbl_skips_its_biblists_and_skipbib_entries, bbl_format2_reads_as_its_bib, bare_thebibliography_twice_arms_once}`, unit test `make_bibliography::test_period_rule`.
@@ -17328,3 +17327,48 @@ text node stays as Perl leaves it, since as NBSP the indentation between a tabul
 which the HTML parser moves in front of the `<table>`, a line of spaces that dropped `$\lambda = \ydiagram{2,1}$` below
 its line. Code LaTeXML.css, latexml_post/src/mathml/mod.rs (`rebuild_raw_subtree`); guards
 `ytableau_boxes::a_diagram_in_math_renders_on_its_line`, `ytableau_boxes::a_framed_box_in_math_keeps_its_spaces`.
+
+### 582. biblatex's alphabetic styles label from the `.bib`, as biber would (Perl: no biblatex binding; the `.bib` path was numeric)
+
+Perl has no biblatex binding (the ar5iv one rebuilds a `.bbl`), so this is Rust-only ground. With a biber `.bbl` beside
+the source the labels were already biber's (#306, `given_label`: `labelalpha` + `extraalpha`). Without one, `style=
+alphabetic` printed `[1]` in the citations and the list: the binding left `CITE_STYLE` at the kernel's `numbers`, and
+MakeBibliography's alphabetic arm (`AY`, Perl L497-500) is the `.bst`'s `[AS64]` label, three initials at most.
+
+- **Binding** (biblatex_sty.rs `blx_label_citestyle`). An alphabetic style (its name holds `alphabetic`: alphabetic,
+  alphabetic-verb, ieee-alphabetic, a third party's `ext-alphabetic`) that enables `labelalpha` (alphabetic.bbx:5,
+  alphabetic.cbx:4; the native styles' `.bbx`/`.cbx` are not loaded, so `blx_read_native_style_options` and
+  `blx_read_native_citation_style_labels` read their top-level `\ExecuteBibliographyOptions`) records
+  `citestyle="AY;maxalphanames=3;minalphanames=1[;useprefix=true]"` when the bibliography is built. The options
+  come from the package options and `\ExecuteBibliographyOptions` in order (the last wins; a `.bbx`'s defaults first).
+  An author-year or note style, or `labelalpha=false`, leaves `citestyle` as it was. Only the `.bib` path sets it: a
+  `.bbl`'s bibliography (`bbl_flush`) keeps the `citestyle` it had, since its entries carry biber's labels. XML
+  interop: a `.bib`-path alphabetic bibliography's `citestyle` is not one of Perl's `numbers`/`AY`/author-year
+  spellings, so Perl's `latexmlpost` reading our XML would take it for author-year (it has no biblatex entries to
+  read anyway).
+- **Post** (make_bibliography.rs `biblatex_alpha_label`, `assign_extra_alpha`). Biber's algorithm
+  (`Internals.pm` `_genlabel`, `_labelpart`, `_label_name`, over biblatex.def:1416-1436's default
+  `\DeclareLabelalphaTemplate`/`NameTemplate`): the authors, else the editors; a list longer than `maxalphanames` shows
+  `minalphanames` names; one visible name gives its family name's first three characters, several the first of each;
+  a truncated list or a literal `and others` adds `+` (`labelalphaothers`); the last two characters of the year field (digits or not: `year = {forthcoming}` gives `Yeang`); a "von" prefix
+  only under `useprefix`, as its first letters before the family name. Biber's `nolabel` characters (punctuation but
+  the dash, symbols) are dropped before the cut; case is kept. The list is in label order, then name, year, title
+  (`sorting=anyt`, biblatex.def:1723-1748), and entries with the same label get `extraalpha` ("a", "b", `\mknumalph`) in
+  that order (Biber.pm:4058-4066). A `.bbl`'s label still wins over the computed one.
+- **Not modelled**: the `shorthand` and `label` fields (the reader keeps neither), `shortauthor`, `uniquelist`, a
+  document's own `\DeclareLabelalphaTemplate`/`NameTemplate`, `labelalphaothers` and `nolabel`, options nested in a
+  conditional (ieee-alphabetic.cbx:19-31 raises `maxalphanames` to 4 and `minalphanames` to 3 under biber), `sorting=`
+  other than the alphabetic style's, per-type options. `bibstyle=alphabetic` with an author-year `citestyle` keeps its
+  author-year list, and `style=alphabetic,citestyle=numeric` labels both alphabetically (biblatex prints a number in
+  the citation): our citations print the list's own label.
+- **Residuals**: (1) A braced corporate name that starts in lower case (`author = {{the Club}}`, `{{van Gogh
+  Museum}}`) is one family name to biber (`the01`, `van02`), but the reader's `ltx:surname` holds only the brace-stripped
+  text, so `split_name_prefix` takes its first word for a "von" part (`Clu01`, `Gog02`; the list order differs too).
+  Marking von parts or braced names in the XML would change the bibliography markup Perl shares. (2) `extraalpha` is
+  assigned per printed `ltx:bibliography`; biber assigns it per refsection. The binding applies no list filter
+  (`\printbibliography[type=book]` prints the whole list), so every list of a refsection holds the same entries and
+  agrees; a modelled filter would need the refsection's labels first.
+
+**Guards**: `biblatex_alphabetic_labels::*` (12), `bibliography_names_fields::biblatex_style_decides_given_names`
+(ieee-alphabetic prints `[CM03]`, biber's). Replaces #306's residual for the `.bib` path.
+

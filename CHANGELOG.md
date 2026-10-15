@@ -1,6 +1,17 @@
 # Change Log
 
 ## Unreleased
+  - **biblatex's alphabetic styles label from the `.bib`.** `style=alphabetic`
+    (and `alphabetic-verb`, `ieee-alphabetic`, `bibstyle=`/`citestyle=` pairs of
+    them) with no biber `.bbl` beside the source printed `[1]` in the citations
+    and the list. They now print biblatex's alphabetic labels, built as biber
+    builds them: `[AB24]` for two authors, `[Giv96]` for one (three letters),
+    `[Ale+24]` past `maxalphanames` (default 3, `minalphanames` 1; both
+    honoured, as package options or `\ExecuteBibliographyOptions`), `a`/`b`
+    after two equal labels, the list in label order. A `.bbl`'s own labels still
+    win. Not modelled: `shorthand`/`label` fields, `uniquelist`, custom label
+    templates. OXIDIZED_DESIGN_DIVERGENCES #582. Guards
+    `biblatex_alphabetic_labels::*`.
 
   - **memoir's table of contents is LaTeXML's, and memoir is styled as a
     book.** memoir's `\tableofcontents` (and `\listoffigures`,

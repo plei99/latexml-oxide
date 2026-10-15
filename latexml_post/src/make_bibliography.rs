@@ -90,6 +90,52 @@ thread_local! {
   /// Whether the bibliography being formatted is biblatex's (its `bibstyle` is
   /// one the biblatex binding records): its drivers print rows a `.bst` does not.
   static BIBLATEX_BIBLIOGRAPHY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+  /// The parameters of biblatex's alphabetic label for the bibliography being formatted
+  /// ([`AlphaLabelling`]); `None` unless its entries are labelled alphabetically from their own fields.
+  static BIBLATEX_ALPHA: std::cell::Cell<Option<AlphaLabelling>> =
+    const { std::cell::Cell::new(None) };
+}
+
+/// The options biblatex's alphabetic label depends on, which its binding records in the `citestyle` of the
+/// `ltx:bibliography` as `AY;maxalphanames=3;minalphanames=1[;useprefix=true]` (`blx_label_citestyle`,
+/// biblatex_sty.rs): `Internals.pm` `_labelpart` / `_label_name` read exactly these (biber).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AlphaLabelling {
+  /// A name list longer than this is truncated (biblatex.sty:16390 default 3).
+  max_names:  usize,
+  /// The names a truncated list keeps (default 1).
+  min_names:  usize,
+  /// Whether a family name's prefix ("von") is in the label (`useprefix`, default false).
+  use_prefix: bool,
+}
+
+impl AlphaLabelling {
+  /// biblatex's defaults, for an `AY` the binding gave no parameters.
+  const DEFAULT: AlphaLabelling = AlphaLabelling {
+    max_names:  3,
+    min_names:  1,
+    use_prefix: false,
+  };
+
+  /// Read the `;`-separated `key=value` parameters of a `citestyle` after its `AY`. An unreadable or non-positive
+  /// number keeps the default, and the minimum never exceeds the maximum (`\blx@maxmin@num`, biblatex.sty:15327).
+  fn parse(params: &str) -> Self {
+    let mut labelling = Self::DEFAULT;
+    for param in params.split(';') {
+      let Some((key, value)) = param.split_once('=') else {
+        continue;
+      };
+      let number = || value.trim().parse::<usize>().ok().filter(|n| *n >= 1);
+      match key.trim() {
+        "maxalphanames" => labelling.max_names = number().unwrap_or(labelling.max_names),
+        "minalphanames" => labelling.min_names = number().unwrap_or(labelling.min_names),
+        "useprefix" => labelling.use_prefix = value.trim() == "true",
+        _ => {},
+      }
+    }
+    labelling.min_names = labelling.min_names.min(labelling.max_names);
+    labelling
+  }
 }
 
 /// Which marks already end a unit, so that the period a row adds after it
@@ -221,6 +267,9 @@ struct BibEntryData {
   /// The entry's position in the database (`.bib` order; `usize::MAX` when it has none): BibTeX's order for the
   /// entries no citation places in an unsorted style ([`order_entry_keys`]).
   db_index:     usize,
+  /// biblatex's alphabetic label (`labelalpha` + `extraalpha`, [`biblatex_alpha_label`]) computed from the entry's
+  /// own fields, when the bibliography is labelled alphabetically and no backend gave the entry a label.
+  alpha_label:  Option<String>,
 }
 
 impl BibEntryData {
@@ -559,6 +608,7 @@ impl MakeBibliography {
         citations,
         bibentry: Some(bibentry.clone()),
         db_index,
+        alpha_label: None,
       });
     }
   }
@@ -740,6 +790,7 @@ impl MakeBibliography {
                     citations:    Vec::new(),
                     bibentry:     None,
                     db_index:     usize::MAX,
+                    alpha_label:  None,
                   });
                 entry.cited_key = Some(bibkey.to_string());
                 entry.referrers.insert(ref_id.clone());
@@ -862,7 +913,20 @@ impl MakeBibliography {
             entry.initial = PostDocument::initial(&short_names, true);
 
             // Sort key — Perl L338, from the FULL sort-names.
-            let sort_key = format!("{}.{}.{}.{}", sort_names, year, title, bibkey).to_lowercase();
+            let mut sort_key =
+              format!("{}.{}.{}.{}", sort_names, year, title, bibkey).to_lowercase();
+            // An alphabetic biblatex list is in label order first, then name, year and title
+            // (`sorting=anyt`, biblatex.def:1723-1748; alphabetic.bbx:5), and its `extraalpha` follows that order
+            // ([`assign_extra_alpha`]). A backend's own label (`given_label`) is not computed here.
+            if let Some(labelling) = BIBLATEX_ALPHA.with(std::cell::Cell::get)
+              && given_label(bibentry).is_none()
+            {
+              let label = biblatex_alpha_label(bibentry, &year, labelling);
+              if !label.is_empty() {
+                sort_key = format!("{}.{}", label.to_lowercase(), sort_key);
+                entry.alpha_label = Some(label);
+              }
+            }
             entry.sort_key = sort_key.clone();
 
             // Enqueue transitive citations
@@ -931,9 +995,17 @@ impl MakeBibliography {
     let mut sorted_keys: Vec<String> = included.keys().cloned().collect();
     unisort(&mut sorted_keys);
 
+    // biblatex's alphabetic labels are told apart by `extraalpha`, not by the year suffix below.
+    if BIBLATEX_ALPHA.with(std::cell::Cell::get).is_some() {
+      assign_extra_alpha(&sorted_keys, &mut included);
+    }
+
     // Port of suffix detection: track by author_year, assign suffixes when duplicated.
     let mut ay_last: HashMap<String, String> = HashMap::default(); // ay → last sort_key with this ay
     for key in &sorted_keys {
+      if BIBLATEX_ALPHA.with(std::cell::Cell::get).is_some() {
+        break;
+      }
       if let Some(entry) = included.get(key) {
         let ay = entry.author_year.clone();
         if let Some(prev_key) = ay_last.get(&ay) {
@@ -1643,11 +1715,21 @@ impl Processor for MakeBibliography {
       // `$BIBSTYLES` L3953-3961), so every alpha-styled document was getting
       // author-year refnums where Perl — and the `.bst` the author chose —
       // give `[AS64]`.
-      let style = match citestyle_str.as_str() {
+      //
+      // biblatex's alphabetic styles record `AY` with the parameters of their label after it (`AY;maxalphanames=3;…`,
+      // biblatex_sty.rs `blx_label_citestyle`): the label is biblatex's, not the `.bst`'s, and is built from the
+      // entries' own fields ([`biblatex_alpha_label`]) unless a `.bbl` gave them (then `given_label`).
+      let (citestyle_name, citestyle_params) = citestyle_str
+        .split_once(';')
+        .unwrap_or((citestyle_str.as_str(), ""));
+      let style = match citestyle_name {
         "numbers" => CitationStyle::Numbers,
         "AY" => CitationStyle::Alpha,
         _ => CitationStyle::AuthorYear,
       };
+      let alpha_labelling = (style == CitationStyle::Alpha && biblatex)
+        .then(|| AlphaLabelling::parse(citestyle_params));
+      BIBLATEX_ALPHA.with(|labelling| labelling.set(alpha_labelling));
 
       // bib_docs must be kept alive as long as entries (bibentry Nodes reference them)
       let (mut entries, _bib_docs) = self.get_bib_entries(&doc, bib);
@@ -3772,7 +3854,183 @@ fn entry_given_label(entry: &BibEntryData, style: &CitationStyle) -> Option<Stri
   if matches!(style, CitationStyle::AuthorYear) {
     return None;
   }
-  entry.bibentry.as_ref().and_then(given_label)
+  // The backend's label wins; else biblatex's own, computed from the entry ([`biblatex_alpha_label`]).
+  entry
+    .bibentry
+    .as_ref()
+    .and_then(given_label)
+    .or_else(|| entry.alpha_label.clone())
+}
+
+/// biblatex's `extraalpha` (Biber.pm:4058-4066, `incr_seen_extraalpha`): of the entries whose label is the same
+/// string, taken in list order, the first gets "a", the second "b" ([`mknumalph`]) — none for a label of one entry.
+/// `sorted_keys` is the list order, which the label leads ([`biblatex_alpha_label`]).
+fn assign_extra_alpha(sorted_keys: &[String], included: &mut HashMap<String, BibEntryData>) {
+  let mut totals: HashMap<String, u32> = HashMap::default();
+  for key in sorted_keys {
+    if let Some(label) = included
+      .get(key)
+      .and_then(|entry| entry.alpha_label.clone())
+    {
+      *totals.entry(label).or_default() += 1;
+    }
+  }
+  let mut seen: HashMap<String, u32> = HashMap::default();
+  for key in sorted_keys {
+    let Some(entry) = included.get_mut(key) else {
+      continue;
+    };
+    let Some(label) = entry.alpha_label.as_mut() else {
+      continue;
+    };
+    if totals.get(label.as_str()).is_some_and(|total| *total > 1) {
+      let count = seen.entry(label.clone()).or_default();
+      *count += 1;
+      let extra = mknumalph(*count);
+      label.push_str(&extra);
+    }
+  }
+}
+
+/// Whether biber's default `nolabel` (Constants.pm:262) removes `c` from a name before its label is cut:
+/// `[\p{Pc}\p{Ps}\p{Pe}\p{Pi}\p{Pf}\p{Po}\p{S}\p{C}]+` — every punctuation but the dash (`Smith-Jones` keeps its
+/// hyphen), every symbol, every control. ASCII is exact; beyond it the Latin-1, general-punctuation, currency, arrow
+/// and symbol blocks are listed (the `Pd` dashes U+2010-2015 excepted), not the whole of Unicode.
+fn is_nolabel(c: char) -> bool {
+  match c {
+    '-' => false,
+    c if c.is_ascii() => c.is_ascii_punctuation() || c.is_ascii_control(),
+    '\u{80}'..='\u{9F}'
+    | '\u{A1}'..='\u{A9}'
+    | '\u{AB}'..='\u{AC}'
+    | '\u{AE}'..='\u{B4}'
+    | '\u{B6}'..='\u{B9}'
+    | '\u{BB}'..='\u{BF}'
+    | '\u{D7}'
+    | '\u{F7}' => true,
+    '\u{2010}'..='\u{2015}' => false,
+    '\u{2016}'..='\u{206F}'
+    | '\u{20A0}'..='\u{20CF}'
+    | '\u{2100}'..='\u{214F}'
+    | '\u{2190}'..='\u{2BFF}'
+    | '\u{3001}'..='\u{3003}' => true,
+    _ => false,
+  }
+}
+
+/// biber's `normalise_string_label` (Utils.pm:634-648) for a name part: ties are spaces, the `nolabel` characters go
+/// ([`is_nolabel`]), the ends are trimmed and inner runs of space collapse.
+fn normalise_label_part(part: &str) -> String {
+  let kept: String = part
+    .chars()
+    .map(|c| if c == '~' { ' ' } else { c })
+    .filter(|c| !is_nolabel(*c))
+    .collect();
+  kept.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The first `width` grapheme clusters of `text` (`Unicode::GCString::substr`): a base character with the combining
+/// marks that follow it counts once.
+fn label_prefix(text: &str, width: usize) -> String {
+  let mut out = String::new();
+  let mut clusters = 0;
+  for c in text.chars() {
+    if !is_grapheme_extender(c) {
+      if clusters == width {
+        break;
+      }
+      clusters += 1;
+    }
+    out.push(c);
+  }
+  out
+}
+
+/// The last `width` grapheme clusters of `text` (`strside=right`, `Unicode::GCString::substr(-width, width)`).
+fn label_suffix(text: &str, width: usize) -> String {
+  let mut clusters: Vec<String> = Vec::new();
+  for c in text.chars() {
+    match clusters.last_mut() {
+      Some(last) if is_grapheme_extender(c) => last.push(c),
+      _ => clusters.push(c.to_string()),
+    }
+  }
+  clusters[clusters.len().saturating_sub(width)..].concat()
+}
+
+/// Whether `c` is a combining mark, which joins the character before it in one grapheme cluster.
+fn is_grapheme_extender(c: char) -> bool {
+  matches!(c, '\u{300}'..='\u{36F}' | '\u{1AB0}'..='\u{1AFF}' | '\u{1DC0}'..='\u{1DFF}'
+    | '\u{20D0}'..='\u{20FF}' | '\u{FE20}'..='\u{FE2F}')
+}
+
+/// A surname split into its BibTeX "von" part and the family name proper: the von part is the run of leading words
+/// that begin in lower case ("von", "de la"), and never the last word. The bibliography reader keeps both in
+/// `ltx:surname`.
+fn split_name_prefix(surname: &str) -> (Vec<&str>, String) {
+  let words: Vec<&str> = surname.split_whitespace().collect();
+  let von = words
+    .iter()
+    .take(words.len().saturating_sub(1))
+    .take_while(|word| word.chars().next().is_some_and(char::is_lowercase))
+    .count();
+  (words[..von].to_vec(), words[von..].join(" "))
+}
+
+/// biblatex's `labelalpha` for the entry (biber `_genlabel`, over biblatex.def:1416-1436's default templates):
+///
+/// * the names: the authors, else the editors (`labelname`); a literal `others` ends the list as a truncation.
+///   More than `maxalphanames` leaves `minalphanames` of them visible, and `labelalphaothers` (`+`) follows a
+///   truncated list (`_label_name`);
+/// * one visible name: the first three characters of its family name (the `labelname` item with `ifnames=1,
+///   strwidth=3`); several: the first character of each (`strwidth=1`). The family name is cut after biber's
+///   `nolabel` characters are removed ([`normalise_label_part`]), case is kept. A prefix ("von") is left out unless
+///   `useprefix`; then its first character of every word comes first (`pre=true, strwidth=1, compound=true`);
+/// * then the last two characters of the year field (`strwidth=2, strside=right`), digits or not (`forthcoming` gives
+///   `ng`, as biber's `Yeang`).
+///
+/// Not modelled: the `shorthand` and `label` fields (the reader keeps neither), `shortauthor`, `uniquelist`,
+/// `labelalphanametemplate` and `alphaothers` set by the document, `nolabel` of the document.
+fn biblatex_alpha_label(bibentry: &Node, year: &str, labelling: AlphaLabelling) -> String {
+  let mut names = PostDocument::findnodes_foreign("ltx:bib-name[@role='author']", bibentry);
+  if names.is_empty() {
+    names = label_editors("", |x| PostDocument::findnodes_foreign(x, bibentry));
+  }
+  let more_names = names
+    .last()
+    .is_some_and(|name| name.get_content().trim() == "others");
+  if more_names {
+    names.pop();
+  }
+  let visible = if names.len() > labelling.max_names {
+    labelling.min_names
+  } else {
+    names.len()
+  };
+  let mut label = String::new();
+  for name in names.iter().take(visible) {
+    let surname = PostDocument::findnodes_foreign("ltx:surname", name)
+      .first()
+      .map(|node| node.get_content())
+      .unwrap_or_default();
+    let (prefix, family) = split_name_prefix(&surname);
+    if labelling.use_prefix {
+      for word in &prefix {
+        for part in normalise_label_part(word).split(['-', ' ']) {
+          label.push_str(&label_prefix(part, 1));
+        }
+      }
+    }
+    label.push_str(&label_prefix(
+      &normalise_label_part(&family),
+      if visible == 1 { 3 } else { 1 },
+    ));
+  }
+  if names.len() > visible || more_names {
+    label.push('+');
+  }
+  label.push_str(&label_suffix(&normalise_label_part(year), 2));
+  label
 }
 
 /// biblatex's `\mknumalph` (biblatex.sty:13285-13303): 1-26 as "a"-"z",
@@ -4238,6 +4496,7 @@ fn clone_entry(e: &BibEntryData) -> BibEntryData {
     citations:    e.citations.clone(),
     bibentry:     e.bibentry.clone(),
     db_index:     e.db_index,
+    alpha_label:  e.alpha_label.clone(),
   }
 }
 
@@ -4346,6 +4605,71 @@ fn bib_lookup_candidates(bib_file: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  /// biber's `normalise_string_label` and `Unicode::GCString::substr` as the label cut uses them: the dash survives
+  /// `nolabel` (`Smith-Jones` -> `Smi`), other punctuation and symbols do not (`O'Brien` -> `OBr`), a tie is a space,
+  /// and a combining mark stays with its letter.
+  #[test]
+  fn label_cut_follows_biber() {
+    assert_eq!(normalise_label_part("Smith-Jones"), "Smith-Jones");
+    assert_eq!(normalise_label_part("O'Brien"), "OBrien");
+    assert_eq!(normalise_label_part("  van~der   Berg "), "van der Berg");
+    assert_eq!(normalise_label_part("Smith+Jones"), "SmithJones");
+    assert_eq!(label_prefix("OBrien", 3), "OBr");
+    assert_eq!(label_prefix("Wu", 3), "Wu");
+    assert_eq!(label_prefix("E\u{301}clair", 2), "E\u{301}c");
+    assert_eq!(label_prefix("\u{c5}ngstrom", 3), "\u{c5}ng");
+    assert_eq!(label_suffix("2024", 2), "24");
+    assert_eq!(label_suffix("forthcoming", 2), "ng");
+    assert_eq!(label_suffix("5", 2), "5");
+    assert_eq!(label_suffix("ae\u{301}", 2), "ae\u{301}");
+    assert_eq!(label_suffix("", 2), "");
+  }
+
+  /// The BibTeX von part is the leading run of lower-case words, never the last word.
+  #[test]
+  fn name_prefix_is_the_leading_lowercase_words() {
+    assert_eq!(
+      split_name_prefix("von Neumann"),
+      (vec!["von"], "Neumann".to_string())
+    );
+    assert_eq!(
+      split_name_prefix("de la Cruz"),
+      (vec!["de", "la"], "Cruz".to_string())
+    );
+    assert_eq!(
+      split_name_prefix("Neumann"),
+      (vec![], "Neumann".to_string())
+    );
+    assert_eq!(split_name_prefix("van"), (vec![], "van".to_string()));
+  }
+
+  /// The `citestyle` parameters the binding records: defaults 3 and 1, a minimum never above the maximum, an
+  /// unreadable number keeps the default.
+  #[test]
+  fn alpha_labelling_reads_the_recorded_options() {
+    assert_eq!(AlphaLabelling::parse(""), AlphaLabelling::DEFAULT);
+    let four = AlphaLabelling::parse("maxalphanames=4;minalphanames=2;useprefix=true");
+    assert_eq!(
+      (four.max_names, four.min_names, four.use_prefix),
+      (4, 2, true)
+    );
+    let clamped = AlphaLabelling::parse("maxalphanames=2;minalphanames=5");
+    assert_eq!((clamped.max_names, clamped.min_names), (2, 2));
+    assert_eq!(
+      AlphaLabelling::parse("maxalphanames=x;minalphanames=0"),
+      AlphaLabelling::DEFAULT
+    );
+  }
+
+  /// `\mknumalph` (biblatex.sty:13285-13303), the `extraalpha` letters.
+  #[test]
+  fn mknumalph_letters() {
+    assert_eq!(mknumalph(1), "a");
+    assert_eq!(mknumalph(26), "z");
+    assert_eq!(mknumalph(27), "aa");
+    assert_eq!(mknumalph(703), "703");
+  }
 
   /// `join_fields` judges the joint by the text a field prints: after a field
   /// ending in a formula (whose own content ends in ".") or in a reference
