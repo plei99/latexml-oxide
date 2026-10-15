@@ -67,6 +67,7 @@ mod makeindex_allocates_indexfile;
 mod math_prime_meaning_superscript;
 mod memoir_output_streams;
 mod memoir_tableofcontents;
+mod multiline_node_rows;
 mod natbib_label_dotless_i;
 mod neurips_anonymous;
 mod newtcblisting_verbatim;

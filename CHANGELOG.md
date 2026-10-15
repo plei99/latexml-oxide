@@ -38,6 +38,17 @@
     a format set after the label it shapes. Perl has the defect (cleveref.sty.ltxml:47-58).
     OXIDIZED_DESIGN_DIVERGENCES #586. Guards `cleveref_crefformat::*`.
 
+  - **The lines of a multi-line TikZ node are a `\baselineskip` apart.** A node without
+    `text width` (`\node[align=left]{a\\ b\\ c}`, any `align=`) is a nested
+    `\vbox{\halign{…}}`, and the SVG rows were stacked tightly, a line's height and depth
+    apart (9.61 px), so a browser drew the lines on top of one another and the node's box
+    (the `draw`n rectangle, the anchors) was 22pt short of pdfTeX's. The rows now carry
+    TeX's interline glue (`\baselineskip`, or `\lineskip` under `\lineskiplimit`; `\\[10pt]`
+    adds its skip): 16.60 px between lines, the three-line `draw`n node 54.12 px high (was
+    40.13). The rows of a `\matrix` and of `tikzcd` (`\offinterlineskip`), `text width`
+    nodes and every HTML table are unchanged; a multi-line node inside a matrix cell gets
+    its own 12pt lines, as pdfTeX. Perl has the defect. OXIDIZED_DESIGN_DIVERGENCES #587. Guards
+    `multiline_node_rows::*`.
 
   - **`\overline` and `\underline` are drawn rules in MathML.** They came out as
     `<mover accent="true"><mi>M</mi><mo stretchy="true">¯</mo></mover>` (Perl's markup too), and

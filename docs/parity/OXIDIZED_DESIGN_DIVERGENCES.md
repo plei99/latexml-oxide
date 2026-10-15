@@ -17545,3 +17545,38 @@ shape is not seen (pdflatex honours mid-document changes at the `\cref`), and on
 the hidden tags (`S0.E1.m1`, `.m2`), shifting the equation's own `Math` id by the number of math
 pieces in the format. Guards `cleveref_crefformat::*`.
 
+### 587. The rows of a pgf SVG alignment are a `\baselineskip` apart, as TeX stacks them (Perl: a row's height and depth apart)
+
+A TikZ node without `text width` and with several lines (`\node[align=left]{a\\ b\\ c}`, any `align=`) is typeset as
+nested `\vbox{\halign{…}}`s, one line per row (tikz.code.tex:4252-4256), and tex.web §679 `append_to_vlist` puts
+the `\baselineskip` glue between the boxes of that vertical list: the lines are 12pt (16.60 px) apart, `\box0` of
+the three-line repro 30.94444pt high (6.94444 + 12 + 12) plus 1.49998pt deep (pdfTeX `\showbox`). pgf's SVG driver
+turns each `\halign` into `ltx_tikzmatrix` groups (`\lxSVG@halign`, `tikz_alignment_bindings`), and Alignment.pm
+`normalize_sum_sizes` — which Rust's `normalize_sum_sizes` ports — places the rows by adding each one's top padding,
+height, depth and bottom padding (the row-position loop `$y += tpadding / cheight / cdepth / bpadding`, L609-614 of
+the current source, L573-579 of LaTeXML 0.8.8; both read): no interline glue, the lines 9.61 px apart. A browser drew them on top of
+one another, and the node's box (the `draw`n rectangle, the anchors) was 22pt short of TeX's. Perl shares the layout
+(pgfsys-latexml.def.ltxml `tikzAlignmentBindings` supplies no strut and no spacing).
+
+An alignment built by `tikz_alignment_bindings` now records the `\baselineskip`, `\lineskip` and `\lineskiplimit` in
+force when it opens (properties `interline_*`, as a `\vbox`'s list records them, #421) and `normalize_sum_sizes` stacks
+its rows with them: before a row (not the first), `\baselineskip` less the depth of the row above and the height of
+this one, or `\lineskip` when that is under `\lineskiplimit`. Rows of a `\matrix` and of `tikzcd` are unaffected by
+construction: `\pgfmatrix` runs `\offinterlineskip` before its `\halign` (pgfmodulematrix.code.tex:181;
+`\baselineskip-1000pt \lineskip0pt \lineskiplimit\maxdimen`), the glue is `\lineskip` = 0, and their spacing stays what
+their cells (struts, `row sep`) give them: the rows of every matrix and tikz-cd fixture checked convert byte-identically. What does change, correctly, is a
+multi-line node INSIDE a matrix cell: pgf restores `\normalbaselines` per cell (pgfmodulematrix.code.tex:357), so its
+own lines are 12pt apart (a `\small` node 11pt, a node in a `tabular` cell, where `\@array` zeroes `\baselineskip`
+and `\lineskip`, touching), each as pdfTeX measures. A `\noalign` row (`\\[10pt]` is `\noalign{\vskip10pt}`: the
+`[…]` is parsed at tikz.code.tex:4231-4232, the skip set at :4255) is no box of the list: glue, kerns and penalties
+keep the depth above, so the next row still receives its interline glue after the skip (10pt + 12pt apart); any other
+`\noalign` material is taken for a rule and cancels it (§1056 `ignore_depth`). `tabular` and every other alignment are unchanged —
+only the alignments with the recorded parameters take the path — and the `text width` node, a paragraph, is as it was.
+The node's height (`\lxSVG@halign`'s sizer reads the alignment's `cached_height`/`cached_depth`) and the rectangle
+follow: 54.12 px for the three-line `draw`n node, TeX's 39.51pt north-to-south less the 0.4pt line width. The repro
+`boxes-groups/tikz_align_line_padding` (a two-line `align=` node) now has pdflatex's picture height, 35.44 px = 25.61pt
+(30.98 before).
+Residuals: the parameters are read when the alignment opens, not as each row ends (a `\baselineskip` change inside a
+row is not seen); `\nointerlineskip` (`\prevdepth`) leaves no item, so a row after it still receives its glue (R7, as
+#421); and `\noalign` material other than glue, kerns and penalties cancels the depth above as a rule does, where TeX
+leaves it for a mark or an insert and gives a box its own interline glue. Guards `multiline_node_rows::*`.

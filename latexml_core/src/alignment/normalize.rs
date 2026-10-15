@@ -11,7 +11,7 @@ use crate::{
     object::Object,
     store::Stored,
   },
-  digested::Digested,
+  digested::{Digested, DigestedData},
   list::List,
 };
 
@@ -727,6 +727,17 @@ pub fn normalize_prune_columns(alignment: &mut Alignment) -> Result<()> {
   Ok(())
 }
 
+/// Whether a digested item — all of it, for a list — leaves TeX's `prev_depth` alone in a vertical list: glue and
+/// kerns (the vertical space of `\vskip`) and penalties.
+fn leaves_prev_depth(item: &Digested) -> bool {
+  match item.data() {
+    DigestedData::List(l) => l
+      .try_borrow()
+      .is_ok_and(|l| l.boxes.iter().all(leaves_prev_depth)),
+    _ => item.get_property_bool("isVerticalSpace") || item.get_property_bool("isPenalty"),
+  }
+}
+
 /// Perl: normalize_sum_sizes (Alignment.pm L514-664)
 pub fn normalize_sum_sizes(alignment: &mut Alignment) -> Result<()> {
   let mut rowheights: Vec<i64> = Vec::new();
@@ -851,11 +862,50 @@ pub fn normalize_sum_sizes(alignment: &mut Alignment) -> Result<()> {
       .unwrap_or(0),
   );
   let mut y: i64 = 0;
+  // tex.web §679 `append_to_vlist`: an alignment that recorded the interline parameters in force for it (a pgf SVG
+  // alignment, `tikz_alignment_bindings`) stacks its rows as the lines of a vertical list — `\baselineskip` less the
+  // depth above and the height below, `\lineskip` when that is under `\lineskiplimit` — where Perl (and the tabular
+  // alignments here) place a row right below the previous one (Perl L609-614, the `$y += tpadding / cheight / cdepth /
+  // bpadding` loop below; OXIDIZED_DESIGN_DIVERGENCES #587).
+  let interline = {
+    let skip = |key: &str| match alignment.get_property(key).as_deref() {
+      Some(Stored::Dimension(d)) => Some(d.value_of()),
+      _ => None,
+    };
+    skip("interline_baselineskip").map(|baselineskip| {
+      (
+        baselineskip,
+        skip("interline_lineskip").unwrap_or(0),
+        skip("interline_lineskiplimit").unwrap_or(0),
+      )
+    })
+  };
+  let mut prev_depth: Option<i64> = None;
   // Row & column positions: left,top
   for (i, row) in alignment.rows.iter().enumerate() {
     if i >= rowheights.len() {
       break;
     }
+    if interline.is_some() && row.is_pseudo() {
+      // `\noalign` material is no box of the list: glue, kerns and penalties keep the depth above (so the next row still
+      // gets its interline glue after the `\vskip` of `\\[3pt]`); anything else is taken for a rule, which cancels it
+      // (§1056 `ignore_depth`). A box or a mark there is not modelled (OXIDIZED_DESIGN_DIVERGENCES #587).
+      let glue_only = row
+        .get_columns()
+        .iter()
+        .all(|cell| cell.boxes.as_ref().is_none_or(leaves_prev_depth));
+      if !glue_only {
+        prev_depth = None;
+      }
+    } else if let Some((baselineskip, lineskip, lineskiplimit)) = interline {
+      if let Some(above) = prev_depth {
+        let height = row.cached_height.map_or(0, |h| h.value_of());
+        let gap = baselineskip - above - height;
+        y += if gap >= lineskiplimit { gap } else { lineskip };
+      }
+      prev_depth = row.cached_depth.map(|d| d.value_of());
+    }
+    // A row's own top and bottom padding add on top of the interline glue (a pgf row has none).
     if let Some(tp) = row.top_padding {
       y += tp.value_of();
     }

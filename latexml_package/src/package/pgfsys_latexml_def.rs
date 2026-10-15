@@ -213,6 +213,20 @@ fn tikz_alignment_bindings(
 
   let mut properties = SymHashMap::default();
   properties.insert("preserve_structure", Stored::Bool(true));
+  // tex.web §679 `append_to_vlist`: the rows of an `\halign` in vertical mode are stacked as the lines of a vertical
+  // list, with the `\baselineskip` / `\lineskip` / `\lineskiplimit` in force for it. pgf's matrices run under
+  // `\offinterlineskip` (pgfmodulematrix.code.tex:181), which leaves no glue between their rows; a TikZ node's lines
+  // (`\vbox{\halign{…}}`, tikz.code.tex:4252-4256) stay a `\baselineskip` apart. `normalize_sum_sizes` places the
+  // rows with them (OXIDIZED_DESIGN_DIVERGENCES #587; Perl stacks the rows tightly).
+  for (key, register) in [
+    ("interline_baselineskip", "\\baselineskip"),
+    ("interline_lineskip", "\\lineskip"),
+    ("interline_lineskiplimit", "\\lineskiplimit"),
+  ] {
+    if let Some(value) = lookup_register_quiet(register) {
+      properties.insert(key, Stored::Dimension(Dimension::new(value.value_of())));
+    }
+  }
 
   let alignment = Alignment::new(AlignmentConfig {
     template: Some(template),
