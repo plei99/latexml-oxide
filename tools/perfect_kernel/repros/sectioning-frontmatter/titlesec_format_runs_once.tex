@@ -6,7 +6,7 @@
 %          Base_Utility.pool.ltxml:1099-1101); Perl's star form replaces the composer (:30-34)
 % oracle:  pdflatex 0 errors: "XX1 Intro", "1.1 Sub" (ragged right), "1.1.1 Deep"
 % engines: rust 57k=0 perl=0 (2026-09-27): `XX1  XXIntro`, the `\raggedright` lost, `Deep` unnumbered
-% expect:  0 errors; <title font="bold">XX1  Intro</title>, <title font="bold">1.1.1  Deep</title>
+% expect:  0 errors; <title font="bold">XX<tag class="ltx_tag_titlesec">1</tag>  Intro</title>, <title font="bold"><tag class="ltx_tag_titlesec">1.1.1  </tag>Deep</title> (OXIDIZED_DESIGN_DIVERGENCES #583)
 % status:  RED (SHARED / PERL-ORIGIN) -> GREEN (57o)
 \documentclass{article}
 \usepackage{titlesec}

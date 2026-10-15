@@ -5270,7 +5270,8 @@ fn titlesec_title_width_registers_exist() {
   let (stderr, xml) = convert(tex, false);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert!(
-    xml.contains("<title font=\"sansserif\">") && xml.contains("Hello</title>"),
+    xml.contains("<title font=\"sansserif\"><tag class=\"ltx_tag_titlesec\">1</tag>")
+      && xml.contains("Hello</title>"),
     "{xml}"
   );
 }

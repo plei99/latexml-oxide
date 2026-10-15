@@ -1,0 +1,36 @@
+% witness: the user's notes (memoir + titlesec, and article + a shared style using `\titleformat`; 1,050
+%          headings in 33 notes), minimal here. A heading without `\titleformat` is
+%          `<title><tag close=" ">1</tag>Example</title>` (Base_Utility.pool.ltxml:1099-1105
+%          `\lx@@compose@title`); with it the number was plain text of the title,
+%          `<title>1 Example</title>`, `<h2 class="ltx_title ltx_title_section">1 Example</h2>`.
+%          Perl's titlesec.sty.ltxml:49,55 composes `$label` untagged: "Perhaps should wrap $label with
+%          \lx@tag, but then have to worry about inheritted CSS?"
+% oracle:  pdflatex 0 errors: "1  Example" (the number, 1em, the title), in the format's size
+% engines: rust (before) = perl: the number is title text; with a book chapter an untagged number cannot be
+%          styled, and wrapping it in a plain `\lx@tag` made ltx-book.css's `.ltx_title_chapter .ltx_tag
+%          { display:block; font-size:90% }` put it on a line of its own
+% expect:  0 errors; the book's chapter, section, subsection, subsubsection (empty label) and starred section:
+%          <title font="bold" fontsize="298%"><tag class="ltx_tag_titlesec">1</tag>  Introduction</title>,
+%          <title font="bold" fontsize="144%"><tag class="ltx_tag_titlesec">1.1</tag>  Example</title>,
+%          <title font="bold"><tag class="ltx_tag_titlesec"><text font="italic">1.1.1.</text></tag>  Sub</title>,
+%          <title>No label</title> (no tag), <title>Starred</title>;
+%          HTML `<h3 class="ltx_title ltx_font_bold ltx_title_section" style="font-size:144%;"><span
+%          class="ltx_tag ltx_tag_titlesec ltx_tag_section">1.1</span>  Example</h3>`; `.ltx_tag_titlesec` is inline
+%          (LaTeXML.css), so the chapter's number stays on its title's line; the format's font stays on the title
+%          (no `<text>` runs inside it); a label's own formatting is a `<text>` inside the tag
+% status:  RED -> GREEN (OXIDIZED_DESIGN_DIVERGENCES #583); guards `titlesec_label_tag::*`
+\documentclass{book}
+\usepackage{titlesec}
+\setcounter{secnumdepth}{3}
+\titleformat{\chapter}[hang]{\Huge\bfseries}{\thechapter}{20pt}{}
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\bfseries}{\itshape\thesubsection.}{1em}{}
+\titleformat{\subsubsection}{\normalfont}{}{0pt}{}
+\begin{document}
+\chapter{Introduction}
+\section{Example}\label{sec:example}
+\subsection{Sub}
+\subsubsection{No label}
+\section*{Starred}
+See Section~\ref{sec:example}.
+\end{document}

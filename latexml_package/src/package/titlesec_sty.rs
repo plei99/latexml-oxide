@@ -1,3 +1,6 @@
+use latexml_core::document::get_node_qname;
+use libxml::tree::NodeType;
+
 use crate::prelude::*;
 
 // Perl titlesec.sty.ltxml L35-40: titlesec "shape" option → CSS class.
@@ -97,6 +100,67 @@ LoadDefinitions!({
     }
     Ok(Tokens::new(tokens))
   });
+  // The title's font is the format's. The heading constructor opens `ltx:title` in the heading
+  // command's own font, so under the format's `\Large\bfseries` the title text was a `<text>` run
+  // that collapsed onto the title (`<title fontsize="144%">`, which HTML turns into a `style` on the
+  // `<h*>` that overrides the class stylesheet's size). Beside a tag the title has two children and
+  // nothing collapses: each run kept its font, and the percentages multiplied with the class's
+  // (`ltx_title_section { font-size:140% }` x 144%). Recording the format's font on the (still
+  // unfilled) title, as the font of this marker, which comes right after the format ran, leaves the
+  // runs bare and the font on the title, as before the label was a tag; only what the label or the
+  // before-code sets itself stays a `<text>`. Text the format printed before a switch (`{XX\bfseries}`)
+  // was typeset in the title's earlier font, so then the title keeps it (OXIDIZED_DESIGN_DIVERGENCES #583).
+  DefConstructor!("\\lx@titlesec@titlefont", "",
+    before_construct => sub[document, whatsit] {
+      let Some(font) = whatsit.get_font()? else { return Ok(()); };
+      let mut node = document.get_node().clone();
+      let mut hoisted = false;
+      if node.get_type() == Some(NodeType::TextNode)
+        && let Some(parent) = node.get_parent() {
+        node = parent;
+      }
+      // Material the format itself printed ("XX" in `{\bfseries XX}`) is in an auto-opened font run
+      // at the end of the title. If that run is all the title holds and is in the format's final
+      // font, it is the title's own text: take it out of its run.
+      if get_node_qname(&node) == pin!("ltx:text")
+        && node.has_attribute("_fontswitch")
+        && let Some(mut title) = node.get_parent()
+        && get_node_qname(&title) == pin!("ltx:title")
+        && title.get_child_nodes().len() == 1
+        && font.distance(document.get_node_font(&node)) == 0 {
+        document.close_text_internal()?;
+        for mut child in node.get_child_nodes() {
+          child.unlink();
+          title.add_child(&mut child)?;
+        }
+        document.remove_node_keeping_box(node);
+        document.set_node(&title);
+        node = title;
+        hoisted = true;
+      }
+      // The font is the title's only while the title holds nothing but that run: text the format printed before
+      // a switch (`{XX\bfseries}`, `{AA\bfseries XX}`) was typeset in the title's earlier font, and
+      // stays a run of its own, the later text another.
+      if get_node_qname(&node) == pin!("ltx:title") && (hoisted || node.get_first_child().is_none()) {
+        document.set_node_font(&mut node, &font)?;
+      }
+    });
+
+  // The label as a tag, `\lx@tag` (base_utilities.rs) with a class of its own: the stylesheets of
+  // book and report set every tag of a chapter or appendix title `display:block; font-size:90%` (the
+  // number on a line above the title) and that is not titlesec's layout, whose `hang` shape keeps the
+  // number on the title's line and whose `display` shape breaks the line itself.
+  // `.ltx_title .ltx_tag.ltx_tag_titlesec` in LaTeXML.css restores an inline tag in the title's font.
+  // An empty tag is removed, as `\lx@tag` does.
+  DefConstructor!("\\lx@titlesec@tag{}", "<ltx:tag class='ltx_tag_titlesec'>#1</ltx:tag>",
+    mode => "restricted_horizontal",
+    after_construct => sub[document] {
+      if let Some(node) = document.get_node().get_last_child()
+        && node.get_first_child().is_none() {
+        document.remove_node(node);
+      }
+    });
+
   // The format alone, with the shape class a `\titleformat` recorded.
   DefPrimitive!("\\lx@titleformat@font {}{}", sub[(sec, format)] {
     let sec = sec.to_string();
@@ -181,20 +245,49 @@ LoadDefinitions!({
     if grouped {
       body.push(T_BEGIN!());
     }
+    // The title's font is the format's (`\lx@titlesec@titlefont`), recorded in the group the format
+    // ran in, and not between a format ending in `\MakeUppercase` and the group it takes.
+    body.push(T_CS!("\\lx@titlesec@titlefont"));
     // Every shape sets the label in a group of its own (titlesec.sty:752 `{#2\ttl@strut\@@par}`,
     // :773 `\sbox\z@{#2…}`, :791 `{\ttl@strut#2}`, :810 `{#2}`, :837 `\hbox{#2}`, :879, :953,
     // :1003), so a font the label sets stays in it; `display` and `frame` set it on a line of its
     // own above the title (:752, the separator a `\vspace`; :837-846), the others
     // `\hspace{sep}` before the title. Ungrouped, a display label's `\Large` sized the title and
     // ran into it ("Chapter 1Introducción", unamth-template tesis).
-    if matches!(shape_str.as_str(), "display" | "frame") {
-      body.extend([T_CS!("\\lx@titleline"), T_BEGIN!(), T_BEGIN!()]);
-      body.extend(label.iter().copied());
-      body.extend([T_END!(), T_END!()]);
-    } else {
+    //
+    // The label is the title's number, so it is a tag as in the kernel's default composer
+    // (`\lx@@compose@title` = `\lx@tag[][ ]{#1}#2`, base_utilities.rs; Perl
+    // Base_Utility.pool.ltxml:1099-1105): `<ltx:tag>1</ltx:tag>Title`, which post-processing
+    // styles as `ltx_tag ltx_tag_<type>`. Perl's titlesec.sty.ltxml:55 inserts `$label`
+    // untagged, leaving the number as bare title text, with this comment above it (:49):
+    //   # Perhaps should wrap $label with \lx@tag, but then have to worry about inheritted CSS?
+    // (OXIDIZED_DESIGN_DIVERGENCES #583). The worry is handled so: the tag is `\lx@titlesec@tag`,
+    // classed `ltx_tag_titlesec`, which LaTeXML.css makes an inline run in the title's font (book
+    // and report make every tag of a chapter title a block, ltx-book.css:28-29), and the format's
+    // font stays on the title (`\lx@titlesec@titlefont`), not in runs that multiply with the class's
+    // size. The tag takes the label alone, formatting and all; the separator stays outside it, as
+    // titlesec sets it (:752, :773, :791, :810), so the title text gains or loses no space (the one
+    // exception: `\titleformat*`'s default label `\@seccntformat{<sec>}` ends in its own `\quad`,
+    // which stays in the tag). No label (`{}`), no tag.
+    let tagged_label = |body: &mut Vec<Token>| {
+      let empty = label.iter().all(|t| t.get_catcode() == Catcode::SPACE);
+      if !empty {
+        body.push(T_CS!("\\lx@titlesec@tag"));
+        body.push(T_BEGIN!());
+      }
       body.push(T_BEGIN!());
       body.extend(label.iter().copied());
       body.push(T_END!());
+      if !empty {
+        body.push(T_END!());
+      }
+    };
+    if matches!(shape_str.as_str(), "display" | "frame") {
+      body.extend([T_CS!("\\lx@titleline"), T_BEGIN!()]);
+      tagged_label(&mut body);
+      body.push(T_END!());
+    } else {
+      tagged_label(&mut body);
       body.push(T_CS!("\\hspace"));
       body.push(T_BEGIN!());
       body.extend(sep.unlist());

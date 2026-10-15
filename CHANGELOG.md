@@ -1,6 +1,23 @@
 # Change Log
 
 ## Unreleased
+  - **A `\titleformat` heading keeps its number as a tag.** With titlesec's
+    `\titleformat`, a numbered heading's number was plain text of the title
+    (`<title>1 Example</title>`, `<h2 class="ltx_title ltx_title_section">1
+    Example</h2>`), where every other heading has `<tag>1</tag>Example` and the
+    HTML's `ltx_tag ltx_tag_section` span. The label is now one `ltx:tag`
+    (class `ltx_tag_titlesec`), with its own formatting inside it
+    (`{\itshape\thesubsection.}`) and the separator outside, in every shape
+    (`hang`, `runin`, `block`, `display`, `frame`, memoir's `\chapter` too); an
+    empty label or a starred heading has none. The format's font stays on the
+    title, so a heading with a size switch keeps its own
+    `style="font-size:…"`, and the tag is an inline run, not the block that
+    book and report make of a chapter's tag (`.ltx_tag_titlesec` in
+    LaTeXML.css). The default label of `\titleformat*` ends in its own `\quad`,
+    which stays inside the tag. Perl has the defect (titlesec.sty.ltxml:55, whose
+    L49 comment worries about "inheritted CSS"). OXIDIZED_DESIGN_DIVERGENCES
+    #583, KNOWN_PERL_ERRORS #665. Guards `titlesec_label_tag::*`.
+
   - **biblatex's alphabetic styles label from the `.bib`.** `style=alphabetic`
     (and `alphabetic-verb`, `ieee-alphabetic`, `bibstyle=`/`citestyle=` pairs of
     them) with no biber `.bbl` beside the source printed `[1]` in the citations

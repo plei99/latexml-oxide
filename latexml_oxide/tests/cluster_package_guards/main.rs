@@ -126,6 +126,7 @@ mod perfect_kernel_batch48;
 mod perfect_kernel_batch49;
 mod rtoken_patchcmd;
 mod scanner_status;
+mod titlesec_label_tag;
 mod token_kernel_gaps;
 mod unicode_format_encoding;
 mod vfs_file_end;

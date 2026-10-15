@@ -11371,7 +11371,7 @@ fn titleline_reads_its_star_and_alignment() {
     &xml,
     "section",
     &[r#"xml:id="S1""#],
-    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title fontsize="120%">1   Intro</title><toctitle><tag close=" ">1</tag>Intro</toctitle><para xml:id="S1.p1"><p>Body text.</p></para></section>"##,
+    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title fontsize="120%"><tag class="ltx_tag_titlesec">1</tag>   Intro</title><toctitle><tag close=" ">1</tag>Intro</toctitle><para xml:id="S1.p1"><p>Body text.</p></para></section>"##,
   );
 }
 
@@ -11391,7 +11391,7 @@ fn iftitlemeasuring_takes_the_second_branch() {
     &xml,
     "section",
     &[r#"xml:id="S1""#],
-    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title font="bold">1  Intro</title><toctitle><tag close=" ">1</tag>Intro</toctitle><para xml:id="S1.p1"><p>Body text.</p></para></section>"##,
+    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title font="bold"><tag class="ltx_tag_titlesec">1</tag>  Intro</title><toctitle><tag close=" ">1</tag>Intro</toctitle><para xml:id="S1.p1"><p>Body text.</p></para></section>"##,
   );
 }
 
@@ -11411,7 +11411,7 @@ fn wordsep_is_an_interword_space() {
     &xml,
     "section",
     &[r#"xml:id="S1""#],
-    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title class="ltx_runin" font="bold">1 Intro</title><toctitle><tag close=" ">1</tag>Intro</toctitle><para xml:id="S1.p1"><p>Body text.</p></para></section>"##,
+    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title class="ltx_runin" font="bold"><tag class="ltx_tag_titlesec">1</tag> Intro</title><toctitle><tag close=" ">1</tag>Intro</toctitle><para xml:id="S1.p1"><p>Body text.</p></para></section>"##,
   );
 }
 
@@ -12294,7 +12294,7 @@ fn titlesec_format_runs_once() {
     &xml,
     "section",
     &[r#"xml:id="S1""#],
-    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title font="bold">XX1  Intro</title><toctitle><tag close=" ">1</tag>Intro</toctitle><para xml:id="S1.p1"><p>A.</p></para><subsection inlist="toc" xml:id="S1.SS1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title class="ltx_align_left" font="bold">1.1  Sub</title><toctitle><tag close=" ">1.1</tag>Sub</toctitle><para xml:id="S1.SS1.p1"><p>B.</p></para><subsubsection inlist="toc" xml:id="S1.SS1.SSS1"><tags><tag>1.1.1</tag><tag role="refnum">1.1.1</tag><tag role="typerefnum">§1.1.1</tag></tags><title font="bold">1.1.1  Deep</title><toctitle><tag close=" ">1.1.1</tag>Deep</toctitle><para xml:id="S1.SS1.SSS1.p1"><p>C.</p></para></subsubsection></subsection></section>"##,
+    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title font="bold">XX<tag class="ltx_tag_titlesec">1</tag>  Intro</title><toctitle><tag close=" ">1</tag>Intro</toctitle><para xml:id="S1.p1"><p>A.</p></para><subsection inlist="toc" xml:id="S1.SS1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title class="ltx_align_left" font="bold"><tag class="ltx_tag_titlesec">1.1</tag>  Sub</title><toctitle><tag close=" ">1.1</tag>Sub</toctitle><para xml:id="S1.SS1.p1"><p>B.</p></para><subsubsection inlist="toc" xml:id="S1.SS1.SSS1"><tags><tag>1.1.1</tag><tag role="refnum">1.1.1</tag><tag role="typerefnum">§1.1.1</tag></tags><title font="bold"><tag class="ltx_tag_titlesec">1.1.1  </tag>Deep</title><toctitle><tag close=" ">1.1.1</tag>Deep</toctitle><para xml:id="S1.SS1.SSS1.p1"><p>C.</p></para></subsubsection></subsection></section>"##,
   );
 }
 
@@ -12315,7 +12315,7 @@ fn titleline_prints_its_material() {
     &xml,
     "title",
     &[],
-    r##"<title><text fontsize="90%">PART<break/></text>CHAPTER<break/>1<break/>Intro</title>"##,
+    r##"<title><text fontsize="90%">PART<break/></text>CHAPTER<break/><tag class="ltx_tag_titlesec">1</tag><break/>Intro</title>"##,
   );
 }
 
@@ -12385,7 +12385,7 @@ fn titlesec_format_takes_label_and_title() {
     &xml,
     "section",
     &[r#"xml:id="S1""#],
-    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title class="ltx_runin" font="bold">1  FIRST</title><toctitle><tag close=" ">1</tag>First</toctitle><para xml:id="S1.p1"><p>A.</p></para><subsection inlist="toc" xml:id="S1.SS1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title class="ltx_runin" font="bold">1.1  Sub</title><toctitle><tag close=" ">1.1</tag>Sub</toctitle><para xml:id="S1.SS1.p1"><p>B.</p></para><subsubsection inlist="toc" xml:id="S1.SS1.SSS1"><tags><tag>1.1.1</tag><tag role="refnum">1.1.1</tag><tag role="typerefnum">§1.1.1</tag></tags><title font="bold" fontsize="120%">1.1.1  Deep</title><toctitle><tag close=" ">1.1.1</tag>Deep</toctitle><para xml:id="S1.SS1.SSS1.p1"><p>C.</p></para></subsubsection></subsection></section>"##,
+    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title class="ltx_runin" font="bold"><tag class="ltx_tag_titlesec">1</tag>  FIRST</title><toctitle><tag close=" ">1</tag>First</toctitle><para xml:id="S1.p1"><p>A.</p></para><subsection inlist="toc" xml:id="S1.SS1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title class="ltx_runin" font="bold"><tag class="ltx_tag_titlesec">1.1</tag>  Sub</title><toctitle><tag close=" ">1.1</tag>Sub</toctitle><para xml:id="S1.SS1.p1"><p>B.</p></para><subsubsection inlist="toc" xml:id="S1.SS1.SSS1"><tags><tag>1.1.1</tag><tag role="refnum">1.1.1</tag><tag role="typerefnum">§1.1.1</tag></tags><title font="bold" fontsize="120%"><tag class="ltx_tag_titlesec">1.1.1  </tag>Deep</title><toctitle><tag close=" ">1.1.1</tag>Deep</toctitle><para xml:id="S1.SS1.SSS1.p1"><p>C.</p></para></subsubsection></subsection></section>"##,
   );
 }
 
@@ -12407,7 +12407,7 @@ fn centred_title_format_keeps_its_size() {
     &xml,
     "chapter",
     &[r#"xml:id="Ch1""#],
-    r##"<chapter inlist="toc" xml:id="Ch1"><tags><tag>Chapter 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Chapter 1</tag></tags><title class="ltx_align_center" font="bold" fontsize="207%">Chapter 1<break/><text fontsize="144%">Alpha</text></title><toctitle><tag close=" ">1</tag>Alpha</toctitle><section inlist="toc" xml:id="Ch1.S1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title class="ltx_align_center" font="bold" fontsize="144%">1.1  S one</title><toctitle><tag close=" ">1.1</tag>S one</toctitle><para xml:id="Ch1.S1.p1"><p>Text.</p></para></section></chapter>"##,
+    r##"<chapter inlist="toc" xml:id="Ch1"><tags><tag>Chapter 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Chapter 1</tag></tags><title class="ltx_align_center" font="bold" fontsize="207%"><tag class="ltx_tag_titlesec">Chapter 1</tag><break/><text fontsize="144%">Alpha</text></title><toctitle><tag close=" ">1</tag>Alpha</toctitle><section inlist="toc" xml:id="Ch1.S1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title class="ltx_align_center" font="bold" fontsize="144%"><tag class="ltx_tag_titlesec">1.1</tag>  S one</title><toctitle><tag close=" ">1.1</tag>S one</toctitle><para xml:id="Ch1.S1.p1"><p>Text.</p></para></section></chapter>"##,
   );
 }
 
@@ -12545,7 +12545,7 @@ fn titlesec_display_label_is_a_line_of_its_own() {
     &xml,
     "chapter",
     &[r#"xml:id="Ch1""#],
-    r##"<chapter inlist="toc" xml:id="Ch1"><tags><tag>Chapter 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Chapter 1</tag></tags><title class="ltx_align_right" fontsize="144%">Chapter 1<break/><text class="ltx_align_right" fontsize="207%">Introduction</text></title><toctitle><tag close=" ">1</tag>Introduction</toctitle><para xml:id="Ch1.p1"><p>Text.</p></para></chapter>"##,
+    r##"<chapter inlist="toc" xml:id="Ch1"><tags><tag>Chapter 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Chapter 1</tag></tags><title class="ltx_align_right" fontsize="298%"><tag class="ltx_tag_titlesec"><text class="ltx_align_right" fontsize="48%">Chapter 1</text></tag><break/>Introduction</title><toctitle><tag close=" ">1</tag>Introduction</toctitle><para xml:id="Ch1.p1"><p>Text.</p></para></chapter>"##,
   );
 }
 
@@ -12565,7 +12565,7 @@ fn titlesec_before_code_takes_the_title() {
     &xml,
     "section",
     &[r#"xml:id="S1""#],
-    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title font="bold">1  INTRO</title><toctitle><tag close=" ">1</tag>Intro</toctitle><paragraph inlist="toc" xml:id="S1.SS0.SSS0.P1"><tags><tag>1.0.0.1</tag><tag role="refnum">1.0.0.1</tag><tag role="typerefnum">¶1.0.0.1</tag></tags><title class="ltx_runin" font="bold">Para.</title><toctitle><tag close=" ">1.0.0.1</tag>Para</toctitle><para xml:id="S1.SS0.SSS0.P1.p1"><p>Text.</p></para></paragraph></section>"##,
+    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title font="bold"><tag class="ltx_tag_titlesec">1</tag>  INTRO</title><toctitle><tag close=" ">1</tag>Intro</toctitle><paragraph inlist="toc" xml:id="S1.SS0.SSS0.P1"><tags><tag>1.0.0.1</tag><tag role="refnum">1.0.0.1</tag><tag role="typerefnum">¶1.0.0.1</tag></tags><title class="ltx_runin" font="bold">Para.</title><toctitle><tag close=" ">1.0.0.1</tag>Para</toctitle><para xml:id="S1.SS0.SSS0.P1.p1"><p>Text.</p></para></paragraph></section>"##,
   );
 }
 
@@ -12585,7 +12585,7 @@ fn titlesec_explicit_title_is_the_before_codes_argument() {
     &xml,
     "section",
     &[r#"xml:id="S1""#],
-    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title font="bold">1  Intro.</title><toctitle><tag close=" ">1</tag>Intro</toctitle><subsection inlist="toc" xml:id="S1.SS1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title font="italic">1.1 SCOPE</title><toctitle><tag close=" ">1.1</tag>Scope</toctitle><subsubsection inlist="toc" xml:id="S1.SS1.SSS1"><tags><tag>1.1.1</tag><tag role="refnum">1.1.1</tag><tag role="typerefnum">§1.1.1</tag></tags><title><tag close=" ">1.1.1</tag>Detail</title><para xml:id="S1.SS1.SSS1.p1"><p>Text.</p></para></subsubsection></subsection></section>"##,
+    r##"<section inlist="toc" xml:id="S1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title font="bold"><tag class="ltx_tag_titlesec">1</tag>  Intro.</title><toctitle><tag close=" ">1</tag>Intro</toctitle><subsection inlist="toc" xml:id="S1.SS1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title font="italic"><tag class="ltx_tag_titlesec">1.1</tag> SCOPE</title><toctitle><tag close=" ">1.1</tag>Scope</toctitle><subsubsection inlist="toc" xml:id="S1.SS1.SSS1"><tags><tag>1.1.1</tag><tag role="refnum">1.1.1</tag><tag role="typerefnum">§1.1.1</tag></tags><title><tag close=" ">1.1.1</tag>Detail</title><para xml:id="S1.SS1.SSS1.p1"><p>Text.</p></para></subsubsection></subsection></section>"##,
   );
 }
 
@@ -12637,7 +12637,7 @@ fn titlesec_after_code_follows_the_title() {
     &xml,
     "part",
     &[r#"xml:id="Pt1""#],
-    r##"<part inlist="toc" xml:id="Pt1"><tags><tag>Part I</tag><tag role="refnum">I</tag><tag role="typerefnum">Part I</tag></tags><title fontsize="144%">PART I<break/><inline-block><itemize><item xml:id="Ch0.S0.I1.ix1"><para align="center" xml:id="Ch0.S0.I1.ix1.p1"><p>Frame</p></para></item></itemize></inline-block></title><toctitle><tag close=" ">I</tag>Frame</toctitle><chapter inlist="toc" xml:id="Ch1"><tags><tag>Chapter 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Chapter 1</tag></tags><title><tag close=" ">Chapter 1</tag>One</title><toctitle><tag close=" ">1</tag>One</toctitle><para xml:id="Ch1.p1"><equation xml:id="Ch1.E1"><tags><tag>(1.1)</tag><tag role="refnum">1.1</tag></tags><Math mode="display" tex="a" text="a" xml:id="Ch1.E1.m1"><XMath><XMTok font="italic" role="UNKNOWN">a</XMTok></XMath></Math></equation></para><section inlist="toc" xml:id="Ch1.S1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title font="bold">1.1  Block</title><toctitle><tag close=" ">1.1</tag>Block</toctitle><para xml:id="Ch1.S1.p1"><equation xml:id="Ch1.E1a"><tags><tag>(1.1)</tag><tag role="refnum">1.1</tag></tags><Math mode="display" tex="b" text="b" xml:id="Ch1.E1a.m1"><XMath><XMTok font="italic" role="UNKNOWN">b</XMTok></XMath></Math></equation></para><subsection inlist="toc" xml:id="Ch1.S1.SS1"><tags><tag>1.1.1</tag><tag role="refnum">1.1.1</tag><tag role="typerefnum">§1.1.1</tag></tags><title font="bold">1.1.1  Wrapped</title><toctitle><tag close=" ">1.1.1</tag>Wrapped</toctitle><paragraph inlist="toc" xml:id="Ch1.S1.SS1.SSS0.P1"><tags><tag>1.1.1.0.1</tag><tag role="refnum">1.1.1.0.1</tag><tag role="typerefnum">¶1.1.1.0.1</tag></tags><title class="ltx_runin" font="bold">Para.</title><toctitle><tag close=" ">1.1.1.0.1</tag>Para</toctitle><para xml:id="Ch1.S1.SS1.SSS0.P1.p1"><p>Text.</p></para></paragraph></subsection></section></chapter></part>"##,
+    r##"<part inlist="toc" xml:id="Pt1"><tags><tag>Part I</tag><tag role="refnum">I</tag><tag role="typerefnum">Part I</tag></tags><title fontsize="144%"><tag class="ltx_tag_titlesec">PART I</tag><break/><inline-block><itemize><item xml:id="Ch0.S0.I1.ix1"><para align="center" xml:id="Ch0.S0.I1.ix1.p1"><p>Frame</p></para></item></itemize></inline-block></title><toctitle><tag close=" ">I</tag>Frame</toctitle><chapter inlist="toc" xml:id="Ch1"><tags><tag>Chapter 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Chapter 1</tag></tags><title><tag close=" ">Chapter 1</tag>One</title><toctitle><tag close=" ">1</tag>One</toctitle><para xml:id="Ch1.p1"><equation xml:id="Ch1.E1"><tags><tag>(1.1)</tag><tag role="refnum">1.1</tag></tags><Math mode="display" tex="a" text="a" xml:id="Ch1.E1.m1"><XMath><XMTok font="italic" role="UNKNOWN">a</XMTok></XMath></Math></equation></para><section inlist="toc" xml:id="Ch1.S1"><tags><tag>1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title font="bold"><tag class="ltx_tag_titlesec">1.1</tag>  Block</title><toctitle><tag close=" ">1.1</tag>Block</toctitle><para xml:id="Ch1.S1.p1"><equation xml:id="Ch1.E1a"><tags><tag>(1.1)</tag><tag role="refnum">1.1</tag></tags><Math mode="display" tex="b" text="b" xml:id="Ch1.E1a.m1"><XMath><XMTok font="italic" role="UNKNOWN">b</XMTok></XMath></Math></equation></para><subsection inlist="toc" xml:id="Ch1.S1.SS1"><tags><tag>1.1.1</tag><tag role="refnum">1.1.1</tag><tag role="typerefnum">§1.1.1</tag></tags><title font="bold"><tag class="ltx_tag_titlesec">1.1.1</tag>  Wrapped</title><toctitle><tag close=" ">1.1.1</tag>Wrapped</toctitle><paragraph inlist="toc" xml:id="Ch1.S1.SS1.SSS0.P1"><tags><tag>1.1.1.0.1</tag><tag role="refnum">1.1.1.0.1</tag><tag role="typerefnum">¶1.1.1.0.1</tag></tags><title class="ltx_runin" font="bold">Para.</title><toctitle><tag close=" ">1.1.1.0.1</tag>Para</toctitle><para xml:id="Ch1.S1.SS1.SSS0.P1.p1"><p>Text.</p></para></paragraph></subsection></section></chapter></part>"##,
   );
 }
 
@@ -12664,7 +12664,7 @@ fn titlesec_before_code_parameter_needs_explicit() {
     &xml,
     "title",
     &[],
-    r##"<title font="bold">1  Intro</title>"##,
+    r##"<title font="bold"><tag class="ltx_tag_titlesec">1</tag>  Intro</title>"##,
   );
 }
 
@@ -12684,7 +12684,7 @@ fn titlesec_before_code_inner_definition_keeps_its_parameters() {
     &xml,
     "title",
     &[],
-    r##"<title font="bold">1  [Intro]</title>"##,
+    r##"<title font="bold"><tag class="ltx_tag_titlesec">1</tag>  [Intro]</title>"##,
   );
 }
 

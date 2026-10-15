@@ -13117,3 +13117,24 @@ grouping written out (`\mathopen{}\mathclose{\left( x \right)}`) Perl is still `
 and a CLOSE wrap no grammar rule reads. Raw-loaded physics2's `\ab` and papers' `\left` redefinitions produce it
 (2605.22010, 2605.13448; 2605.21750 carries the redefinition too, but its unparsed formulas are another shape); Perl's
 mleftright and mathtools bindings use plain `\left`/`\right`. Fixed in Rust: OXIDIZED_DESIGN_DIVERGENCES #580.
+
+## 665. A `\titleformat` label is plain text of the title, not a `tag`
+
+```latex
+\documentclass{article}
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont}{\thesection}{1em}{}
+\begin{document}
+\section{Example}
+\end{document}
+```
+
+→ Perl: `<title>1 Example</title>` (HTML `<h2 class="ltx_title ltx_title_section">1 Example</h2>`); a heading without
+`\titleformat` is `<title><tag close=" ">1</tag>Example</title>`. titlesec.sty.ltxml L55 puts `$label` into
+`\format@title@<sec>` directly, under this comment (L49):
+
+    # Perhaps should wrap $label with \lx@tag, but then have to worry about inheritted CSS?
+
+The `<tags>`/`\ref` metadata are right. The CSS worry is real: ltx-book.css:28-29 and ltx-report.css:28-29 make every
+tag of a chapter or appendix title `display:block; font-size:90%`. Fixed in Rust with a tag of its own
+(`ltx_tag_titlesec`, inline in LaTeXML.css) and the format's font kept on the title: OXIDIZED_DESIGN_DIVERGENCES #583.

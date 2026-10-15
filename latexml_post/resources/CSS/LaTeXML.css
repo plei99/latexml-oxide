@@ -58,6 +58,13 @@ a.ltx_LaTeXML_logo { text-decoration: none; }
 .ltx_runin + p:first-child {
     display:inline; }
 
+/* The number of a title formatted by titlesec's \titleformat (OXIDIZED_DESIGN_DIVERGENCES #583):
+   an inline run of the title, in its font. ltx-book.css and ltx-report.css set the tag of a chapter
+   or appendix title `display:block; font-size:90%; margin-bottom:0.5em` (the number on a line above
+   the title); titlesec's `hang` shape keeps the number on the title's line and its `display` shape
+   breaks the line itself (an <ltx:break/> after the tag), so the block would double the break. */
+.ltx_title .ltx_tag.ltx_tag_titlesec { display:inline; font-size:inherit; margin:0; }
+
 .ltx_outdent { margin-left: -2em; }
 
 /* .ltx_chapter_title, etc should be in ltx-article.css etc. */

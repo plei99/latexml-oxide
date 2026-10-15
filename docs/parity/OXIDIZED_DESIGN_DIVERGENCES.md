@@ -17372,3 +17372,56 @@ MakeBibliography's alphabetic arm (`AY`, Perl L497-500) is the `.bst`'s `[AS64]`
 **Guards**: `biblatex_alphabetic_labels::*` (12), `bibliography_names_fields::biblatex_style_decides_given_names`
 (ieee-alphabetic prints `[CM03]`, biber's). Replaces #306's residual for the `.bib` path.
 
+### 583. A `\titleformat` label is an `ltx:tag` (Perl: bare title text)
+
+Without titlesec a numbered heading's title is `<tag close=" ">1</tag>Title`
+(`\lx@@compose@title` = `\lx@tag[][ ]{#1}#2`, Base_Utility.pool.ltxml L1099-1105), which the
+HTML writer styles `ltx_tag ltx_tag_<type>`. Perl's titlesec.sty.ltxml composes its own
+`\format@title@<sec>` and inserts `$label` directly (L55), with this comment above it (L49):
+
+    # Perhaps should wrap $label with \lx@tag, but then have to worry about inheritted CSS?
+
+so with `\titleformat` the number is plain text of the title
+(`<title>1 Example</title>`, `<h2 class="ltx_title ltx_title_section">1 Example</h2>`): no tag to
+style, to strip or to link, unlike every other heading of the document. Ours wraps the formatted
+label, and only it, in one tag (titlesec_sty.rs, `\lx@titleformat`): `<title><tag class="ltx_tag_titlesec">1</tag> Example</title>`,
+`<span class="ltx_tag ltx_tag_titlesec ltx_tag_section">1</span> Example`. The label's own
+formatting stays inside the tag (`{\itshape\thesubsection.}` is `<tag class="ltx_tag_titlesec"><text font="italic">1.1.</text></tag>`), the
+separator stays outside it as titlesec sets it (`\hspace{sep}`, an em or en space for
+`1em`/`.5em`; the tag carries no `close`), so the title text neither gains nor loses a space, and
+the `display`/`frame` label stays a line of its own (`<tag>Chapter 1</tag><break/>Title`). An empty
+or blank label (`{}`) makes no tag, and a starred heading, which has no number, none. Metadata
+(`<tags>`, `\ref`) was already the number's and is unchanged.
+
+The inherited-CSS worry is real, and is handled in two places. (1) Class stylesheets style every tag of
+a chapter or appendix title: ltx-book.css:28-29 and ltx-report.css:28-29
+`.ltx_title_chapter .ltx_tag { display:block; font-size:90%; margin-bottom:0.5em }`, the number on a
+line above the title. That is not titlesec's layout (`hang` keeps the number on the title's line,
+`display` breaks the line itself, an `<ltx:break/>` after the tag, which the block would double), so the
+tag is `\lx@titlesec@tag`, an `ltx:tag` with `class="ltx_tag_titlesec"`, and LaTeXML.css has
+`.ltx_title .ltx_tag.ltx_tag_titlesec { display:inline; font-size:inherit; margin:0 }`, which wins on
+specificity in every class's stylesheet. (2) The format's font stays on `ltx:title`, as when the number was
+text: `\lx@titlesec@titlefont`, which comes right after the format ran, gives the (still unfilled) title the
+format's font, so the label and title text are bare in it, and `<title font="bold" fontsize="144%">`
+becomes the `<h2 style="font-size:144%">` that overrides the class's size (`ltx_title_section`
+`font-size:140%`). Without it the title's children were `<text>` runs, whose percentages multiply with the
+class's (`\Large` section about 200%, `\Huge` chapter about 745%). Only what the label or the before-code sets itself is a
+`<text>` (the label's `\itshape`; a `display` label's `\Large` under a `\Huge` format, `48%` of the title's 298%).
+
+Exceptions: (a) `\titleformat*` on a section never given a `\titleformat` takes titlesec's default label,
+`\@seccntformat{section}` = `\csname thesection\endcsname\quad` (titlesec.sty:1541-1563), so the
+quad is in the tag: `<tag class="ltx_tag_titlesec">1.1.1  </tag>Deep`; the kernel macro is the class's to redefine,
+so it is not split.
+(b) Visible material the format itself prints precedes the marker, in the font it was typeset in, and the title
+takes the format's final font only if it holds nothing else. `{\bfseries XX}`: the run `XX` is all the title holds
+and is in that font, so it is taken back into the title (`<title font="bold">XX<tag …>1</tag>  Alpha</title>`).
+`{XX\bfseries}` and `{AA\bfseries XX}`: `XX`/`AA` were typeset before the switch, so the title keeps its own font
+and the later text is `<text>` runs (`<title>XX<tag …><text font="bold">1</text></tag><text font="bold">  Alpha</text></title>`,
+`<title>AA<text font="bold">XX</text><tag …>…`), as TeX sets them; there the runs' sizes multiply with the class's as
+before the tag existed (the title has no font of its own to carry them).
+
+Reproducer: `tools/perfect_kernel/repros/sectioning-frontmatter/titlesec_label_is_a_tag.tex`. Guards
+`titlesec_label_tag::*` (article, `\subsection`, memoir `[display]` `\chapter`, label formatting, empty and
+starred, a size switch in the format, book `[hang]`/`[block]`/`[display]`/`[runin]` chapters as whole `<h2>`); the
+`perfect_kernel_batch56::titlesec_*` goldens carry the tags.
+
