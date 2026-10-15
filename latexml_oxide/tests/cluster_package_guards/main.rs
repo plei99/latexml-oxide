@@ -34,6 +34,7 @@ mod box_primitives;
 mod braced_quantity_tail;
 mod case_change_equivalents;
 mod cleveref_class_stubs;
+mod cleveref_crefformat;
 mod currsize_default;
 mod deferred_load_retry;
 mod defplain_skips_blanks_before_brace;

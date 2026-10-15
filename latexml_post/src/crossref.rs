@@ -597,6 +597,146 @@ fn bibcite_show_walk(
   (stuff, didref)
 }
 
+/// The class marking the link part of a cleveref format (`\lx@cref@link`).
+const CREF_LINK: &str = "ltx_cref_link";
+
+fn has_cref_marker(class: &str) -> bool { class.split_whitespace().any(|c| c == CREF_LINK) }
+
+/// Is `datum` the link-part marker of a cleveref format, as a stored node or a rebuilt element?
+fn is_cref_marker(datum: &NodeData) -> bool {
+  match datum {
+    NodeData::XmlNode(node) => node
+      .get_attribute("class")
+      .is_some_and(|c| has_cref_marker(&c)),
+    NodeData::Element { attributes: Some(attrs), .. } => {
+      attrs.get("class").is_some_and(|c| has_cref_marker(c))
+    },
+    _ => false,
+  }
+}
+
+/// An ltx element of a format as (tag, attributes, children), whether stored or rebuilt;
+/// anything else (text, math, another namespace) comes back as it is.
+#[allow(clippy::type_complexity)]
+fn element_parts(
+  datum: NodeData,
+) -> Result<(String, HashMap<String, String>, Vec<NodeData>), NodeData> {
+  match datum {
+    NodeData::Element { tag, attributes, children } => {
+      Ok((tag, attributes.unwrap_or_default(), children))
+    },
+    NodeData::XmlNode(node)
+      if node.get_type() == Some(NodeType::ElementNode)
+        && node.get_name() != "Math"
+        && node
+          .get_namespace()
+          .is_some_and(|ns| ns.get_href() == crate::document::LTX_NSURI) =>
+    {
+      let xml_ns = latexml_core::common::xml::XML_NS;
+      let attributes = node
+        .get_properties()
+        .into_iter()
+        .filter(|(k, _)| k != "fragid" && k != "labels")
+        .filter_map(|(k, v)| match node.get_attribute_ns(&k, xml_ns) {
+          Some(_) if k == "id" => None,
+          Some(_) => Some((format!("xml:{k}"), v)),
+          None => Some((k, v)),
+        })
+        .collect();
+      Ok((
+        format!("ltx:{}", node.get_name()),
+        attributes,
+        child_nodes_data(&node),
+      ))
+    },
+    other => Err(other),
+  }
+}
+
+/// The text before, the marker of the link part and the text after it, in the children of
+/// a cleveref format. The marker may sit inside wrappers (`\textbf{(#2#1#3)}`, or rebuilt
+/// around a nested `\ref`): each wrapper is split into a copy around what precedes, one
+/// inside the link and one around what follows, so the link keeps the format's font.
+/// `Err` hands the children back when there is no marker.
+#[allow(clippy::type_complexity)]
+fn split_cref_link(
+  items: Vec<NodeData>,
+) -> Result<(Vec<NodeData>, NodeData, Vec<NodeData>), Vec<NodeData>> {
+  if let Some(at) = items.iter().position(is_cref_marker) {
+    let mut before = items;
+    let mut after = before.split_off(at);
+    let link = after.remove(0);
+    return Ok((before, link, after));
+  }
+  for at in 0..items.len() {
+    let Ok((tag, attrs, children)) = element_parts(items[at].clone()) else {
+      continue;
+    };
+    let Ok((inner_before, link, inner_after)) = split_cref_link(children) else {
+      continue;
+    };
+    let wrap = |kids: Vec<NodeData>| NodeData::Element {
+      tag:        tag.clone(),
+      attributes: Some(attrs.clone()),
+      children:   kids,
+    };
+    let Ok((link_tag, link_attrs, link_kids)) = element_parts(link) else {
+      continue;
+    };
+    let link = NodeData::Element {
+      tag:        link_tag,
+      attributes: Some(link_attrs),
+      children:   vec![wrap(link_kids)],
+    };
+    let mut before = items[..at].to_vec();
+    if !inner_before.is_empty() {
+      before.push(wrap(inner_before));
+    }
+    let mut after = Vec::new();
+    if !inner_after.is_empty() {
+      after.push(wrap(inner_after));
+    }
+    after.extend(items[at + 1..].iter().cloned());
+    return Ok((before, link, after));
+  }
+  Err(items)
+}
+
+/// A cleveref format's pieces copied into a title or `\nameref` text: the link-part marker
+/// has done its work.
+fn strip_cref_marker(pieces: Vec<NodeData>) -> Vec<NodeData> {
+  pieces
+    .into_iter()
+    .map(|piece| match piece {
+      NodeData::Element {
+        tag,
+        attributes: Some(mut attrs),
+        children,
+      } if attrs.get("class").is_some_and(|c| has_cref_marker(c)) => {
+        if let Some(class) = attrs.get_mut("class") {
+          *class = class
+            .split_whitespace()
+            .filter(|c| *c != CREF_LINK)
+            .collect::<Vec<_>>()
+            .join(" ");
+        }
+        NodeData::Element {
+          tag,
+          attributes: Some(attrs),
+          children,
+        }
+      },
+      other => other,
+    })
+    .collect()
+}
+
+/// The alternatives of a cleveref `show` (`crefformat/creftype~refnum`): only a show that
+/// starts with the `crefformat` words has any, so a `/` anywhere else stays text.
+fn show_alternatives(show: &str) -> Option<Vec<&str>> {
+  (show.starts_with("crefformat") && show.contains('/')).then(|| show.split('/').collect())
+}
+
 impl CrossRef {
   pub fn new(db: ObjectDB, url_style: UrlStyle, number_sections: bool) -> Self {
     CrossRef {
@@ -916,7 +1056,7 @@ impl CrossRef {
             let is_nameref = node
               .get_attribute("class")
               .is_some_and(|class| class.contains("ltx_refmacro_nameref"));
-            self.generate_ref_aux(&id, &show, is_nameref)
+            strip_cref_marker(self.generate_ref_aux(&id, &show, is_nameref))
           },
           None => vec![NodeData::XmlNode(node.clone())],
         }
@@ -976,6 +1116,19 @@ impl CrossRef {
     req_show: &str,
     is_nameref: bool,
   ) -> Vec<NodeData> {
+    // A cleveref format answers by itself: LaTeX never walks to a parent for it, so a
+    // format with no letters or digits (`(#2#1#3)` of a starred equation) is not
+    // "improved" with the ancestors' references. The plain alternative goes on as usual.
+    let req_show = match show_alternatives(req_show) {
+      Some(alts) => {
+        let first = self.generate_ref_aux_one(req_id, alts[0], is_nameref);
+        if !first.is_empty() {
+          return first;
+        }
+        alts[alts.len() - 1]
+      },
+      None => req_show,
+    };
     let show_options = if !req_show.contains("title") {
       vec![req_show.to_string(), "title".to_string()]
     } else {
@@ -1020,8 +1173,25 @@ impl CrossRef {
     vec![NodeData::Text(req_id.to_string())]
   }
 
-  /// Generate ref content from a single DB entry.
+  /// Generate ref content from a single DB entry for `show`, which may name
+  /// alternatives separated by `/`: the first one the entry can fill wins. cleveref's
+  /// `\cref` offers `crefformat/creftype~refnum` — the user's `\crefformat` for the
+  /// target's type, else the type's name and number (OXIDIZED_DESIGN_DIVERGENCES
+  /// #586). The choice is made per entry, not per `show`, so a target
+  /// without the first alternative never borrows an ancestor's.
   fn generate_ref_aux(&self, id: &str, show: &str, is_nameref: bool) -> Vec<NodeData> {
+    let Some(alts) = show_alternatives(show) else {
+      return self.generate_ref_aux_one(id, show, is_nameref);
+    };
+    alts
+      .into_iter()
+      .map(|alt| self.generate_ref_aux_one(id, alt, is_nameref))
+      .find(|stuff| !stuff.is_empty())
+      .unwrap_or_default()
+  }
+
+  /// [`generate_ref_aux`](Self::generate_ref_aux) for one alternative.
+  fn generate_ref_aux_one(&self, id: &str, show: &str, is_nameref: bool) -> Vec<NodeData> {
     let entry = match self.db.lookup(&format!("ID:{}", id)) {
       Some(e) => e,
       None => return vec![],
@@ -1052,6 +1222,13 @@ impl CrossRef {
           if let Some(val) = entry.get_value(k) {
             if val.is_truthy() {
               ok = true;
+              if matches!(key.as_str(), "crefformat" | "crefformatcap") {
+                // cleveref's format: its text around the link stay plain
+                // `ltx_ref_tag` text, the `ltx_cref_link` part is the one `fill_in_refs`
+                // makes the ref's own content.
+                stuff.extend(self.cref_format_pieces(id, val, is_nameref));
+                break;
+              }
               // Perl `generateRef_aux` L779: `['ltx:text', {class}, prepRefText]`
               // where `prepRefText` = `cloneNodes(trimChildNodes($value))` — a
               // DEEP CLONE of the title's child nodes, `<ltx:Math>` included.
@@ -1106,6 +1283,58 @@ impl CrossRef {
     }
 
     if ok { stuff } else { vec![] }
+  }
+
+  /// A `crefformat` tag's value as the pieces of a reference: the text before the
+  /// `\lx@cref@link` mark, the marked link part (`ltx_cref_link`), the text after.
+  fn cref_format_pieces(&self, id: &str, val: &Value, is_nameref: bool) -> Vec<NodeData> {
+    let ref_tag = |children: Vec<NodeData>, class: &str| NodeData::Element {
+      tag: "ltx:text".to_string(),
+      attributes: Some(HashMap::from_iter([(
+        "class".to_string(),
+        class.to_string(),
+      )])),
+      children,
+    };
+    let children = self.entry_text_children(id, val, is_nameref);
+    let (before, link, after) = match split_cref_link(children) {
+      Ok(split) => split,
+      Err(children) => return vec![ref_tag(children, "ltx_ref_tag")],
+    };
+    let mut pieces = Vec::new();
+    if !before.is_empty() {
+      pieces.push(ref_tag(before, "ltx_ref_tag"));
+    }
+    // The link part keeps what the format put on it (`\textbf{…}` is `font="bold"`).
+    match element_parts(link) {
+      Ok((_, attributes, children)) => {
+        let mut link_text = ref_tag(children, "ltx_ref_tag ltx_cref_link");
+        if let NodeData::Element { attributes: Some(attrs), .. } = &mut link_text {
+          for (name, value) in attributes {
+            match name.as_str() {
+              "class" => {
+                for class in value.split_whitespace().filter(|c| *c != CREF_LINK) {
+                  if let Some(all) = attrs.get_mut("class") {
+                    all.push(' ');
+                    all.push_str(class);
+                  }
+                }
+              },
+              "id" | "xml:id" | "fragid" => {},
+              _ => {
+                attrs.insert(name, value);
+              },
+            }
+          }
+        }
+        pieces.push(link_text);
+      },
+      Err(link) => pieces.push(ref_tag(vec![link], "ltx_ref_tag ltx_cref_link")),
+    }
+    if !after.is_empty() {
+      pieces.push(ref_tag(after, "ltx_ref_tag"));
+    }
+    pieces
   }
 
   /// Check if ref content is "good enough".
@@ -1785,7 +2014,62 @@ impl CrossRef {
             .get_attribute("class")
             .is_some_and(|class| class.contains("ltx_refmacro_nameref"));
           let content = self.generate_ref(doc, id_str, &show, is_nameref);
-          doc.add_nodes(&mut ref_mut, &content);
+          match content.iter().position(is_cref_marker) {
+            // A cleveref format: the ref is the link part alone, the format's
+            // text before and after it stands beside the ref.
+            Some(at) => {
+              let mut before = content;
+              let mut after = before.split_off(at);
+              let NodeData::Element {
+                tag: link_tag,
+                attributes,
+                children,
+              } = after.remove(0)
+              else {
+                unreachable!()
+              };
+              // The link part drops its marker class, keeps the rest.
+              let attributes = attributes.map(|mut attrs| {
+                if let Some(class) = attrs.get_mut("class") {
+                  *class = class
+                    .split_whitespace()
+                    .filter(|c| *c != "ltx_cref_link")
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                }
+                attrs
+              });
+              doc.add_nodes(&mut ref_mut, &[NodeData::Element {
+                tag: link_tag,
+                attributes,
+                children,
+              }]);
+              // The pieces around it are elements (never text, which libxml would merge
+              // into a neighbour): built under the ref, then moved beside it.
+              for (pieces, after_ref) in [(before, false), (after, true)] {
+                let link = ref_mut.get_first_child();
+                doc.add_nodes(&mut ref_mut, &pieces);
+                let mut built = Vec::new();
+                let mut next = link.as_ref().and_then(|l| l.get_next_sibling());
+                while let Some(n) = next {
+                  next = n.get_next_sibling();
+                  built.push(n);
+                }
+                if after_ref {
+                  built.reverse();
+                }
+                for mut n in built {
+                  n.unlink_node();
+                  if after_ref {
+                    ref_mut.add_next_sibling(&mut n).ok();
+                  } else {
+                    ref_mut.add_prev_sibling(&mut n).ok();
+                  }
+                }
+              }
+            },
+            None => doc.add_nodes(&mut ref_mut, &content),
+          }
         }
       }
     }

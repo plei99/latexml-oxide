@@ -43,6 +43,46 @@ LoadDefinitions!({
     cref_define_name("Cref", type_arg, sg, pl)?;
     Ok(Vec::new())
   });
+  // \crefformat{type}{format} / \Crefformat{type}{format}: the format a single
+  // \cref/\Cref prints for a label of that type, `#1` the number, `#2`..`#3` the
+  // hyperlink (cleveref.sty:1851-1852, 1886-1906). Clean port, like \crefname above:
+  // the raw `\@crefformat` (toksdef/expandafter chains) is replaced, and the
+  // format is kept as raw tokens under `lx@cref@format@<cref|Cref>@<type>` so a
+  // user-set format is told apart from the raw load's name-derived defaults, which
+  // keep rendering through `creftype`/`creftypecap`. SURPASS-PERL (Perl's binding
+  // ignores both commands): OXIDIZED_DESIGN_DIVERGENCES #586. Guard
+  // `cluster_package_guards::cleveref_crefformat`.
+  DefPrimitive!("\\crefformat{}{}", sub[(type_arg, fmt)] {
+    cref_define_format("cref", type_arg, fmt)?;
+    Ok(Vec::new())
+  });
+  DefPrimitive!("\\Crefformat{}{}", sub[(type_arg, fmt)] {
+    cref_define_format("Cref", type_arg, fmt)?;
+    Ok(Vec::new())
+  });
+  // The raw macros that derive a type's formats from its names (cleveref.sty:1413,
+  // 1440, 1481, 1548; run again when the language is set up at `\begin{document}`)
+  // define them through `\crefformat` & co. Those defaults are what `creftype` /
+  // `creftypecap` already print, so they must not read as a user's format: the
+  // binding never prints through the raw formats, and the derivation is dropped.
+  for cs in [
+    "\\@crefdefineformat{}",
+    "\\@crefrangedefineformat{}",
+    "\\@crefdefinemultiformat{}",
+    "\\@crefrangedefinemultiformat{}",
+  ] {
+    def_macro_noop(cs)?;
+  }
+  // The formatted reference text of a label's type, as the `crefformat` /
+  // `crefformatcap` tags of its target (see cleverref_format). The part between
+  // `#2` and `#3` is the link; `\lx@cref@link` marks it for the CrossRef pass.
+  DefMacro!("\\lx@cleverrefformat@@{}", sub[args] {
+    Ok(cleverref_format(&args[0].to_string(), false))
+  });
+  DefMacro!("\\lx@cleverrefformatcap@@{}", sub[args] {
+    Ok(cleverref_format(&args[0].to_string(), true))
+  });
+  DefConstructor!("\\lx@cref@link{}", "<ltx:text class='ltx_cref_link'>#1</ltx:text>");
   // \crefalias is defined below as a 2-arg primitive; leave it as-is.
   def_macro_noop("\\crefalias{}{}")?;
 
@@ -80,12 +120,12 @@ LoadDefinitions!({
   DefMacro!("\\cref OptionalMatch:* Semiverbatim", sub[args] {
     let starred = !args[0].is_none();
     let label_tokens = args.into_iter().nth(1).and_then(|a| a.owned_tokens()).unwrap_or_default();
-    Ok(cref_multi(starred, label_tokens, true, false)?)
+    Ok(cref_multi(starred, label_tokens, true, false, true)?)
   });
   DefMacro!("\\Cref OptionalMatch:* Semiverbatim", sub[args] {
     let starred = !args[0].is_none();
     let label_tokens = args.into_iter().nth(1).and_then(|a| a.owned_tokens()).unwrap_or_default();
-    Ok(cref_multi(starred, label_tokens, true, true)?)
+    Ok(cref_multi(starred, label_tokens, true, true, true)?)
   });
 
   // \crefrange, \Crefrange
@@ -100,12 +140,12 @@ LoadDefinitions!({
   DefMacro!("\\cpageref OptionalMatch:* Semiverbatim", sub[args] {
     let starred = !args[0].is_none();
     let label_tokens = args.into_iter().nth(1).and_then(|a| a.owned_tokens()).unwrap_or_default();
-    Ok(cref_multi(starred, label_tokens, true, false)?)
+    Ok(cref_multi(starred, label_tokens, true, false, false)?)
   });
   DefMacro!("\\Cpageref OptionalMatch:* Semiverbatim", sub[args] {
     let starred = !args[0].is_none();
     let label_tokens = args.into_iter().nth(1).and_then(|a| a.owned_tokens()).unwrap_or_default();
-    Ok(cref_multi(starred, label_tokens, true, true)?)
+    Ok(cref_multi(starred, label_tokens, true, true, false)?)
   });
   DefMacro!("\\cpagerefrange OptionalMatch:* Semiverbatim Semiverbatim",
     "\\lx@cref#1{creftype~refnum}{#2}\\crefrangeconjunction\\lx@cref#1{creftype~refnum}{#3}");
@@ -122,11 +162,11 @@ LoadDefinitions!({
 
   DefMacro!("\\labelcref Semiverbatim", sub[args] {
     let label_tokens = args.into_iter().next().and_then(|a| a.owned_tokens()).unwrap_or_default();
-    Ok(cref_multi(false, label_tokens, false, false)?)
+    Ok(cref_multi(false, label_tokens, false, false, false)?)
   });
   DefMacro!("\\labelcpageref Semiverbatim", sub[args] {
     let label_tokens = args.into_iter().next().and_then(|a| a.owned_tokens()).unwrap_or_default();
-    Ok(cref_multi(false, label_tokens, false, false)?)
+    Ok(cref_multi(false, label_tokens, false, false, false)?)
   });
 
   DefPrimitive!("\\crefalias{}{}", sub[(_counter, _ctype)] { Ok(Vec::new()) });
@@ -153,6 +193,279 @@ LoadDefinitions!({
   AssignMapping!("type_tag_formatter", "creftypepluralcap" => "\\lx@cleverrefnumpluralcap@@");
 });
 
+/// The `State` key of a `\crefformat` (`prefix` `cref`) / `\Crefformat` (`Cref`).
+fn cref_format_key(prefix: &str, ctype: &str) -> String {
+  s!("lx@cref@format@{}@{}", prefix, ctype)
+}
+
+/// The `State` key marking a format set in the preamble (the ones cleveref copies to sub-units).
+fn cref_preamble_key(prefix: &str, ctype: &str) -> String {
+  s!("lx@cref@format@pre@{}@{}", prefix, ctype)
+}
+
+/// The `State` key marking a type the author gave a `\crefname`/`\Crefname`.
+fn cref_named_key(ctype: &str) -> String { s!("lx@cref@named@{}", ctype) }
+
+/// `\crefformat{type}{format}` / `\Crefformat{type}{format}` (cleveref.sty:1886-1906):
+/// remember the format's raw tokens, globally as cleveref's `\gdef` does. The first
+/// format of the document also switches the `crefformat` / `crefformatcap` tags on
+/// (a document with none pays nothing, and its `\cref` keeps Perl's plain show);
+/// their diagnostics wait for a reference that shows them, like hyperref's `autoref`.
+fn cref_define_format(prefix: &str, type_arg: Tokens, fmt: Tokens) -> Result<()> {
+  let ctype = do_expand(type_arg)?.to_string();
+  let ctype = ctype.trim();
+  assign_value(
+    &cref_format_key(prefix, ctype),
+    Stored::Tokens(fmt),
+    Some(Scope::Global),
+  );
+  // cleveref copies formats to sub-units once, at `\begin{document}`
+  // (cleveref.sty:8036-8046): only a preamble format reaches them.
+  assign_value(
+    &cref_preamble_key(prefix, ctype),
+    lookup_bool("inPreamble"),
+    Some(Scope::Global),
+  );
+  if !with_value("lx@cref@formats", |v| v.is_some()) {
+    assign_value("lx@cref@formats", true, Some(Scope::Global));
+    AssignMapping!("type_tag_formatter", "crefformat" => "\\lx@cleverrefformat@@");
+    AssignMapping!("type_tag_formatter", "crefformatcap" => "\\lx@cleverrefformatcap@@");
+    AssignMapping!("type_tag_deferred", "crefformat" => true);
+    AssignMapping!("type_tag_deferred", "crefformatcap" => true);
+  }
+  Ok(())
+}
+
+/// The type a sub-unit's formats are copied from at `\begin{document}`
+/// (cleveref.sty:8036-8046, `\@crefcopyformats{parent}{child}`).
+fn cref_copy_parent(ctype: &str) -> Option<&'static str> {
+  Some(match ctype {
+    "subsection" => "section",
+    "subsubsection" => "subsection",
+    "subappendix" => "appendix",
+    "subsubappendix" => "subappendix",
+    "subfigure" => "figure",
+    "subtable" => "table",
+    "subequation" => "equation",
+    "enumii" => "enumi",
+    "enumiii" => "enumii",
+    "enumiv" => "enumiii",
+    "enumv" => "enumiv",
+    _ => return None,
+  })
+}
+
+/// How a derived format changes case (`\@crefformat`'s `\@changecase`).
+#[derive(Clone, Copy)]
+enum CaseChange {
+  Upper,
+  Lower,
+}
+
+/// The author's format for `ctype` (`Cref` variant when `capitalized`), with the case
+/// change it needs when only the other variant was given. A type without a format of
+/// its own takes its parent's (`\@crefcopyformats`) unless the author named it with
+/// `\crefname`/`\Crefname`, whose formats cleveref then derives from the names, which
+/// `creftype`/`creftypecap` already print.
+fn cref_format_lookup(ctype: &str, capitalized: bool) -> Option<(Tokens, Option<CaseChange>)> {
+  let (own, other) = if capitalized {
+    ("Cref", "cref")
+  } else {
+    ("cref", "Cref")
+  };
+  let lookup = |prefix: &str, t: &str| {
+    with_value(&cref_format_key(prefix, t), |v| match v {
+      Some(Stored::Tokens(tokens)) => Some(tokens.clone()),
+      _ => None,
+    })
+  };
+  let preamble = |prefix: &str, t: &str| lookup_bool(&cref_preamble_key(prefix, t));
+  let mut t = ctype.to_string();
+  loop {
+    // (a parent's format reaches a sub-unit only if it was set in the preamble)
+    let inherited = t != ctype;
+    if let Some(fmt) = lookup(own, &t).filter(|_| !inherited || preamble(own, &t)) {
+      return Some((fmt, None));
+    }
+    if let Some(fmt) = lookup(other, &t).filter(|_| !inherited || preamble(other, &t)) {
+      let change = if capitalized {
+        Some(CaseChange::Upper)
+      } else if do_expand(Tokens::new(vec![
+        T_CS!("\\if@cref@capitalise"),
+        T_OTHER!("1"),
+        T_CS!("\\fi"),
+      ]))
+      .is_ok_and(|e| e.to_string() == "1")
+      {
+        None
+      } else {
+        Some(CaseChange::Lower)
+      };
+      return Some((fmt, change));
+    }
+    if with_value(&cref_named_key(&t), |v| v.is_some()) {
+      return None;
+    }
+    t = cref_copy_parent(&t)?.to_string();
+  }
+}
+
+/// The tokens of a `type`'s format (`crefformat` tag when `!capitalized`, else
+/// `crefformatcap`) with `#1` the type's number, the text between `#2` and `#3`
+/// wrapped in `\lx@cref@link`; empty when the author set no format for the type.
+///
+/// The number is one control sequence (`\lx@cref@n@<type>`, expanding to the
+/// type's `\p@<ctr>\the<ctr>`), so a case change or a group cannot split it from its
+/// argument. A type with only the other variant gets it case-changed as cleveref
+/// derives the missing one (cleveref.sty:1892-1906): decided on the RAW format, as
+/// `\MakeUppercase` reaches its first token or group before `#1` is a number: a
+/// leading `#1` has the number changed, a leading `#2`/`#3` (cleveref's link
+/// start/end) changes nothing, a letter or other character is changed, a group
+/// has its text changed, anything else (`$`, a control sequence, an active
+/// character) is left. A format with neither `#2` nor `#3` links its number alone
+/// (cleveref itself would link nothing then; a web reference should stay a
+/// reference); an empty format is an empty link.
+fn cleverref_format(type_arg: &str, capitalized: bool) -> Tokens {
+  let ctype = cref_type(type_arg);
+  let Some((fmt, change)) = cref_format_lookup(&ctype, capitalized) else {
+    return Tokens!();
+  };
+  let tokens = fmt.unlist();
+  let link = |inner: Vec<Token>| {
+    let mut v = vec![T_CS!("\\lx@cref@link"), T_BEGIN!()];
+    v.extend(inner);
+    v.push(T_END!());
+    v
+  };
+  if tokens.is_empty() {
+    return Tokens::new(link(Vec::new()));
+  }
+  let number_cs = s!("\\lx@cref@n@{}", type_arg);
+  if !has_meaning(&T_CS!(&number_cs)) {
+    let mut body = vec![T_CS!("\\lx@p@the@@"), T_BEGIN!()];
+    body.extend(Explode!(type_arg));
+    body.push(T_END!());
+    let _ = def_macro(T_CS!(&number_cs), None, Tokens::new(body), None);
+  }
+  let case_cs = change.map(|c| match c {
+    CaseChange::Upper => T_CS!("\\MakeUppercase"),
+    CaseChange::Lower => T_CS!("\\MakeLowercase"),
+  });
+  let param_digit = |i: usize| -> Option<char> {
+    let t = tokens.get(i)?;
+    if t.get_catcode() != Catcode::PARAM {
+      return None;
+    }
+    tokens
+      .get(i + 1)?
+      .with_str(|s| s.chars().next().filter(char::is_ascii_digit))
+  };
+  let braced = |inner: Vec<Token>| {
+    let mut v = vec![T_BEGIN!()];
+    v.extend(inner);
+    v.push(T_END!());
+    v
+  };
+  // What the case change reaches, on the raw format.
+  enum Lead {
+    Nothing,
+    Number,
+    Token,
+    Group,
+  }
+  let lead = match (param_digit(0), tokens[0].get_catcode()) {
+    (Some('1'), _) => Lead::Number,
+    (Some(_), _) => Lead::Nothing,
+    (None, Catcode::LETTER | Catcode::OTHER) => Lead::Token,
+    (None, Catcode::BEGIN) => Lead::Group,
+    _ => Lead::Nothing,
+  };
+  let has_markers = (0..tokens.len()).any(|i| matches!(param_digit(i), Some('2' | '3')));
+  let balanced = |ts: &[Token]| {
+    let mut depth = 0i32;
+    for t in ts {
+      match t.get_catcode() {
+        Catcode::BEGIN => depth += 1,
+        Catcode::END => depth -= 1,
+        _ => {},
+      }
+      if depth < 0 {
+        return false;
+      }
+    }
+    depth == 0
+  };
+  let build = |markers: bool| -> Option<Vec<Token>> {
+    // pre, link, post
+    let mut parts: [Vec<Token>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    let mut at = 0;
+    let mut i = 0;
+    while i < tokens.len() {
+      match param_digit(i) {
+        Some(digit) => {
+          let first = i == 0;
+          i += 2;
+          match digit {
+            '1' => {
+              let mut n = vec![T_CS!(&number_cs)];
+              if first && let (Lead::Number, Some(cs)) = (&lead, case_cs) {
+                let mut v = vec![cs];
+                v.extend(braced(n));
+                n = v;
+              }
+              if markers {
+                parts[at].extend(n);
+              } else {
+                // No hyperlink markers: link the number alone.
+                parts[at].extend(link(n));
+              }
+            },
+            '2' if markers && at == 0 => at = 1,
+            '3' if markers && at == 1 => at = 2,
+            // `#3` without a `#2` links from the start.
+            '3' if markers && at == 0 => {
+              parts.swap(0, 1);
+              at = 2;
+            },
+            _ => {},
+          }
+        },
+        None => {
+          let t = tokens[i];
+          if i == 0
+            && let (Lead::Token, Some(cs)) = (&lead, case_cs)
+          {
+            parts[at].push(cs);
+            parts[at].extend(braced(vec![t]));
+          } else if i == 0
+            && let (Lead::Group, Some(cs)) = (&lead, case_cs)
+          {
+            parts[at].push(cs);
+            parts[at].push(t);
+          } else {
+            parts[at].push(t);
+          }
+          i += 1;
+        },
+      }
+    }
+    if markers && !balanced(&parts[1]) {
+      return None;
+    }
+    let mut out = std::mem::take(&mut parts[0]);
+    if markers {
+      out.extend(link(std::mem::take(&mut parts[1])));
+    }
+    out.extend(std::mem::take(&mut parts[2]));
+    Some(out)
+  };
+  // A link whose braces would straddle the format's own groups links the number.
+  let out = (if has_markers { build(true) } else { None })
+    .or_else(|| build(false))
+    .unwrap_or_default();
+  Tokens::new(out)
+}
+
 /// Port of raw cleveref's `\@crefname` core (`\newcommand\crefname[3]` →
 /// `\@crefname{cref}{type}{sg}{pl}{}`): define `\<prefix>@<type>@name` and
 /// `\<prefix>@<type>@name@plural` from the singular/plural arguments. `prefix` is
@@ -171,6 +484,7 @@ fn cref_define_name(
 ) -> Result<()> {
   let ctype = do_expand(type_arg)?.to_string();
   let ctype = ctype.trim();
+  assign_value(&cref_named_key(ctype), true, Some(Scope::Global));
   def_macro(
     T_CS!(s!("\\{}@{}@name", prefix, ctype)),
     None,
@@ -297,6 +611,7 @@ fn cref_multi(
   label_tokens: Tokens,
   showtype: bool,
   capitalized: bool,
+  formats: bool,
 ) -> Result<Tokens> {
   let labels = split_label_tokens(label_tokens);
   let n = labels.len();
@@ -321,11 +636,17 @@ fn cref_multi(
   };
 
   if n < 2 {
+    // `\cref`/`\Cref` of one label: a `\crefformat` / `\Crefformat` the user set
+    // for the label's type wins (the CrossRef pass tries the `/`-separated shows
+    // in order, per target), else the type name and number as ever. A document
+    // that has set no format by then keeps Perl's plain show.
+    let formats = formats && with_value("lx@cref@formats", |v| v.is_some());
     let show = if showtype {
-      if capitalized {
-        "creftypecap\\lx@tilde refnum"
-      } else {
-        "creftype\\lx@tilde refnum"
+      match (capitalized, formats) {
+        (true, true) => "crefformatcap/creftypecap\\lx@tilde refnum",
+        (false, true) => "crefformat/creftype\\lx@tilde refnum",
+        (true, false) => "creftypecap\\lx@tilde refnum",
+        (false, false) => "creftype\\lx@tilde refnum",
       }
     } else {
       "refnum"

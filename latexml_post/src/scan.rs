@@ -162,7 +162,7 @@ impl Scan {
   /// Build common properties for a scanned element WITHOUT mutating self.
   /// Labels and tag nodes are collected but not yet registered.
   fn collect_common(
-    &self,
+    &mut self,
     doc: &PostDocument,
     node: &Node,
     tag: &str,
@@ -224,7 +224,14 @@ impl Scan {
         has_refnum = true;
       }
       // Perl `Scan.pm` L269: the tag is stored as its `cleanNode` copy.
-      sp.push(&key, Value::from(clean_text_content(&tagnode)));
+      // A cleveref format keeps its markup: the CrossRef pass tells the link part
+      // from the text around it (`ltx_cref_link`).
+      let value = if matches!(key.as_str(), "tag:crefformat" | "tag:crefformatcap") {
+        self.clean_node(doc, &tagnode)
+      } else {
+        Value::from(clean_text_content(&tagnode))
+      };
+      sp.push(&key, value);
     }
 
     // pdflatex parity (surpass-Perl): a `\label` placed at `\begin{eqnarray}` (or

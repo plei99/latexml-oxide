@@ -25,6 +25,20 @@
     another type or none stays text. Perl has the defect (BibTeX.pool.ltxml:724).
     OXIDIZED_DESIGN_DIVERGENCES #585. Guards `bib_eprint_arxiv_link::*`.
 
+  - **cleveref's `\crefformat` and `\Crefformat` are honoured.** `\Crefformat{subsection}{第~#2#1#3~节}`
+    printed "Section 3.2" for `\Cref` (only `\crefname` names took effect). A single
+    `\cref`/`\Cref` of a type with an author's format now prints it: `#1` the number,
+    `#2`..`#3` the link (font included; the number alone when the format has no markers),
+    the text around it plain text beside the link; a format given for one of `\cref`/`\Cref`
+    serves the other as cleveref derives it, and a section's format reaches its subsections
+    as cleveref copies it at `\begin{document}` (a preamble format only). A link inside the
+    format's own markup (`\textbf{(#2#1#3)}`) keeps it. Types without a format, `\ref`, `\cpageref`, lists and
+    `\Crefname`-only renames print as before, and a document with no format has the same
+    XML. Not modelled: `\crefrangeformat`, `\crefmultiformat` and their `\Cref`/`label` forms;
+    a format set after the label it shapes. Perl has the defect (cleveref.sty.ltxml:47-58).
+    OXIDIZED_DESIGN_DIVERGENCES #586. Guards `cleveref_crefformat::*`.
+
+
   - **`\overline` and `\underline` are drawn rules in MathML.** They came out as
     `<mover accent="true"><mi>M</mi><mo stretchy="true">¯</mo></mover>` (Perl's markup too), and
     in browsers the macron only stretches if the font's MATH table has a horizontal

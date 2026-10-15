@@ -17492,3 +17492,56 @@ stays Perl's plain text, and the type and class keep their `ltx:bib-data` as bef
 shared reader, so biblatex's `.bib` path and classic `\bibliography` agree. Witness: 2404.01499
 (`archivePrefix={arXiv}`, `primaryClass={math.AG}`). Guards `bib_eprint_arxiv_link::*`.
 
+### 586. cleveref's `\crefformat` / `\Crefformat` shape a single `\cref` / `\Cref` (Perl: ignored)
+
+Perl's cleveref binding hardwires the show `creftype~refnum` (cleveref.sty.ltxml:47-58) and takes
+the type name from `\cref@<type>@name` (L132-134), so `\crefformat`/`\Crefformat`, which set what
+the whole reference reads (`#1` the number, `#2`..`#3` the hyperlink: cleveref.sty:1851-1852,
+1886-1906), were dead: `\Crefformat{subsection}{第~#2#1#3~节}` printed "Section 3.2" where
+pdflatex prints "第 3.2 节" (only `\crefname` names worked). Repro
+`tools/perfect_kernel/repros/package-bindings/cleveref_crefformat.tex`.
+
+Ours (cleveref_sty.rs): `\crefformat`/`\Crefformat` are clean ports, like `\crefname`, keeping the
+format's tokens under `lx@cref@format@<cref|Cref>@<type>`; the raw macros that derive formats from
+names (`\@crefdefineformat` & co., which also run at `\begin{document}`) are no-ops, so a stored
+format is always the author's. The first format of a document switches on the `crefformat` /
+`crefformatcap` tags (a document with none digests nothing extra, its `\cref` keeps Perl's
+`show="creftype~refnum"`, its XML is unchanged); like hyperref's `autoref` name they are held
+(`type_tag_deferred`), their diagnostics replayed only if a reference shows them. The type's
+formatter assembles each tag at the target with `#1` the number (one control sequence, so a case
+change or group cannot split it) and the `#2`..`#3` part wrapped in `\lx@cref@link`
+(`<ltx:text class="ltx_cref_link">`); a format with only one marker links from the start / to the
+end, one with none (or with braces straddling the markers) links the number alone (cleveref would
+link nothing; a web reference should stay a link), an empty one is an empty link. One variant
+derives the other as cleveref does, the case change decided on the RAW format: a leading `#1` has
+its number changed, a leading `#2`/`#3` nothing, a letter or other character is changed, a group
+has its text changed, anything else (`$`, a control sequence, `~`) is left. A sub-unit without a
+format takes its parent's, as `\@crefcopyformats` copies them at `\begin{document}`
+(subsection<-section<-…, subappendix, subfigure, subtable, subequation, enumii…), unless the author
+named the sub-unit with `\crefname`; only a preamble format is copied (cleveref copies once,
+at `\begin{document}`), one set in the body shapes its own type alone.
+
+`\cref`/`\Cref`/`\cref*` of one label show `crefformat/creftype~refnum` once a format exists. A
+show starting with `crefformat` has `/`-separated alternatives (any other show keeps `/` as text, as
+before); CrossRef tries them per target, and the format answers by itself: it is returned as soon as
+the target has one, never extended by ancestors' references (LaTeX does not walk up for it), and
+the plain alternative is all a target without one (or its ancestors) gets. The `ref` is the link
+part, with the font and classes the format gave it (`#2\textbf{Thm~#1}#3` is a bold link); a link
+inside the format's own markup (`\textbf{(#2#1#3)}`, `#2…\ref{x}#3`) splits the wrapper into a copy
+around the text before, one inside the link and one around the text after, each keeping the
+wrapper's attributes; the text before and after it is `ltx_ref_tag` spans beside the `ref`:
+`<span class="ltx_text ltx_ref_tag">第 </span><a class="ltx_ref">…3.2…</a><span class="ltx_text ltx_ref_tag"> 节</span>`.
+Scan keeps these two tags as nodes (every other tag is flattened to a string). A type with no
+author's format prints exactly as before (type name and number inside the one link), as do `\ref`,
+`\cpageref`, `\labelcref`, lists and `\Crefname`-only renames.
+
+Not modelled: `\crefrangeformat`, `\crefmultiformat`, `\crefrangemultiformat` and the `label`
+variants (ranges and lists still use the plural names and conjunctions). Known differences:
+a `\newtheorem{lemma}[theorem]` lemma and an `\appendix` section take the creftype
+`lemma`/`appendix` (pdflatex: `theorem`/`section`), so their format is looked up under that
+type, as their plain show already was; the format is read where the target is built, so a `\crefformat` set after the `\label` it should
+shape is not seen (pdflatex honours mid-document changes at the `\cref`), and one set after the
+`\cref` is not seen by that `\cref` (it keeps the plain show); math in a format takes `xml:id`s in
+the hidden tags (`S0.E1.m1`, `.m2`), shifting the equation's own `Math` id by the number of math
+pieces in the format. Guards `cleveref_crefformat::*`.
+
