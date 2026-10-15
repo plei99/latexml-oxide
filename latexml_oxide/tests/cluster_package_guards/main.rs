@@ -76,6 +76,7 @@ mod nul_byte_input;
 mod openright_kernel_contract;
 mod package_leads_56;
 mod pgfkeys_sentinels;
+mod physics_qty_unparsed_argument;
 mod picture_makebox_offset;
 mod picture_sizing;
 mod pmod_operator_font;

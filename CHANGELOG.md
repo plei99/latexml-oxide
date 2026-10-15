@@ -1,6 +1,21 @@
 # Change Log
 
 ## Unreleased
+
+  - **physics' `\qty{x \mid y=0,z=1}` and `\qty{x\middle|y}` keep their argument.** The
+    formula showed the error box "Empty XMDual": `\qty{…}` is an XMDual whose content is a
+    reference to its argument (an `XMArg`), and when the argument cannot be parsed on its
+    own the math parser read the fence around it from the argument's loose tokens, so the
+    `XMArg` and its id were gone and the dual lost its content branch (26 set-builder
+    formulas in 15 notes). The `XMArg` is now one terminal of the fence around it, as in
+    Perl (MathParser.pm `getGrammaticalRole`, `parse_internal`), and stays in the tree with
+    its id, so the dual keeps both branches and the HTML shows the braces, the bar and the
+    condition. The same holds for any dual whose argument stays unparsed (`\cosh(\left[ a)`
+    through physics now keeps its `XMArg` and a resolving `XMRef`). Not done: reading the
+    condition `y=0,z=1` itself (it stays an unparsed argument; Perl reads it as
+    `formulae@(conditional@(x, y) = 0, z = 1)`). Guards
+    `physics_qty_unparsed_argument::*`, `perfect_kernel_batch66g::left_inside_an_argument_closes_at_its_end`.
+
   - **A `\titleformat` heading keeps its number as a tag.** With titlesec's
     `\titleformat`, a numbered heading's number was plain text of the title
     (`<title>1 Example</title>`, `<h2 class="ltx_title ltx_title_section">1

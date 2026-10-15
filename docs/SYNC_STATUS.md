@@ -106,6 +106,22 @@ TL manuals) and the per-batch arXiv A/B; the cortex reruns of sandboxes 2605/260
 
 ## Secondary residuals & unranked active items
 
+### Rust error fixes (recent)
+- **A referenced `XMArg` keeps its identity (physics `\qty{x \mid y=0,z=1}`, `\qty{x\middle|y}`; "Empty XMDual").**
+  Defect: an `XMArg` whose own parse failed was flattened by the lexer (`node_to_grammar_lexemes_ctx`, util.rs) and
+  dissolved again by `add_child_guard_xmarg` (semantics/tree.rs), so the `XMRef` of the enclosing `XMDual` (physics
+  `\quantity`, physics.sty.ltxml:132-145) lost its target and the LOSTNODES cleanup (parser.rs) deleted the dual's content
+  branch; post reported "Empty XMDual" (presentation.rs). Fix: an `XMArg` in a formula/`XMWrap` stream is one `ATOM`
+  terminal (Perl `getGrammaticalRole`, MathParser.pm:840-853; script `XMApp` contents stay flattened), and an `XMArg`
+  carrying an `xml:id` is no guard to dissolve. Guards `physics_qty_unparsed_argument::*`; golden
+  `perfect_kernel_batch66g::left_inside_an_argument_closes_at_its_end` now shows the standing `XMArg` and a resolving
+  `XMRef` (was a flattened wrap and an `XMRef` to nothing; Perl's shape). Residual: the condition `x \mid y=0,z=1` (a bar
+  followed by a comma list of relations) still has no standalone statement parse — `conditional_head` accepts
+  `relation_pairs` (grammar/builder.rs, `expression vertbar relation_pairs`) but only a following relation makes it a
+  statement. Perl reads it `formulae@(conditional@(x, y) = 0, z = 1)`; Rust's #377 reads `x \mid y=0` as
+  `conditional@(x, y = 0)`, so a candidate `statement vertbar relation_pairs => vertbar_modifier` needs a user ruling on
+  the reading first. Inside braces it already parses (`conditional-set@(x, formulae@(y = 0, z = 1))`).
+
 ### Open residuals of closed rows (R1, R2, R5; details in `archive/SYNC_SESSIONS_2026-09.md`)
 - **R1:** the 117-paper `TooManyErrors:MaxLimit(100)` cluster the seeds came from (2026-08-02 rerun) has not been
   re-measured; its seeds `2605.22927`, `2606.11121`, `2606.01136`, `2605.10685` are clean since 56ks3/56kt. The same

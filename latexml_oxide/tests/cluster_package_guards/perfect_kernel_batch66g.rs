@@ -150,10 +150,11 @@ fn left_inside_an_argument_closes_at_its_end() {
     r#"<XMDual>
 <XMApp>
 <XMTok meaning="hyperbolic-cosine"/>
-<XMRef idref="p1.m1.1"/>
+<XMRef idref="p1.m1.2"/>
 </XMApp>
-<XMWrap>
+<XMApp>
 <XMTok role="OPFUNCTION" scriptpos="post">cosh</XMTok>
+<XMWrap>
 <XMTok role="OPEN" stretchy="true">(</XMTok>
 <XMArg>
 <XMTok role="OPEN" stretchy="true">[</XMTok>
@@ -161,6 +162,7 @@ fn left_inside_an_argument_closes_at_its_end() {
 </XMArg>
 <XMTok role="CLOSE" stretchy="true">)</XMTok>
 </XMWrap>
+</XMApp>
 </XMDual>"#,
     "{xml}"
   );

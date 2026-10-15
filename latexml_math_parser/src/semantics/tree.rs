@@ -2,7 +2,10 @@ use std::{borrow::Cow, cmp::Ordering, error::Error, fmt, fmt::Display, rc::Rc};
 
 use latexml_core::{
   Debug,
-  common::{font::Font, xml::element_nodes},
+  common::{
+    font::Font,
+    xml::{XML_NS, element_nodes},
+  },
   document::Document,
 };
 use libxml::tree::Node;
@@ -2273,11 +2276,18 @@ impl Display for XM {
 /// Unwrap any leftover XMArg guards from the markup.
 /// This is done earlier in LaTeXML-classic, during the semantics phase.
 /// With marpa, we can postpone reparenting to the very end, when the tree is requested.
+///
+/// A guard is a bare `XMArg` the semantics itself made (`XM::Arg`). A document's `XMArg` that
+/// carries an `xml:id` is no guard: an `XMRef` points at it (physics' `\qty{…}` content branch,
+/// `I_arg`), and its argument failed to parse on its own, so Perl's parser takes it as one
+/// terminal (`ATOM`, `getGrammaticalRole`) and leaves it standing in the built tree
+/// (MathParser.pm:789-804). Dissolving it would leave the `XMRef` dangling, and the cleanup
+/// would delete the dual's content branch (`Empty XMDual`).
 fn add_child_guard_xmarg(
   receiver: &mut Node,
   incoming: &mut Node,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-  if incoming.get_name() == "XMArg" {
+  if incoming.get_name() == "XMArg" && incoming.get_attribute_ns("id", XML_NS).is_none() {
     let mut to_reparent = element_nodes(incoming);
     for incoming_child in to_reparent.iter_mut() {
       incoming_child.unlink();

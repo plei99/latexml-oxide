@@ -1791,7 +1791,14 @@ fn node_to_grammar_lexemes_ctx(
           last_was_bigop = false;
         }
       }
-    } else if node.get_name() == "XMArg" {
+    } else if node.get_name() == "XMArg" && mathnode.get_name() == "XMApp" {
+      // An XMArg in a formula's or an XMWrap's own stream is NOT flattened: its parse failed
+      // (parse_children replaces a parsed one), and Perl reads the standing XMArg as ONE terminal
+      // (getGrammaticalRole: an ATOM, MathParser.pm:840-853; parse_internal :789-804). Flattening it
+      // lost the id an XMRef points at, so physics' `\qty{x \mid y=0,z=1}` (a dual whose content
+      // is an XMRef to its argument) kept one branch: "Empty XMDual" (26 formulas in 15 notes;
+      // semantics/tree.rs add_child_guard_xmarg). Here, inside a script XMApp, it is transparent.
+      //
       // XMArg is a transparent wrapper (e.g. from \lx@post@subscript).
       // Recurse into its children so the grammar can parse them individually.
       // E.g. _{ij} should emit UNKNOWN:i + UNKNOWN:j, not ATOM:ij.
