@@ -10,6 +10,15 @@ via `--preload=[rawstyles,rawclasses]latexml.sty`, a fixed `SOURCE_DATE_EPOCH`, 
 binary. Build the binary with `cargo build --release`. Rebuild the dumps after a TeX Live
 upgrade or an upstream merge with `PROFILE=release tools/make_formats.sh`.
 
+Agents start at [`AGENTS.md`](AGENTS.md): where this checkout differs from upstream's instructions, and how
+parallel agents share it. Three tools serve any change:
+
+```sh
+fork/oxide doc.tex [outdir]        # convert one local document under the protocol; prints the verdict
+fork/binary_info.sh [bin]          # which build a binary is, and STALE when the tree is newer
+fork/worktree.sh <branch>          # a writer agent's own checkout, with LaTeXML/, dumps and .corpus/
+```
+
 ## Two indexes
 
 | | `fork/fixtures/` (public) | `fork/corpus/` over `.corpus/` (private) |

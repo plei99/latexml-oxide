@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run_one.sh <id> <source.tex>   (OUTROOT env = run directory)
+# run_one.sh <id> <source.tex>   (OUTROOT env = run directory; BIN = binary; OXIDE_ARGS = extra arguments, word-split)
 # Convert one corpus document under the perfect-kernel raw protocol into $OUTROOT/<id>/:
 #   doc.html     HTML5 output (deterministic for a fixed binary + SOURCE_DATE_EPOCH)
 #   doc.log      ANSI-free conversion log (carries `Status:conversion:N`)
@@ -28,7 +28,7 @@ rm -rf "$out"; mkdir -p "$out"; cd "$out" || exit 1
 t0=$(perl -MTime::HiRes=time -e 'print time')
 perl -e 'setpgrp(0,0); $SIG{ALRM}=sub{kill -9, 0}; alarm shift; system @ARGV; exit($? & 127 ? 128+($? & 127) : $?>>8)' \
   $((TIMEOUT_S + 30)) "$BIN" --preload="[${persona}rawstyles,rawclasses]latexml.sty" --timeout="$TIMEOUT_S" \
-  --path="$d" ${extra:+--path="$extra"} --sourcedirectory="${extra:-$d}" --log="$out/doc.log" --dest="$out/doc.html" "$src" > stdout.txt 2>&1
+  --path="$d" ${extra:+--path="$extra"} --sourcedirectory="${extra:-$d}" --log="$out/doc.log" --dest="$out/doc.html" ${OXIDE_ARGS:-} "$src" > stdout.txt 2>&1
 rc=$?
 t1=$(perl -MTime::HiRes=time -e 'print time')
 log=doc.log; [ -s "$log" ] || { sed 's/\x1b\[[0-9;]*m//g' stdout.txt > doc.log; }
