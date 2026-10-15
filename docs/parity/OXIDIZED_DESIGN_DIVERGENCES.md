@@ -17425,3 +17425,48 @@ Reproducer: `tools/perfect_kernel/repros/sectioning-frontmatter/titlesec_label_i
 starred, a size switch in the format, book `[hang]`/`[block]`/`[display]`/`[runin]` chapters as whole `<h2>`); the
 `perfect_kernel_batch56::titlesec_*` goldens carry the tags.
 
+### 584. `\overline` / `\underline` are bordered `<mrow>`s, not macron accents (Perl: `<mover accent="true">` + U+00AF)
+
+Perl binds `\overline`/`\underline` as `DefMath` with operator role `OVERACCENT`/`UNDERACCENT` and the
+glyph U+00AF (Package/TeX.pool.ltxml:6394-6425), and its presentation handlers emit
+`<mover accent="true"><mi>M</mi><mo>¯</mo></mover>` / `<munder accentunder="true">…`
+(Post/MathML.pm:1477-1493); ours did the same with an explicit `stretchy="true"` on the `<mo>`. MathML Core
+makes U+00AF and U+203E horizontally stretchy postfix operators, but stretching needs a horizontal
+construction (variants or an assembly) in the font's MATH table, and the common math fonts have none: Asana
+Math has no U+00AF and U+203E without a horizontal construction, Latin Modern Math has U+00AF without one and
+no U+203E. So in Chrome the "overline" over `MMM` is a 10.7px tick (Asana, 32px) over a 91.5px base; Firefox and
+WebKit are alike. No character substitutes across fonts: U+0304, U+0305, U+0303 and U+2015 have the default
+(block) stretch axis in Core, and U+2015 keeps the font's own width and ink height.
+
+Presentation MathML (`latexml_post/src/mathml/presentation.rs`, `pmml_rule_line`) now writes the operators named
+`overline`/`underline` (the XMTok `name`, set in `tex_math.rs`; never the glyph, so `\bar{z}` stays the narrow
+`<mover accent="true"><mi>z</mi><mo>¯</mo></mover>`) as
+
+```
+<mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em">base</mrow>
+<mrow class="ltx_underline" style="border-bottom:0.04em solid currentColor;padding-bottom:0.12em;margin-bottom:0.04em">base</mrow>
+```
+
+A CSS border on a Core `<mrow>` spans exactly the base's box in Chrome, Firefox and WebKit with either font
+(`\overline{MMM}` covers all three letters), the baseline is the base's, and the style is inline so the markup
+works without LaTeXML.css (sites embedding the MathML do not load it). The numbers are TeX's construction
+(TeXbook App. G rule 9/10; tex.web `make_over` = `overbar(b, 3θ, θ)`, `make_under`), θ = default rule thickness
+= 0.4pt at 10pt = 0.04em: the rule θ (`border`), 3θ of clearance between base and rule (`padding`), θ of kern
+outside the rule (`margin`). Browsers snap the border to whole device pixels (at least 1px); the em-sized
+padding and margin follow the script level as TeX's θ does. The rule is the operator's colour (or the inherited
+context's) written into the border, since `mathcolor` on the base's tokens does not reach the `<mrow>`; with none
+it is `currentColor`.
+
+Consequences: scripts attach to the rule box, so `\overline{\mathcal M}_{g,n}` is
+`<msub><mrow class="ltx_overline">…ℳ</mrow><mrow>g,n</mrow></msub>` (the bar is over ℳ only) and a script
+on `\underline{x}` drops below the rule as in TeX; `\overline{\overline X}` is two nested rows (two rules);
+`\underline{\overline X}` is two nested rows, no longer the single `<munderover>`, and likewise
+`\bar{\underline x}` / `\underline{\bar x}` (the bar stays a `<mover>` accent over/under the rule row).
+Only presentation changes: the XMath (`name="overline" role="OVERACCENT"`), content MathML and the
+`alttext`/annotations are untouched. Text-mode `\overline` (`ltx:text class="ltx_overline"`, Perl identical) is
+unrelated. LaTeXML.css gives text `.ltx_overline`/`.ltx_underline` a `text-decoration`, which an `<mrow>` with
+that class would pass down to every token of its base (a second rule, broken over the operators), so it carries
+`mrow.ltx_underline, mrow.ltx_overline { text-decoration: none }`.
+Witness: the user's notes site (Asana Math / Latin Modern Math), where its adapter replaced these accents by
+bordered mrows after the fact. Guard: `90_latexmlpost::overline_post_test` (fixture `tests/post/overline.xml`).
+

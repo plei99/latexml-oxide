@@ -15,6 +15,19 @@
     condition `y=0,z=1` itself (it stays an unparsed argument; Perl reads it as
     `formulae@(conditional@(x, y) = 0, z = 1)`). Guards
     `physics_qty_unparsed_argument::*`, `perfect_kernel_batch66g::left_inside_an_argument_closes_at_its_end`.
+  - **`\overline` and `\underline` are drawn rules in MathML.** They came out as
+    `<mover accent="true"><mi>M</mi><mo stretchy="true">¯</mo></mover>` (Perl's markup too), and
+    in browsers the macron only stretches if the font's MATH table has a horizontal
+    construction for it, which Asana Math and Latin Modern Math lack: over `MMM` the "bar" was
+    a 10px tick. They are now `<mrow class="ltx_overline" style="border-top:0.04em
+    solid currentColor;padding-top:0.12em;margin-top:0.04em">base</mrow>` (`ltx_underline` and
+    the `-bottom` properties for `\underline`): TeX's construction (rule θ, 3θ clearance, θ
+    kern outside; TeXbook App. G rules 9/10), inline so it needs no stylesheet, in the
+    operator's colour, over exactly the base (`\overline{\mathcal M}_{g,n}` rules the ℳ only),
+    nested rules each drawn, `\underline{\overline X}` two rows instead of a `<munderover>`.
+    Keyed on the operator's name: `\bar{z}` stays the narrow accent. LaTeXML.css keeps the
+    mrow clear of the text-mode `text-decoration`. OXIDIZED_DESIGN_DIVERGENCES #584. Guard
+    `90_latexmlpost::overline_post_test`.
 
   - **A `\titleformat` heading keeps its number as a tag.** With titlesec's
     `\titleformat`, a numbered heading's number was plain text of the title

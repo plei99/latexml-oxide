@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?latexml package="latexml" options="rawstyles,rawclasses"?>
+<?latexml class="article"?>
+<?latexml package="amsmath,amssymb,xcolor"?>
+<?latexml RelaxNGSchema="LaTeXML"?>
+<document xmlns="http://dlmf.nist.gov/LaTeXML" xmlns:m="http://www.w3.org/1998/Math/MathML">
+  <resource src="LaTeXML.css" type="text/css"/>
+  <resource src="ltx-article.css" type="text/css"/>
+  <para xml:id="p1">
+    <equation xml:id="S0.Ex1">
+      <Math mode="display" tex="\overline{M}" text="overline@(M)" xml:id="S0.Ex1.m1"><XMath>
+          <XMApp>
+            <XMTok name="overline" role="OVERACCENT" stretchy="true">¯</XMTok>
+            <XMTok font="italic" role="UNKNOWN">M</XMTok>
+          </XMApp>
+        </XMath><m:math alttext="\overline{M}" display="block"><m:mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><m:mi>M</m:mi></m:mrow></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex2">
+      <Math mode="display" tex="\overline{MMM}" text="overline@(M * M * M)" xml:id="S0.Ex2.m1"><XMath>
+          <XMApp>
+            <XMTok name="overline" role="OVERACCENT" stretchy="true">¯</XMTok>
+            <XMApp>
+              <XMTok meaning="times" role="MULOP">⁢</XMTok>
+              <XMTok font="italic" role="UNKNOWN">M</XMTok>
+              <XMTok font="italic" role="UNKNOWN">M</XMTok>
+              <XMTok font="italic" role="UNKNOWN">M</XMTok>
+            </XMApp>
+          </XMApp>
+        </XMath><m:math alttext="\overline{MMM}" display="block"><m:mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><m:mrow><m:mi>M</m:mi><m:mo>⁢</m:mo><m:mi>M</m:mi><m:mo>⁢</m:mo><m:mi>M</m:mi></m:mrow></m:mrow></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex3">
+      <Math mode="display" tex="\underline{x}" text="underline@(x)" xml:id="S0.Ex3.m1"><XMath>
+          <XMApp>
+            <XMTok name="underline" role="UNDERACCENT" stretchy="true">¯</XMTok>
+            <XMTok font="italic" role="UNKNOWN">x</XMTok>
+          </XMApp>
+        </XMath><m:math alttext="\underline{x}" display="block"><m:mrow class="ltx_underline" style="border-bottom:0.04em solid currentColor;padding-bottom:0.12em;margin-bottom:0.04em"><m:mi>x</m:mi></m:mrow></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex4">
+      <Math mode="display" tex="\overline{\mathcal{M}}_{g,n}" text="(overline@(M)) _ (list@(g, n))" xml:id="S0.Ex4.m1"><XMath>
+          <XMApp>
+            <XMTok role="SUBSCRIPTOP" scriptpos="post1"/>
+            <XMApp>
+              <XMTok name="overline" role="OVERACCENT" stretchy="true">¯</XMTok>
+              <XMTok font="caligraphic" role="UNKNOWN">M</XMTok>
+            </XMApp>
+            <XMDual>
+              <XMApp>
+                <XMTok meaning="list"/>
+                <XMRef idref="S0.Ex4.m1.1"/>
+                <XMRef idref="S0.Ex4.m1.2"/>
+              </XMApp>
+              <XMWrap>
+                <XMTok font="italic" fontsize="70%" role="UNKNOWN" xml:id="S0.Ex4.m1.1">g</XMTok>
+                <XMTok fontsize="70%" role="PUNCT">,</XMTok>
+                <XMTok font="italic" fontsize="70%" role="UNKNOWN" xml:id="S0.Ex4.m1.2">n</XMTok>
+              </XMWrap>
+            </XMDual>
+          </XMApp>
+        </XMath><m:math alttext="\overline{\mathcal{M}}_{g,n}" display="block"><m:msub><m:mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><m:mi class="ltx_font_mathcaligraphic">ℳ</m:mi></m:mrow><m:mrow><m:mi>g</m:mi><m:mo>,</m:mo><m:mi>n</m:mi></m:mrow></m:msub></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex5">
+      <Math mode="display" tex="\overline{H}^{2}_{1}" text="((overline@(H)) ^ 2) _ 1" xml:id="S0.Ex5.m1"><XMath>
+          <XMApp>
+            <XMTok role="SUBSCRIPTOP" scriptpos="post1"/>
+            <XMApp>
+              <XMTok role="SUPERSCRIPTOP" scriptpos="post1"/>
+              <XMApp>
+                <XMTok name="overline" role="OVERACCENT" stretchy="true">¯</XMTok>
+                <XMTok font="italic" role="UNKNOWN">H</XMTok>
+              </XMApp>
+              <XMTok fontsize="70%" meaning="2" role="NUMBER">2</XMTok>
+            </XMApp>
+            <XMTok fontsize="70%" meaning="1" role="NUMBER">1</XMTok>
+          </XMApp>
+        </XMath><m:math alttext="\overline{H}^{2}_{1}" display="block"><m:msubsup><m:mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><m:mi>H</m:mi></m:mrow><m:mn>1</m:mn><m:mn>2</m:mn></m:msubsup></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex6">
+      <Math mode="display" tex="\overline{\overline{X}}" text="overline@(overline@(X))" xml:id="S0.Ex6.m1"><XMath>
+          <XMApp>
+            <XMTok name="overline" role="OVERACCENT" stretchy="true">¯</XMTok>
+            <XMApp>
+              <XMTok name="overline" role="OVERACCENT" stretchy="true">¯</XMTok>
+              <XMTok font="italic" role="UNKNOWN">X</XMTok>
+            </XMApp>
+          </XMApp>
+        </XMath><m:math alttext="\overline{\overline{X}}" display="block"><m:mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><m:mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><m:mi>X</m:mi></m:mrow></m:mrow></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex7">
+      <Math mode="display" tex="\underline{\overline{X}}" text="underline@(overline@(X))" xml:id="S0.Ex7.m1"><XMath>
+          <XMApp>
+            <XMTok name="underline" role="UNDERACCENT" stretchy="true">¯</XMTok>
+            <XMApp>
+              <XMTok name="overline" role="OVERACCENT" stretchy="true">¯</XMTok>
+              <XMTok font="italic" role="UNKNOWN">X</XMTok>
+            </XMApp>
+          </XMApp>
+        </XMath><m:math alttext="\underline{\overline{X}}" display="block"><m:mrow class="ltx_underline" style="border-bottom:0.04em solid currentColor;padding-bottom:0.12em;margin-bottom:0.04em"><m:mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><m:mi>X</m:mi></m:mrow></m:mrow></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex8">
+      <Math mode="display" tex="\bar{\underline{x}}" text="bar@(underline@(x))" xml:id="S0.Ex8.m1"><XMath>
+          <XMApp>
+            <XMTok name="bar" role="OVERACCENT" stretchy="false">¯</XMTok>
+            <XMApp>
+              <XMTok name="underline" role="UNDERACCENT" stretchy="true">¯</XMTok>
+              <XMTok font="italic" role="UNKNOWN">x</XMTok>
+            </XMApp>
+          </XMApp>
+        </XMath><m:math alttext="\bar{\underline{x}}" display="block"><m:mover accent="true"><m:mrow class="ltx_underline" style="border-bottom:0.04em solid currentColor;padding-bottom:0.12em;margin-bottom:0.04em"><m:mi>x</m:mi></m:mrow><m:mo>¯</m:mo></m:mover></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex9">
+      <Math mode="display" tex="\color[rgb]{1,0,0}\overline{x}" text="overline@(x)" xml:id="S0.Ex9.m1"><XMath>
+          <XMApp color="#FF0000">
+            <XMTok name="overline" role="OVERACCENT" stretchy="true">¯</XMTok>
+            <XMTok font="italic" role="UNKNOWN">x</XMTok>
+          </XMApp>
+        </XMath><m:math alttext="\color[rgb]{1,0,0}\overline{x}" display="block"><m:mrow class="ltx_overline" style="border-top:0.04em solid #FF0000;padding-top:0.12em;margin-top:0.04em"><m:mi mathcolor="#FF0000">x</m:mi></m:mrow></m:math></Math>
+    </equation>
+    <equation xml:id="S0.Ex10">
+      <Math mode="display" tex="\bar{z}" text="bar@(z)" xml:id="S0.Ex10.m1"><XMath>
+          <XMApp>
+            <XMTok name="bar" role="OVERACCENT" stretchy="false">¯</XMTok>
+            <XMTok font="italic" role="UNKNOWN">z</XMTok>
+          </XMApp>
+        </XMath><m:math alttext="\bar{z}" display="block"><m:mover accent="true"><m:mi>z</m:mi><m:mo>¯</m:mo></m:mover></m:math></Math>
+    </equation>
+  </para>
+</document>

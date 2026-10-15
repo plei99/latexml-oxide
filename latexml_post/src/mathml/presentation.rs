@@ -777,6 +777,66 @@ fn pmml_apply(doc: &PostDocument, node: &Node) -> NodeData {
   maybe_style_wrap(result, ostyle, nstyle)
 }
 
+/// Is `op` the `\overline` (`Some(true)`) or `\underline` (`Some(false)`) operator?
+///
+/// Keyed on the XMTok `name` the engine gives them (`tex_math.rs`
+/// `\lx@math@overline`/`\lx@math@underline`), never on the macron glyph:
+/// `\bar` is also U+00AF but is a narrow accent over a letter, not a rule.
+fn rule_line_kind(op: &Node) -> Option<bool> {
+  match op.get_attribute("name").as_deref() {
+    Some("overline") => Some(true),
+    Some("underline") => Some(false),
+    _ => None,
+  }
+}
+
+/// Present `\overline` / `\underline` as a bordered `m:mrow` around the base
+/// (divergence #584; Perl `Apply:OVERACCENT:?`/`UNDERACCENT`, MathML.pm
+/// L1477-1493, emits `m:mover accent="true"` with a U+00AF `m:mo`).
+///
+/// MathML Core makes U+00AF/U+203E horizontally stretchy, but stretching needs a
+/// horizontal construction in the font's MATH table and the common math fonts
+/// (Asana Math, Latin Modern Math) have none for them, so the "bar" came out as a
+/// short tick over a wide base. A CSS border on an `m:mrow` spans exactly the
+/// base's box in every engine and with every font, scripts and nested rules
+/// included. The style is inline so the markup works without LaTeXML.css.
+///
+/// The numbers are TeX's own construction (TeXbook App. G rules 9/10; tex.web
+/// `make_over` -> `overbar(b, 3*θ, θ)` and `make_under`), with θ = default rule
+/// thickness = fontdimen8 of the extension font = 0.4pt at 10pt = 0.04em:
+///   border-*  θ   (0.04em)  the rule,
+///   padding-* 3θ  (0.12em)  clearance between the base and the rule,
+///   margin-*  θ   (0.04em)  kern outside the rule.
+/// Browsers snap the border to whole device pixels (>= 1px); the em-relative
+/// padding and margin follow the script level, as TeX's θ does.
+///
+/// The rule takes the operator's colour (or the inherited context's), written
+/// out because `mathcolor` on the base tokens does not reach this `m:mrow`;
+/// with neither it is `currentColor` and follows any enclosing `mathcolor`.
+fn pmml_rule_line(rop: &Node, base: NodeData, over: bool) -> NodeData {
+  let color = rop
+    .get_attribute("color")
+    .filter(|c| !c.is_empty())
+    .or_else(|| ctx_get(&CTX_COLOR))
+    .unwrap_or_else(|| "currentColor".to_string());
+  let (class, side) = if over {
+    ("ltx_overline", "top")
+  } else {
+    ("ltx_underline", "bottom")
+  };
+  NodeData::Element {
+    tag:        "m:mrow".to_string(),
+    attributes: Some(HashMap::from_iter([
+      ("class".to_string(), class.to_string()),
+      (
+        "style".to_string(),
+        format!("border-{side}:0.04em solid {color};padding-{side}:0.12em;margin-{side}:0.04em"),
+      ),
+    ])),
+    children:   vec![base],
+  }
+}
+
 /// Role/meaning dispatch for an XMApp (the body of Perl's
 /// `lookupPresenter('Apply',…)` call in `pmml_internal`).
 fn pmml_apply_dispatch(
@@ -821,12 +881,20 @@ fn pmml_apply_dispatch(
       }
     },
     "OVERACCENT" if !args.is_empty() => {
+      // `\overline` is a drawn rule, not an accent (divergence #584): see
+      // `pmml_rule_line`. Decided by the operator's NAME, never its macron
+      // glyph — `\bar` shares U+00AF and stays the narrow accent below.
+      if let Some(over) = rule_line_kind(rop) {
+        return pmml_rule_line(rop, pmml(doc, &args[0]), over);
+      }
       // Perl MathML.pm L1492-1504: check if base is XMApp with UNDERACCENT → m:munderover
       let base = &args[0];
       let base_children = element_children(base);
       if doc.is_qname(base, "ltx:XMApp") && base_children.len() == 2 {
         let inner_role = base_children[0].get_attribute("role").unwrap_or_default();
-        if inner_role == "UNDERACCENT" {
+        // A rule-line `\underline` base is not an accent to merge: it is the
+        // bordered `m:mrow` of the base (`\bar{\underline{x}}`).
+        if inner_role == "UNDERACCENT" && rule_line_kind(&base_children[0]).is_none() {
           // Combine into m:munderover: base_of_inner, under_accent, over_accent
           return NodeData::Element {
             tag:        "m:munderover".to_string(),
@@ -852,12 +920,16 @@ fn pmml_apply_dispatch(
       }
     },
     "UNDERACCENT" if !args.is_empty() => {
+      // `\underline` is a drawn rule too (divergence #584); see OVERACCENT.
+      if let Some(over) = rule_line_kind(rop) {
+        return pmml_rule_line(rop, pmml(doc, &args[0]), over);
+      }
       // Perl MathML.pm L1507-1519: check if base is XMApp with OVERACCENT → m:munderover
       let base = &args[0];
       let base_children = element_children(base);
       if doc.is_qname(base, "ltx:XMApp") && base_children.len() == 2 {
         let inner_role = base_children[0].get_attribute("role").unwrap_or_default();
-        if inner_role == "OVERACCENT" {
+        if inner_role == "OVERACCENT" && rule_line_kind(&base_children[0]).is_none() {
           return NodeData::Element {
             tag:        "m:munderover".to_string(),
             attributes: Some(HashMap::from_iter([

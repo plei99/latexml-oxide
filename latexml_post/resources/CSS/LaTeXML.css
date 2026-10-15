@@ -514,6 +514,10 @@ span.ltx_framed       { display:inline-block; text-indent:0; } /* avoid padding/
 
 .ltx_underline { text-decoration: underline; }
 .ltx_overline  { text-decoration: overline; }
+/* In math, \overline/\underline are drawn by the border in the mrow's own inline style
+   (OXIDIZED_DESIGN_DIVERGENCES #584); the text decoration above would propagate into every
+   token of the base and draw a second, broken rule. */
+mrow.ltx_underline, mrow.ltx_overline { text-decoration: none; }
 
 /*======================================================================
  Misc */

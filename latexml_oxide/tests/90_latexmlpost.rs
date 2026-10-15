@@ -159,6 +159,20 @@ fn opdecoration_post_test() {
 }
 
 #[test]
+fn overline_post_test() {
+  // `\overline` / `\underline` presentation (OXIDIZED_DESIGN_DIVERGENCES #584).
+  // Perl (MathML.pm L1477-1493) and we used to emit `<mover accent><base/><mo>¯</mo>`;
+  // the macron's horizontal stretch needs a horizontal MATH-table construction that
+  // common math fonts lack, so the "bar" rendered as a short tick. The operators NAMED
+  // `overline`/`underline` now present as a bordered `<mrow class="ltx_overline|underline"
+  // style="…">` (TeXbook App. G rules 9/10: rule θ=0.04em, 3θ clearance, θ kern outside).
+  // The fixture spans: bare/compound base, a script outside the rule (`\overline{\mathcal M}_{g,n}`),
+  // scripts on a `\overline{H}`, nested/mixed rules (no `munderover` merge), a coloured rule,
+  // and the control `\bar{z}`, whose narrow accent `<mover accent><mi>z</mi><mo>¯</mo>` is unchanged.
+  post_test("overline", 0);
+}
+
+#[test]
 fn hyperref_post_test() { post_test("hyperref", 0); }
 
 #[test]
