@@ -17470,3 +17470,25 @@ that class would pass down to every token of its base (a second rule, broken ove
 Witness: the user's notes site (Asana Math / Latin Modern Math), where its adapter replaced these accents by
 bordered mrows after the fact. Guard: `90_latexmlpost::overline_post_test` (fixture `tests/post/overline.xml`).
 
+### 585. An arXiv eprint in a `.bib` is a link, `arXiv:<id> [<class>]` (Perl: the bare id as text)
+
+biblatex prints an arXiv eprint as `arXiv: <id> [<class>]` (a space after the colon, the class
+in brackets and monospace), the id AND the class linked to `https://arxiv.org/abs/<id>`
+(biblatex.def:526-533; `archiveprefix` is `eprinttype` and `primaryclass`
+is `eprintclass`, biblatex.def:1365-1367). Perl's reader files `eprint` as plain `ltx:bib-links`
+text (BibTeX.pool.ltxml:724, 740, 750) and leaves the type and class as unformatted `ltx:bib-data`,
+which MakeBibliography.pm:647-689 never renders: "External Links: 2404.01499", no link, no hint of
+which archive. `\bib@field@default@eprint` (bibtex.rs) now looks at the entry: when its
+`eprinttype` or `archiveprefix` is `arXiv` in any case it emits
+`<ltx:bib-identifier scheme="arxiv" id="<id>" href="https://arxiv.org/abs/<id>">arXiv:<id> [<class>]</ltx:bib-identifier>`,
+the element the DOI already uses, so the post stage renders it as a link in the same "External
+Links" line (`<a class="ltx_ref arxiv ltx_bib_external">`), separated like the DOI and URL. The class
+(`eprintclass`/`primaryclass`) follows in brackets when set; a leading `arXiv:` on the id is dropped;
+an old-style id (`math/0211159`) keeps its slash in text and address. The label is our canonical
+`arXiv:<id>` (no space, as the ISBN/ISSN identifiers read `ISBN <id>` in one element) and the whole
+identifier is the link, the `arXiv:` prefix included (biblatex's prefix is outside the link, its id and
+class inside; the class is not monospace here). An eprint of another type or none
+stays Perl's plain text, and the type and class keep their `ltx:bib-data` as before. It is the
+shared reader, so biblatex's `.bib` path and classic `\bibliography` agree. Witness: 2404.01499
+(`archivePrefix={arXiv}`, `primaryClass={math.AG}`). Guards `bib_eprint_arxiv_link::*`.
+

@@ -21,6 +21,7 @@ mod accent_meaning_robust_shape;
 mod acmart_description_aria;
 mod aligned_overset_includestyles;
 mod beamer_setbeamertemplate_args;
+mod bib_eprint_arxiv_link;
 mod bib_field_digest_once;
 mod biblatex_alphabetic_labels;
 mod biblatex_fallback_no_cite_loop;

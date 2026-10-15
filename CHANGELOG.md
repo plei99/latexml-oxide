@@ -15,6 +15,16 @@
     condition `y=0,z=1` itself (it stays an unparsed argument; Perl reads it as
     `formulae@(conditional@(x, y) = 0, z = 1)`). Guards
     `physics_qty_unparsed_argument::*`, `perfect_kernel_batch66g::left_inside_an_argument_closes_at_its_end`.
+
+  - **An arXiv eprint in a `.bib` is a link.** `eprint={2404.01499}` with
+    `archivePrefix={arXiv}` / `eprinttype={arXiv}` (any case) was plain text in the
+    "External Links" line. It is now `arXiv:2404.01499 [math.AG]` linked to
+    `https://arxiv.org/abs/2404.01499` (the class from `primaryClass`/`eprintclass`
+    when set, old-style ids such as `math/0211159` included), beside the DOI and URL
+    links, for biblatex's `.bib` and for classic `\bibliography` alike. An eprint of
+    another type or none stays text. Perl has the defect (BibTeX.pool.ltxml:724).
+    OXIDIZED_DESIGN_DIVERGENCES #585. Guards `bib_eprint_arxiv_link::*`.
+
   - **`\overline` and `\underline` are drawn rules in MathML.** They came out as
     `<mover accent="true"><mi>M</mi><mo stretchy="true">¯</mo></mover>` (Perl's markup too), and
     in browsers the macron only stretches if the font's MATH table has a horizontal

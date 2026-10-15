@@ -1304,6 +1304,65 @@ pub fn recase_title_with(
 /// Semiverbatim input before urlencoding or attribute-emitting.
 pub fn process_identifier(s: &str) -> String { s.trim().to_string() }
 
+/// A `.bib` field value as a plain string: trimmed, with any enclosing braces
+/// (`{arXiv}`) removed. `None` when the field is absent or blank.
+fn bib_field_plain(names: &[&str]) -> Option<String> {
+  names.iter().find_map(|name| {
+    let raw = current_entry_raw_field(name)?;
+    let v = raw
+      .trim()
+      .trim_start_matches('{')
+      .trim_end_matches('}')
+      .trim()
+      .to_string();
+    (!v.is_empty()).then_some(v)
+  })
+}
+
+/// Is the current entry's `eprint` an arXiv one? `eprinttype`, or its
+/// `archiveprefix` alias (biblatex.def:1365), equals `arXiv` in any case.
+fn arxiv_eprint_is_arxiv() -> bool {
+  bib_field_plain(&["eprinttype", "archiveprefix"]).is_some_and(|t| t.eq_ignore_ascii_case("arxiv"))
+}
+
+/// The current entry's `eprintclass`, or its `primaryclass` alias
+/// (biblatex.def:1367).
+fn arxiv_eprint_class() -> Option<String> { bib_field_plain(&["eprintclass", "primaryclass"]) }
+
+/// `(id, label, href)` of an arXiv eprint: the bare identifier (a leading
+/// `arXiv:` dropped; old-style `math/0211159` kept as is), the displayed
+/// `arXiv:<id>` plus ` [<class>]` when a class is set, and its
+/// `https://arxiv.org/abs/<id>` address (percent-encoded like the DOI's).
+fn arxiv_eprint_parts(raw: &str, class: Option<&str>) -> (String, String, String) {
+  let trimmed = process_identifier(raw);
+  let id = match trimmed.get(..6) {
+    Some(prefix) if prefix.eq_ignore_ascii_case("arxiv:") => trimmed[6..].trim().to_string(),
+    _ => trimmed,
+  };
+  let label = match class {
+    Some(c) => format!("arXiv:{id} [{c}]"),
+    None => format!("arXiv:{id}"),
+  };
+  let href = format!("https://arxiv.org/abs/{}", percent_encode_href_tail(&id));
+  (id, label, href)
+}
+
+/// Percent-encode everything but `[0-9a-zA-Z./\-+]` for the tail of a URL.
+fn percent_encode_href_tail(id: &str) -> String {
+  let mut out = String::new();
+  for c in id.chars() {
+    if c.is_ascii_alphanumeric() || matches!(c, '.' | '/' | '-' | '+') {
+      out.push(c);
+    } else {
+      let mut buf = [0u8; 4];
+      for &b in c.encode_utf8(&mut buf).as_bytes() {
+        out.push_str(&format!("%{:02X}", b));
+      }
+    }
+  }
+  out
+}
+
 /// Parse an amsrefs-style keyval string `"key = {value}, key = value, ..."`
 /// into a list of `(name, value)` pairs. Names are lowercased; values
 /// have their outer `{...}` envelope stripped (if any) and surrounding
@@ -2421,7 +2480,36 @@ LoadDefinitions!({
     "\\bib@field@default@copyright",
     "\\bib@@field{ltx:bib-date}[role=copyright]"
   );
-  DefMacro!("\\bib@field@default@eprint", "\\bib@@field{ltx:bib-links}");
+  // `eprint`, entry-aware: an arXiv eprint (`eprinttype`/`archiveprefix` =
+  // arXiv, biblatex.def:1365-1367 aliases) becomes a LINKED identifier
+  // `arXiv:<id> [<class>]` -> https://arxiv.org/abs/<id> (biblatex.def:526-533
+  // prints `arXiv: <id> [<class>]`, id and class linked; ours is the canonical
+  // one-element label, all of it the link), through the same `ltx:bib-identifier` -> `ltx:ref` path the DOI uses. Any
+  // other eprint (or one without a type) stays Perl's plain `ltx:bib-links`
+  // text (BibTeX.pool.ltxml:724). SURPASS-PERL: OXIDIZED_DESIGN_DIVERGENCES
+  // #585. Witness: 2404.01499 (`archivePrefix={arXiv}`,
+  // `primaryClass={math.AG}`). Guard:
+  // `cluster_package_guards::bib_eprint_arxiv_link`.
+  DefMacro!("\\bib@field@default@eprint", sub[_args] {
+    let name = if arxiv_eprint_is_arxiv() { "\\bib@@arxiv@eprint" } else { "\\bib@@field" };
+    let mut tokens = vec![T_CS!(name)];
+    if name == "\\bib@@field" {
+      tokens.push(T_BEGIN!());
+      tokens.extend(Explode!("ltx:bib-links"));
+      tokens.push(T_END!());
+    }
+    Ok(Tokens::new(tokens))
+  });
+  DefConstructor!("\\bib@@arxiv@eprint Semiverbatim",
+  "<ltx:bib-identifier scheme='arxiv' id='#id' href='#href'>#label</ltx:bib-identifier>",
+  properties => sub[args] {
+    let raw = args[0].as_ref().map(|a| a.to_string()).unwrap_or_default();
+    let (id, label, href) = arxiv_eprint_parts(&raw, arxiv_eprint_class().as_deref());
+    Ok(stored_map!(
+      "id" => id,
+      "label" => Stored::String(pin(&label)),
+      "href" => href))
+  });
   DefMacro!(
     "\\bib@field@default@preprint",
     "\\bib@@field{ltx:bib-links}"
@@ -2470,17 +2558,7 @@ LoadDefinitions!({
     let raw = args[0].as_ref().map(|a| a.to_string()).unwrap_or_default();
     let id = process_identifier(&raw);
     // Percent-encode `[^0-9a-zA-Z./\-+]` chars for the URL.
-    let mut href = String::from("https://dx.doi.org/");
-    for c in id.chars() {
-      if c.is_ascii_alphanumeric() || matches!(c, '.' | '/' | '-' | '+') {
-        href.push(c);
-      } else {
-        let mut buf = [0u8; 4];
-        for &b in c.encode_utf8(&mut buf).as_bytes() {
-          href.push_str(&format!("%{:02X}", b));
-        }
-      }
-    }
+    let href = format!("https://dx.doi.org/{}", percent_encode_href_tail(&id));
     Ok(stored_map!("id" => id, "href" => href))
   });
 
