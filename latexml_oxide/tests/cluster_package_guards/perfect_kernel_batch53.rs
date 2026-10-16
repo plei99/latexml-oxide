@@ -3,7 +3,7 @@
 //! Each test is the minimal reproduction distilled during triage; the
 //! doc-comment names the ORIGINAL corpus witness (TeX Live doc corpus)
 //! whose larger conversion was vetted separately.
-use super::perfect_kernel_batch46::{convert, error_count};
+use super::perfect_kernel_batch46::{convert, error_count, warning_count};
 
 /// eTeX `\numexpr`/`\dimexpr`/`\glueexpr` factor scanning (etex.ch
 /// `scan_expr`, "Scan a factor f of type o or start a subexpression")
@@ -132,6 +132,7 @@ Body.
 fn koma_declaresectioncommand_heading_is_a_subsection() {
   let (stderr, xml) = convert(KOMA_TASK, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
   assert!(!stderr.contains("malformed"), "{stderr}");
   assert!(
     xml.contains(r#"<subsection inlist="toc" xml:id="task1">"#),

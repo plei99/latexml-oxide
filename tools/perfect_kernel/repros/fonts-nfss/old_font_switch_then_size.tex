@@ -6,7 +6,7 @@
 % oracle:  pdflatex \foo in CMTT10, x in CMBX10
 % engines: rust=<text fontsize="91%">“foo</text> <text fontsize="91%">x</text>;
 %          Perl font="typewriter" / font="bold" (RUST-ONLY)
-% expect:  typewriter \foo, bold x
+% expect:  typewriter \foo, bold x; 0 warnings (no `\@startsection`/`\@sect` identity warnings in KOMA-Script 3.49.2, TeX Live 2026)
 % status:  RED -> GREEN (W8, guard nfss_font_state)
 \documentclass{scrartcl}
 \begin{document}

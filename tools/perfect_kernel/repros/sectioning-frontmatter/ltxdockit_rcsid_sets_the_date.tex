@@ -6,7 +6,7 @@
 % status:  GREEN 60m; guard perfect_kernel_batch60::ltxdockit_rcsid_sets_the_date
 % oracle:  pdflatex (two passes), 0 errors: "Version 2.1" / "January 3, 2011"
 % engines: rust 60j4: `<date role="creation">` the conversion day
-% expect:  0 errors; `<date role="creation">January 3, 2011</date>`
+% expect:  0 errors, 0 warnings (the \@startsection/\@sect identity warnings are absent in KOMA-Script 3.49.2, TL 2026); `<date role="creation">January 3, 2011</date>`
 \documentclass{ltxdockit}
 \rcsid{$Id: x.tex,v 2.1 2011/01/03 19:14:10 lehman stable $}
 \titlepage{title={T},subtitle={S},author={A},email={a@b.c},revision={\rcsrevision},date={\rcstoday}}

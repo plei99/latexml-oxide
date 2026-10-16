@@ -5,7 +5,7 @@
 % engines: rust (56ig) = the typearea warning, and KOMA's \large/\small sizes lost; SHARED with Perl
 % expect:  0 errors, no "Bad type area settings"; <p>Body <text fontsize="110%">L</text> and
 %          <text fontsize="91%">s</text>.</p> (the class's \normalsize is the nominal size: body
-%          text carries no size); KOMA's two \@sect/\@startsection identity warnings remain (LEDGER 56ig)
+%          text carries no size); the \@startsection/\@sect "changed" warnings are present in KOMA-Script 3.41 (TL 2024), absent in 3.49.2 (TL 2026) (LEDGER 56ig)
 % status:  RED (56ig) -> GREEN (56ih); convert with [rawstyles,rawclasses]
 \documentclass{scrartcl}
 \begin{document}

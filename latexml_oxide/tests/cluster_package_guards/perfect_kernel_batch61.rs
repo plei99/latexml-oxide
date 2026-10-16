@@ -221,7 +221,7 @@ fn keyval_unknown_keys_follow_kv_errx() {
 
 /// 61m: a bfh-ci title page's foot is frontmatter (user ruling 2026-10-03): bfhlayout.sty prints `\department`,
 /// `\institute` and `\titlefooterright` only in the title page's scrlayer footer (bfhlayout.sty:735-756), which
-/// LaTeXML never typesets (SHARED). The three warnings are the class's own. Repro
+/// LaTeXML never typesets (SHARED). The one warning is the class's own (bfhfonts' pdfLaTeX note, which pdflatex prints too). Repro
 /// sectioning-frontmatter/bfh_title_footer_is_frontmatter.
 #[test]
 fn bfh_title_footer_is_frontmatter() {
@@ -230,12 +230,8 @@ fn bfh_title_footer_is_frontmatter() {
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/bfh_title_footer_is_frontmatter.tex"
     ),
     RAW,
-    (0, 3),
-    &[
-      "`\\@startsection' has been changed",
-      "Unexpected definition of \\@sect",
-      "You are using pdfLaTeX",
-    ],
+    (0, 1),
+    &["You are using pdfLaTeX"],
     &[],
   );
   assert_element(
@@ -265,12 +261,8 @@ fn bfh_thesis_stores_stay_affiliations() {
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/bfh_thesis_stores_stay_affiliations.tex"
     ),
     RAW,
-    (0, 3),
-    &[
-      "`\\@startsection' has been changed",
-      "Unexpected definition of \\@sect",
-      "You are using pdfLaTeX",
-    ],
+    (0, 1),
+    &["You are using pdfLaTeX"],
     &[],
   );
   assert_element(

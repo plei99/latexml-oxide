@@ -1,14 +1,18 @@
-% KOMA-Script's classes compare `\@startsection` with their copies of the kernel's definition (scrartcl.cls:3292-3330,
-% two variants) and `\@sect`, `\@ssect`, `\@xsect` likewise (:3552-3560, :3753, :3834; scrreprt.cls, scrbook.cls
-% alike), and warn when another package changed them, taking the "alternative approach" that wraps the definition
-% found (:3396-3425). The kernel's sectioning macros are LaTeXML's own semantic bindings, so every scrartcl/scrreprt/
-% scrbook document, raw or not, gets "`\@startsection' has been changed" and "Unexpected definition of \@sect!", where
-% pdflatex is quiet; the wrapping is what keeps LaTeXML's sections (side finding of batch 60m, ltxdockit). The
-% warnings are true: quieting them would take token-identical kernel sectioning macros.
-% status:  CONTROL (2 warnings by design; Perl's sectioning is a binding too)
+% KOMA-Script 3.41 (TL 2024; scrartcl.cls:3392, :3550) compared `\@startsection`, `\@sect`, `\@ssect` and `\@xsect` with
+% copies of the kernel's definitions and warned "`\@startsection' has been changed" and "Unexpected definition of
+% \@sect!" in every scrartcl document under LaTeXML. Both warnings are absent in KOMA-Script 3.49.2 (TL 2026; scrartcl.cls
+% 2026/02/02), whose only remaining check is the `cmd/@startsection/before` hook it adds at `begindocument/end`
+% (scrartcl.cls:3310-3321) and which warns ("sectioning-features-not-available") for a `\@startsection` call. KOMA
+% headings run `\scr@startsection` (scrartcl.cls:3324, :3892-3894), which koma_script.rs:65 `\let`s to the native
+% `\@startsection` when the class has loaded (koma_post_load, scrartcl_cls.rs:31), before that hook runs at
+% \begin{document}; headings raise no warning (as under pdflatex). A direct `\@startsection`
+% call is unguarded.
+% status:  CONTROL (0 warnings); guard perfect_kernel_batch53::koma_declaresectioncommand_heading_is_a_subsection
+%          (headings under scrartcl, 0 warnings pinned)
 % oracle:  pdflatex 0 errors, no Class scrartcl Warning
-% engines: rust 60m: Warning "`\@startsection' has been changed", Warning "Unexpected definition of \@sect!"
-% expect:  0 errors, those 2 warnings; the section "1 One" and "Text."
+% engines: rust 60m (TL 2024): Warning "`\@startsection' has been changed", Warning "Unexpected definition of \@sect!"
+%          rust (TL 2026): 0 errors, 0 warnings
+% expect:  0 errors, 0 warnings; the section "1 One" and "Text."
 \documentclass{scrartcl}
 \begin{document}
 \section{One}

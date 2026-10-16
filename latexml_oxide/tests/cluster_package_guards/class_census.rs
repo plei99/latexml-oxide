@@ -328,10 +328,10 @@ fn scrpage_pagestyle_layers() {
   let tex = include_str!(
     "../../../tools/perfect_kernel/repros/sectioning-frontmatter/scrpage_pagestyle_layers.tex"
   );
-  // The raw scrartcl (the sweep's persona) reaches `\pagestyle`; its KOMA
-  // warnings (type area, `\@startsection`) are its own.
+  // The raw scrartcl (the sweep's persona) reaches `\pagestyle`.
   let (stderr, xml) = convert_with(tex, Some("[rawstyles,rawclasses]latexml.sty"));
   assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
   assert!(xml.contains("<p>Text.</p>"), "{xml}");
 }
 
@@ -797,13 +797,9 @@ fn raw_class_normalsize_nominal() {
   let (stderr, xml) = convert_with(tex, Some("[rawstyles,rawclasses]latexml.sty"));
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert!(!stderr.contains("Bad type area settings"), "{stderr}");
-  // Only KOMA's two sectioning-identity warnings may remain (LEDGER 56ig).
-  let other_warnings = stderr
-    .lines()
-    .filter(|l| l.contains("Warning:"))
-    .filter(|l| !l.contains("has been") && !l.contains("Unexpected definition of"))
-    .count();
-  assert_eq!(other_warnings, 0, "{stderr}");
+  // The `\@startsection`/`\@sect` identity warnings (LEDGER 56ig) are absent in KOMA-Script
+  // 3.49.2 (TeX Live 2026); present in 3.41 (TeX Live 2024).
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
   assert!(
     xml
       .contains(r#"<p>Body <text fontsize="110%">L</text> and <text fontsize="91%">s</text>.</p>"#),
