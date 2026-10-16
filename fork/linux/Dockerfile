@@ -76,8 +76,9 @@ RUN --mount=type=bind,from=tlrepo,source=/tlrepo,target=/tlrepo \
 # directly; $TEXMFROOT and the other tree variables then derive from the same binary anchor, so
 # every path resolves under /usr/local/texlive/2026.
 ENV TEXMFCNF=/usr/local/texlive/2026/texmf-dist/web2c
-# Preinstalled on GitHub's runner image; bindgen build scripts need libclang.
-RUN apt-get update -qq && apt-get install -qy --no-install-recommends libclang-dev clang \
+# Preinstalled on GitHub's runner image; bindgen build scripts need libclang. python3: tools/lint.sh's
+# audit and fontmap-drift checks; jing: the schema guards (apt's texlive pulled python3 in before).
+RUN apt-get update -qq && apt-get install -qy --no-install-recommends libclang-dev clang python3 jing \
     && rm -rf /var/lib/apt/lists/*
 ENV RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo PATH=/opt/cargo/bin:$PATH
 RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain nightly \
