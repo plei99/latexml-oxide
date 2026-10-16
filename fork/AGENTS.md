@@ -13,7 +13,9 @@ by themselves, so a brief for one of them says to read it first.
   example), so it supplies Perl modules and nothing else.
 - **Running Perl LaTeXML:**
   `PATH=/usr/local/texlive/2026/bin/universal-darwin:$PATH PERL5LIB=/opt/homebrew/opt/latexml/libexec/lib/perl5 perl -I<repo>/LaTeXML/lib <repo>/LaTeXML/bin/latexml --nocomments --dest=x.xml x.tex`
-- **TeX Live 2026** is at `/usr/local/texlive/2026`; `/Library/TeX/texbin` resolves to it as well.
+- **TeX Live 2026** (scheme-full) is at `/usr/local/texlive/2026`; `/Library/TeX/texbin` resolves to it as well.
+  It is the fork's only target: guards expect what TeX Live 2026's packages produce, and nothing here keeps
+  upstream CI's TeX Live 2023 passing. When a guard and an older TeX Live disagree, the guard follows 2026.
 - **Absent here:** `~/data` (and so `payload-writer`'s `~/data/pk_wt/` worktrees), `/home/data`, cortex and the
   canvas harness. `/tmp` is on disk on macOS, not in RAM.
 
@@ -45,7 +47,8 @@ by themselves, so a brief for one of them says to read it first.
 ## Pushing and upstream PRs
 
 - `.githooks/pre-push` (`tools/lint.sh`) passes on macOS. Push without `--no-verify`.
-- Before an upstream PR, run CI's Linux gates: `fork/linux/check.sh <branch>`.
+- `fork/linux/check.sh <branch>` runs the gates on Linux with TeX Live 2026. Upstream's own CI runs TeX Live
+  2023, so an upstream PR is judged there, not here.
 - Upstream is `dginev/latexml-oxide`, branch `perfect_kernel`. A PR branch starts from `upstream/perfect_kernel`
   and holds one fix. Match the maintainer's closed PRs: a `fix: …` or `fix #N: …` title, a body of
   **Diagnostic.**, **Approach.** and **Validation.** paragraphs, a CHANGELOG `## Unreleased` entry and
