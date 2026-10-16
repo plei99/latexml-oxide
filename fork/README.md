@@ -72,16 +72,15 @@ A changed SVG digest on its own is reported as a change. Look at it before accep
 Per-document facts are written to `runs/<label>/index/{docs,errors,pictures}.tsv`. Their
 meanings are documented in `corpus/index.py`.
 
-## Upstream's Linux CI, locally
+## Linux gate, locally
 
-Upstream CI tests on Ubuntu 24.04 with TeX Live 2023 from apt. A macOS run differs from CI in
-two ways:
+`fork/linux/` runs upstream CI's `test` and `lint` jobs in Docker on Ubuntu 24.04 with **TeX Live 2026,
+scheme-full**, installed with `install-tl`, so its package set matches the Mac's. The apt `texlive*`
+packages are not installed. A macOS run still differs from this gate in two ways:
 
-- Some guards count warnings that come from a specific TeX Live's packages, or need fonts this
-  TeX Live lacks.
 - Lints for Linux-only `cfg` code fire only on macOS, or never there.
-
-Before opening an upstream PR, run CI's gates in Docker:
+- Docker Desktop has 8 GB of RAM, half of CI's runner. The script keeps CI's settings (the `ci`
+  profile, 2 build jobs, 2 test threads, mold).
 
 ```sh
 fork/linux/check.sh <branch> [formats nextest lint]   # logs: /tmp/linux-check/<sha>/<step>.log
@@ -92,5 +91,10 @@ checkout is never touched. The Linux `target/`, the cargo registry and the rustu
 in the Docker volumes `lxo-target`, `lxo-registry` and `lxo-rustup`. If the `formats` step fails,
 the script stops, because without dumps the tests fail spuriously.
 
-On this Mac, Docker Desktop has 8 GB of RAM, half of CI's runner. The script keeps CI's settings
-(the `ci` profile, 2 build jobs, 2 test threads, mold).
+`Dockerfile` builds the image `latexml-oxide-ci`. `install-tl` pulls TL from the `TL_REPO` build
+argument, which defaults to the 2 March 2026 `tlnet` snapshot the Mac's TL 2026 was installed from, so
+both hosts have the same package revisions: when the Mac's TL is updated, move the date together with
+it. The current tlnet (LaTeX 2026-06-01) fails `--init=latex.ltx`. The build fails unless
+`tex --version` says 2026. The `kpathsea` crate links Ubuntu's libkpathsea in-process, so `TEXMFCNF`
+points it at TL 2026's `texmf.cnf`. The Mac build has no libkpathsea and runs `kpsewhich` as a
+subprocess.
