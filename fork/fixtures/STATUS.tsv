@@ -70,5 +70,5 @@ figures__ytableau	ok	Square boxes and entries as in the PDF, in text and in form
 matrices__spalign	partial	The left parenthesis of \spalignmat, \spalignaugmat and \spalignvector does not stretch.
 matrices__cellspace	ok	
 matrices__array	ok	
-memoir__chapters	wrong	The table of contents is empty in all 32 memoir corpus documents; the chapter-style rules leak around a bare "Contents".
-biblatex__alphabetic	partial	Labels are numeric ([1]) instead of alphabetic ([Har77]), and the article title is set like a book title.
+memoir__chapters	partial	The table of contents lists the chapters but drops 1.1 Background, which \settocdepth{section} should include, and "Contents" is set as plain text, not as a heading.
+biblatex__alphabetic	partial	Labels are alphabetic ([Har77], [Alp+20]) as in TeX, but a multi-key cite separates with "," where TeX uses ";", and the article title is set in italics instead of quoted.
