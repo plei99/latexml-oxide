@@ -47,8 +47,9 @@ by themselves, so a brief for one of them says to read it first.
 ## Pushing and upstream PRs
 
 - `.githooks/pre-push` (`tools/lint.sh`) passes on macOS. Push without `--no-verify`.
-- `fork/linux/check.sh <branch>` runs the gates on Linux with TeX Live 2026. Upstream's own CI runs TeX Live
-  2023, so an upstream PR is judged there, not here.
+- `fork/linux/check.sh <branch>` runs the gates on Linux with TeX Live 2026, on the OrbStack machine `agents`.
+  Upstream's own CI runs TeX Live 2023, so an upstream PR is judged there, not here.
+- All Linux testing uses the OrbStack machine `agents`, provisioned by `fork/linux/setup.sh`, not Docker.
 - Upstream is `dginev/latexml-oxide`, branch `perfect_kernel`. A PR branch starts from `upstream/perfect_kernel`
   and holds one fix. Match the maintainer's closed PRs: a `fix: …` or `fix #N: …` title, a body of
   **Diagnostic.**, **Approach.** and **Validation.** paragraphs, a CHANGELOG `## Unreleased` entry and
