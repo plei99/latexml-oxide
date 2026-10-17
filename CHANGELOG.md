@@ -32,6 +32,23 @@
     a missing font, read the same answer. The polyglossia binding no longer overrides
     anything. Guard `perfect_kernel_batch56::polyglossia_script_check_passes_without_font`.
 
+  - **French and German documents no longer raise `Error:undefined:\mainlocalename`.**
+    babel 26.14 (TeX Live 2026-10-16) expands `\mainlocalename` in a `begindocument/end` hook
+    (babel.sty:4500-4501, "Main language set to '…'"); babel sets it in `\main@language`
+    (babel.sty:1208), which the Rust-bound `french` and `german` `.ldf` files never reach, so
+    every such document logged the error (the `81_babel` french, german, greek and csquotes
+    tests among them). `\lx@babel@activate@mainlang` now `\let`s `\mainlocalename` to
+    `\bbl@main@language` as babel does: a `\selectlanguage` switch moves `\languagename`
+    and leaves `\mainlocalename` at the main language, as in pdflatex. The `\let` is built
+    from tokens, not tokenized text, because `@` is not a letter at `\begin{document}`,
+    where the primitive runs again. Two fixtures follow babel 26.14 and the new aliascnt:
+    `autoref_name_diagnostics_wait_for_an_autoref` selects `licr=unextended` (babel now loads
+    cyrl2uni.def for Cyrillic under Unicode engines and defines the `\cyr…` names it expects
+    undefined), `lipics_autoref_alias_sibling_counters` pins aliascnt's obsolescence warning,
+    and `today_follows_the_babel_language` expects no warning (babel dropped the 1901
+    `german` one; its repro's `expect:` line is updated to match). Guards
+    `babel_mainlocalename::*`.
+
   - **The LaTeX format builds from LaTeX 2026-06-01.** `--init=latex.ltx` logged 137 errors
     on TeX Live 2026 updated past June, so no dump matched the tree and a conversion
     reported those errors while it built one. The new latex.ltx (22508-22513) reads

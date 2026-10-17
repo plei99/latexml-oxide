@@ -500,6 +500,9 @@ fn minipage_in_a_cell_keeps_its_lineskip() {
 /// list. The label ties the target's held tag however it is set: a `\subsection*` prints its numbered section's name
 /// (CrossRef's walk up), a longtable's label is its `labels=` ("Таблица": `\cyrt` `\cyra` `\cyrb` `\cyrl`). Witness
 /// biblatex-gost-examples (4 → 0 errors). Repro singletons/autoref_name_evaluated_at_every_target.
+/// The documents select `licr=unextended`: babel 26.14 (TL 2026-10-16) loads cyrl2uni.def for Cyrillic locales under
+/// Unicode engines (babel.sty:2806), which defines `\cyra` and the rest, so by default the names are no longer
+/// undefined; `licr=unextended` restores the 2026-06 behavior this guard needs.
 #[test]
 fn autoref_name_diagnostics_wait_for_an_autoref() {
   const LUATEX: &str = "[rawstyles,rawclasses,luatex]latexml.sty";
@@ -508,7 +511,7 @@ fn autoref_name_diagnostics_wait_for_an_autoref() {
       &format!(
         r"\documentclass{{article}}
 \usepackage{{fontspec}}
-\usepackage[english,russian]{{babel}}
+\usepackage[english,russian,licr=unextended]{{babel}}
 \usepackage{{longtable}}
 \usepackage{{hyperref}}
 \begin{{document}}
@@ -549,7 +552,7 @@ fn autoref_name_diagnostics_wait_for_an_autoref() {
   }
   // The replayed names reach the status summary's undefined list (the CLI's "Conversion complete" line).
   let (_, _, status, _) = super::perfect_kernel_batch46::convert_with_status(
-    "\\documentclass{article}\\usepackage{fontspec}\\usepackage[english,russian]{babel}\\usepackage{hyperref}\n\\begin{document}\\section{A}\\label{a}Text. \\autoref{a}.\\end{document}\n",
+    "\\documentclass{article}\\usepackage{fontspec}\\usepackage[english,russian,licr=unextended]{babel}\\usepackage{hyperref}\n\\begin{document}\\section{A}\\label{a}Text. \\autoref{a}.\\end{document}\n",
     Some(LUATEX),
   );
   let mut names: Vec<&str> = status

@@ -2,7 +2,7 @@
 //! (58a) found in the 57cp review.
 use latexml::util::test::assert_element;
 
-use super::perfect_kernel_batch57::{RAW, assert_elements, assert_elements_with};
+use super::perfect_kernel_batch57::{RAW, assert_elements};
 
 /// 58a (reledmac root C): the optional `=` of `\setbox`, `\font`, `\openin`, `\openout` is scanned
 /// with expansion (tex.web §405), so a conditional or a macro may supply it; matched unexpanded (Perl
@@ -1415,36 +1415,31 @@ fn footnotemark_in_a_heading_pairs_with_its_text() {
 /// 58p: `\today` follows the babel language. LaTeXML maps babel's German and French `.ldf` files to
 /// bindings whose `\date<lang>` was an empty stub, so German and French printed the English date; the
 /// bindings define them as germanb.ldf:124-130, ngermanb.ldf:107-113 and french.ldf:332-345 do.
-/// babel's own warning about the 1901 `german` name is pdflatex's too. Repro
-/// babel-lang/today_follows_the_babel_language.
+/// Repro babel-lang/today_follows_the_babel_language. babel 26.14 (TL 2026-10-16) no longer warns about the 1901
+/// `german` name (pdflatex 2026 neither; its one warning is french3.ldf's OT1 note, which the French binding does
+/// not print), so the document converts with no warning.
 #[test]
 fn today_follows_the_babel_language() {
   let tex = include_str!(
     "../../../tools/perfect_kernel/repros/babel-lang/today_follows_the_babel_language.tex"
   );
-  assert_elements_with(
-    tex,
-    RAW,
-    (0, 1),
-    &["The name 'german' with the 'ldf' mechanism is"],
-    &[
-      (
-        "para",
-        "p1",
-        r##"<para xml:id="p1"><p>1. Oktober 2026</p></para>"##,
-      ),
-      (
-        "para",
-        "p2",
-        r##"<para xml:id="p2"><p>1. Oktober 2026</p></para>"##,
-      ),
-      (
-        "para",
-        "p3",
-        r##"<para xml:id="p3"><p><text xml:lang="fr">1<sup>er</sup> octobre 2026</text></p></para>"##,
-      ),
-    ],
-  );
+  assert_elements(tex, RAW, (0, 0), &[
+    (
+      "para",
+      "p1",
+      r##"<para xml:id="p1"><p>1. Oktober 2026</p></para>"##,
+    ),
+    (
+      "para",
+      "p2",
+      r##"<para xml:id="p2"><p>1. Oktober 2026</p></para>"##,
+    ),
+    (
+      "para",
+      "p3",
+      r##"<para xml:id="p3"><p><text xml:lang="fr">1<sup>er</sup> octobre 2026</text></p></para>"##,
+    ),
+  ]);
 }
 
 /// 58q: acmart's copyright statement is frontmatter — `\\setcopyright` selects the owner and permission

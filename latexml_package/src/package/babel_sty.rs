@@ -175,6 +175,21 @@ LoadDefinitions!({
     def_macro(T_CS!("\\bbl@main@language"), None,
       Tokens!(Explode!(lang.clone())),
       Some(ExpandableOptions { scope: Some(Scope::Global), ..ExpandableOptions::default() }))?;
+    // babel.sty:1208 (`\main@language`): `\let\mainlocalename\bbl@main@language`.
+    // A Rust-bound .ldf (french_ldf, german) never reaches `\ldf@finish →
+    // \main@language`, and babel 26.14's `begindocument/end` hook
+    // (babel.sty:4500-4501, "Main language set to '\mainlocalename'") expands it:
+    // without this every french/german document raised `Error:undefined:
+    // \mainlocalename` (TL 2026-10-16). `\let` semantics, as in babel: the main
+    // language is snapshotted and later `\selectlanguage` switches don't move it.
+    // Built from T_CS!, not Tokenize!: `@` is OTHER at `\begin{document}`, where
+    // sect02.rs calls this primitive, so `\bbl@main@language` would split at its `@`.
+    unread(Tokens!(
+      T_CS!("\\global"),
+      T_CS!("\\let"),
+      T_CS!("\\mainlocalename"),
+      T_CS!("\\bbl@main@language")
+    ));
     // babel.sty L1136-1142 (\main@language) → L828 (\bbl@patterns):
     // real babel assigns `\language=\l@<main>` DURING package load, so a
     // preamble `\iflanguage{english}{..}{..}` under `[italian]` takes the

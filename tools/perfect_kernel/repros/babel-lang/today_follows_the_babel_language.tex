@@ -6,7 +6,7 @@
 % status:  GREEN (58p)
 % oracle:  pdflatex 0 errors: "1. Oktober 2026" / "1. Oktober 2026" / "1er octobre 2026".
 % engines: rust 58k3: "October 1, 2026" for all three.
-% expect:  0 errors, 1 warning (babel's "The name 'german' … old 1901 variant", pdflatex too).
+% expect:  0 errors, 0 warnings (babel before 26.14 warned "The name 'german' … old 1901 variant", pdflatex too).
 \documentclass{article}
 \usepackage[french,german,ngerman]{babel}
 \day=1 \month=10 \year=2026

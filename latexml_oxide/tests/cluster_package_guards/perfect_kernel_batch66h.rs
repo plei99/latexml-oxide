@@ -172,13 +172,24 @@ fn lipics_thm_restate_option_loads_restatable() {
 
 /// lipics-v2021 under `autoref` without `thm-restate` gives each theorem sibling an aliascnt alias of `theorem`'s
 /// counter, so a document can number a theorem by `corollary` (2604.22493: keytheorems' `sibling=corollary`, six
-/// `No counter 'corollary'` Errors). As pdflatex numbers them: one sequence within the section.
+/// `No counter 'corollary'` Errors). As pdflatex numbers them: one sequence within the section. aliascnt.sty:41
+/// (2026-03-08 v1.7) warns that it is obsolete on a format dated 2026-06-01 or later, as pdflatex 2026 does: that
+/// one warning is the only one expected.
 #[test]
 fn lipics_autoref_alias_sibling_counters() {
   let (log, xml) = convert_counted(include_str!(
     "../../../tools/perfect_kernel/repros/class-bindings/lipics_autoref_alias_sibling_counters.tex"
   ));
-  assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
+  assert_eq!((error_count(&log), warning_count(&log)), (0, 1), "{log}");
+  assert_eq!(
+    log
+      .lines()
+      .filter(|l| l.starts_with("Warning:")
+        && l.contains("Package aliascnt Warning: The package is obsolete."))
+      .count(),
+    1,
+    "{log}"
+  );
   let tags: Vec<&str> = xml
     .split(r#"<tag role="typerefnum">"#)
     .skip(1)
