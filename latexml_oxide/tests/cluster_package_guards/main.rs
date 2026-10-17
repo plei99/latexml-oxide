@@ -97,6 +97,7 @@ mod silence_keeps_diagnostics;
 mod spectralsequences_raw;
 mod stex_raw_ltxml;
 mod subdir_dispatch_no_strip;
+mod tcolorbox_listing_counter_init;
 mod texinputs_usepackage;
 mod unicode_caret_notation;
 

@@ -49,6 +49,26 @@
     `german` one; its repro's `expect:` line is updated to match). Guards
     `babel_mainlocalename::*`.
 
+  - **A `\newtcblisting` with `use counter=` converts under tcolorbox 6.10.0.** TeX Live 2026
+    (tlnet 2026-10-16) ships tcolorbox 6.10.0, which renamed the option initializer
+    `\tcb@proc@options@init` to `\__tcobox_proc_options_init:nn` (tcolorbox.sty:2472, called by
+    `\__tcobox_process_newtcolorbox:nn` :2556) and dropped the per-environment alias
+    `\thetcb@cnt@<env>`; `\thetcbcounter` is now `the\tcbcounter`, resolved at each use
+    (:2428-2435). The listing binding still called the old initializer and looked up the old
+    alias, so every such listing logged `undefined:\tcb@proc@options@init`, `\thetcbcounter`
+    undefined and `\tcb@cnt@<env>` csname errors, and its `listing file=` was never written.
+    `tcb_listing_startend` now sets `\tcb@new@boxname` and `\tcb@new@colopt` as the new
+    wrapper does, calls the expl3 initializer by a `\csname`-built name, and takes
+    `\thetcbcounter` from `the\tcbcounter`. `number within=` in the new initializer calls the kernel's
+    `\counterwithin[<format>]{ctr}{within}` (tcolorbox.sty:2411); the engine binding had no optional
+    format (the Perl one has none either), read `[` as the counter and ran out of input, so
+    `\counterwithin` and `\counterwithout` (latex.ltx:10374-10382) now take it, default `\arabic`.
+    Guards `tcolorbox_listing_counter_init::counterwithin_and_counterwithout_take_a_format`,
+    `tcolorbox_listing_counter_init::listing_use_counter_writes_file_and_inputs_it_back`,
+    `perfect_kernel_batch40_43::{newtcblisting_xparse_leading_optional,tcb_listing_file_written_and_input_back,tcbinputlisting_inputs_file}`,
+    `perfect_kernel_batch54::tcblisting_init_counter_is_shared_by_use_counter_from`,
+    `perfect_kernel_batch59::tcb_listing_label_names_its_listing`.
+
   - **The LaTeX format builds from LaTeX 2026-06-01.** `--init=latex.ltx` logged 137 errors
     on TeX Live 2026 updated past June, so no dump matched the tree and a conversion
     reported those errors while it built one. The new latex.ltx (22508-22513) reads

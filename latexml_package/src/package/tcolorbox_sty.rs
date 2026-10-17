@@ -750,24 +750,30 @@ pub(crate) fn tcb_listing_startend(
     opts
   );
   // The counter keys run through tcolorbox's OWN init processor
-  // (tcolorbox.sty:2339 `\tcb@proc@options@init{init}{env}` → `auto counter`
-  // / `use counter` / `use counter from` / `number within` …, :2254-2262 and
-  // :2297-2333), so `\tcb@cnt@<env>` and `\thetcb@cnt@<env>` exist for a
-  // later `\newtcolorbox[use counter from=<env>]` (tcolorbox manual's
-  // preamble D: `texexptitledspec` from `texexptitled` — "Extra \endcsname"
-  // + `\the\tcb@cnt@texexptitled` undefined when the native listing env
-  // dropped its init). Each use then steps the recorded counter the way
-  // `\tcb@new@colopt`'s `code=` does (:2311).
+  // (`\__tcobox_process_newtcolorbox:nn`, tcolorbox.sty 6.10.0 :2556-2567, which
+  // sets `\tcb@new@boxname` / `\tcb@new@colopt` and calls
+  // `\__tcobox_proc_options_init:nn{init}{env}` :2472 → `auto counter` /
+  // `use counter` / `use counter from` / `number within` …, :2397-2470), so
+  // `\tcb@cnt@<env>` exists for a later `\newtcolorbox[use counter from=<env>]`
+  // (tcolorbox manual's preamble D: `texexptitledspec` from `texexptitled` —
+  // "Extra \endcsname" + `\the\tcb@cnt@texexptitled` undefined when the native
+  // listing env dropped its init). Each use then steps the recorded counter the
+  // way `\__tcobox_proc_counter_addcounter:n`'s `code=` does (:2428-2435):
+  // `\tcbcounter` is `\tcb@cnt@<env>` and `\thetcbcounter` is `the\tcbcounter`,
+  // resolved at each use (there is no `\thetcb@cnt@<env>` alias any more; before
+  // 6.10.0 `\tcb@proc@options@init` and that alias did this). The expl3 name is
+  // spelled through `\csname` so `_`/`:` catcodes cannot split it.
   if init.is_some_and(|t| !t.to_string().trim().is_empty()) {
     let init_src = init.map(|t| t.to_string()).unwrap_or_default();
     let _ = digest(mouth::tokenize_internal(TeXString::assembled(format!(
-      "\\tcb@proc@options@init{{{init_src}}}{{{env_name}}}"
+      "\\edef\\tcb@new@boxname{{{env_name}}}\\def\\tcb@new@colopt{{}}\\csname \
+       __tcobox_proc_options_init:nn\\endcsname{{{init_src}}}{{{env_name}}}"
     ))));
     start.insert_str(
       0,
       &format!(
         "\\ifcsdef{{tcb@cnt@{env_name}}}{{\\letcs\\tcbcounter{{tcb@cnt@{env_name}}}\
-         \\letcs\\thetcbcounter{{thetcb@cnt@{env_name}}}\\refstepcounter{{\\tcbcounter}}}}{{}}"
+         \\letcs\\thetcbcounter{{the\\tcbcounter}}\\refstepcounter{{\\tcbcounter}}}}{{}}"
       ),
     );
   }
