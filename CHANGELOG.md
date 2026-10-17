@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+  - **The LaTeX format builds from LaTeX 2026-06-01.** `--init=latex.ltx` logged 137 errors
+    on TeX Live 2026 updated past June, so no dump matched the tree and a conversion
+    reported those errors while it built one. The new latex.ltx (22508-22513) reads
+    `glyphtounicode` and `glyphtounicode-cmex` with expl3's `\file_get:nnN`, which scans up
+    to the `\everyeof` marker at the end of the file it `\input`s. A file that a binding
+    stands for, or that is read as definitions, is over before `\input` returns, and no
+    `\everyeof` was inserted for it: the scan ran past the file, and the `\ExplSyntaxOff`
+    it set up stayed on for the rest of latex.ltx. `\input` now inserts `\everyeof` when it
+    opened no content mouth for the file. The captured token list is empty there, where
+    pdflatex holds the file's content (a definitions read digests the file; Perl alike).
+    Guard `file_get_everyeof::file_get_on_a_binding_ends_at_the_marker`.
+
   - **physics' `\qty{x \mid y=0,z=1}` and `\qty{x\middle|y}` keep their argument.** The
     formula showed the error box "Empty XMDual": `\qty{…}` is an XMDual whose content is a
     reference to its argument (an `XMArg`), and when the argument cannot be parsed on its

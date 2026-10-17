@@ -92,9 +92,9 @@ in the Docker volumes `lxo-target`, `lxo-registry` and `lxo-rustup`. If the `for
 the script stops, because without dumps the tests fail spuriously.
 
 `Dockerfile` builds the image `latexml-oxide-ci`. `install-tl` pulls TL from the `TL_REPO` build
-argument, which defaults to the 2 March 2026 `tlnet` snapshot the Mac's TL 2026 was installed from, so
-both hosts have the same package revisions: when the Mac's TL is updated, move the date together with
-it. The current tlnet (LaTeX 2026-06-01) fails `--init=latex.ltx`. The build fails unless
+argument, which defaults to the 16 October 2026 `tlnet` snapshot, whose package revisions match the
+Mac's TL 2026: when the Mac's TL is updated, move the date to the snapshot whose `texlive.tlpdb`
+revisions match it. The build fails unless
 `tex --version` says 2026. The `kpathsea` crate links Ubuntu's libkpathsea in-process, so `TEXMFCNF`
 points it at TL 2026's `texmf.cnf`. The Mac build has no libkpathsea and runs `kpsewhich` as a
 subprocess.

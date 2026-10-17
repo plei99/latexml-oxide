@@ -2,7 +2,7 @@
 # 2026 scheme-full too, so version- and package-sensitive guards agree between hosts), nightly
 # Rust, nextest and mold, with upstream CI's `ci` profile and job settings.
 # Built and driven by fork/linux/check.sh.
-ARG TL_REPO=https://texlive.info/tlnet-archive/2026/03/02/tlnet
+ARG TL_REPO=https://texlive.info/tlnet-archive/2026/10/16/tlnet
 FROM ubuntu:24.04 AS tlrepo
 ARG TL_REPO
 RUN apt-get update -qq && apt-get install -qy --no-install-recommends curl ca-certificates \
@@ -35,13 +35,11 @@ RUN apt-get update -qq && apt-get install -qy --no-install-recommends \
       perl xz-utils libfontconfig1 libfreetype6 \
       build-essential pkg-config git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-# TeX Live 2026, scheme-full, no docs or sources, pinned to the snapshot the Mac's TL 2026 was
-# installed from (2 March 2026, never updated), so both hosts have identical package revisions. When
-# the Mac's TL is updated (the user does that, not an agent), move TL_REPO's date to match; pass
-# another repository with --build-arg TL_REPO=... . The current tlnet (LaTeX 2026-06-01) fails
-# `--init=latex.ltx` with 137 errors, the first at the final `\@input` of
-# latex2e-first-aid-for-external-files.ltx, so moving the date past that needs engine work.
-# The build fails unless the result says TeX Live 2026.
+# TeX Live 2026, scheme-full, no docs or sources, pinned to the snapshot whose package revisions
+# match the Mac's TL 2026 (16 October 2026: LaTeX 2026-06-01, l3kernel 2026-09-09), so both hosts
+# have identical package revisions. When the Mac's TL is updated (the user does that, not an agent),
+# move TL_REPO's date to the snapshot whose texlive.tlpdb revisions match the Mac's; pass another
+# repository with --build-arg TL_REPO=... . The build fails unless the result says TeX Live 2026.
 # The snapshot host answers one small file per ~1.3 s, and install-tl fetches ~5000 packages one
 # after another (over 2 hours), so the stage `tlrepo` first copies the repository (install-tl, the
 # tlpdb and the unversioned, non-doc, non-source archives for this arch) with parallel curl, and

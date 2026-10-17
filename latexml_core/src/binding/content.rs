@@ -1666,7 +1666,37 @@ pub fn substitute_file_request(request: &str) -> Option<String> {
 /// (like a proper style file)
 /// in which case we may really want to load a binding.
 /// Note that generic style files (non-latex) often have a .tex extension.
+///
+/// eTeX inserts `\everyeof` at the end of every `\input` file (tex.web §362 as
+/// changed by etex.ch). A raw content file gets it from its mouth when the mouth
+/// runs dry (`load_tex_content`). A binding standing in for the file, and a file
+/// read as definitions (`reading_from_mouth`, synchronous), are over before
+/// `\input` returns, so their file end is here. expl3's `\file_get:nnN`
+/// (expl3-code.tex:12666-12705) scans `\__file_get_do:Nw` up to the `\everyeof`
+/// marker; LaTeX 2026-06-01 runs it on `glyphtounicode` (a binding) and
+/// `glyphtounicode-cmex` (raw) while the format is built (latex.ltx:22508-22513),
+/// and without the marker the scan ran past the file and its `\ExplSyntaxOff`
+/// setup stayed on for the rest of latex.ltx (137 init errors). Perl inserts
+/// `\everyeof` nowhere.
+///
+/// Known gaps: a file read as definitions is digested rather than handed to the
+/// scan as tokens (Perl Package.pm:2287-2288 alike), so `\file_get` on it yields
+/// an empty token list where pdflatex yields the file; and the list is inserted
+/// here even when such a file ended by `\endinput`, or when `input_definitions`
+/// skipped or missed it, where eTeX inserts nothing.
+/// Guard: `file_get_everyeof::file_get_on_a_binding_ends_at_the_marker`.
 pub fn input(request: &str, options: InputOptions) -> Result<()> {
+  if input_file(request, options)? {
+    gullet::insert_everyeof();
+  }
+  Ok(())
+}
+
+/// The body of [`input`]; `true` when no content mouth was opened for the file
+/// (a binding or a definitions read consumed it, or `input_definitions` skipped
+/// or missed it), `false` when a content mouth was opened onto it or it was not
+/// found on the content path.
+fn input_file(request: &str, options: InputOptions) -> Result<bool> {
   // unwrap if in quotes \input{"file name"} — Perl parity:
   // `$request =~ s/^("+)(.+)\g1$/$2/;` (single-pass strip of a matching
   // leading+trailing run of quotes). The previous `while` loop checked
@@ -1703,7 +1733,7 @@ pub fn input(request: &str, options: InputOptions) -> Result<()> {
   // as definitions regardless of INTERPRETING_DEFINITIONS state.
   // Mirrors Perl's automatic .latexml file loading mechanism.
   if clean_req.ends_with(".latexml") {
-    return input_definitions(&clean_req, InputDefinitionOptions::default());
+    return input_definitions(&clean_req, InputDefinitionOptions::default()).map(|()| true);
   }
   if lookup_bool_sym(crate::pin!("INTERPRETING_DEFINITIONS")) {
     // TeX's `\input` reads the file on every call; only `\usepackage` /
@@ -1747,7 +1777,8 @@ pub fn input(request: &str, options: InputOptions) -> Result<()> {
         reloadable: ext == "tex" || reread,
         reread,
         ..InputDefinitionOptions::default()
-      });
+      })
+      .map(|()| true);
     }
     // A plain content `.tex` (no binding extension) is `\input` material
     // even while a `.sty`/`.cls` is being read: TeX re-reads it every time
@@ -1771,7 +1802,8 @@ pub fn input(request: &str, options: InputOptions) -> Result<()> {
       reread,
       at_letter: false,
       ..InputDefinitionOptions::default()
-    });
+    })
+    .map(|()| true);
   }
   // Perl Package.pm L2109-2113: FindFile_aux checks for `"$file.ltxml"` in
   // $ltxml_paths BEFORE consulting raw TeX paths. In Rust the bindings are
@@ -1868,7 +1900,7 @@ pub fn input(request: &str, options: InputOptions) -> Result<()> {
     }
   };
   if binding_loaded {
-    Ok(())
+    Ok(true)
   } else if let Some(path) = find_file(&clean_req, None) {
     // Found something plausible. Perl Package.pm:2289-2302 routes a
     // `pathname_is_raw` non-`.tex` file (sty/cls/def/…) to
@@ -1884,7 +1916,7 @@ pub fn input(request: &str, options: InputOptions) -> Result<()> {
     // still error (PLANS P66) where Perl skips the whole body. Guards:
     // `input_routing_and_bbx::document_body_sty_input_is_content_catcodes`,
     // `perfect_kernel_batch52::input_rereads_loaded_sty`.
-    load_tex_content(&path, options)
+    load_tex_content(&path, options).map(|()| false)
   } else {
     // Perl heuristic: if the file has no directory, and is a .tex or no extension,
     // try loading it as definitions (which checks for binding dispatchers).
@@ -1900,7 +1932,7 @@ pub fn input(request: &str, options: InputOptions) -> Result<()> {
         s!("{}.tex", clean_req)
       };
       if load_binding(&tex_name)?.is_some() {
-        return Ok(());
+        return Ok(true);
       }
     }
     // Couldn't find anything?
@@ -1910,7 +1942,7 @@ pub fn input(request: &str, options: InputOptions) -> Result<()> {
       request,
       s!("Can't find TeX file {}", request)
     );
-    Ok(())
+    Ok(false)
   }
 }
 

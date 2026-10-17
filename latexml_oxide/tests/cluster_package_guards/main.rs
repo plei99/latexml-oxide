@@ -44,6 +44,7 @@ mod dump_gate_init;
 mod expanded_protected_brace_hunt;
 mod expl3_nested_raw_load_catcodes;
 mod fatal_salvages_partial_document;
+mod file_get_everyeof;
 mod filelist_letter_catcodes;
 mod forest_chemnum;
 mod frontespizio_inline;

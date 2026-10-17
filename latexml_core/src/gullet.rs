@@ -906,15 +906,24 @@ pub fn close_mouth(forced: bool) -> Result<()> {
   }
   // Insurance for a marked mouth closed before it ever ran dry (a forced
   // teardown is excluded above, and `\endinput` sets `eof_seen`): insert the
-  // payload where reading continues. Token-identity preserved — expansion
-  // flavor push.
-  if wants_everyeof
-    && let Ok(Some(RegisterValue::Tokens(eof_toks))) = lookup_register("\\everyeof", Vec::new())
+  // payload where reading continues.
+  if wants_everyeof {
+    insert_everyeof();
+  }
+  Ok(())
+}
+
+/// Insert the CURRENT `\everyeof` token list where reading continues, as eTeX
+/// does at the end of an `\input` file (tex.web §362 as changed by etex.ch). For
+/// a file whose whole content was consumed before `\input` returned (a binding,
+/// a definitions read), see `content.rs::input`. Token-identity preserved —
+/// expansion flavor push.
+pub fn insert_everyeof() {
+  if let Ok(Some(RegisterValue::Tokens(eof_toks))) = lookup_register("\\everyeof", Vec::new())
     && !eof_toks.is_empty()
   {
     unread_expansion(eof_toks);
   }
-  Ok(())
 }
 /// A file has just ended under the current read: tex.web §362 closes it and
 /// calls §336 `check_outer_validity`, which, when the [`ScannerStatus`] is not

@@ -107,6 +107,16 @@ TL manuals) and the per-batch arXiv A/B; the cortex reruns of sandboxes 2605/260
 ## Secondary residuals & unranked active items
 
 ### Rust error fixes (recent)
+- **`--init=latex.ltx` is error-free on LaTeX 2026-06-01 (137 errors → 0; Perl master fails it, Fatal too_many_errors).**
+  Defect: latex.ltx:22508-22513 reads `glyphtounicode` (contrib binding) and `glyphtounicode-cmex` (raw) with
+  `\file_get:nnN` (`\pdftexrevision` 19 < 22, pdfTeX.pool.ltxml:91), whose `\__file_get_do:Nw` scans to the `\everyeof`
+  marker (expl3-code.tex:12666-12705); under INTERPRETING_DEFINITIONS `\input` reaches a binding or a synchronous
+  definitions read, neither of which inserted `\everyeof`, so `\ExplSyntaxOff` leaked into the rest of the format. Fix:
+  `content.rs::input` inserts `\everyeof` (`gullet::insert_everyeof`) when `input_file` opened no content mouth. Guards
+  `file_get_everyeof::file_get_on_a_binding_ends_at_the_marker`, `dump_gate_init::latex_ltx_init_has_zero_errors`.
+  Residual: `\file_get` on a file read as definitions yields an empty list (the file is digested, not scanned; pdflatex
+  captures it; Perl Package.pm:2287-2288 alike), and the insertion also follows a definitions file ended by `\endinput`
+  and a skip or miss inside `input_definitions`, where eTeX inserts nothing.
 - **A referenced `XMArg` keeps its identity (physics `\qty{x \mid y=0,z=1}`, `\qty{x\middle|y}`; "Empty XMDual").**
   Defect: an `XMArg` whose own parse failed was flattened by the lexer (`node_to_grammar_lexemes_ctx`, util.rs) and
   dissolved again by `add_child_guard_xmarg` (semantics/tree.rs), so the `XMRef` of the enclosing `XMDual` (physics
