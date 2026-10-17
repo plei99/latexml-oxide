@@ -182,14 +182,7 @@ LoadDefinitions!({
     // without this every french/german document raised `Error:undefined:
     // \mainlocalename` (TL 2026-10-16). `\let` semantics, as in babel: the main
     // language is snapshotted and later `\selectlanguage` switches don't move it.
-    // Built from T_CS!, not Tokenize!: `@` is OTHER at `\begin{document}`, where
-    // sect02.rs calls this primitive, so `\bbl@main@language` would split at its `@`.
-    unread(Tokens!(
-      T_CS!("\\global"),
-      T_CS!("\\let"),
-      T_CS!("\\mainlocalename"),
-      T_CS!("\\bbl@main@language")
-    ));
+    let_i(&T_CS!("\\mainlocalename"), &T_CS!("\\bbl@main@language"), Some(Scope::Global));
     // babel.sty L1136-1142 (\main@language) → L828 (\bbl@patterns):
     // real babel assigns `\language=\l@<main>` DURING package load, so a
     // preamble `\iflanguage{english}{..}{..}` under `[italian]` takes the
