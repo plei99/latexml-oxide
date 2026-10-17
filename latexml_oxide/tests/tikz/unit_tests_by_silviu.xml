@@ -1865,7 +1865,9 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="78.74" width="157.48" xml:id="S14.p1.pic2">
+    </para>
+    <para xml:id="S14.p2">
+      <picture height="78.74" width="157.48" xml:id="S14.p2.pic1">
         <svg:svg height="78.74" overflow="visible" version="1.1" viewBox="0 0 157.48 78.74" width="157.48">
           <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,78.74) matrix(1 0 0 -1 0 0)">
             <svg:clipPath id="pgfcp21">
@@ -1919,8 +1921,8 @@ Hello</p>
         </svg:svg>
       </picture>
     </para>
-    <para xml:id="S14.p2">
-      <picture height="54.48" width="217.91" xml:id="S14.p2.pic1">
+    <para xml:id="S14.p3">
+      <picture height="54.48" width="217.91" xml:id="S14.p3.pic1">
         <svg:svg height="54.48" overflow="visible" version="1.1" viewBox="0 0 217.91 54.48" width="217.91">
           <svg:g transform="translate(0,54.48) matrix(1 0 0 -1 0 0)">
             <svg:defs>
@@ -1934,7 +1936,9 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="54.48" width="108.95" xml:id="S14.p2.pic2">
+    </para>
+    <para xml:id="S14.p4">
+      <picture height="54.48" width="108.95" xml:id="S14.p4.pic1">
         <svg:svg height="54.48" overflow="visible" version="1.1" viewBox="0 0 108.95 54.48" width="108.95">
           <svg:g transform="translate(0,54.48) matrix(1 0 0 -1 0 0)">
             <svg:defs>
@@ -1947,7 +1951,9 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="54.48" width="108.95" xml:id="S14.p2.pic3">
+    </para>
+    <para xml:id="S14.p5">
+      <picture height="54.48" width="108.95" xml:id="S14.p5.pic1">
         <svg:svg height="54.48" overflow="visible" version="1.1" viewBox="0 0 108.95 54.48" width="108.95">
           <svg:g transform="translate(0,54.48) matrix(1 0 0 -1 0 0)">
             <svg:defs>
@@ -1960,7 +1966,9 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="217.91" width="108.95" xml:id="S14.p2.pic4">
+    </para>
+    <para xml:id="S14.p6">
+      <picture height="217.91" width="108.95" xml:id="S14.p6.pic1">
         <svg:svg height="217.91" overflow="visible" version="1.1" viewBox="0 0 108.95 217.91" width="108.95">
           <svg:g transform="translate(0,217.91) matrix(1 0 0 -1 0 0)">
             <svg:defs>
@@ -1975,8 +1983,8 @@ Hello</p>
         </svg:svg>
       </picture>
     </para>
-    <para xml:id="S14.p3">
-      <picture height="114.4" width="114.4" xml:id="S14.p3.pic1">
+    <para xml:id="S14.p7">
+      <picture height="114.4" width="114.4" xml:id="S14.p7.pic1">
         <svg:svg height="114.4" overflow="visible" version="1.1" viewBox="0 0 114.4 114.4" width="114.4">
           <svg:g transform="translate(0,114.4) matrix(1 0 0 -1 0 0)">
             <svg:defs>
@@ -1992,8 +2000,8 @@ Hello</p>
         </svg:svg>
       </picture>
     </para>
-    <para xml:id="S14.p4">
-      <picture height="201.41" width="595.11" xml:id="S14.p4.pic1">
+    <para xml:id="S14.p8">
+      <picture height="201.41" width="595.11" xml:id="S14.p8.pic1">
         <svg:svg height="201.41" overflow="visible" version="1.1" viewBox="0 0 595.11 201.41" width="595.11">
           <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,201.41) matrix(1 0 0 -1 0 0) translate(31.26,0) translate(0,31.26)">
             <svg:path d="M 69.44 69.44" style="fill:none"/>
@@ -2063,8 +2071,8 @@ Hello</p>
         </svg:svg>
       </picture>
     </para>
-    <para xml:id="S14.p5">
-      <picture height="192.17" width="192.17" xml:id="S14.p5.pic1">
+    <para xml:id="S14.p9">
+      <picture height="192.17" width="192.17" xml:id="S14.p9.pic1">
         <svg:svg height="192.17" overflow="visible" version="1.1" viewBox="0 0 192.17 192.17" width="192.17">
           <svg:g transform="translate(0,192.17) matrix(1 0 0 -1 0 0)">
             <svg:defs>
@@ -2080,7 +2088,7 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="78.74" width="275.59" xml:id="S14.p5.pic2">
+      <picture height="78.74" width="275.59" xml:id="S14.p9.pic2">
         <svg:svg height="78.74" overflow="visible" version="1.1" viewBox="0 0 275.59 78.74" width="275.59">
           <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,78.74) matrix(1 0 0 -1 0 0) translate(0,39.37)">
             <svg:clipPath id="pgfcp34">
@@ -2144,8 +2152,8 @@ Hello</p>
         </svg:svg>
       </picture>
     </para>
-    <para xml:id="S14.p6">
-      <picture height="39.92" width="315.51" xml:id="S14.p6.pic1">
+    <para xml:id="S14.p10">
+      <picture height="39.92" width="315.51" xml:id="S14.p10.pic1">
         <svg:svg height="39.92" overflow="visible" version="1.1" viewBox="0 0 315.51 39.92" width="315.51">
           <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,39.92) matrix(1 0 0 -1 0 0) translate(0.28,0) translate(0,0.28)">
             <svg:clipPath id="pgfcp40">
@@ -2629,7 +2637,9 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="78.74" width="78.74" xml:id="S16.p1.pic2">
+    </para>
+    <para xml:id="S16.p2">
+      <picture height="78.74" width="78.74" xml:id="S16.p2.pic1">
         <svg:svg height="78.74" overflow="visible" version="1.1" viewBox="0 0 78.74 78.74" width="78.74">
           <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,78.74) matrix(1 0 0 -1 0 0)">
             <svg:g color="#CCCCCC" fill="#CCCCCC" stroke="#CCCCCC">
@@ -2644,7 +2654,7 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="78.74" width="78.74" xml:id="S16.p1.pic3">
+      <picture height="78.74" width="78.74" xml:id="S16.p2.pic2">
         <svg:svg height="78.74" overflow="visible" version="1.1" viewBox="0 0 78.74 78.74" width="78.74">
           <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,78.74) matrix(1 0 0 -1 0 0)">
             <svg:g color="#CCCCCC" fill="#CCCCCC" stroke="#CCCCCC">
@@ -2659,7 +2669,7 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="78.74" width="78.74" xml:id="S16.p1.pic4">
+      <picture height="78.74" width="78.74" xml:id="S16.p2.pic3">
         <svg:svg height="78.74" overflow="visible" version="1.1" viewBox="0 0 78.74 78.74" width="78.74">
           <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,78.74) matrix(1 0 0 -1 0 0)">
             <svg:g color="#CCCCCC" fill="#CCCCCC" stroke="#CCCCCC">
@@ -2674,7 +2684,9 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="78.74" width="78.74" xml:id="S16.p1.pic5">
+    </para>
+    <para xml:id="S16.p3">
+      <picture height="78.74" width="78.74" xml:id="S16.p3.pic1">
         <svg:svg height="78.74" overflow="visible" version="1.1" viewBox="0 0 78.74 78.74" width="78.74">
           <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,78.74) matrix(1 0 0 -1 0 0)">
             <svg:g color="#CCCCCC" fill="#CCCCCC" stroke="#CCCCCC">
@@ -2693,8 +2705,8 @@ Hello</p>
         </svg:svg>
       </picture>
     </para>
-    <para xml:id="S16.p2">
-      <picture height="79.02" width="79.02" xml:id="S16.p2.pic1">
+    <para xml:id="S16.p4">
+      <picture height="79.02" width="79.02" xml:id="S16.p4.pic1">
         <svg:svg height="79.02" overflow="visible" version="1.1" viewBox="0 0 79.02 79.02" width="79.02">
           <svg:g transform="translate(0,79.02) matrix(1 0 0 -1 0 0) translate(0.14,0) translate(0,0.14)">
             <svg:g color="#808080" fill="#808080" stroke="#808080" stroke-width="0.2pt">
@@ -2717,8 +2729,8 @@ Hello</p>
         </svg:svg>
       </picture>
     </para>
-    <para xml:id="S16.p3">
-      <picture height="98.43" width="137.8" xml:id="S16.p3.pic1">
+    <para xml:id="S16.p5">
+      <picture height="98.43" width="137.8" xml:id="S16.p5.pic1">
         <svg:svg height="98.43" overflow="visible" version="1.1" viewBox="0 0 137.8 98.43" width="137.8">
           <svg:g fill="#000000" stroke="#000000" stroke-width="14.22638pt" transform="translate(0,98.43) matrix(1 0 0 -1 0 0) translate(49.21,0) translate(0,49.21)">
             <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
@@ -2730,7 +2742,7 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="145.67" width="154.81" xml:id="S16.p3.pic2">
+      <picture height="145.67" width="154.81" xml:id="S16.p5.pic2">
         <svg:svg height="145.67" overflow="visible" version="1.1" viewBox="0 0 154.81 145.67" width="154.81">
           <svg:g fill="#000000" fill-opacity="0.5" stroke="#000000" stroke-width="0.4pt" transform="translate(0,145.67) matrix(1 0 0 -1 0 0) translate(77.4,0) translate(0,62.99)">
             <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
@@ -2745,7 +2757,7 @@ Hello</p>
           </svg:g>
         </svg:svg>
       </picture>
-      <picture height="78.74" width="118.11" xml:id="S16.p3.pic3">
+      <picture height="78.74" width="118.11" xml:id="S16.p5.pic3">
         <svg:svg height="78.74" overflow="visible" version="1.1" viewBox="0 0 118.11 78.74" width="118.11">
           <svg:g fill="#000000" fill-opacity="0.5" stroke="#000000" stroke-width="0.4pt" transform="translate(0,78.74) matrix(1 0 0 -1 0 0) translate(39.37,0) translate(0,39.37)">
             <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">

@@ -76,10 +76,10 @@
               <svg:path d="M 0 0" style="fill:none"/>
               <svg:path d="M 33.07 30.59 L 33.07 13.64 L 16.54 4.55" style="fill:none"/>
               <svg:g stroke-width="0.79999pt">
-                <svg:path d="M 12.57 12.4 L 12.57 -12.4" style="fill:none"/>
+                <svg:path d="M 12.57 12.68 L 12.57 -12.68" style="fill:none"/>
               </svg:g>
               <svg:g stroke-width="0.79999pt">
-                <svg:path d="M 16.54 12.4 L 16.54 -12.4" style="fill:none"/>
+                <svg:path d="M 16.54 12.68 L 16.54 -12.68" style="fill:none"/>
               </svg:g>
               <svg:path d="M 16.54 -4.55 L 33.07 -13.64 L 33.07 -30.59" style="fill:none"/>
               <svg:g fill="#000000">

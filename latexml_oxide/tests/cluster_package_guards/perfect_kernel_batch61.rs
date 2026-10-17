@@ -2453,12 +2453,15 @@ fn hphantom_in_plain_tex_loads_no_latex() {
 /// (csvsimple-legacy.sty:289-293 `\csv@body\relax`); the binding read the cell on with expansion, unrolling csvsimple's
 /// next-line loop without end — its `\read` never ran (2108.13640, `PushbackLimit`; Perl reads alike, KPE #474).
 /// pdflatex: the three rows IN 5.1 / PV 4.4 / MEAN 9.6. Under the production preload, as the witness.
+/// The input says `[legacy]`: csvsimple 3.0.0 (2026/07/01) made `l3` the default (csvsimple.sty:46 `\SetKeys{ l3 }`),
+/// so a bare `\usepackage{csvsimple}` loads csvsimple-l3, and pdflatex itself aborts on this input there ("TeX capacity
+/// exceeded"); `[legacy]` keeps the path above, where pdflatex prints the rows.
 #[test]
 fn csvsimple_rows_in_a_siunitx_column_end_at_the_relax() {
   let (log, xml) = convert_files_with(
     r"\documentclass{article}
 \usepackage{siunitx}
-\usepackage{csvsimple}
+\usepackage[legacy]{csvsimple}
 \def\imagenet{IN}\def\pvpower{PV}\def\mean{MEAN}
 \begin{document}
 \csvloop{file=summary.csv, head to column names=false,
