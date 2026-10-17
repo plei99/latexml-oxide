@@ -13,6 +13,25 @@
     `perfect_kernel_batch54::biblatex_style_internal_surface`,
     `perfect_kernel_batch54::style_def_printbibliography_override_routes_to_binding`.
 
+  - **`\DocumentMetadata` no longer declares the minipage and parbox tagging sockets
+    twice.** The kernel of LaTeX 2026-06-01 declares `tagsupport/minipage/before|after` and
+    `tagsupport/parbox/before|after` itself (latex.ltx:22091-22094), and
+    latex-lab-testphase-minipage.sty 0.81k, which `\DocumentMetadata` loads, no longer does.
+    The binding of that module still did, so every `\DocumentMetadata` document logged four
+    `LaTeX socket Error: Socket '…' already declared!` (pdflatex and lualatex: none). The
+    binding is now empty; `\socket_new:nn` still refuses a duplicate. Guard
+    `perfect_kernel_batch56::documentmetadata_does_not_redeclare_kernel_tagging_sockets`.
+
+  - **polyglossia 2.13 loads a non-Latin language without the font error.** polyglossia
+    now asks `\fontspec_if_script:nTF` directly (polyglossia.sty:681) where 2.12 went through
+    `\xpg_if_script:nTF`, which the polyglossia binding overrode. The fontspec binding
+    answered FALSE, so `\setotherlanguage{greek}` raised "The current main roman font,
+    cmr10, does not contain the Greek script!". There is no OpenType font model to ask, and a
+    lualatex-clean document did select a script-capable font, so the fontspec binding now
+    answers TRUE for `\fontspec_if_script:n`. sblfonts and unicode-math, which treat FALSE as
+    a missing font, read the same answer. The polyglossia binding no longer overrides
+    anything. Guard `perfect_kernel_batch56::polyglossia_script_check_passes_without_font`.
+
   - **The LaTeX format builds from LaTeX 2026-06-01.** `--init=latex.ltx` logged 137 errors
     on TeX Live 2026 updated past June, so no dump matched the tree and a conversion
     reported those errors while it built one. The new latex.ltx (22508-22513) reads

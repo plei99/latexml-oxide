@@ -222,9 +222,17 @@ LoadDefinitions!({
   def_macro_noop("\\fontspec_if_aat_feature:nnT{}{}{}")?;
   DefMacro!("\\fontspec_if_aat_feature:nnTF{}{}{}{}", "#4");
   DefMacro!("\\fontspec_if_aat_feature:nnF{}{}{}", "#3");
-  def_macro_noop("\\fontspec_if_script:nT{}{}")?;
-  DefMacro!("\\fontspec_if_script:nTF{}{}{}", "#3");
-  DefMacro!("\\fontspec_if_script:nF{}{}", "#2");
+  // EXCEPT `\fontspec_if_script:n…`, which answers TRUE (fontspec-luatex.sty:1021): there is no OpenType font model
+  // to ask, the "current" font is always cmr10 so a FALSE answer could never be truthful, while a lualatex/xelatex-clean
+  // document did select a script-capable font. polyglossia.sty:681 (`\__xpg_add_font_feature_script:nnn`, 2.13) calls it
+  // directly and its FALSE branch is the counted "The current main roman font, cmr10, does not contain the "Greek"
+  // script!" error (:677); sblfonts.sty:195-200 (`nF`, fallback-font loading) and unicode-math-{luatex,xetex}.sty
+  // :1298/:1304 (`\fontspec_if_script:nF{math}`) also treat FALSE as a missing font. TRUE runs polyglossia's
+  // `\addfontfeature{Script=…}` branch, a no-op here. Witnesses: fontsetup/fspsample ×2, greektonoi, latex-mr.
+  // Guard: `perfect_kernel_batch56::polyglossia_script_check_passes_without_font`.
+  DefMacro!("\\fontspec_if_script:nT{}{}", "#2");
+  DefMacro!("\\fontspec_if_script:nTF{}{}{}", "#2");
+  def_macro_noop("\\fontspec_if_script:nF{}{}")?;
   def_macro_noop("\\fontspec_if_current_script:nT{}{}")?;
   DefMacro!("\\fontspec_if_current_script:nTF{}{}{}", "#3");
   DefMacro!("\\fontspec_if_current_script:nF{}{}", "#2");

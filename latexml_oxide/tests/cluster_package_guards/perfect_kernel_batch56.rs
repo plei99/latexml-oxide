@@ -1762,6 +1762,47 @@ A\UseTaggingSocket{minipage/before}B
   assert!(xml.contains("<item "), "{xml}");
 }
 
+/// The four minipage/parbox tagging sockets are the kernel's (latex.ltx:22091-22094);
+/// latex-lab-testphase-minipage.sty 0.81k (loaded by `\DocumentMetadata`) no longer
+/// declares them, and the binding must not either: each re-declaration was a
+/// `LaTeX socket Error: Socket '…' already declared!` (pdflatex/lualatex: 0).
+/// A plug assigned to a kernel socket runs; `\socket_new:nn` still refuses a duplicate.
+#[test]
+fn documentmetadata_does_not_redeclare_kernel_tagging_sockets() {
+  let tex = r"\DocumentMetadata{}
+\documentclass{article}
+\ExplSyntaxOn
+\socket_new_plug:nnn{tagsupport/parbox/after}{mine}{[PLUG-RAN]}
+\socket_assign_plug:nn{tagsupport/parbox/after}{mine}
+\ExplSyntaxOff
+\begin{document}
+OK\UseSocket{tagsupport/parbox/after}
+\end{document}
+";
+  let (stderr, xml) = convert(tex, true);
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert!(xml.contains("OK[PLUG-RAN]"), "{xml}");
+
+  // The duplicate check itself is intact: declaring a kernel socket again is
+  // the one expected error, and names the socket.
+  let dup = r"\DocumentMetadata{}
+\documentclass{article}
+\ExplSyntaxOn
+\socket_new:nn{tagsupport/minipage/before}{0}
+\ExplSyntaxOff
+\begin{document}
+OK
+\end{document}
+";
+  let (stderr, _xml) = convert(dup, true);
+  assert_eq!(error_count(&stderr), 1, "{stderr}");
+  assert!(
+    stderr.contains("Socket 'tagsupport/minipage/before' already declared"),
+    "{stderr}"
+  );
+}
+
 /// A `./`-prefixed name written by `\openout`/`\write` (fancyvrb
 /// `{VerbatimOut}{./foo.tex}`) is read back by `\VerbatimInput{./foo.tex}`:
 /// the VFS keys both sides without the `./` (xpicture-doc, checklistings;
