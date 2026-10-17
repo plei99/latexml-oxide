@@ -23,14 +23,17 @@
     `perfect_kernel_batch56::documentmetadata_does_not_redeclare_kernel_tagging_sockets`.
 
   - **polyglossia 2.13 loads a non-Latin language without the font error.** polyglossia
-    now asks `\fontspec_if_script:nTF` directly (polyglossia.sty:681) where 2.12 went through
-    `\xpg_if_script:nTF`, which the polyglossia binding overrode. The fontspec binding
-    answered FALSE, so `\setotherlanguage{greek}` raised "The current main roman font,
-    cmr10, does not contain the Greek script!". There is no OpenType font model to ask, and a
-    lualatex-clean document did select a script-capable font, so the fontspec binding now
-    answers TRUE for `\fontspec_if_script:n`. sblfonts and unicode-math, which treat FALSE as
-    a missing font, read the same answer. The polyglossia binding no longer overrides
-    anything. Guard `perfect_kernel_batch56::polyglossia_script_check_passes_without_font`.
+    now asks `\fontspec_if_script:nTF` directly (polyglossia.sty:681) where 2.9 (the previous
+    TeX Live revision) went through `\xpg_if_script:nTF`, which the polyglossia binding
+    overrode. The fontspec binding answered FALSE, so `\setotherlanguage{greek}` raised "The
+    current main roman font, cmr10, does not contain the Greek script!". There is no OpenType
+    font model to ask, and a lualatex-clean document did select a script-capable font, so the
+    fontspec binding now answers TRUE for `\fontspec_if_script:n`. The polyglossia binding no
+    longer overrides anything. The only other texmf-dist caller outside the unicode-math
+    engine files (which the unicode-math binding never loads) is sblfonts
+    (sblfonts.sty:195-204): with a `mainfont` set it now skips its fallback
+    `\babelfont[polytonicgreek]{rm}` and `\babelfont[hebrew]{rm}`. Guard
+    `perfect_kernel_batch56::polyglossia_script_check_passes_without_font`.
 
   - **French and German documents no longer raise `Error:undefined:\mainlocalename`.**
     babel 26.14 (TeX Live 2026-10-16) expands `\mainlocalename` in a `begindocument/end` hook

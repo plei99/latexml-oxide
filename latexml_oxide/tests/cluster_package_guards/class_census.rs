@@ -12,24 +12,9 @@ fn kernel_length_is_an_allocated_dimen() {
   let (stderr, xml) = convert_with(tex, None);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert_eq!(warning_count(&stderr), 0, "{stderr}");
-  // The register number is whatever `\newdimen` allocated in this kernel
-  // (dimen124 in LaTeX 2025, dimen126 in 2026-06-01): pin the behaviour, not the number.
-  let tail = " yes yes 345.0pt</p>";
-  let end = xml.find(tail).unwrap_or_else(|| panic!("{xml}"));
-  let head = &xml[..end];
-  let digits_rev: String = head
-    .chars()
-    .rev()
-    .take_while(char::is_ascii_digit)
-    .collect();
-  assert!(
-    !digits_rev.is_empty(),
-    "columnsep is not an allocated dimen: {xml}"
-  );
-  assert!(
-    head[..head.len() - digits_rev.len()].ends_with("dimen"),
-    "columnsep is not an allocated dimen: {xml}"
-  );
+  // The register number follows the TL 2026 kernel's allocations (pdflatex on
+  // TeX Live 2026 prints `\dimen126`; LaTeX 2025 allocated `\dimen124`).
+  assert!(xml.contains("dimen126 yes yes 345.0pt</p>"), "{xml}");
 }
 
 /// The `xetex` profile: iftex, l3sys and the XeTeX primitives read XeTeX, so

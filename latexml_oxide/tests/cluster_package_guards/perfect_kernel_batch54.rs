@@ -5174,6 +5174,7 @@ Text.
 ";
   let (stderr, _xml) = convert(tex, false);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
 }
 
 /// The siunitx `S`/`s` cell is read with expansion under LaTeX's
@@ -5372,20 +5373,47 @@ Some text flowing across two adjusted columns. More text here.
 /// stands in for biblatex.sty and carries that surface.
 #[test]
 fn biblatex_style_internal_surface() {
-  for (style, body) in [
-    ("windycity", r"Text.\par \printbibliography"),
-    ("sbl", r"See \citeshorthand{SBL} and \cite{SBLHS}."),
-    ("biblatex-juradiss", r"Text.\par \printbibliography"),
+  // Per style: the body, the `<p>` it must convert to (the biblatex binding
+  // has no `.bib` resource here, so `\printbibliography` is empty and sbl's
+  // `\citeshorthand{SBL}` prints nothing; `\cite{SBLHS}` is a `<bibref>`), and
+  // the warnings it logs: only biblatex-juradiss loads biblatex-dw, whose three
+  // unknown-option warnings are the whole count.
+  let dw = [
+    "Package biblatex-dw Warning: Unknown value for option 'origfieldsformat'.",
+    "Package biblatex-dw Warning: Unknown value for option 'journalnumber'.",
+    "Package biblatex-dw Warning: Unknown value for option 'seriesformat'.",
+  ];
+  for (style, body, p, warnings) in [
+    (
+      "windycity",
+      r"Text.\par \printbibliography",
+      "<p>Text.</p>",
+      &[][..],
+    ),
+    (
+      "sbl",
+      r"See \citeshorthand{SBL} and \cite{SBLHS}.",
+      r#"<p>See  and <cite class="ltx_citemacro_cite">[<bibref bibrefs="SBLHS" separator="," yyseparator=","/>]</cite>.</p>"#,
+      &[][..],
+    ),
+    (
+      "biblatex-juradiss",
+      r"Text.\par \printbibliography",
+      "<p>Text.</p>",
+      &dw[..],
+    ),
   ] {
     let tex = format!(
       "\\documentclass{{article}}\n\\usepackage[style={style}]{{biblatex}}\n\\begin{{document}}\n{body}\n\\end{{document}}\n"
     );
     let (stderr, xml) = convert(&tex, false);
     assert_eq!(error_count(&stderr), 0, "{style}: {stderr}");
-    assert!(
-      xml.contains("Text.") || xml.contains("<cite class="),
-      "{style}: {xml}"
-    );
+    assert_eq!(warning_count(&stderr), warnings.len(), "{style}: {stderr}");
+    for w in warnings {
+      assert_eq!(stderr.matches(w).count(), 1, "{style}: {w}: {stderr}");
+    }
+    assert!(xml.contains(p), "{style}: {xml}");
+    assert!(!xml.contains("<bibliography"), "{style}: {xml}");
   }
 }
 

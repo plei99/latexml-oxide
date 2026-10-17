@@ -2455,7 +2455,8 @@ fn hphantom_in_plain_tex_loads_no_latex() {
 /// pdflatex: the three rows IN 5.1 / PV 4.4 / MEAN 9.6. Under the production preload, as the witness.
 /// The input says `[legacy]`: csvsimple 3.0.0 (2026/07/01) made `l3` the default (csvsimple.sty:46 `\SetKeys{ l3 }`),
 /// so a bare `\usepackage{csvsimple}` loads csvsimple-l3, and pdflatex itself aborts on this input there ("TeX capacity
-/// exceeded"); `[legacy]` keeps the path above, where pdflatex prints the rows.
+/// exceeded"); `[legacy]` keeps the path above, where pdflatex prints the rows. Witness 2108.13640 (bare
+/// `\usepackage{csvsimple}`) therefore takes the l3 path on TL 2026, not the legacy path this guard pins.
 #[test]
 fn csvsimple_rows_in_a_siunitx_column_end_at_the_relax() {
   let (log, xml) = convert_files_with(
@@ -2477,7 +2478,9 @@ fn csvsimple_rows_in_a_siunitx_column_end_at_the_relax() {
   );
   assert_eq!(error_count(&log), 0, "{log}");
   assert_eq!(log.matches("Fatal:").count(), 0, "{log}");
-  // csvsimple-legacy loads shellesc, which reports the disabled shell escape (as pdflatex does).
+  // csvsimple-legacy loads shellesc, which reports the disabled shell escape (shellesc.sty:73). pdflatex says the same
+  // only under `-no-shell-escape`; with TeX Live's default (restricted) shell escape its log has the Info "Restricted
+  // shell escape enabled" instead (shellesc.sty:77), the oxide run having no shell escape at all.
   assert_eq!(warning_count(&log), 1, "{log}");
   assert!(
     log.contains("Package shellesc Warning: Shell escape disabled"),

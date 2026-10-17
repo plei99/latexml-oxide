@@ -1713,11 +1713,14 @@ fn forest_docinput_lstenv_writefile_gobbles_doc_percent() {
   assert!(xml.contains("<listing"), "{xml}");
 }
 
-/// polyglossia.sty:641 `\xpg_if_script:nTF` answers TRUE (there is no
-/// OpenType font model to ask; a lualatex-clean document loaded a
-/// script-capable font), so a non-Latin font switch no longer raises "The
-/// current main roman font, cmr10, does not contain the Greek script!"
-/// (fontsetup/fspsample ×2 11→0, greektonoi 16→0, latex-mr 98+Fatal→3).
+/// polyglossia 2.13 asks `\fontspec_if_script:nTF` directly (polyglossia.sty:681,
+/// in `\__xpg_add_font_feature_script:nnn` :672); the fontspec binding answers it
+/// TRUE (there is no OpenType font model to ask; a lualatex-clean document loaded a
+/// script-capable font), so a non-Latin font switch takes the `\addfontfeature`
+/// branch and no longer raises "The current main roman font, cmr10, does not
+/// contain the Greek script!" (polyglossia.sty:715-717). The polyglossia binding
+/// overrides nothing. (fontsetup/fspsample ×2 11→0, greektonoi 16→0, latex-mr
+/// 98+Fatal→3).
 #[test]
 fn polyglossia_script_check_passes_without_font() {
   let tex = r"\documentclass{article}
@@ -1731,15 +1734,17 @@ Hello \textgreek{ασδφ} world.
 ";
   let (stderr, xml) = convert_with(tex, Some("[rawstyles,rawclasses,luatex]latexml.sty"));
   assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
   assert!(xml.contains("ασδφ"), "{xml}");
 }
 
 /// `\DocumentMetadata{tagging=on}` also loads the block and minipage
-/// testphase modules (latex-lab-testphase-latest.sty:43,47): ltx-talk.cls
-/// :1860 `\EditInstance{item}{basic}`, tagpdfdocu-patches.sty:127
-/// `\DeclareInstance{blockenv}{docCommand}{display}` + `\UseInstance` +
-/// `\endblockenv`, and :146 `\AssignSocketPlug{tagsupport/minipage/before}
-/// {noop}` find their declarations (ltx-talk ×10, tagpdf manual 113 lines).
+/// testphase modules (latex-lab-testphase-latest.sty:44,51): ltx-talk.cls
+/// :2450 `\EditInstance{item}{basic}`, tagpdfdocu-patches.sty:89
+/// `\DeclareInstance{blockenv}{docCommand}{std}` + :103 `\SimpleBlockEnv`
+/// (`\UseInstance` + `\endblockenv`), and :113 `\AssignTaggingSocketPlug
+/// {minipage/before}{noop}` (the synthetic `\AssignSocketPlug` below) find their
+/// declarations (ltx-talk ×10, tagpdf manual 113 lines).
 #[test]
 fn testphase_tagging_sockets_and_block_templates_are_declared() {
   let tex = r"\DocumentMetadata{tagging = on}
@@ -1797,6 +1802,7 @@ OK
 ";
   let (stderr, _xml) = convert(dup, true);
   assert_eq!(error_count(&stderr), 1, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
   assert!(
     stderr.contains("Socket 'tagsupport/minipage/before' already declared"),
     "{stderr}"

@@ -197,7 +197,11 @@ LoadDefinitions!({
   // Every \fontspec_if_… conditional opens with \fontspec_if_fontspec_font:
   // (is the CURRENT font a fontspec-selected OpenType font?) — in our
   // pdfTeX/NFSS model that is never true, so ALL of them are constant-
-  // FALSE. Each \prg_new_conditional {TF,T,F} generates three CS names.
+  // FALSE — except `\fontspec_if_script:n…` below, which answers TRUE. Note
+  // `\fontspec_if_fontspec_font:TF` itself stays FALSE although the real
+  // `\fontspec_if_script:n` (fontspec-luatex.sty:1021) is gated on it: the
+  // script answer is overridden outright, not derived from it. Each
+  // \prg_new_conditional {TF,T,F} generates three CS names.
   // Driver: \fontspec_if_language:nT via polyglossia.sty:610-621 (40 docs,
   // 17 first-errors; witnesses abnt-doc, toptesi-example-*, greektonoi,
   // churchslavonic-*).
@@ -226,9 +230,11 @@ LoadDefinitions!({
   // to ask, the "current" font is always cmr10 so a FALSE answer could never be truthful, while a lualatex/xelatex-clean
   // document did select a script-capable font. polyglossia.sty:681 (`\__xpg_add_font_feature_script:nnn`, 2.13) calls it
   // directly and its FALSE branch is the counted "The current main roman font, cmr10, does not contain the "Greek"
-  // script!" error (:677); sblfonts.sty:195-200 (`nF`, fallback-font loading) and unicode-math-{luatex,xetex}.sty
-  // :1298/:1304 (`\fontspec_if_script:nF{math}`) also treat FALSE as a missing font. TRUE runs polyglossia's
-  // `\addfontfeature{Script=…}` branch, a no-op here. Witnesses: fontsetup/fspsample ×2, greektonoi, latex-mr.
+  // script!" error (:715-717). TRUE runs polyglossia's `\addfontfeature{Script=…}` branch, a no-op here. The only other
+  // texmf-dist callers are sblfonts.sty:195-204 (`nF`, fallback-font loading: with a mainfont set it now skips its
+  // `\babelfont[polytonicgreek|hebrew]{rm}` fallback) and unicode-math-{luatex,xetex}.sty:1304/:1298, which this
+  // tree never loads (latexml_contrib/src/unicode_math_sty.rs only inputs unicode-math-table.tex).
+  // Witnesses: fontsetup/fspsample ×2, greektonoi, latex-mr.
   // Guard: `perfect_kernel_batch56::polyglossia_script_check_passes_without_font`.
   DefMacro!("\\fontspec_if_script:nT{}{}", "#2");
   DefMacro!("\\fontspec_if_script:nTF{}{}{}", "#2");
