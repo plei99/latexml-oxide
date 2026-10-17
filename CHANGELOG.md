@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+  - **`\usepackage[style=sbl]{biblatex}` loads without errors on TeX Live 2026.** The
+    updated biblatex-sbl reaches three pieces of biblatex.sty that the native biblatex
+    binding, which stands in for it, did not have: `\DeclareDatafieldSet{name}{…\member…}`
+    (biblatex-sbl.def:551-552, :1384; biblatex.sty:14093-14104, a biber data-model
+    declaration), `\DeclarePageCommands` (biblatex-sbl.def:176-178; biblatex.sty:3398-3402)
+    and the toggle `blx@trackfloats` (biblatex-sbl.def:178 `\iftoggle`; biblatex.sty:15846).
+    Each now exists, the two commands swallowing their arguments like the other
+    declaration-only commands of the binding. Guards
+    `perfect_kernel_batch54::biblatex_style_internal_surface`,
+    `perfect_kernel_batch54::style_def_printbibliography_override_routes_to_binding`.
+
   - **The LaTeX format builds from LaTeX 2026-06-01.** `--init=latex.ltx` logged 137 errors
     on TeX Live 2026 updated past June, so no dump matched the tree and a conversion
     reported those errors while it built one. The new latex.ltx (22508-22513) reads

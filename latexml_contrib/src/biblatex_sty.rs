@@ -1700,12 +1700,20 @@ LoadDefinitions!({
   // `\NumCheckSetup{}`; :14571 `\DeclareBiblistFilter{}{}` with
   // `\filter`/`\filteror` inside; :9379
   // `\defbibfilter{}{}` whose `\type`/`\keyword`/`\and`… are local to the
-  // body). `\ifbibmacroundef` (:2412) is `\ifcsundef{abx@macro@#1}` and our
+  // body; :14093-14104 `\DeclareDatafieldSet{}{}` (`\@onlypreamble`), whose
+  // `\member[…]` is local to the body; :3398-3402 `\DeclarePageCommands*{}`:
+  // `\@ifstar`, then one `{<cstokens>}`). `\ifbibmacroundef` (:2412) is
+  // `\ifcsundef{abx@macro@#1}` and our
   // `\newbibmacro` records nothing, so the undefined branch is faithful.
   // Witnesses: biblatex-oxref oxnum/oxalph/oxyear/oxnotes-doc, biblatex-cse-doc,
-  // biblatex-musuos. Guard: `perfect_kernel_batch54::biblatex_loads_bbx_before_cbx`.
+  // biblatex-musuos; style=sbl (biblatex-sbl.def:551-552, :1384
+  // `\DeclareDatafieldSet`, :176-178 `\DeclarePageCommands`). Guards:
+  // `perfect_kernel_batch54::biblatex_loads_bbx_before_cbx`,
+  // `perfect_kernel_batch54::biblatex_style_internal_surface`.
   def_macro_noop("\\DeclareDataInheritance[]{}{}{}")?;
   def_macro_noop("\\DeclareRangeChars OptionalMatch:* {}")?;
+  def_macro_noop("\\DeclareDatafieldSet{}{}")?;
+  def_macro_noop("\\DeclarePageCommands OptionalMatch:* {}")?;
   def_macro_noop("\\NumCheckSetup{}")?;
   def_macro_noop("\\NumsCheckSetup{}")?;
   // The biblatex.sty internal/public surface that raw STYLE files reach at
@@ -3140,6 +3148,12 @@ LoadDefinitions!({
   // stays faithful (Perl's `\newtoggle` never re-enters because Perl
   // can't find the bundled wrapper). Witness 2007.06815
   // (`\usepackage{mybiblatex}` → 55 toggle errors → 0).
+  //
+  // `blx@trackfloats` is allocated by biblatex.sty:15846
+  // (`\newtoggle`, for the `trackfloats` option, default false — :16432) and
+  // biblatex-sbl.def:178 tests it with `\iftoggle` (etoolbox "Toggle undefined"
+  // otherwise). Witness: `\usepackage[style=sbl]{biblatex}`; guard
+  // `perfect_kernel_batch54::biblatex_style_internal_surface`.
   RawTeX!(
     r#"
 \newbool{refcontextdefaults}
@@ -3181,6 +3195,7 @@ LoadDefinitions!({
 \providetoggle{blx@mcite}
 \providetoggle{blx@loadfiles}
 \providetoggle{blx@sortsets}
+\providetoggle{blx@trackfloats}
 \providetoggle{blx@crossrefsource}
 \providetoggle{blx@xrefsource}
 \providetoggle{blx@terseinits}
