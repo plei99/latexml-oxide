@@ -48,7 +48,16 @@ Measured 2026-10-17, binary `a20379aa1a1a` (checkout `2997f6c60`), with `fork/ox
   | titlepages | 0 | 3 |
 
   memman's 7 errors are five `undefined:\Margi`…`\Margv` (memman.tex:31300; defined only inside memoir's
-  `\memsecinfo` hook), one `malformed:ltx:text` and one `malformed:ltx:_CaptureBlock_`.
+  `\memsecinfo` hook), one `malformed:ltx:text` and one `malformed:ltx:_CaptureBlock_`. Against the full
+  pdfLaTeX build (625 pages: three passes, bibtex and the three makeindex runs of its `Makeidxglo`), its text
+  comes through. Upstream's `pdf_recall` gives 97.9 over 7,647 distinct words; 115 of the 163 misses are the PDF
+  splitting a styled first letter off a word, and most of the other 48 are text inside embedded PDF figures,
+  hyphen splits and roman folios, so the recall that counts is about 99.4. The counts agree: 118/118
+  bibliography entries, ~3,880 index entries for the `.ind`'s 3,862 items, the command summary (glossary),
+  sections 171/173, tables 53/55, all 31 typeset examples. The defects are structural and visual. The 7
+  appendices are headed "Chapter A"…; the chapter-style showcase (Appendix B) becomes 26 extra chapters, which
+  look identical and fill the ToC; the "List of typeset examples" (`\newlistof`) is missing; and the five
+  `\Margi` errors print as `ltx_ERROR` text.
 - **Feature probe.** Of about 60 features probed across nine groups, roughly half are ok. The rest fail in one of
   four ways, which the milestones below follow: content is lost, numbers or structure are wrong, semantics are
   flattened, or presentation is ignored.
