@@ -19,6 +19,8 @@ fork/binary_info.sh [bin]          # which build a binary is, and STALE when the
 fork/worktree.sh <branch>          # a writer agent's own checkout, with LaTeXML/, dumps and .corpus/
 ```
 
+Fork-driven feature work has its own worklist: [`MEMOIR_ROADMAP.md`](MEMOIR_ROADMAP.md) for the memoir class.
+
 ## Two indexes
 
 | | `fork/fixtures/` (public) | `fork/corpus/` over `.corpus/` (private) |
