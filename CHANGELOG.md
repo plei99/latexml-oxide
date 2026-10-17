@@ -5,8 +5,8 @@
   - **`\usepackage[style=sbl]{biblatex}` loads without errors on TeX Live 2026.** The
     updated biblatex-sbl reaches three pieces of biblatex.sty that the native biblatex
     binding, which stands in for it, did not have: `\DeclareDatafieldSet{name}{…\member…}`
-    (biblatex-sbl.def:551-552, :1384; biblatex.sty:14093-14104, a biber data-model
-    declaration), `\DeclarePageCommands` (biblatex-sbl.def:176-178; biblatex.sty:3398-3402)
+    (biblatex-sbl.def:551-552; biblatex.sty:14093-14104, a biber data-model
+    declaration), `\DeclarePageCommands` (biblatex-sbl.def:1384; biblatex.sty:3398-3402)
     and the toggle `blx@trackfloats` (biblatex-sbl.def:178 `\iftoggle`; biblatex.sty:15846).
     Each now exists, the two commands swallowing their arguments like the other
     declaration-only commands of the binding. Guards

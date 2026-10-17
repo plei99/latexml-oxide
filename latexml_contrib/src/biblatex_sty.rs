@@ -1706,8 +1706,8 @@ LoadDefinitions!({
   // `\ifcsundef{abx@macro@#1}` and our
   // `\newbibmacro` records nothing, so the undefined branch is faithful.
   // Witnesses: biblatex-oxref oxnum/oxalph/oxyear/oxnotes-doc, biblatex-cse-doc,
-  // biblatex-musuos; style=sbl (biblatex-sbl.def:551-552, :1384
-  // `\DeclareDatafieldSet`, :176-178 `\DeclarePageCommands`). Guards:
+  // biblatex-musuos; style=sbl (biblatex-sbl.def:551-552
+  // `\DeclareDatafieldSet`, :1384 `\DeclarePageCommands*`). Guards:
   // `perfect_kernel_batch54::biblatex_loads_bbx_before_cbx`,
   // `perfect_kernel_batch54::biblatex_style_internal_surface`.
   def_macro_noop("\\DeclareDataInheritance[]{}{}{}")?;
