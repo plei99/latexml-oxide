@@ -1,0 +1,21 @@
+\documentclass[11pt,oneside]{memoir}
+\usepackage{parskip}
+\begin{document}
+%% feature: parskip-emulated | \usepackage{parskip} after memoir is a no-op (memoir emulates it), so paragraphs keep their first-line indent
+\chapter{Paragraphs}
+First paragraph of the chapter, set with memoir's traditional paragraph skip.
+
+Second paragraph, which still starts with the usual indent in the PDF.
+
+Third paragraph, to show that no paragraph loses its indent.
+%% feature: sourceatright | \sourceatright sets an attribution flush right at the end of a quotation paragraph
+\chapter{Quotations}
+\begin{quotation}
+  \itshape There is a high road and a low road, and the low road is to write every step out in full.
+  \sourceatright{A. Author}
+\end{quotation}
+A paragraph after the quotation.
+
+\begin{quotation}
+  A short quotation.\sourceatright[1em]{Somebody}
+\end{quotation}
