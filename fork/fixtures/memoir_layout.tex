@@ -1,0 +1,50 @@
+\documentclass[11pt,oneside]{memoir}
+\setulmarginsandblock{3.5cm}{3.5cm}{*}
+\setlrmarginsandblock{3cm}{3.5cm}{*}
+\checkandfixthelayout
+\setsecnumdepth{subsection}
+\settocdepth{subsection}
+\renewcommand\cftchapterfont{\sffamily}
+\renewcommand\cftsectionfont{\scshape}
+\renewcommand*{\cftsubsectionfont}{\hfill\itshape}
+\renewcommand*{\cftsectionleader}{}
+\renewcommand*{\cftsectionformatpnum}[1]{~\textbullet~#1}
+\renewcommand{\cftsectionafterpnum}{\cftparfillskip}
+\setrmarg{3.55em plus 1fil}
+\begin{document}
+%% feature: secnumdepth | \setsecnumdepth{subsection}: sections and subsections numbered, subsubsections not
+\chapter{Numbers}
+\section{Section}
+\subsection{Subsection}
+\subsubsection{Subsubsection}
+Body text.
+%% feature: tocdepth | \settocdepth{subsection}: the table of contents lists chapters, sections and subsections
+\tableofcontents*
+\chapter{First}
+\section{Alpha}
+\subsection{Detail}
+\subsubsection{Too deep}
+\chapter{Second}
+\section{Beta}
+%% feature: tocfonts | \cft<level>font renewals: sans chapter entries, small-caps sections, italic subsections with the \hfill dropped
+\tableofcontents
+\chapter{First}
+\section{Alpha}
+\subsection{Detail}
+%% feature: tocfont-default | memoir's own \cftchapterfont is bold, the deeper levels plain
+\renewcommand\cftchapterfont{\bfseries}
+\renewcommand\cftsectionfont{\normalfont}
+\renewcommand*{\cftsubsectionfont}{\normalfont}
+\tableofcontents
+\chapter{First}
+\section{Alpha}
+%% feature: layout | \setlrmarginsandblock, \setulmarginsandblock and \checkandfixthelayout leave pdfLaTeX's lengths
+\chapter{Layout}
+textwidth \the\textwidth; textheight \the\textheight; spinemargin \the\spinemargin; foremargin \the\foremargin;
+uppermargin \the\uppermargin; lowermargin \the\lowermargin; columnwidth \the\columnwidth.
+%% feature: lists | \listoffigures and \listoftables, plain and starred
+\listoffigures
+\listoftables*
+\chapter{Floats}
+\begin{figure}\centering A figure body.\caption{The figure}\end{figure}
+\begin{table}\centering\begin{tabular}{c}x\end{tabular}\caption{The table}\end{table}
