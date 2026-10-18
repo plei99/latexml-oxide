@@ -286,11 +286,16 @@ pub(crate) fn load() -> Result<()> {
       let invoked_title =
         Invocation!(T_CS!("\\lx@format@title@@"), vec![stype_clean_tokens.clone(), title_tokens]);
       let xtitle    = digest(invoked_title)?;
+      let toc_font_hooked =
+        lookup_definition(&T_CS!(s!("\\format@toctitle@font@{stype_str}")))?.is_some();
       let invoked_toctitle = Invocation!(T_CS!("\\lx@format@toctitle@@"),
           vec![stype_clean_tokens, toctitle.revert()?]);
       let xtoctitle = digest(invoked_toctitle)?;
 
-      if xtoctitle.to_string() != xtitle.to_string() {
+      // Perl (latex_constructs.pool.ltxml:639-640) keeps the toctitle only when its text differs from the title's,
+      // so a toctitle that differs only in font (`\format@toctitle@font@<type>`, memoir's `\cft<type>font`) was
+      // dropped and the ToC entry fell back to the unstyled title. Keep it whenever that hook is defined.
+      if xtoctitle.to_string() != xtitle.to_string() || toc_font_hooked {
         props.insert("toctitle", xtoctitle.into());
       }
       props.insert("title", xtitle.into());

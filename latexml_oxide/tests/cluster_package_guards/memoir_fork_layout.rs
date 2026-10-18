@@ -184,11 +184,9 @@ const SECTION_FONTS: &str = "\\documentclass{memoir}\n\\setsecnumdepth{subsectio
                              \\begin{document}\n\\tableofcontents\n\\chapter{First}\n\\section{Alpha}\n\
                              \\subsection{Detail}\nBody.\n\\end{document}\n";
 
-/// The same for the numbered levels below the chapter. Their ToC title reads like the heading's, so `\@@numbered@section`
-/// (sect04.rs) does not give them a `toctitle` of their own and the font has nowhere to go: it needs that function to
-/// keep a title whose `\format@toctitle@font@<type>` hook is defined (the patch in the report of this change).
+/// The same for the numbered levels below the chapter. Their ToC title reads like the heading's, so it reaches the ToC
+/// only because `\@@numbered@section` (sect04.rs) keeps a toctitle whose `\format@toctitle@font@<type>` is defined.
 #[test]
-#[ignore = "needs sect04.rs to keep a toctitle when \\format@toctitle@font@<type> is defined"]
 fn renewed_cft_font_reaches_section_entries() {
   let (stderr, _xml, html) = convert_xml_then_html(SECTION_FONTS);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
