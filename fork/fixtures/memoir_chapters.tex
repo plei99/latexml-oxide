@@ -1,0 +1,88 @@
+\documentclass[11pt,oneside]{memoir}
+\begin{document}
+%% feature: head-default | default chapter style: "Chapter 1" above the title, an unnumbered chapter has no tag
+\chapter{First chapter}
+Text of the first chapter, see Chapter~\ref{sec:two}.
+\chapter{Second chapter}\label{sec:two}
+More text.
+\chapter*{Unnumbered chapter}
+Text under an unnumbered chapter.
+%% feature: head-ell | ell: a large sans-serif number over a rule, the title right-aligned beneath it
+\chapterstyle{ell}
+\chapter{First chapter}
+Text of the first chapter.
+\chapter{Second chapter}
+More text.
+\chapter*{Unnumbered chapter}
+Text under an unnumbered chapter.
+%% feature: head-demo2 | demo2: the number spelled out and centred, the title in sans-serif between two rules
+\chapterstyle{demo2}
+\chapter{First chapter}
+Text of the first chapter.
+\chapter{Second chapter}
+More text.
+\appendix
+\chapter{An appendix}
+Text of the appendix, which memoir letters rather than spells out.
+%% feature: head-article | article style: the number alone ("1 Title"), as the article class option sets
+\chapterstyle{article}
+\chapter{Introduction}
+Text of the introduction.
+\chapter{Method}
+More text.
+%% feature: head-brotherton | brotherton: the name and the number as a word ("Chapter One")
+\chapterstyle{brotherton}
+\chapter{First chapter}
+Text of the first chapter.
+%% feature: head-switch | styles change mid-document, a group restores the earlier one
+\chapter{In the default style}
+Text.
+\chapterstyle{ell}
+\chapter{In ell}
+Text.
+\begingroup
+\chapterstyle{demo2}
+\chapter{In demo2, in a group}
+Text.
+\endgroup
+\chapter{Back to ell}
+Text.
+%% feature: head-own-style | a style the document defines itself keeps the default head
+\makechapterstyle{mine}{\chapterstyle{default}\renewcommand*{\chaptitlefont}{\normalfont\Huge\itshape}}
+\chapterstyle{mine}
+\chapter{A chapter in my style}
+Text.
+%% feature: appendix-default | \appendix: "Appendix A", and the cross-reference says "A"
+\chapter{Main chapter}
+Text.
+\appendix
+\chapter{First appendix}\label{app:one}
+Text, see Appendix~\ref{app:one}.
+\section{A section}
+Text.
+\chapter{Second appendix}
+Text.
+%% feature: appendix-ell | \appendix under ell: the letter alone
+\chapterstyle{ell}
+\chapter{Main chapter}
+Text.
+\appendix
+\chapter{First appendix}
+Text.
+%% feature: matter | front, main and back matter: unnumbered front and back chapters, figures numbered by chapter in the main matter
+\frontmatter
+\chapter{Preface}
+Front matter text.
+\begin{figure}\caption{A front figure}\end{figure}
+\mainmatter
+\chapter{First chapter}
+\begin{figure}\caption{A figure}\end{figure}
+\section{A section}
+Text.
+\appendix
+\chapter{An appendix}
+\begin{figure}\caption{An appendix figure}\end{figure}
+\backmatter
+\chapter{Afterword}
+\begin{figure}\caption{A back figure}\end{figure}
+\end{document}

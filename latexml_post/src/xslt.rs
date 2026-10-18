@@ -1126,6 +1126,10 @@ mod embedded_resources {
       include_str!("../resources/CSS/ltx-book.css"),
     ),
     (
+      "ltx-memoir.css",
+      include_str!("../resources/CSS/ltx-memoir.css"),
+    ),
+    (
       "ltx-listings.css",
       include_str!("../resources/CSS/ltx-listings.css"),
     ),

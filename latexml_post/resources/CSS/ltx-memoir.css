@@ -1,0 +1,36 @@
+/* memoir chapter styles (fork-only, fork/MEMOIR_ROADMAP.md M5). Each ltx:chapter / ltx:appendix carries the class
+   ltx_chapterstyle_<name> of the \chapterstyle in force where it opens (latexml_contrib/src/memoir_fork/chapters.rs);
+   the tag before the title ("1", "One", "Chapter 1") is chosen there, the look is chosen here. Sizes are relative to
+   the title's 250% of ltx-book.css, memoir's \chaptitlefont being \Huge (24.88pt at 10pt), \huge 20.74pt, \HUGE 29.86pt.
+   The book's own sizes stay for every style not listed. Rules follow memoir.cls:3390-3415 (ell) and :3340-3355 (demo2). */
+
+/* ell: the number, \HUGE sans-serif, right-aligned over a rule with a vertical rule at its right edge, then the title,
+   \huge sans-serif, right-aligned (chs@ell, memoir.cls:3390-3415; \chs@ell@helper is a tabularx cell `X|` + \hline). */
+.ltx_chapterstyle_ell > .ltx_title_chapter,
+.ltx_chapterstyle_ell > .ltx_title_appendix {
+  font-family: sans-serif; font-weight: normal; font-size: 207%; text-align: right; }
+.ltx_chapterstyle_ell > .ltx_title_chapter .ltx_tag,
+.ltx_chapterstyle_ell > .ltx_title_appendix .ltx_tag {
+  display: block; font-size: 144%; line-height: 1; text-align: right;
+  min-height: 1.4em; padding: 0.7em 0.12em 0.1em 0; margin-bottom: 0.5em;
+  border-bottom: 1px solid currentColor; border-right: 1px solid currentColor; }
+/* an unnumbered chapter still has the rule (\printchapternonum = \chs@ell@helper{}) */
+.ltx_chapterstyle_ell > .ltx_title_chapter:not(:has(.ltx_tag))::before,
+.ltx_chapterstyle_ell > .ltx_title_appendix:not(:has(.ltx_tag))::before {
+  content: ""; display: block; min-height: 2em; margin-bottom: 0.5em;
+  border-bottom: 1px solid currentColor; border-right: 1px solid currentColor; }
+
+/* demo2: the number, \chapnumfont (\huge bold), spelled out and centred; the title, \Huge sans-serif, right-aligned
+   between two rules (memoir.cls:3340-3355: \hrule before it, \hrule after it). */
+.ltx_chapterstyle_demo2 > .ltx_title_chapter,
+.ltx_chapterstyle_demo2 > .ltx_title_appendix {
+  font-family: sans-serif; font-weight: normal; font-size: 249%; text-align: right;
+  padding-bottom: 0.5em; border-bottom: 1px solid currentColor; }
+.ltx_chapterstyle_demo2 > .ltx_title_chapter .ltx_tag,
+.ltx_chapterstyle_demo2 > .ltx_title_appendix .ltx_tag {
+  display: block; font-family: serif; font-weight: bold; font-size: 83%; text-align: center;
+  padding-bottom: 0.8em; margin-bottom: 0.6em; border-bottom: 1px solid currentColor; }
+/* unnumbered: only the title between the rules */
+.ltx_chapterstyle_demo2 > .ltx_title_chapter:not(:has(.ltx_tag)),
+.ltx_chapterstyle_demo2 > .ltx_title_appendix:not(:has(.ltx_tag)) {
+  padding-top: 0.5em; border-top: 1px solid currentColor; }
