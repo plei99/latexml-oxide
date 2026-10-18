@@ -70,5 +70,23 @@ figures__ytableau	ok	Square boxes and entries as in the PDF, in text and in form
 matrices__spalign	partial	The left parenthesis of \spalignmat, \spalignaugmat and \spalignvector does not stretch.
 matrices__cellspace	ok	
 matrices__array	ok	
-memoir__chapters	partial	The table of contents lists the chapters but drops 1.1 Background, which \settocdepth{section} should include, and "Contents" is set as plain text, not as a heading.
+memoir__chapters	partial	The table of contents lists 1.1 Background under \settocdepth{section}, and "Contents" is a heading; the bianchi chapter style has no CSS of its own, so the head looks like a book's.
 biblatex__alphabetic	partial	Labels are alphabetic ([Har77], [Alp+20]) as in TeX, but a multi-key cite separates with "," where TeX uses ";", and the article title is set in italics instead of quoted.
+memoir_layout__secnumdepth	ok	
+memoir_layout__tocdepth	ok	
+memoir_layout__tocfonts	partial	The entry fonts are right (sans chapters, small-caps sections, italic subsections), but the \hfill in \cftsubsectionfont is dropped, so the subsection entry is not pushed to the right margin.
+memoir_layout__tocfont-default	ok	
+memoir_layout__layout	ok	
+memoir_layout__lists	ok	
+memoir_chapters__head-default	ok	
+memoir_chapters__head-ell	ok	
+memoir_chapters__head-demo2	ok	
+memoir_chapters__head-article	partial	The head is "1 Introduction" as in the PDF, but set at chapter size on two lines, not run in at section size.
+memoir_chapters__head-brotherton	ok	
+memoir_chapters__head-switch	ok	
+memoir_chapters__head-own-style	ok	
+memoir_chapters__appendix-default	ok	
+memoir_chapters__appendix-ell	ok	
+memoir_chapters__matter	ok	
+memoir_text__parskip-emulated	ok	
+memoir_text__sourceatright	ok	

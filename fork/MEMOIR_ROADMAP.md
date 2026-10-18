@@ -30,8 +30,24 @@ Measured 2026-10-17, binary `a20379aa1a1a` (checkout `2997f6c60`), with `fork/ox
 - **Binding.** `latexml_contrib/src/memoir_cls.rs` loads the real `memoir.cls` raw (12315 lines, TL 2026) and
   overrides four things on top: the three standard lists go to LaTeXML's `\lx@tableofcontents` family, the
   auto-tables (`\autorows`, `\autocols`, `{ctabular}`) reduce to `\tabular`, `\title`/`\author` define
-  `\thetitle`/`\theauthor`, and `\ch@ngetext` keeps one column. The file is 11 lines ahead of upstream (d3e175a1e)
-  and upstream still edits it (batches 46, 54, 62za).
+  `\thetitle`/`\theauthor`, and `\ch@ngetext` keeps one column. The file is ahead of upstream by d3e175a1e and by
+  one call, `crate::memoir_fork::load_definitions()`, and upstream still edits it (batches 46, 54, 62za).
+- **Fork bindings** (`latexml_contrib/src/memoir_fork/`, guards `cluster_package_guards/memoir_fork_*`, fixtures
+  `fork/fixtures/memoir_{layout,chapters,text}.tex`). Every memoir command the private corpus uses is native:
+  - `layout.rs`: `\setsecnumdepth`, `\maxsecnumdepth`, `\settocdepth`, `\maxtocdepth`, `\changetocdepth`; the
+    lists with `*`; `\setrmarg`; every per-level `\cft…` macro, with `\cft<level>font` styling the ToC entry (title
+    and number, numbered and unnumbered); the page-layout arithmetic (`\setfillsize`, `\setlrmarginsandblock`,
+    `\setulmarginsandblock`, `\checkthelayout`, `\fixthelayout`, `\checkandfixthelayout`), equal to pdfLaTeX's
+    lengths.
+  - `chapters.rs`: `\chapterstyle` sets the chapter tag from a table of memoir's 30 built-in styles ("Chapter 1",
+    "1", "1.", "One", "Chapter One", none) and the class `ltx_chapterstyle_<name>`, styled for `ell` and `demo2` in
+    `ltx-memoir.css`; `\appendix` makes `ltx:appendix` units ("Appendix A"); `\frontmatter`, `\mainmatter`,
+    `\backmatter`; the `article` option heads chapters with the number alone.
+  - `text.rs`: an explicit `\usepackage{parskip}` is a no-op (D2); `\sourceatright` is a right float ending its
+    paragraph.
+  - Already native before: `titlingpage` (titling binding), `abstract`, the booktabs rules, titlesec's sectioning.
+  Out of scope and left raw: page styles (`\pagestyle{simple}`, `\makepagestyle`) and the layout commands the corpus
+  does not use.
 - **Private corpus.** 32 of 264 documents are memoir. All convert with status 1, 0 errors, mean recall 97.1 (range
   93.1–99.7). They share one template, so they use few memoir commands: `\chapterstyle`, `\settocdepth`,
   `\setsecnumdepth` and the `\cftchapter*` ToC commands (31 documents each), the layout setters and `titlingpage`
@@ -91,8 +107,9 @@ or the binding reroutes the hook's information into the native construct (as `me
 ## Decisions
 
 - **D1. Raw class plus targeted overrides.** Keep loading `memoir.cls` raw. A hand-written binding cannot keep up
-  with 12k lines, and the raw load is what makes the manuals error-free. Override only where a native construct
-  must own the structure.
+  with 12k lines, and the raw load is what makes the manuals error-free. Override where a native construct must own
+  the structure, and every command the author's documents use (`memoir_fork/`), so that its effect reaches the
+  HTML or is a stated no-op.
 - **D2. Emulated packages.** memoir marks 27 packages loaded (`memoir.cls:12211-12253`, through
   `\EmulatedPackage`, `:135-152`), but the oxide loader ignores `\ver@<pkg>.sty` (`docs/SYNC_STATUS.md` K13), so a
   later `\usepackage{X}` loads oxide's X binding over memoir's definitions. A probe of each package under memoir
@@ -105,7 +122,8 @@ or the binding reroutes the hook's information into the native construct (as `me
   | breaks | epigraph (`\epigraphhead[70]` prints `70`), tocloft (literal `*` after starred lists), abstract (`undefined:\if@titlepage`) | skip the binding under memoir |
   | harmless | the rest | either |
 
-  Skip a binding per package from `memoir_cls.rs`, not by honouring `\ver@` globally: the global change broke
+  Skip a binding per package from the binding (`memoir_fork/text.rs`, `EMULATED_NOOP_PACKAGES`, which sets
+  `<pkg>.sty_loaded`; parskip so far), not by honouring `\ver@` globally: the global change broke
   abntex2's `\listoffigures*` (2605.08402) because the bindings carried semantics the emulation lacked. Separately,
   where memoir emulates a package whose binding is better and the document does *not* load it, memoir's own
   version must work. Today `\begin{enumerate}[(a)]` prints `[(a)]` and numbers 1., 2.
@@ -119,13 +137,20 @@ or the binding reroutes the hook's information into the native construct (as `me
   `OXIDIZED_DESIGN_DIVERGENCES.md` still defers memoir's T1 because `memoir_cls.rs` was "a minimal stub"; it no
   longer is. Decide it as part of the verse `\\>` row: the `>` typesets as `¿`, which is the OT1 slot.
 
+- **D5. Fork divergences.** Recorded here, not in upstream's `OXIDIZED_DESIGN_DIVERGENCES.md`:
+  - `sect04.rs`: a sectional unit keeps a toctitle whenever `\format@toctitle@font@<type>` is defined, numbered
+    or not (Perl `latex_constructs.pool.ltxml:639-640`, `:667-677` drop a font-only toctitle). Only memoir defines
+    the hook. A general fix, so an upstream candidate (D3).
+  - The chapter tag follows the chapter style; Perl has no memoir binding, so this is beyond Perl, not against it.
+  - `ltx-memoir.css` (chapter styles, the `\sourceatright` float) is fork presentation (M5).
+
 ## Milestones
 
 ### M0. Measurement
 
 - [ ] Turn the probe documents (`/tmp/memoir_probe/0[1-9]_*.tex`; `/tmp` does not last) into
       `fork/fixtures/memoir_*.tex` with `%% feature:` markers, one fixture per group, and a `STATUS.tsv` row per
-      feature. The existing `memoir__chapters` note is stale: "Contents" is a heading now (an `<h6>`).
+      feature.
 - [ ] A public benchmark script under `fork/` that converts memman, memexsupp, MemoirChapStyles and titlepages and
       compares their errors, warnings and word recall against pdfLaTeX. memman needs `trims-example.pdf` built
       first (memman.tex:190).
@@ -136,9 +161,12 @@ or the binding reroutes the hook's information into the native construct (as `me
 
 ### M1. What the corpus uses
 
-- [ ] `\settocdepth` in the preamble and mid-document. Root-cause first: memoir's default `tocdepth` is 1
-      (`memoir.cls:12126`), yet `memoir__chapters` loses section 1.1 under `\settocdepth{section}`. Mid-document
-      changes need per-entry depth in the ToC, which LaTeXML's post-processed ToC does not have yet.
+- [x] `\settocdepth` in the preamble. Cause: memoir sets `tocdepth` at once to `\toclevel@<name>` (section 0,
+      subsection 1; `memoir.cls:7644-7647`) and writes `\changetocdepth{<division level>}` into the .toc, which
+      pdfLaTeX's ToC reads on the next run; oxide has no .toc, so the ToC stopped one level short. Native: the
+      division level. Corpus 258's 56 subsections are back in its ToC.
+- [ ] `\settocdepth` mid-document, after `\tableofcontents`: needs per-entry depth in the ToC, which LaTeXML's
+      post-processed ToC does not have yet.
 - [ ] memoir with titlesec, and memoir with fancyhdr: confirm titlesec's `\titleformat` still yields the right
       headings and numbers after memoir's sectioning, and that fancyhdr stays silent. 31 and 23 documents depend
       on this.
@@ -163,11 +191,12 @@ or the binding reroutes the hook's information into the native construct (as `me
 ### M3. Numbers and structure
 
 - [ ] sidecaption's double counter step.
-- [ ] Appendices: "Appendix A", not "Chapter A", and `\appendixpage`'s ToC entry.
-- [ ] The `article` class option: no "Chapter" name.
+- [x] Appendices: "Appendix A", not "Chapter A" (abntex2's examples now read "APÊNDICE A"/"ANEXO A", as their PDFs).
+- [ ] `\appendixpage`'s ToC entry.
+- [x] The `article` class option: no "Chapter" name.
 - [ ] `\begin{enumerate}[(a)]` with memoir's own emulation (D2).
-- [ ] D2's policy: skip the appendix, ccaption, titleref, parskip, epigraph, tocloft and abstract bindings under
-      memoir, with a guard for each package.
+- [x] D2's policy for parskip.
+- [ ] D2's policy for appendix, ccaption, titleref, epigraph, tocloft and abstract, a guard for each package.
 - [ ] LoF/LoT entries: the number runs into the title.
 - [ ] `\contcaption` and `\bionenumcaption` as captions, not paragraphs; `\chapterprecis` into the ToC.
 
@@ -184,9 +213,11 @@ or the binding reroutes the hook's information into the native construct (as `me
 
 Each row needs the `surpass-perl` evaluation and a fork divergence record (D3).
 
-- [ ] `\chapterstyle`: a class on the chapter's heading per named style, with CSS for the styles in memman and
-      MemoirChapStyles. Start with the style the corpus uses.
-- [ ] `\setsecheadstyle` and its siblings; `\cftchapterfont` and its siblings in the ToC.
+- [x] `\chapterstyle`: the tag per style and a class on the unit, with CSS for `ell` and `demo2` (the corpus's).
+- [ ] CSS for the other styles in memman and MemoirChapStyles; the case changes of `thatcher`, `veelo` and
+      `bringhurst`, which the tag does not carry.
+- [x] `\cftchapterfont` and its siblings in the ToC.
+- [ ] `\setsecheadstyle` and its siblings.
 - [ ] Caption styles (`\captionstyle`, `\hangcaption`), `\hangpara`, `altverse`/`patverse` indentation,
       `\tightlists`/`\firmlists` spacing, `\footmarkstyle`, `dcolumn` alignment, `tabularx` width.
 
