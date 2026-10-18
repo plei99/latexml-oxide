@@ -1,7 +1,7 @@
 //! Text-level commands and memoir's emulated packages.
 use latexml_package::prelude::*;
 
-/// Packages memoir emulates (`\EmulatedPackage`, memoir.cls:130-152, :12205-12256) whose explicit
+/// Packages memoir emulates (`\EmulatedPackage`, memoir.cls:132-152, :12211-12253) whose explicit
 /// `\usepackage` is a no-op under pdfLaTeX (`\ver@<pkg>.sty` is set) and must be one here too, because oxide's
 /// loader does not read `\ver@` (`docs/SYNC_STATUS.md` K13) and so loads its own binding over memoir's
 /// definitions. Honouring `\ver@` globally broke abntex2 (2605.08402), hence this list (`fork/MEMOIR_ROADMAP.md`
@@ -29,7 +29,10 @@ LoadDefinitions!({
   // fits and drops to a right-aligned line of its own when it does not, as TeX's `\penalty50` allows. `text-align`
   // would not do: it applies to blocks, and the text is the paragraph's last inline. `#1` becomes the float's
   // `margin-left`, which a float keeps clear of the text it shares a line with. The `\par` is memoir's, so the
-  // paragraph ends here; the group keeps `\parfillskip` local.
+  // paragraph ends here; the group keeps `\parfillskip` local. A float is not contained by its paragraph, so when the
+  // last line is full the attribution would drop below the paragraph and sit beside the next one: `ltx-memoir.css`
+  // makes a paragraph holding such a float a block formatting context (`display:flow-root`), which keeps the float
+  // inside it.
   DefMacro!(
     "\\sourceatright[Default:2em]{}",
     "{\\unskip\\lx@memoir@sourceatright#1{#2}\\par}"

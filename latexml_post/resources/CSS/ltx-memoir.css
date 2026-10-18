@@ -34,3 +34,9 @@
 .ltx_chapterstyle_demo2 > .ltx_title_chapter:not(:has(.ltx_tag)),
 .ltx_chapterstyle_demo2 > .ltx_title_appendix:not(:has(.ltx_tag)) {
   padding-top: 0.5em; border-top: 1px solid currentColor; }
+
+/* \sourceatright (memoir.cls:4548): the attribution is a right float at the end of its paragraph's inline content
+   (latexml_contrib/src/memoir_fork/text.rs). A float is not contained by its block, so when the last line is full it
+   would drop below the paragraph and sit beside the next one: a paragraph holding such a float is a block formatting
+   context, which contains its floats. */
+.ltx_p:has(.ltx_align_floatright) { display: flow-root; }

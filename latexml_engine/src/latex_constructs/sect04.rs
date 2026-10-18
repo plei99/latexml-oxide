@@ -376,14 +376,35 @@ pub(crate) fn load() -> Result<()> {
       };
       props.insert("title", title_digested.into());
 
-      if let Some(toctitle) = toctitle_arg
-        && let Postponed(toctokens) = toctitle.data()
-          && !toctokens.is_empty() {
-            let toctitle_digested = digest(
-              Tokens!(T_CS!("\\lx@hidden@bgroup"),
-                toctokens.clone().unlist(), T_CS!("\\lx@hidden@egroup")))?;
-            props.insert("toctitle", toctitle_digested.into());
-          }
+      // The tokens Perl's explicit-toctitle branch (latex_constructs.pool.ltxml:667-677) digests behind
+      // `\lx@format@toctitle@font@@`: the explicit toctitle's. Deliberate divergence beside the one in
+      // `\@@numbered@section`: an entry in the list (a non-empty `inlist`) with no toctitle of its own takes its title
+      // as the toctitle when the type has a `\format@toctitle@font@<type>` (memoir's `\cft<level>font`), so an
+      // unnumbered entry (a front-matter `\chapter`, a heading deeper than `secnumdepth`) is typeset in the entry
+      // font as a numbered one is; Perl's unnumbered entry stays plain. A heading with no such hook is as Perl's.
+      let explicit_toctokens = match toctitle_arg.map(|t| t.data()) {
+        Some(Postponed(toctokens)) if !toctokens.is_empty() => Some(toctokens),
+        _ => None,
+      };
+      let toctokens = match (explicit_toctokens, title.data()) {
+        (Some(toctokens), _) => Some(toctokens),
+        (None, Postponed(title_tokens))
+          if !title_tokens.is_empty()
+            && !args[1].as_ref().is_some_and(|inlist| inlist.to_string().is_empty())
+            && lookup_definition(&T_CS!(s!("\\format@toctitle@font@{stype_str}")))?.is_some() =>
+        {
+          Some(title_tokens)
+        },
+        _ => None,
+      };
+      if let Some(toctokens) = toctokens {
+        let font = Invocation!(T_CS!("\\lx@format@toctitle@font@@"),
+          vec![Tokens::new(Explode!(stype_str))]);
+        let toctitle_digested = digest(
+          Tokens!(T_CS!("\\lx@hidden@bgroup"), font,
+            toctokens.clone().unlist(), T_CS!("\\lx@hidden@egroup")))?;
+        props.insert("toctitle", toctitle_digested.into());
+      }
       Ok(props)
     },
     after_digest => sub[whatsit] { after_heading_hook(whatsit)?; }

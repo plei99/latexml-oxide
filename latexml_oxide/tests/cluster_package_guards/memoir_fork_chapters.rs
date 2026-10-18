@@ -6,9 +6,17 @@
 //! `\appendix`, `\frontmatter`, `\mainmatter` and `\backmatter` are native. Cross-references keep the plain number.
 
 /// Convert `tex` as the corpus does (`[rawstyles,rawclasses]` preload) and return stderr and the XML.
-fn convert_memoir(tex: &str) -> (String, String) {
+fn convert_memoir(tex: &str) -> (String, String) { convert_memoir_with(tex, &[]) }
+
+/// The same with `preloads` (file name, contents) written beside `m.tex` and preloaded before memoir loads.
+fn convert_memoir_with(tex: &str, preloads: &[(&str, &str)]) -> (String, String) {
   let workdir = tempfile::tempdir().expect("create tempdir");
   std::fs::write(workdir.path().join("m.tex"), tex).expect("write m.tex");
+  let mut preload_args = Vec::new();
+  for (name, contents) in preloads {
+    std::fs::write(workdir.path().join(name), contents).expect("write preload");
+    preload_args.push(format!("--preload={name}"));
+  }
   let output = std::process::Command::new(env!("CARGO_BIN_EXE_latexml_oxide"))
     .args([
       "m.tex",
@@ -17,6 +25,7 @@ fn convert_memoir(tex: &str) -> (String, String) {
       "--timeout=110",
       "--preload=[rawstyles,rawclasses]latexml.sty",
     ])
+    .args(&preload_args)
     .current_dir(workdir.path())
     .output()
     .expect("spawn latexml_oxide");
@@ -55,6 +64,15 @@ fn head<'a>(xml: &'a str, title: &str) -> (&'a str, &'a str) {
     &xml[unit_start..=unit_end],
     &xml[title_start..end + title.len() + "</title>".len()],
   )
+}
+
+/// The element kind (`chapter` or `appendix`) of the unit that [`head`] found.
+fn unit_kind(unit: &str) -> &str {
+  unit
+    .trim_start_matches('<')
+    .split_whitespace()
+    .next()
+    .unwrap_or_default()
 }
 
 fn assert_head(xml: &str, title: &str, tag: &str, class: &str) {
@@ -119,7 +137,7 @@ fn chapter_heads_follow_the_chapterstyle() {
   assert_head(&xml, "Alpha", "Chapter 1", "default");
   // `ell` (memoir.cls:3390): the number alone.
   assert_head(&xml, "Beta", "2", "ell");
-  // `demo2` (:3340-3355): the number as a word. References keep the plain number and the typeref name.
+  // `demo2` (:3340): the number as a word. References keep the plain number and the typeref name.
   assert_head(&xml, "Gamma", "Three", "demo2");
   assert_refs(&xml, "Gamma", "3", "Chapter 3");
   // `brotherton` (:3295): the name and the number as a word.
@@ -135,7 +153,7 @@ fn chapter_heads_follow_the_chapterstyle() {
   assert_head(&xml, "Iota", "Chapter 8", "mine");
   // An undefined style changes nothing, as memoir's `\@nameuse` changes nothing.
   assert_head(&xml, "Kappa", "Chapter 9", "mine");
-  // `demo2` spells the chapters out but letters the appendix (`\ifanappendix \thechapter`, :3343).
+  // `demo2` spells the chapters out but letters the appendix (`\ifanappendix \thechapter`, :3344).
   assert_head(&xml, "Lambda", "A", "demo2");
   assert!(head(&xml, "Lambda").0.starts_with("<appendix "), "{xml}");
   // The look is a fork resource, served from the binary.
@@ -159,10 +177,10 @@ const APPENDIX: &str = "\\documentclass{memoir}\n\\begin{document}\n\
 fn appendix_and_matter() {
   let (stderr, xml) = convert_memoir(APPENDIX);
   assert_only_the_memoir_warning(&stderr);
-  // memoir.cls:2721 `\frontmatter`: `secnumdepth` -10, so a numbered `\chapter` is not numbered.
+  // memoir.cls:2723 `\frontmatter`: `secnumdepth` -10, so a numbered `\chapter` is not numbered.
   assert_untagged_head(&xml, "Preface", "default");
   assert_untagged_head(&xml, "Foreword", "default");
-  // `\mainmatter` (:2744) numbers again, from 1.
+  // `\mainmatter` (:2738) numbers again, from 1.
   assert_head(&xml, "First", "Chapter 1", "default");
   // `\appendix` (:4297) makes appendix units, named by `\appendixname` and lettered; the chapter section counter
   // restarts, and the references keep the letter.
@@ -174,7 +192,8 @@ fn appendix_and_matter() {
     xml.contains("<tag close=\" \">A.1</tag>Sub"),
     "the appendix's section is A.1:\n{xml}"
   );
-  // The floats count per chapter in the main matter only (:2740-2760), a plain count in front and back matter.
+  // The floats count per chapter in the main matter only (`\@memfront@floats` :2726, `\@memmain@floats` :2740,
+  // `\@memback@floats` :2760), a plain count in front and back matter.
   for (caption, number) in [
     ("front", "1"),
     ("main", "1.1"),
@@ -188,7 +207,41 @@ fn appendix_and_matter() {
       "the {caption} figure is Figure {number}:\n{xml}"
     );
   }
+  // `\backmatter` ends the appendices (:2766): the Afterword is a chapter again, which memoir writes to the ToC as
+  // `chapter` (:3071). The next test checks the ToC.
   assert_untagged_head(&xml, "Afterword", "default");
+  assert_eq!(
+    unit_kind(head(&xml, "Afterword").0),
+    "chapter",
+    "the back matter chapter is not an appendix:\n{xml}"
+  );
+  assert_eq!(unit_kind(head(&xml, "More").0), "appendix", "{xml}");
+}
+
+/// A chapter in the back matter after `\appendix` is a chapter in the document and a `chapter` entry in the ToC
+/// (memoir.cls:3071, an unnumbered chapter; the appendix kind is the numbered chapter under `\ifanappendix`, :3061),
+/// while the lettered appendices before it keep `ltx:appendix` and their ToC kind.
+#[test]
+fn backmatter_after_appendix_is_a_chapter() {
+  let (stderr, xml, html) = super::memoir_fork_layout::convert_xml_then_html(
+    "\\documentclass{memoir}\n\\begin{document}\n\\tableofcontents\n\\mainmatter\n\\chapter{First}\n\
+     \\appendix\n\\chapter{Extra}\n\\backmatter\n\\chapter{Afterword}\n\\end{document}\n",
+  );
+  assert_only_the_memoir_warning(&stderr);
+  assert_eq!(unit_kind(head(&xml, "Extra").0), "appendix", "{xml}");
+  assert_eq!(unit_kind(head(&xml, "Afterword").0), "chapter", "{xml}");
+  let kinds: Vec<&str> = html
+    .match_indices("<li class=\"ltx_tocentry ltx_tocentry_")
+    .map(|(at, open)| {
+      let rest = &html[at + open.len()..];
+      &rest[..rest.find('"').expect("closing quote")]
+    })
+    .collect();
+  assert_eq!(kinds, ["chapter", "appendix", "chapter"], "{html}");
+  assert!(
+    html.contains("ltx_tocentry_chapter\"><a href=\"#chapterx1\""),
+    "the Afterword entry is a chapter entry:\n{html}"
+  );
 }
 
 #[test]
@@ -206,7 +259,7 @@ fn ell_appendix_is_the_letter() {
 
 #[test]
 fn article_option_heads_have_no_chapter_name() {
-  // memoir.cls:580-582, :12166: the `article` option runs `\chapterstyle{article}` while the class loads.
+  // memoir.cls:580-582, :12167: the `article` option runs `\chapterstyle{article}` while the class loads.
   let (stderr, xml) = convert_memoir(
     "\\documentclass[article]{memoir}\n\\begin{document}\n\\chapter{Introduction}\n\\chapter{Method}\n\
      \\appendix\n\\chapter{Proofs}\n\\end{document}\n",
@@ -215,4 +268,48 @@ fn article_option_heads_have_no_chapter_name() {
   assert_head(&xml, "Introduction", "1", "article");
   assert_head(&xml, "Method", "2", "article");
   assert_head(&xml, "Proofs", "A", "article");
+}
+
+/// What the tag can carry of a style's punctuation, from memoir.cls: `verville` prints `\thechapter.\ ` (:3555), "1.
+/// Title" (and "A. Title" for an appendix), `dash` a rule, the number and a rule (:3331-3332), read as "- 1 -"
+/// with en dashes, and `culver` renews `\thechapter` as `\Roman{chapter}` (:3316), which the number follows. pdfLaTeX
+/// prints "1. Title" and "XIII" for the first and third.
+#[test]
+fn style_punctuation_and_numerals_are_in_the_tag() {
+  let (stderr, xml) = convert_memoir(
+    "\\documentclass{memoir}\n\\begin{document}\n\
+     \\chapterstyle{dash}\n\\chapter{Dsh}\n\
+     \\chapterstyle{verville}\n\\chapter{Vrv}\n\
+     \\chapterstyle{culver}\n\\chapter{Clv}\n\
+     \\appendix\n\\chapterstyle{verville}\n\\chapter{AppV}\n\
+     \\chapterstyle{dash}\n\\chapter{AppD}\n\\end{document}\n",
+  );
+  assert_only_the_memoir_warning(&stderr);
+  assert_head(&xml, "Dsh", "\u{2013} 1 \u{2013}", "dash");
+  assert_head(&xml, "Vrv", "2.", "verville");
+  assert_head(&xml, "Clv", "III", "culver");
+  assert_head(&xml, "AppV", "A.", "verville");
+  assert_head(&xml, "AppD", "\u{2013} B \u{2013}", "dash");
+  // The references keep the plain number.
+  assert_refs(&xml, "Vrv", "2", "Chapter 2");
+}
+
+/// A hook another binding defined before memoir loads (`\lx@startsection@afterhook`, as svmult's `\motto`) is called
+/// after the style's class is put on the unit, and not replaced by it.
+#[test]
+fn another_bindings_afterhook_is_kept() {
+  let (stderr, xml) = convert_memoir_with(
+    "\\documentclass{memoir}\n\\begin{document}\n\\chapterstyle{ell}\n\\chapter{First}\nBody.\n\\end{document}\n",
+    &[(
+      "pre.sty",
+      "\\ProvidesPackage{pre}\n\\makeatletter\n\\def\\lx@startsection@afterhook#1#2{\\par\\textit{Hook:#1:#2}\\par}\n\
+       \\makeatother\n",
+    )],
+  );
+  assert_only_the_memoir_warning(&stderr);
+  assert_head(&xml, "First", "1", "ell");
+  assert!(
+    xml.contains("<p><text font=\"italic\">Hook:chapter:toc</text></p>"),
+    "the earlier hook ran, inside the chapter:\n{xml}"
+  );
 }

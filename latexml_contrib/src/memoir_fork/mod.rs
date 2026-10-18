@@ -11,6 +11,8 @@ mod layout;
 mod text;
 
 LoadDefinitions!({
+  // The fork's presentation (chapter styles, the `\sourceatright` float), required whenever memoir is loaded.
+  RequireResource!("ltx-memoir.css");
   layout::load_definitions()?;
   chapters::load_definitions()?;
   text::load_definitions()?;

@@ -10,7 +10,7 @@ const RAW: &str = "--preload=[rawstyles,rawclasses]latexml.sty";
 
 /// Convert `t.tex` to core XML, then post-process that XML alone to HTML. Returns the ANSI-stripped stderr of the core
 /// run, the core XML and the HTML.
-fn convert_xml_then_html(tex: &str) -> (String, String, String) {
+pub(super) fn convert_xml_then_html(tex: &str) -> (String, String, String) {
   let bin = env!("CARGO_BIN_EXE_latexml_oxide");
   let workdir = tempfile::tempdir().expect("create tempdir");
   std::fs::write(workdir.path().join("t.tex"), tex).expect("write t.tex");
@@ -71,6 +71,14 @@ fn toc_entry<'a>(html: &'a str, kind: &str, title: &str) -> Option<&'a str> {
     .find(|entry| entry.contains(title))
 }
 
+/// Whether the ToC entry `entry` (from [`toc_entry`]) has exactly `inner` as the content of its link, so the tag and
+/// each font span between the entry's link and its title are as given.
+fn entry_reads(entry: &str, inner: &str) -> bool {
+  entry.contains(&format!(
+    "<span class=\"ltx_text ltx_ref_title\">{inner}</span></a>"
+  ))
+}
+
 fn count_entries(html: &str, kind: &str) -> usize {
   html
     .matches(&format!("<li class=\"ltx_tocentry ltx_tocentry_{kind}\">"))
@@ -83,7 +91,8 @@ const DEPTHS: &str = "\\documentclass{memoir}\n\\setsecnumdepth{subsection}\n\\s
 
 /// `\setsecnumdepth{subsection}` numbers down to subsections and `\settocdepth{subsection}` lists them: memoir's
 /// default ToC stops at sections (memoir.cls:12126), and the `\addtocontents{toc}{\changetocdepth{2}}` memoir writes
-/// is a no-op here, so the preamble call did nothing.
+/// (:7631-7647) is a no-op here, so the preamble call did nothing. The counter is set to the division level 2 (not to
+/// `\toclevel@subsection`, 1), the depth pdfLaTeX's typeset ToC has once the `.toc` has been read.
 #[test]
 fn settocdepth_and_setsecnumdepth_reach_the_document() {
   let (stderr, xml, html) = convert_xml_then_html(DEPTHS);
@@ -115,6 +124,7 @@ const SHALLOW: &str = "\\documentclass{memoir}\n\\settocdepth{chapter}\n\\setsec
 fn division_names_set_the_levels() {
   let (stderr, xml, html) = convert_xml_then_html(SHALLOW);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_heads(&stderr), [CLASS_LOAD_WARNING], "{stderr}");
   assert_eq!(count_entries(&html, "chapter"), 1, "{html}");
   assert_eq!(count_entries(&html, "section"), 0, "{html}");
   assert!(
@@ -126,27 +136,63 @@ fn division_names_set_the_levels() {
 const UNKNOWN: &str = "\\documentclass{memoir}\n\\setsecnumdepth{bogus}\n\\settocdepth{nonsense}\n\
                        \\begin{document}\n\\chapter{First}\nBody.\n\\end{document}\n";
 
-/// An unknown division name is memoir's error, one per command (memoir.cls:7557-7563, 7649-7655), and changes
-/// nothing.
+/// An unknown division name is memoir's error: `\setsecnumdepth` in the preamble runs `\@setclcnt` twice (the depth and
+/// its limit, memoir.cls:7747-7753), `\settocdepth` once (:7650-7655). pdfLaTeX (TeX Live 2026) on this document
+/// reports 3 `! Class memoir Error` (bogus twice, nonsense once). Nothing changes, and no warning is added.
 #[test]
 fn unknown_division_name_is_memoirs_error() {
   let (stderr, _xml, _html) = convert_xml_then_html(UNKNOWN);
-  assert_eq!(error_count(&stderr), 2, "{stderr}");
-  assert!(
-    stderr.contains("Unknown document division name (bogus)"),
+  assert_eq!(error_count(&stderr), 3, "{stderr}");
+  assert_eq!(
+    stderr
+      .matches("Unknown document division name (bogus)")
+      .count(),
+    2,
     "{stderr}"
   );
-  assert!(
-    stderr.contains("Unknown document division name (nonsense)"),
+  assert_eq!(
+    stderr
+      .matches("Unknown document division name (nonsense)")
+      .count(),
+    1,
     "{stderr}"
   );
+  assert_eq!(warning_heads(&stderr), [CLASS_LOAD_WARNING], "{stderr}");
+}
+
+const UNKNOWN_LATER: &str = "\\documentclass{memoir}\n\\maxsecnumdepth{bogus}\n\\begin{document}\n\\setsecnumdepth{later}\n\
+                             \\chapter{First}\nBody.\n\\end{document}\n";
+
+/// `\maxsecnumdepth` runs `\@setclcnt` for both counters whenever it is called (two errors), and `\setsecnumdepth`
+/// inside the document only for the depth (one): pdfLaTeX reports 3 `! Class memoir Error` here (bogus twice, later
+/// once).
+#[test]
+fn unknown_division_name_errors_per_setclcnt_call() {
+  let (stderr, _xml, _html) = convert_xml_then_html(UNKNOWN_LATER);
+  assert_eq!(error_count(&stderr), 3, "{stderr}");
+  assert_eq!(
+    stderr
+      .matches("Unknown document division name (bogus)")
+      .count(),
+    2,
+    "{stderr}"
+  );
+  assert_eq!(
+    stderr
+      .matches("Unknown document division name (later)")
+      .count(),
+    1,
+    "{stderr}"
+  );
+  assert_eq!(warning_heads(&stderr), [CLASS_LOAD_WARNING], "{stderr}");
 }
 
 const FONT_DOC: &str = "\\documentclass{memoir}\n\\begin{document}\n\\tableofcontents\n\\chapter{First}\n\\section{Alpha}\n\
                         Body.\n\\end{document}\n";
 
-/// memoir's own `\cftchapterfont` is `\bfseries` (memoir.cls:7433) and the deeper levels `\normalfont`: the chapter
-/// ToC entry is bold, the section entry carries no font.
+/// memoir's own `\cftchapterfont` is `\bfseries` (memoir.cls:7436) and the deeper levels `\normalfont`: the chapter
+/// ToC entry is bold, number and title (memoir sets both in `{\cftchapterfont {#1}}`, :7406), the section entry
+/// carries no font.
 #[test]
 fn toc_chapter_entries_are_bold_by_default() {
   let (stderr, _xml, html) = convert_xml_then_html(FONT_DOC);
@@ -154,18 +200,28 @@ fn toc_chapter_entries_are_bold_by_default() {
   assert_eq!(warning_heads(&stderr), [CLASS_LOAD_WARNING], "{stderr}");
   let chapter = toc_entry(&html, "chapter", "First").expect("a chapter entry");
   assert!(
-    chapter.contains("<span class=\"ltx_text ltx_font_bold\">First</span>"),
+    entry_reads(
+      chapter,
+      "<span class=\"ltx_tag ltx_tag_ref\"><span class=\"ltx_text ltx_font_bold\">1</span> </span>\
+       <span class=\"ltx_text ltx_font_bold\">First</span>"
+    ),
     "{chapter}"
   );
   let section = toc_entry(&html, "section", "Alpha").expect("a section entry");
-  assert!(!section.contains("ltx_font_"), "{section}");
+  assert!(
+    entry_reads(
+      section,
+      "<span class=\"ltx_tag ltx_tag_ref\">1.1 </span>Alpha"
+    ),
+    "{section}"
+  );
 }
 
 const FONT_RENEWED: &str = "\\documentclass{memoir}\n\\renewcommand\\cftchapterfont{\\hfill\\sffamily}\n\
                             \\begin{document}\n\\tableofcontents\n\\chapter{First}\nBody.\n\\end{document}\n";
 
-/// A renewed `\cftchapterfont` is the entry's font, and the `\hfill` the author put in it to place the entry on a
-/// line is dropped: neither a stray space nor a fill reaches the title.
+/// A renewed `\cftchapterfont` is the entry's font for its number and its title, and the `\hfill` the author put in it
+/// to place the entry on a line is dropped: neither a stray space nor a fill reaches the entry.
 #[test]
 fn renewed_cft_font_reaches_the_toc_entry() {
   let (stderr, _xml, html) = convert_xml_then_html(FONT_RENEWED);
@@ -173,7 +229,11 @@ fn renewed_cft_font_reaches_the_toc_entry() {
   assert_eq!(warning_heads(&stderr), [CLASS_LOAD_WARNING], "{stderr}");
   let chapter = toc_entry(&html, "chapter", "First").expect("a chapter entry");
   assert!(
-    chapter.contains("<span class=\"ltx_tag ltx_tag_ref\">1 </span><span class=\"ltx_text ltx_font_sansserif\">First</span>"),
+    entry_reads(
+      chapter,
+      "<span class=\"ltx_tag ltx_tag_ref\"><span class=\"ltx_text ltx_font_sansserif\">1</span> </span>\
+       <span class=\"ltx_text ltx_font_sansserif\">First</span>"
+    ),
     "{chapter}"
   );
 }
@@ -184,21 +244,80 @@ const SECTION_FONTS: &str = "\\documentclass{memoir}\n\\setsecnumdepth{subsectio
                              \\begin{document}\n\\tableofcontents\n\\chapter{First}\n\\section{Alpha}\n\
                              \\subsection{Detail}\nBody.\n\\end{document}\n";
 
-/// The same for the numbered levels below the chapter. Their ToC title reads like the heading's, so it reaches the ToC
-/// only because `\@@numbered@section` (sect04.rs) keeps a toctitle whose `\format@toctitle@font@<type>` is defined.
+/// The same for the numbered levels below the chapter, number and title in the one font. Their ToC title reads like the
+/// heading's, so it reaches the ToC only because `\@@numbered@section` (sect04.rs) keeps a toctitle whose
+/// `\format@toctitle@font@<type>` is defined. The `\hfill` in `\cftsectionfont` is dropped.
 #[test]
 fn renewed_cft_font_reaches_section_entries() {
   let (stderr, _xml, html) = convert_xml_then_html(SECTION_FONTS);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_heads(&stderr), [CLASS_LOAD_WARNING], "{stderr}");
   let section = toc_entry(&html, "section", "Alpha").expect("a section entry");
   assert!(
-    section.contains("<span class=\"ltx_text ltx_font_bold\">Alpha</span>"),
+    entry_reads(
+      section,
+      "<span class=\"ltx_tag ltx_tag_ref\"><span class=\"ltx_text ltx_font_bold\">1.1</span> </span>\
+       <span class=\"ltx_text ltx_font_bold\">Alpha</span>"
+    ),
     "{section}"
   );
   let subsection = toc_entry(&html, "subsection", "Detail").expect("a subsection entry");
   assert!(
-    subsection.contains("<span class=\"ltx_text ltx_font_italic\">Detail</span>"),
+    entry_reads(
+      subsection,
+      "<span class=\"ltx_tag ltx_tag_ref\"><span class=\"ltx_text ltx_font_italic\">1.1.1</span> </span>\
+       <span class=\"ltx_text ltx_font_italic\">Detail</span>"
+    ),
     "{subsection}"
+  );
+}
+
+const UNNUMBERED_FONTS: &str = "\\documentclass{memoir}\n\\settocdepth{subsection}\n\
+                                \\renewcommand*{\\cftsubsectionfont}{\\itshape}\n\
+                                \\begin{document}\n\\tableofcontents\n\\frontmatter\n\\chapter{Preface}\n\\chapter*{Starred}\n\
+                                \\mainmatter\n\\chapter{First}\n\\section{Alpha}\n\\subsection{Unnumbered}\nBody.\n\\end{document}\n";
+
+/// Entries without a number are typeset in the entry font too: a front-matter `\chapter` (`secnumdepth` -10), and a
+/// subsection past the default `secnumdepth` (memoir.cls:12128, section). Perl's unnumbered section stays plain unless
+/// it has a toctitle of its own; `\@@unnumbered@section` (sect04.rs) takes the title as the toctitle when the type has a
+/// `\format@toctitle@font@<type>`. A starred `\chapter*` is not in the ToC (memoir.cls:3132-3148 `\@m@mschapter` writes no
+/// entry), and has none here.
+#[test]
+fn unnumbered_toc_entries_are_in_the_entry_font() {
+  let (stderr, _xml, html) = convert_xml_then_html(UNNUMBERED_FONTS);
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_heads(&stderr), [CLASS_LOAD_WARNING], "{stderr}");
+  let preface = toc_entry(&html, "chapter", "Preface").expect("the front matter chapter");
+  assert!(
+    entry_reads(
+      preface,
+      "<span class=\"ltx_text ltx_font_bold\">Preface</span>"
+    ),
+    "{preface}"
+  );
+  let unnumbered = toc_entry(&html, "subsection", "Unnumbered").expect("the unnumbered subsection");
+  assert!(
+    entry_reads(
+      unnumbered,
+      "<span class=\"ltx_text ltx_font_italic\">Unnumbered</span>"
+    ),
+    "{unnumbered}"
+  );
+  assert_eq!(
+    count_entries(&html, "chapter"),
+    2,
+    "Preface and First, not the starred chapter:\n{html}"
+  );
+  assert!(toc_entry(&html, "chapter", "Starred").is_none(), "{html}");
+  // The numbered chapter keeps its tag, in the font.
+  let first = toc_entry(&html, "chapter", "First").expect("the numbered chapter");
+  assert!(
+    entry_reads(
+      first,
+      "<span class=\"ltx_tag ltx_tag_ref\"><span class=\"ltx_text ltx_font_bold\">1</span> </span>\
+       <span class=\"ltx_text ltx_font_bold\">First</span>"
+    ),
+    "{first}"
   );
 }
 
@@ -310,6 +429,27 @@ fn page_layout_lengths_equal_pdflatexs() {
   }
 }
 
+/// The class option `fullptlayout` makes `\mem@settopoint` a `\@gobble` (memoir.cls:610), so `\fixthelayout` keeps the
+/// fractions of a point that the default drops (the same layout as the second row of [`LAYOUTS`], whose text width is
+/// 400.0pt there): memoir's own macro decides, in `\fixthelayout`'s tail. pdfLaTeX gives the values below.
+#[test]
+fn fullptlayout_keeps_the_fractions() {
+  let tex = "\\documentclass[fullptlayout]{memoir}\n\
+    \\setlrmarginsandblock{3cm}{*}{1.5}\\setulmarginsandblock{*}{2in}{0.75}\\checkandfixthelayout[lines]\n\
+    \\begin{document}\n\\chapter{A}\n\
+    textwidth=\\the\\textwidth; oddsidemargin=\\the\\oddsidemargin; evensidemargin=\\the\\evensidemargin; \
+    columnwidth=\\the\\columnwidth;\n\\end{document}\n";
+  let (stderr, xml, _html) = convert_xml_then_html(tex);
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_heads(&stderr), [CLASS_LOAD_WARNING], "{stderr}");
+  assert!(
+    xml.contains(
+      "textwidth=400.89935pt; oddsidemargin=13.08827pt; evensidemargin=55.7674pt; columnwidth=400.89935pt;"
+    ),
+    "{xml}"
+  );
+}
+
 /// The combination memoir cannot resolve (all three open), an unknown height algorithm and a layout too wide for its
 /// paper (no text width left, for each check) are memoir's own messages, as pdfLaTeX prints them.
 #[test]
@@ -333,7 +473,7 @@ fn page_layout_misuse_is_memoirs_report() {
       "Warning:latex:(memoir)",
       "Warning:latex:(memoir)"
     ],
-    "one non-positive-width warning per check, as pdfLaTeX (memoir.cls:1103):\n{stderr}"
+    "one non-positive-width warning per check, as pdfLaTeX (memoir.cls:1100, 1030-1033):\n{stderr}"
   );
   assert!(
     stderr.contains("\\textwidth is zero or negative"),

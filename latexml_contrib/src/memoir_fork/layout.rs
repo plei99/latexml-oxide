@@ -63,6 +63,14 @@ fn set_division_counter(name: &str, counter: &str) -> Result<Tokens> {
   }
 }
 
+/// `\@setclcnt{name}{secnumdepth}\@setclcnt{name}{maxsecnumdepth}` (memoir.cls:7744-7753): two calls, so an unknown
+/// name raises the error twice, as pdfLaTeX does.
+fn set_both_division_counters(name: &str) -> Result<Tokens> {
+  let mut tokens = set_division_counter(name, "secnumdepth")?.unlist();
+  tokens.extend(set_division_counter(name, "maxsecnumdepth")?.unlist());
+  Ok(Tokens::new(tokens))
+}
+
 // --- Page layout ---------------------------------------------------------------------------------------------------
 
 /// memoir's `\nametest{#}{*}` (memoir.cls:87-96): the argument is the one token `*`.
@@ -193,21 +201,6 @@ fn ambiguous_fill_size() -> Tokens {
     "The combination of argument values is ambiguous.\\MessageBreak The lengths will be set to zero",
     "\\@ehd",
   )
-}
-
-/// `\mem@settopoint\<length>` (memoir.cls:609): drop the length's fraction of a point, `\divide#1\p@\multiply#1\p@`
-/// (latex.ltx:10453). memoir's `fullptlayout` option makes it `\@gobble` (memoir.cls:610).
-fn set_to_point(cs: &str) -> Result<()> {
-  let full_pt_layout = lookup_definition(&T_CS!("\\mem@settopoint"))?
-    .and_then(|defn| match defn.get_expansion() {
-      Some(ExpansionBody::Tokens(body)) => Some(body.to_string().contains("@gobble")),
-      _ => None,
-    })
-    .unwrap_or(false);
-  if !full_pt_layout {
-    set_dimen_reg(cs, dimen_reg(cs) / 65536 * 65536)?;
-  }
-  Ok(())
 }
 
 /// How a line count rounds in `\checkthelayout` (memoir.cls:1039-1061): `\textheight` becomes `n` baselines plus a
@@ -378,11 +371,11 @@ fn fix_the_layout() -> Result<Tokens> {
     "\\evensidemargin",
     d("trimedge") + d("foremargin") - one_inch,
   )?;
-  set_to_point("\\textwidth")?;
-  set_to_point("\\oddsidemargin")?;
-  set_to_point("\\evensidemargin")?;
+  // `\mem@settopoint` (memoir.cls:609-610) drops the fraction of a point, and memoir's `fullptlayout` option makes it
+  // `\@gobble`: memoir's own macro decides, run before the header widths are fixed (:1222-1224).
   Ok(tex(
-    "\\fixheaderwidths\\memifmacroused\\setmarginnotes{}{\\mem@autoadjust@marginparwidth}\\mem@reset@used@macros",
+    "\\mem@settopoint\\textwidth\\mem@settopoint\\oddsidemargin\\mem@settopoint\\evensidemargin\
+     \\fixheaderwidths\\memifmacroused\\setmarginnotes{}{\\mem@autoadjust@marginparwidth}\\mem@reset@used@macros",
   ))
 }
 
@@ -429,7 +422,10 @@ fn toc_entry_font(level: &str) -> Result<Tokens> {
     // a closure or a macro with parameters: its call is all there is to give
     return Ok(Tokens::new(vec![cs]));
   };
-  if defn.get_parameters().is_some_and(|p| !p.get_num_args() > 0) {
+  if defn
+    .get_parameters()
+    .is_some_and(|p| !p.get_parameters().is_empty())
+  {
     return Ok(Tokens::new(vec![cs]));
   }
   Ok(Tokens::new(
@@ -547,32 +543,36 @@ LoadDefinitions!({
   DefMacro!("\\@setclcnt Expanded Expanded", sub[(name, counter)] {
     set_division_counter(&name.to_string(), &counter.to_string())
   });
-  // memoir.cls:7741-7745: the limit for either counter, kept at the highest level a document may ask for
+  // memoir.cls:7741-7746: the limit for either counter, kept at the highest level a document may ask for
   DefMacro!("\\maxtocdepth Expanded", sub[(name)] {
     set_division_counter(&name.to_string(), "tocdepth")
   });
   DefMacro!("\\maxsecnumdepth Expanded", sub[(name)] {
-    let name = name.to_string();
-    let first = set_division_counter(&name, "secnumdepth")?;
-    if first.is_empty() { set_division_counter(&name, "maxsecnumdepth") } else { Ok(first) }
+    set_both_division_counters(&name.to_string())
   });
-  // memoir.cls:7747-7753: in the preamble both the depth and its limit, afterwards the depth alone
+  // memoir.cls:7747-7753: in the preamble both the depth and its limit, afterwards the depth alone. Both calls run
+  // whatever the first one did, so an unknown name is reported once per call (pdfLaTeX: two errors in the preamble).
   DefMacro!("\\setsecnumdepth Expanded", sub[(name)] {
     let name = name.to_string();
-    let first = set_division_counter(&name, "secnumdepth")?;
-    if first.is_empty() && !x_equals(&T_CS!("\\@nodocument"), &T_CS!("\\relax")) {
-      set_division_counter(&name, "maxsecnumdepth")
+    if x_equals(&T_CS!("\\@nodocument"), &T_CS!("\\relax")) {
+      set_division_counter(&name, "secnumdepth")
     } else {
-      Ok(first)
+      set_both_division_counters(&name)
     }
   });
   // memoir.cls:7739
   DefMacro!("\\changetocdepth{}", "\\setcounter{tocdepth}{#1}");
-  // memoir.cls:7631-7669: `\settocdepth@` has `\addtocontents{toc}{\changetocdepth{N}}` write the depth into
-  // the `.toc` for the next run to read, which LaTeXML does not (it builds the ToC from the document and reads
-  // `tocdepth` when `\tableofcontents` is digested, latex_constructs.pool.ltxml:731-740), so the counter is set at
-  // once. A `\settocdepth` after `\tableofcontents` therefore cannot reach the ToC that is already built. The star
-  // form only adds a `\clearpage` in memoir (memoir.cls:7658-7663).
+  // memoir.cls:7631-7669. `\settocdepth@` does two things for a known division name: it writes
+  // `\addtocontents{toc}{\changetocdepth{<division level>}}` (section 1, subsection 2, ...: `\@setclcnt`'s table), and
+  // it sets `tocdepth` at once to `\toclevel@<name>` (:7644-7647), which `\newlistentry` made one less for the
+  // numbered divisions (section 0, subsection 1, :7229 and :7458-7466; chapter, part and book agree with the
+  // division level). pdfLaTeX's typeset ToC is the one the next run builds from the `.toc`, where the written
+  // `\changetocdepth` has set the division level before the entries, and `\l@section` lists a section when
+  // `tocdepth > 0` (:7172-7173): so `\settocdepth{subsection}` shows subsections. LaTeXML builds the ToC from the
+  // document and reads `tocdepth` when `\tableofcontents` is digested (latex_constructs.pool.ltxml:731-740), with
+  // no `.toc` to carry the written value, so the counter is set to the division level, the one that matches the
+  // typeset ToC; `\toclevel@<name>` would list one level too few. A `\settocdepth` after `\tableofcontents` cannot
+  // reach the ToC that is already built. The star form only adds a `\clearpage` in memoir (:7658-7663).
   DefMacro!("\\settocdepth OptionalMatch:* Expanded", sub[(_star, name)] {
     let name = name.to_string();
     match division_level(&name) {
@@ -639,14 +639,21 @@ LoadDefinitions!({
     for storage in ["presnum", "aftersnum", "aftersnumb"] {
       def_cft_macro(&format!("cft{n}{storage}"), "", "")?;
     }
-    // The ToC title of a numbered division or caption is typeset in the entry's font (Perl `Base_Utility.pool.ltxml`
-    // L1107-1126 asks `\format@toctitle@font@<type>` for it). `appendix` entries are chapter entries (`\l@appendix`, memoir.cls:7417-7419).
+    // The ToC title of a division or caption is typeset in the entry's font (Perl `Base_Utility.pool.ltxml` L1107-1126
+    // asks `\format@toctitle@font@<type>` for it), and so is its number: memoir sets both in the one group,
+    // `{\cftchapterfont {#1}}` with `\chapternumberline{<number>}` inside (`\l@chapapp`, memoir.cls:7406; the
+    // `\newlistentry` levels the same, :7196), where Perl asks `\fnum@tocfont@<type>` for the number
+    // (`\lx@fnum@toc@@`, Base_Utility.pool.ltxml:1064-1067). `appendix` entries are chapter entries (`\l@appendix`,
+    // memoir.cls:7417-7419).
     let mut types = vec![n];
     if n == "chapter" {
       types.push("appendix");
     }
     for ty in types {
       DefMacro!(T_CS!(format!("\\format@toctitle@font@{ty}")), None, {
+        toc_entry_font(n)
+      });
+      DefMacro!(T_CS!(format!("\\fnum@tocfont@{ty}")), None, {
         toc_entry_font(n)
       });
     }
