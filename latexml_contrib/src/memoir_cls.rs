@@ -136,6 +136,9 @@ LoadDefinitions!({
       \renewcommand{\thanksmark}[1]{}\renewcommand{\thanksgap}[1]{}%
       \protected@xdef\theauthor{#2}\endgroup"
   );
+  // Fork-only native definitions (plei99/latexml-oxide, fork/MEMOIR_ROADMAP.md D3): one call, so upstream merges
+  // conflict here at most.
+  crate::memoir_fork::load_definitions()?;
 });
 
 /// Split a brace-aware comma list into its items (top-level catcode-OTHER
