@@ -374,8 +374,10 @@ LoadDefinitions!({
     let_i(&T_CS!("\\ignorespaces"), &T_CS!("\\lx@inpgf@ignorespaces"), None);
   });
 
-  // Perl L63: redefine ignorespaces inside PGF context
-  DefPrimitive!("\\lx@inpgf@ignorespaces SkipSpaces", None);
+  // Perl pgfsys-latexml.def.ltxml:63: `DefPrimitive('\lx@inpgf@ignorespaces SkipSpaces', sub { (); });`
+  // Return no Box (rather than `None`, which creates an empty Box that reverts to `\lx@inpgf@ignorespaces`
+  // inside math `tex`/`alttext` attributes).
+  DefPrimitive!("\\lx@inpgf@ignorespaces SkipSpaces", {});
 
   // Perl L892-918: \lxSVG@halign — SVG matrix layout for tikz-cd and pgf matrix
   // Replaces \halign inside pgf/tikz contexts to produce <svg:g> elements

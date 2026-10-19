@@ -4688,3 +4688,90 @@ fn author_names_in_command_argument() {
     "<creator before=\"  \" role=\"author\">\n    <personname><ref class=\"ltx_href\" href=\"https://example.org\">Dan Dorn</ref></personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ B</contact>\n  </creator>",
   ]);
 }
+
+/// Perl CrossRef.pm:899-901 `fillInTitle`: a `\cite` inside a theorem or section title fills the `title=` tooltip
+/// of references targeting that theorem or section rather than leaving empty brackets `([])` / `([, ...])`.
+/// The document title is another matter: with no `\title` it is the first `ltx:title` (`generateDocumentTile`,
+/// CrossRef.pm:811-812, plain `getTextContent`), read at CrossRef.pm:44 before `fill_in_bibrefs` (:59) has filled the
+/// citation, so Perl's `<navigation>` title keeps the empty bracket; so does ours, which the second assertion pins.
+#[test]
+fn cite_in_title_fills_tooltip() {
+  let xml = post_xml(
+    r"\documentclass{article}
+\newtheorem{thm}{Theorem}
+\begin{document}
+\begin{thm}[{\cite[Prop.~2]{k}}]\label{t}
+Claim.
+\end{thm}
+See Theorem~\ref{t}.
+\begin{thebibliography}{1}
+\bibitem[AB01]{k} A.~Author, \emph{Work}, 2001.
+\end{thebibliography}
+\end{document}",
+  );
+  let see = xml
+    .find("See Theorem")
+    .and_then(|at| latexml::util::test::xml_element(&xml[at..], "ref", &[]));
+  let nav = xml
+    .find("<navigation>")
+    .and_then(|at| latexml::util::test::xml_element(&xml[at..], "navigation", &[]));
+  assert_eq!(
+    (see.as_deref(), nav.as_deref()),
+    (
+      Some(
+        "<ref idref=\"Thmthm1\" labelref=\"LABEL:t\" title=\"Theorem 1 ([AB01, Prop. 2])\"><text class=\"ltx_ref_tag\">1</text></ref>"
+      ),
+      Some("<navigation><title>Theorem 1 ([, Prop. 2])</title></navigation>"),
+    ),
+    "{xml}"
+  );
+}
+
+/// Perl `generateDocumentTile` (CrossRef.pm:811-812) with no `\title`: the document title is `getTextContent` of the
+/// first `ltx:caption`, whose `getTextContent_rec` (CrossRef.pm:861-879) adds the `ltx:tag` and reads the math through
+/// `unicodemath`. Perl LaTeXML gives `<navigation><title>1 Foo 𝑎</title></navigation>`; the node's raw content
+/// would be `1Foo a`. (A superscript, `$a^2$`, is `𝑎²` in Perl's `unimath_sup`, UnicodeMath.pm:282-293, and `𝑎^2` in
+/// ours, whose `unimath_sup` does not map the script to superscript codepoints; that gap is not pinned here.)
+#[test]
+fn document_title_fallback_reads_caption_tag_and_math() {
+  let xml = post_xml(
+    r"\documentclass{article}
+\begin{document}
+\begin{figure}x\caption{Foo $a$}\end{figure}
+\end{document}",
+  );
+  let nav = xml
+    .find("<navigation>")
+    .and_then(|at| latexml::util::test::xml_element(&xml[at..], "navigation", &[]));
+  assert_eq!(
+    nav.as_deref(),
+    Some("<navigation><title>1 Foo 𝑎</title></navigation>"),
+    "{xml}"
+  );
+}
+
+/// Perl pgfsys-latexml.def.ltxml:63 (`DefPrimitive('\lx@inpgf@ignorespaces SkipSpaces', sub { (); })`): inside a
+/// PGF picture `\ignorespaces` is `\lx@inpgf@ignorespaces` (:55), which swallows spaces and returns no Box. tikz-cd
+/// runs it in the math mode of each cell (`\begin{tikzcd} x + y \end{tikzcd}`), so the cell's math keeps the `tex` of
+/// its content rather than `{\lx@inpgf@ignorespaces x+y}`. Perl LaTeXML gives the same `tex="{x+y}"`, outer braces
+/// (the cell group) included. Outside a cell (`\tikz \node {$x + y$};`) the primitive never reaches the math,
+/// so that case does not guard this.
+#[test]
+fn tikzcd_cell_math_tex_omits_inpgf_ignorespaces() {
+  let xml = assert_elements(
+    r"\documentclass{article}
+\usepackage{tikz-cd}
+\begin{document}
+\begin{tikzcd} x + y \end{tikzcd}
+\end{document}",
+    RAW,
+    (0, 0),
+    &[],
+  );
+  assert_element(
+    &xml,
+    "Math",
+    &[],
+    r#"<Math mode="inline" tex="{x+y}" text="x + y" xml:id="p1.pic1.m1"><XMath><XMApp><XMTok meaning="plus" role="ADDOP">+</XMTok><XMTok font="italic" role="UNKNOWN">x</XMTok><XMTok font="italic" role="UNKNOWN">y</XMTok></XMApp></XMath></Math>"#,
+  );
+}

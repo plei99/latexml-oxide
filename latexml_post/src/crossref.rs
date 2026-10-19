@@ -355,14 +355,16 @@ fn child_nodes_data(node: &Node) -> Vec<NodeData> {
 
 /// Whether a stored title holds what Perl `CrossRef::fillInTitle` (CrossRef.pm:882-904) replaces before the title
 /// is reused: an `ltx:ref` never filled — Scan stored the title before CrossRef ran, so a `\ref`, `\eqref`,
-/// `\autoref`, `\cref` or `\nameref` in a section title is still empty there (1011.3492, 1111.3672) — or an
-/// `ltx:break`. Math is not entered: its copy keeps the ids its own references point to.
+/// `\autoref`, `\cref` or `\nameref` in a section title is still empty there (1011.3492, 1111.3672) — an
+/// `ltx:bibref` (CrossRef.pm:899-901), or an `ltx:break`. Math is not entered: its copy keeps the ids its own
+/// references point to.
 fn needs_fill_in(node: &Node) -> bool {
   let mut child = node.get_first_child();
   while let Some(c) = child {
     if c.get_type() == Some(NodeType::ElementNode) {
       match c.get_name().as_str() {
         "ref" if is_unfilled_ref(&c) => return true,
+        "bibref" => return true,
         "break" => return true,
         "Math" => {},
         _ if needs_fill_in(&c) => return true,
@@ -379,35 +381,6 @@ fn needs_fill_in(node: &Node) -> bool {
 fn is_unfilled_ref(node: &Node) -> bool {
   (node.get_attribute("idref").is_some() || node.get_attribute("labelref").is_some())
     && node.get_content().is_empty()
-}
-
-/// The text of ref content as Perl `getTextContent` reads a filled title (`CrossRef.pm` L861-879): a tag with its
-/// `open`/`close`, math in its Unicode reading.
-fn node_data_text(doc: &PostDocument, data: &[NodeData]) -> String {
-  let mut out = String::new();
-  for datum in data {
-    match datum {
-      NodeData::Text(text) => out.push_str(text),
-      NodeData::XmlNode(node) => out.push_str(&title_node_text(doc, node)),
-      NodeData::Element { tag, attributes, children } => {
-        let attr = |key: &str| {
-          attributes
-            .as_ref()
-            .and_then(|attributes| attributes.get(key))
-            .map_or("", String::as_str)
-        };
-        let tagged = tag == "ltx:tag";
-        if tagged {
-          out.push_str(attr("open"));
-        }
-        out.push_str(&node_data_text(doc, children));
-        if tagged {
-          out.push_str(attr("close"));
-        }
-      },
-    }
-  }
-  out
 }
 
 /// `['ltx:ref', $attr, @children]`.
@@ -783,7 +756,7 @@ impl CrossRef {
   /// Generate a URL for a referenced ID.
   ///
   /// Port of `CrossRef::generateURL`.
-  fn generate_url(&mut self, doc: &PostDocument, id: &str) -> Option<String> {
+  fn generate_url(&self, doc: &PostDocument, id: &str) -> Option<String> {
     let entry = self.db.lookup(&format!("ID:{}", id))?;
     let location = entry.get_string("location")?;
 
@@ -902,11 +875,14 @@ impl CrossRef {
         return title;
       }
     }
-    // Fallback: look for a title element in the document
+    // Fallback: look for a title element in the document (Perl `generateDocumentTile`, CrossRef.pm:811-812:
+    // `$title = getTextContent($doc, $node)` — no `fillInTitle` here, unlike CrossRef.pm:846).
+    // `value_text` is `getTextContent`: tag open/close attributes added, `ltx:Math` read via
+    // `unicodemath` (a figure caption `Foo $a$` gives `1 Foo 𝑎`, not the raw node content `1Foo a`).
     if let Some(node) =
       doc.findnode("//ltx:title | //ltx:toctitle | //ltx:caption | //ltx:toccaption")
     {
-      let text = get_text_content_node(&node);
+      let text = value_text(doc, &Value::Xml(node));
       if !text.is_empty() {
         return Some(text);
       }
@@ -1012,9 +988,10 @@ impl CrossRef {
   /// Perl `CrossRef::fillInTitle` (CrossRef.pm:882-904) on a copy of a stored value's children: a nested `ltx:ref`
   /// still empty becomes the content its target's entry generates for the ref's `show` (else the default), unlinked
   /// (`replaceNode($ref, generateRef_aux(...))`); an `ltx:break` becomes a space. Perl edits the stored title in
-  /// place, once; here each use fills a copy and the ObjectDB stays read-only. A wrapper around a filled ref is
-  /// rebuilt without its `xml:id`/`fragid`, display copies as in MakeIndex's see-also chunks. A nested
-  /// `ltx:bibref` is left to `fill_in_bibrefs`, which fills the copy where it lands; a tooltip reads it empty.
+  /// place, once; here each use fills a copy and the ObjectDB stays read-only. A wrapper around a filled ref or
+  /// bibref is rebuilt without its `xml:id`/`fragid`, display copies as in MakeIndex's see-also chunks. A nested
+  /// `ltx:bibref` is left to `fill_in_bibrefs` in DOM copies, while [`Self::filled_value_text`] formats it via
+  /// [`Self::make_bibcite_data`] (CrossRef.pm:899-901).
   fn filled_children(&self, node: &Node) -> Vec<NodeData> {
     let mut out = Vec::new();
     let mut child = node.get_first_child();
@@ -1091,18 +1068,58 @@ impl CrossRef {
     }
   }
 
-  /// Perl `getTextContent($doc, fillInTitle($title))` (CrossRef.pm:846): the string form of a value of the entry `id`, nested refs filled, whitespace collapsed as [`value_text`] does.
+  /// Perl `getTextContent($doc, fillInTitle($title))` (CrossRef.pm:846): the string form of a value of the entry `id`, nested refs and bibrefs filled, whitespace collapsed as [`value_text`] does.
   fn filled_value_text(&self, doc: &PostDocument, id: &str, val: &Value) -> String {
     match val {
       Value::Xml(node) if needs_fill_in(node) => {
         let children = self.entry_text_children(id, val, false);
-        node_data_text(doc, &children)
+        self
+          .node_data_text(doc, &children)
           .split_whitespace()
           .collect::<Vec<_>>()
           .join(" ")
       },
       _ => value_text(doc, val),
     }
+  }
+
+  /// The text of ref content as Perl `getTextContent` reads a filled title (`CrossRef.pm` L861-879, L899-901): a tag
+  /// with its `open`/`close`, an `ltx:bibref` formatted by [`Self::make_bibcite_data`], math in its Unicode reading.
+  fn node_data_text(&self, doc: &PostDocument, data: &[NodeData]) -> String {
+    let mut out = String::new();
+    for datum in data {
+      match datum {
+        NodeData::Text(text) => out.push_str(text),
+        NodeData::XmlNode(node)
+          if node.get_type() == Some(NodeType::ElementNode)
+            && node.get_name() == "bibref"
+            && node
+              .get_namespace()
+              .is_some_and(|ns| ns.get_href() == crate::document::LTX_NSURI) =>
+        {
+          let (cite, _) = self.make_bibcite_data(doc, node);
+          out.push_str(&self.node_data_text(doc, &cite));
+        },
+        NodeData::XmlNode(node) => out.push_str(&title_node_text(doc, node)),
+        NodeData::Element { tag, attributes, children } => {
+          let attr = |key: &str| {
+            attributes
+              .as_ref()
+              .and_then(|attributes| attributes.get(key))
+              .map_or("", String::as_str)
+          };
+          let tagged = tag == "ltx:tag";
+          if tagged {
+            out.push_str(attr("open"));
+          }
+          out.push_str(&self.node_data_text(doc, children));
+          if tagged {
+            out.push_str(attr("close"));
+          }
+        },
+      }
+    }
+    out
   }
 
   /// Generate reference content for a given ID and show pattern; a `\nameref`'s (`is_nameref`) drops the titles'
@@ -2250,6 +2267,19 @@ impl CrossRef {
   /// carries the entry's title as its `title` (L530-539, L555-557): the
   /// tooltip naming the work behind a bare `[1]`.
   fn make_bibcite(&mut self, doc: &PostDocument, bibref: &Node) -> Vec<NodeData> {
+    let (refs, missing) = self.make_bibcite_data(doc, bibref);
+    for key in missing {
+      self.note_missing("warn", "Entry for citation", &key);
+    }
+    refs
+  }
+
+  /// Build citation [`NodeData`] for `bibref` without mutating `self.missing`, returning `(refs, missing_keys)`.
+  ///
+  /// [`Self::make_bibcite`] notes each missing key; the tooltip path ([`Self::node_data_text`]) does not. Perl's
+  /// `fillInTitle` → `make_bibcite` notes them through `note_missing` (CrossRef.pm:559, defined :78-81), so a key
+  /// missing only from a title tooltip is not reported as a missing citation here.
+  fn make_bibcite_data(&self, doc: &PostDocument, bibref: &Node) -> (Vec<NodeData>, Vec<String>) {
     let keys_str = bibref.get_attribute("bibrefs").unwrap_or_default();
     let keys: Vec<&str> = keys_str.split(',').filter(|k| !k.is_empty()).collect();
     let preformatted = child_nodes_data(bibref);
@@ -2266,7 +2296,7 @@ impl CrossRef {
     // is replaced by nothing. Filling it in printed the keys — for
     // `\nocite{*}` a visible `*` as a missing citation plus its warning.
     if show == "nothing" {
-      return Vec::new();
+      return (Vec::new(), Vec::new());
     }
     let attr_or_comma = |name: &str| {
       bibref
@@ -2355,6 +2385,7 @@ impl CrossRef {
     static SUFFIXED_YEAR: LazyLock<Regex> =
       LazyLock::new(|| Regex::new(r"^(\d\d\d\d)(\w)$").unwrap());
     let mut data: Vec<BibciteDatum> = Vec::new();
+    let mut missing_keys: Vec<String> = Vec::new();
     for (key, id) in keys.iter().zip(ids) {
       let found = id.and_then(|id| {
         let entry = self.db.lookup(&format!("ID:{}", id))?;
@@ -2432,7 +2463,7 @@ impl CrossRef {
           data.push(datum);
         },
         None => {
-          self.note_missing("warn", "Entry for citation", key);
+          missing_keys.push(key.to_string());
           data.push(BibciteDatum {
             key:         key.to_string(),
             authors:     Vec::new(),
@@ -2476,7 +2507,7 @@ impl CrossRef {
         refs.insert(0, NodeData::Text("[".to_string()));
         refs.push(NodeData::Text("]".to_string()));
       }
-      return refs;
+      return (refs, missing_keys);
     }
     let lower = show.to_lowercase();
     let checkdups =
@@ -2502,7 +2533,7 @@ impl CrossRef {
         refs.push(bib_ref(&datum.attr, stuff));
       }
     }
-    refs
+    (refs, missing_keys)
   }
 
   fn fill_in_mathlinks(&mut self, doc: &PostDocument) {
@@ -2647,16 +2678,6 @@ fn relative_url(target: &str, base: &str) -> String {
   } else {
     result
   }
-}
-
-/// Get text content from an XML node, normalizing whitespace.
-///
-/// Port of `getTextContent`.
-fn get_text_content_node(node: &Node) -> String {
-  let text = node.get_content();
-  let trimmed = text.trim();
-  // Normalize whitespace
-  trimmed.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn text_content(nodes: &[NodeData]) -> String {
