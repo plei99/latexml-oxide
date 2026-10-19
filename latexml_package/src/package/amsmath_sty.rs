@@ -728,6 +728,11 @@ LoadDefinitions!({
     role => "ARROW", stretchy => true, alias => "\\leftarrow");
   DefMath!("\\lx@stretchy@rightarrow", "\u{2192}",
     role => "ARROW", stretchy => true, alias => "\\rightarrow");
+  // The bases of `\xlongLeftarrow`/`\xlongRightarrow` above (each was an undefined `\lx@stretchy@…`).
+  DefMath!("\\lx@stretchy@Leftarrow", "\u{21D0}",
+    role => "ARROW", stretchy => true, alias => "\\Leftarrow");
+  DefMath!("\\lx@stretchy@Rightarrow", "\u{21D2}",
+    role => "ARROW", stretchy => true, alias => "\\Rightarrow");
 
   //======================================================================
   // Section 4.10 Over and under arrows

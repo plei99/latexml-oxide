@@ -4,7 +4,7 @@
 
 > **Numbering note:** the `### N` numbers are load-bearing (referenced from `.rs` comments) and are kept verbatim. `#16` and the math-grammar entries `#7–#18` live in [OXIDIZED_DESIGN_MATH.md](../math/OXIDIZED_DESIGN_MATH.md); in particular the code-referenced **`#18` is the f(x) "Speculative function application"** entry there, *not* the "Source-Level Bindings" `#18` below.
 >
-> **`#76` is a RETIRED number, not an omission** — its entry was consolidated into `#74` and the number was deliberately not reused (see the placeholder in sequence below). Next free number: **#565** (allocate at integration with `tools/perfect_kernel/next_entry_numbers.sh`).
+> **`#76` is a RETIRED number, not an omission** — its entry was consolidated into `#74` and the number was deliberately not reused (see the placeholder in sequence below). Next free number: **#590** (allocate at integration with `tools/perfect_kernel/next_entry_numbers.sh`).
 
 ---
 
@@ -17580,3 +17580,137 @@ Residuals: the parameters are read when the alignment opens, not as each row end
 row is not seen); `\nointerlineskip` (`\prevdepth`) leaves no item, so a row after it still receives its glue (R7, as
 #421); and `\noalign` material other than glue, kerns and penalties cancels the depth above as a rule does, where TeX
 leaves it for a mark or an insert and gives a box its own interline glue. Guards `multiline_node_rows::*`.
+
+### 588. Native bindings for the arXiv mathematics sample's packages with no Perl binding (Perl: none; raw load or undefined)
+
+**Perl behavior**: Perl LaTeXML ships no binding for any of the packages below. Without `--includestyles` a
+`\usepackage` of one is a `missing_file` warning and every command it defines is undefined; with it, the `.sty` is
+interpreted, which typesets the package's print devices (`\mathchoice`/`\rlap`/kern composites, `\raise\hbox`
+placements, tpic specials, `pdfmark`s) rather than their meaning (same host and TeX Live 2026: a centernot,
+colonequals, faktor and extarrows sample gives 4 `missing_file` warnings and 14 undefined macros by default; with
+`--includestyles`, `\ext@arrow` undefined and `\mathchoice{\mathrel{\hbox to0.0pt{…}}…}` composites).
+**Rust behavior**: each package is a native binding (`latexml_package/src/package/<name>_sty.rs`, registered in
+`BINDINGS`), selected over a raw or shipped copy as every binding is. They are the 26 names requested by at least five
+of the 1,167 papers of the pooled 2026-10 arXiv mathematics sample (paper and bundled-style requests, deduplicated per
+paper), plus nccfoots, which manyfoot loads. Witnesses are the sample's papers (2610.*) whose default-configuration
+errors fall with the binding. Each part names what the binding keeps, what it represents differently, and why:
+
+- **(a) quiver** — tikz-cd, amssymb, the TikZ libraries calc, decorations.pathmorphing, spath3, nfold, and the editor's
+  `curve`, `between`, tail/head and `no body` styles. The package is nothing but this configuration, so the binding is
+  its definitions; what the binding adds is that a diagram needs no raw file. 2610.14931, 2610.17060, 2610.20932.
+- **(b) stackengine** — `\stackengine` and its wrappers: with math items (`\stackMath`) the item is an
+  `OVERACCENT`/`UNDERACCENT` of the anchor in text style (the package's fresh `$…$`); with text items the two are rows of
+  an inline block attached at the anchor's row; the multi-row stacks are such blocks or a one-column array (the fenced
+  `\…Vectorstack`s a fenced column vector); `\stackinset` is an `ltx_stackinset` block that LaTeXML.css lays inset over
+  anchor, placed t/c/b and l/c/r (its offsets are not applied). Gaps and `useanchorwidth` only place boxes.
+  `\savestack`, the defaults and switches are the package's; listofitems is loaded as the package loads it.
+  2610.13477, 2610.20214, 2610.22059.
+- **(c) centernot** — `\centernot X` is `\mathrel{\not X}`: the negated character (U+219B for `\to`) or U+0338 overlay;
+  the kerns only centre the slash. 2610.20583.
+- **(d) colonequals** — each command one relation token (U+2236, U+2237, U+2254, U+2255, U+2A74, or the composed
+  string), usable in text (`\ensuremath`); `\colonsep`/`\doublecolonsep` stay definable, spacing only. 2610.19434,
+  2610.20379, 2610.22203.
+- **(e) faktor** — `\faktor[p]{G}{H}` is an application of a quotient operator (U+2571) to `p{G}` raised and `p{H}`
+  lowered by 0.35em, reverting as written. 2610.20478, 2610.21953.
+- **(f) extarrows** — each `\x…arrow`/`\xlongequal` is amsmath's labelled `\lx@long@arrow` over a stretchy operator
+  (the short glyph of a long arrow, as amsmath's `\xlongrightarrow`); `\providecommand` kept. 2610.17060.
+- **(g) tensor** — index strings become explicit script columns of one multiscript application (`\lx@multiscripts`, the
+  `\sideset` shape): staggered (`\tensor`) one column per index, aligned (`\tensor*`) one column; `\indices` emits
+  post-scripts whose `scriptpos` levels name the columns, so the parser attaches them to the preceding atom;
+  `\nuclide[A][Z]{X}` as the package builds it. Smash/strut/kern options only space.
+- **(h) hypdvips** — the `hdvips` driver test is taken as passed (no output driver here; dvips's default driver is
+  `hdvips`, which is how the SIAM classes that ship it load it), the hyperref test kept. Attachments are links to their
+  files showing `text=` (or 📎), `\file` the file name underlined in typewriter, `\goto[dest=…]` a link, `\odest` an
+  anchor, `\listofattachments` its heading; the `pdfmark` settings are read into the package's macros. The
+  `\begin`/`\end`/footnote/ToC patches are not installed: they only emit `pdfmark`s, except `\end`'s trailing
+  `\ignorespaces` on the DVI path.
+- **(i) epic**, **(t) eepic** — dotted, dashed and drawn lines, `\jput` joins, `\grid`, `\matrixput`, `\multiputlist`,
+  `\picsquare`, `\putfile` (epic); `\path`, `\spline` (tpic `sp`: quadratic B-spline through the control polygon's
+  midpoints, straight ends), `\ellipse`, `\arc` (clockwise from start to end), fills, `\filltype`, `\allinethickness`,
+  `\Thicklines` (eepic) — drawn into the picture model with epic's own dot and dash counts (`\sqrtandstuff` over the
+  segment's legs, the `\dashline` arithmetic); epic's dots are centred `\@wholewidth` squares, eepic's round.
+  Line-font slope quantisation, tpic pens and milli-inch rounding are the drivers'; an epic `\drawline` with negative
+  stretch is dashed as eepic dashes it. Coordinates are TeX dimensions of `\unitlength`s, so registers work. Checked
+  against latex+dvipdfmx. 2610.20583, 2610.20862.
+- **(j) mathalpha / mathalfa** — each script face is set in the family of its design, `caligraphic` (chancery: cm,
+  euler, lucida, mma, pxtx, txupr, zapfc, stix, stixplain, stixtwoplain) or `script` (roundhand: the rest), whichever
+  command it is chosen for; `\mathbf…` companions only for faces with a bold weight, `bfX`, `oldbold`, the no-option
+  case (nothing declared), the bad-choice error and `\mathalpha@boldError` (with the package's own test of `bfbb` for
+  the fraktur faces). Scaling options only scale. 2610.10804, 2610.22161, 2610.22074.
+- **(k) manyfoot**, **(m) nccfoots** — a series is a note type: `ltx:note role="footnote<S>"` with the series' counter
+  and `\@<fmt>` mark, `[n]` marks, hand marks (nccfoots' `\Footnote`/`\Footnotemark`/`\Footnotetext` and the series'
+  own), `\SetFootnoteHook` text at the start of each note. Rules, `para` layout and `perpage` resets are page-foot
+  layout.
+- **(l) environ** — `\Collect@Body` is a native body collector (`\begin`/`\end` counted outside braces as
+  `\Collect@@Body` counts them); `\NewEnviron`/`\RenewEnviron`/`\environbodyname`/`\environfinalcode` are the package's.
+  The default final code `\ignorespacesafterend` is the kernel's no-op (KNOWN_PERL_ERRORS #666). 2610.15762,
+  2610.18953.
+- **(n) inconsolata** — `zi4` as `\ttdefault` (`\rmdefault` under `nott`), its xkeyval options read, `\altzero` the other
+  zero than the font's (plain, or U+0030 U+FE00 under `var0`), upquote at the document's start; glyph variants and
+  `\fontdimen` spacing belong to the unloaded font.
+- **(o) leftindex** — `\leftindex`/`\LeftIndex`/`\manualleftindex` read by the kernel's ltcmd as the package declares
+  them; the scripts are prescripts of the base (or of an empty base). The phantoms only size the scripts. 2610.19606,
+  2610.21475, 2610.21489, 2610.21647.
+- **(p) vruler** — the ruler is an output-routine object numbering page height, so `\setvruler`/`\unsetvruler` read
+  their arguments and draw nothing; the registers, `\fillzeros`, `\makevruler`'s count, the macro stack and
+  `\setdefault` (native, reading up to `n` defaulted bracket arguments) are the package's.
+- **(q) xstring** — every command a primitive (xstring's are unexpandable) reading its `*` (where xstring has one),
+  `[n]`, arguments and trailing `[\name]`, expanding by `\fullexpandarg`/`\expandarg`/`\noexpandarg`, reading numbers as
+  `\ifnum` does within the argument (a `\numexpr` ends with it), computing on units natively; `\exploregroups` is
+  followed by every searching, counting, substituting, brace-removing and cutting command (a cut inside a group returns
+  that group's parts, `\groupID` its path); `\IfDecimal`/`\IfInteger` leave the package's side macros. Checked against
+  pdfLaTeX (83 cases).
+- **(r) calligra** — the family code `calligra` is the `script` family (font.rs), so `\calligra`/`\textcalligra` text is
+  script; `\ss` stays T1's ß. 2610.17646.
+- **(s) dynkin-diagrams** — series A–I with marks `*`, `o`, `O`, `x`, `X`, `t`, indefinite edges, bonds and arrows,
+  `Coxeter` labels, `fold` (A, D, E6), `labels`/`label`, `edge length`/`root radius`/`fold radius` (the package's
+  defaults, options included) computed natively and drawn as the package's TikZ; anything else (Satake codes, twisted,
+  extended, Kac, ply 3/4, the root-mark API, a pgfmath expression as a length) is the package's own `\dynkin` body,
+  the package being loaded under the binding for it. 2610.18170, 2610.19203.
+- **(u) xifthen** — the added `\ifthenelse` tests and `\newtest` are TeX conditionals spliced into ifthen's evaluator
+  (ifthen.sty, as Perl loads it), so the binding is the package's definitions over it; what it adds is that they need
+  no raw file. 2610.17646.
+- **(v) anyfontsize** — `\fontsubfuzz` 9999pt; the converter keeps every requested `\fontsize` already.
+- **(w) nccmath** — `\medmath` (display style at 80%/83% size), `\medop`, `\medint`, `\mfrac`, `\mbinom`, `medsize`,
+  `mmatrix`, `\mrel`, `\underrel`, `darray`/`\dmulticolumn` (display-style array cells, array.sty's `>{}` preamble),
+  `\intertext[skip]`, `\eq`/`\eqalign`/`\eqs`, `mediummath`; the converter's eqnarray already sets every column in
+  display style and takes `\tag`. Skips are spacing; `fleqn`/`ceqn` groups keep their flag (displays are aligned per
+  document, `ltx_fleqn`).
+- **(x) tkz-graph** — keys and presets read natively, the package's TikZ commands written (`\Vertex`, `\Edge`,
+  `\Edges`, `\EA`…`\SOWE`, `\Vertices`, `\grLoop`, the style commands, `\GraphInit` vstyles); witness 2610.14502
+  (401 `\Vertex`, 501 `\Edge`, 16 `\Edges` in 55 pictures) converts byte-identically to the raw package.
+- **(y) abstract** — the abstract stays the frontmatter `ltx:abstract` (fonts, indents, skips, `runin` are its print
+  layout); the configuration macros and lengths are the package's; `number` steps the sectional counter and shows its
+  number in the abstract's name ("1 Abstract"); `onecolabstract` is the abstract; `\saythanks` adds nothing, the
+  `\thanks` notes being in the frontmatter. 2610.18646.
+- **(z) old-arrows** — the arrows keep their characters (the old and new arrowheads are one Unicode character each),
+  the package's redefinitions that break `\longrightarrow` and mathtools' `\x…` arrows into pieces are not installed,
+  and the added `\var…`/`\long…hook`/harpoon names are the arrows they draw.
+
+Over the 179 witness papers (release builds, same host, with #589), the default configuration has 997 → 869 errors and
+58 → 35 papers with errors (28 better, none worse), and the raw-loading protocol the same error counts (32 → 32). A
+paper whose own unread `.sty` loads tensor and then `\let\tensor\otimes` (2610.18718) needed #589.
+Guards: `cluster_package_guards::native_bindings_math_ge5::*`.
+
+### 589. An unread style's top-level `\let` of a command its packages define is applied (Perl: the file's text is only scanned for packages)
+
+`require_dependencies_except` (content.rs) ports Perl's `maybeRequireDependencies` (Package.pm:2776-2813): a class or
+package that is neither bound nor read (default configuration, no `--includestyles`) has the packages it requests
+loaded, and nothing else of it runs. A binding added for one of those packages then gives the document that package's
+command where the file had replaced it. Witness 2610.18718: preamble.sty loads tensor, then `\let\tensorscripts\tensor`
+and `\let\tensor\otimes`; with tensor bound (#588g), each `A\tensor B` reached tensor's three-argument `\tensor`
+(598 errors, a runaway, Fatal), where with tensor unbound it was one undefined macro.
+
+**Rust**: the scan also reads the file's top-level `\let\X\Y` / `\let\X=\Y` (the same comment stripping, and the
+same macro-body exclusion as its `\usepackage`s), and after the dependencies load applies each, in file order, when
+`\X` was undefined before the dependencies loaded, is defined after them, `\Y` has a meaning at that point, and the
+file does not define `\X` again further on at top level (`\def`/`\newcommand`-family, ltcmd, `\newenvironment`,
+`\newtheorem`, a later `\let`): a `\let` before a definition only clears the name for it, and the definition stays
+unread (2610.19354's ima-authoring-template.cls `\let\proof\relax\let\endproof\relax` then
+`\newenvironment{proof}`; applying it left amsthm's `proof` undefined). So only a command the scan itself introduced is
+rebound, and only exactly (`\let` copies a meaning; a `\def`/`\renewcommand` body would need the file's other
+definitions). Not applied to a file that was raw-loaded, whose `\let`s ran. 2610.18718: 598 errors and a Fatal → 62 (63 before #588; the rest are the unread file's own macros).
+
+**Guard**: `cluster_package_guards::native_bindings_math_ge5::an_unread_style_rebinds_the_commands_of_its_packages`
+(the rebind applied; a `\let` of a kernel command, one in a macro body and one before a `\newenvironment` of the
+same name not applied).

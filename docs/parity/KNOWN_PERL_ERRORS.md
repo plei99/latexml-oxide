@@ -13140,3 +13140,23 @@ mleftright and mathtools bindings use plain `\left`/`\right`. Fixed in Rust: OXI
 The `<tags>`/`\ref` metadata are right. The CSS worry is real: ltx-book.css:28-29 and ltx-report.css:28-29 make every
 tag of a chapter or appendix title `display:block; font-size:90%`. Fixed in Rust with a tag of its own
 (`ltx_tag_titlesec`, inline in LaTeXML.css) and the format's font kept on the title: OXIDIZED_DESIGN_DIVERGENCES #583.
+
+## 666. `\ignorespacesafterend` does nothing: the space after `\end{env}` stays
+
+```latex
+\documentclass{article}
+\newenvironment{foo}{[}{]\ignorespacesafterend}
+\begin{document}
+A \begin{foo}x\end{foo} B
+\end{document}
+```
+
+→ pdfLaTeX: `A [x]B` — latex.ltx's `\ignorespacesafterend` is `\global\@ignoretrue`, and `\end` runs
+`\if@ignore\@ignorefalse\ignorespaces\fi` after the environment's end code. Perl: `A [x] B` —
+latex_constructs.pool.ltxml:5758 `DefMacroI('\ignorespacesafterend', undef, Tokens())`; Rust the same
+(latex_constructs/sect13.rs `def_macro_noop`). Kept for parity: Rust's `\end` already runs
+`\if@ignore\@ignorefalse\ignorespaces\fi` (latex_constructs/sect01.rs), so `\def\ignorespacesafterend{\global\@ignoretrue}`
+would fix it, but it changes the text after every environment whose end code uses it (theorem-like, list and package
+environments), a change of its own with its own A/B. It is environ's default final code
+(`\environfinalcode{\ignorespacesafterend}`, environ.sty:55), so every `\NewEnviron` environment keeps the space after
+its `\end` (environ_sty.rs, OXIDIZED_DESIGN_DIVERGENCES #588(l)).

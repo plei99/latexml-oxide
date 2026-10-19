@@ -382,6 +382,14 @@ dl.ltx_description dl.ltx_description dd { margin-left:3em; }
    and sum to >200% width, overflowing the listing (witness 1510.02728). Make each own its
    line so they stack like the pdflatex golden. OXIDIZED_DESIGN #152. */
 .ltx_inline-block.ltx_leaderfill { display:block; }
+/* stackengine's \stackinset (OXIDIZED_DESIGN #588(b)): the inset row over the anchor row, placed
+   t/c/b and l/c/r on it. */
+.ltx_inline-block.ltx_stackinset { display:inline-grid; }
+.ltx_inline-block.ltx_stackinset > * { grid-area:1 / 1; margin:0; justify-self:center; align-self:center; }
+.ltx_stackinset_t > :first-child { align-self:start; }
+.ltx_stackinset_b > :first-child { align-self:end; }
+.ltx_stackinset_l > :first-child { justify-self:start; }
+.ltx_stackinset_r > :first-child { justify-self:end; }
 .ltx_listingline { white-space:nowrap; min-height:1em; }
 .ltx_lst_space { white-space: pre; }
 .ltx_lst_numbers_left .ltx_listingline .ltx_tag {

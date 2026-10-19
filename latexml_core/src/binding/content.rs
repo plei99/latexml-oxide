@@ -3362,6 +3362,47 @@ pub fn require_dependencies_except(file: &str, ext_type: &str, except: &[&str]) 
     );
   }
 
+  // BEYOND PERL (DIVERGENCES #589): the file's top-level `\let\X\Y`s, read before its
+  // dependencies load, applied after them below to the commands those dependencies brought.
+  static LET_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"\\let\s*\\([A-Za-z@]+)\s*=?\s*\\([A-Za-z@]+)").unwrap());
+  // A top-level definition of a command or environment, its name captured: a `\let` of a name the
+  // file defines again further on clears it for that definition (`\let\proof\relax`, then
+  // `\newenvironment{proof}`, 2610.19354's ima-authoring-template.cls), which stays unread.
+  static DEFINES_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+      r"\\(?:[egx]?def|let|(?:re|provide)?newcommand|DeclareRobustCommand|(?:New|Renew|Provide|Declare)DocumentCommand|DeclareMathOperator)\*?\s*\{?\s*\\([A-Za-z@]+)|\\(?:(?:re)?newenvironment|(?:New|Renew|Provide|Declare)DocumentEnvironment|(?:re)?newtheorem|declaretheorem)\*?\s*\{\s*([A-Za-z@*]+)\s*\}",
+    )
+    .unwrap()
+  });
+  let defined_later = |name: &str, from: usize| -> bool {
+    DEFINES_RE
+      .captures_iter(&code[from..])
+      .filter(|d| !in_macro_def_body(from + d.get(0).map_or(0, |m| m.start())))
+      .any(|d| match (d.get(1), d.get(2)) {
+        (Some(cs), _) => cs.as_str() == name,
+        (_, Some(env)) => env.as_str() == name || name.strip_prefix("end") == Some(env.as_str()),
+        _ => false,
+      })
+  };
+  let rebinds: Vec<(Token, Token, bool)> = if raw_loaded {
+    Vec::new()
+  } else {
+    LET_RE
+      .captures_iter(&code)
+      .filter(|cap| top_level(cap) && !defined_later(&cap[1], cap.get(0).unwrap().end()))
+      .map(|cap| {
+        let target = crate::T_CS!(format!("\\{}", &cap[1]));
+        let defined_before = has_meaning(&target);
+        (
+          target,
+          crate::T_CS!(format!("\\{}", &cap[2])),
+          defined_before,
+        )
+      })
+      .collect()
+  };
+
   // Perl L2786-2789: foreach class — gate by `FindFile($class, type=>'cls',
   // notex=>1)`, then `LoadClass(..., options=>[split ...])`.
   for (class, raw_opts) in classes {
@@ -3396,6 +3437,18 @@ pub fn require_dependencies_except(file: &str, ext_type: &str, except: &[&str]) 
         options: scanned_options(&raw_opts),
         ..RequireOptions::default()
       });
+    }
+  }
+
+  // The file is not executed, but the packages it loads are: a command one of them defines
+  // that the file then rebinds with `\let` would otherwise keep the package's meaning, which
+  // the document does not expect. Witness 2610.18718: preamble.sty loads tensor, then
+  // `\let\tensor\otimes`, and the paper writes `A\tensor B` (tensor's `\tensor` reads three
+  // arguments, a runaway). Only such commands are rebound, in the file's order and only to a
+  // meaning defined at that point; the file's other definitions stay unread.
+  for (target, source, defined_before) in rebinds {
+    if !defined_before && has_meaning(&target) && has_meaning(&source) {
+      let_i(&target, &source, None);
     }
   }
 }

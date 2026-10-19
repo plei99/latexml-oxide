@@ -107,6 +107,23 @@ TL manuals) and the per-batch arXiv A/B; the cortex reruns of sandboxes 2605/260
 ## Secondary residuals & unranked active items
 
 ### Rust error fixes (recent)
+- **Native bindings for the 26 packages with no Perl binding requested by ≥5 papers of the 2026-10 arXiv mathematics
+  sample** (quiver, extarrows, stackengine, centernot, colonequals, faktor, tensor, hypdvips, epic, eepic, mathalfa,
+  mathalpha, manyfoot, environ, inconsolata, vruler, leftindex, xstring, calligra, xifthen, nccmath, tkz-graph,
+  dynkin-diagrams, anyfontsize, old-arrows, abstract; plus nccfoots, which manyfoot loads). Each is a
+  `latexml_package/src/package/<name>_sty.rs` binding in `BINDINGS`; what each keeps, represents differently and why is
+  OXIDIZED_DESIGN_DIVERGENCES #588(a–z). Also amsmath's binding gains `\lx@stretchy@Leftarrow`/`\lx@stretchy@Rightarrow`
+  (its `\xlongLeftarrow`/`\xlongRightarrow` referenced them undefined), font.rs maps family `calligra` to `script`, and
+  LaTeXML.css lays out `ltx_stackinset`. Over the 179 sample papers that use the packages (release builds, same host),
+  the default configuration goes from 997 to 869 errors and from 58 to 35 papers with errors (28 better, none worse),
+  and the raw-loading protocol is unchanged (32 → 32 errors). A style the default configuration does not read now has
+  its top-level `\let`s of commands its dependency scan introduced applied (#589; 2610.18718, whose unread preamble.sty
+  loads tensor then `\let\tensor\otimes`: 598 errors and a Fatal → 62; a `\let` before a redefinition of the same
+  name, 2610.19354's `\let\proof\relax` then `\newenvironment{proof}`, is not). Guards
+  `cluster_package_guards::native_bindings_math_ge5::*` (23). Residuals: `\stackinset` offsets not applied; vruler's rulers and
+  hypdvips's `pdfmark`s not drawn (no pages or driver); environ's `\ignorespacesafterend` is the kernel no-op
+  (KNOWN_PERL_ERRORS #666); nccmath's `fleqn`/`ceqn` set a local flag only; xstring reads an empty number argument as 0
+  where TeX reports "Missing number".
 - **`--init=latex.ltx` is error-free on LaTeX 2026-06-01 (137 errors → 0; Perl master fails it, Fatal too_many_errors).**
   Defect: latex.ltx:22508-22513 reads `glyphtounicode` (contrib binding) and `glyphtounicode-cmex` (raw) with
   `\file_get:nnN` (`\pdftexrevision` 19 < 22, pdfTeX.pool.ltxml:91), whose `\__file_get_do:Nw` scans to the `\everyeof`

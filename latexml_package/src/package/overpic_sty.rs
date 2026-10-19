@@ -2,10 +2,8 @@ use crate::prelude::*;
 
 #[rustfmt::skip]
 LoadDefinitions!({
-  // Perl: overpic.sty.ltxml requires graphicx + epic. epic (only needed for the
-  // `grid` option's `\grid`) has no Rust binding — a benign `missing_file`
-  // warning; the grid option is off by default, so overlay rendering is
-  // unaffected.
+  // Perl: overpic.sty.ltxml requires graphicx + epic. epic is a native binding
+  // (epic_sty.rs, OXIDIZED_DESIGN #588(i)); the `grid` option draws with its `\grid`.
   RequirePackage!("graphicx");
   RequirePackage!("epic");
 

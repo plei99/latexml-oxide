@@ -139,6 +139,8 @@ static FONT_FAMILY: Lazy<HashMap<&'static str, Font>> = Lazy::new(|| {
     "zi4"   => fontmap!(family => "typewriter"), "fi4"   => fontmap!(family => "typewriter"),
     "fvm"   => fontmap!(family => "typewriter"), "fve"   => fontmap!(family => "serif"),
     "fvs"   => fontmap!(family => "sansserif"),
+    // calligra (Calligra, a calligraphic script; calligra.sty:30 `\DeclareFontFamily{T1}{calligra}`):
+    "calligra" => fontmap!(family => "script"),
     // Source Code/Sans/Serif Pro, Fira:
     "zsourcecodepro" => fontmap!(family => "typewriter"),
     "SourceCodePro-TLF" => fontmap!(family => "typewriter"),
