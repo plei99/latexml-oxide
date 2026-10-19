@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+  - **Screen readers hear the bar of `\overline` and `\underline` again.** Presentation
+    MathML drew them only as a CSS border on an `<mrow>`, which assistive technology does
+    not read, so `\overline{\mathcal M}_{g,n}` spoke as `\mathcal M_{g,n}`. The bordered row
+    is now the base of an accent `<mover>`/`<munder>` (Perl's structure, MathML.pm
+    L1490-1506) whose `¯` is drawn at `mathsize="0"`; the border stays the visible rule
+    (OXIDIZED_DESIGN_DIVERGENCES #584). Guard `90_latexmlpost::overline_post_test`.
+
   - **`\usepackage[style=sbl]{biblatex}` loads without errors on TeX Live 2026.** The
     updated biblatex-sbl reaches three pieces of biblatex.sty that the native biblatex
     binding, which stands in for it, did not have: `\DeclareDatafieldSet{name}{…\member…}`

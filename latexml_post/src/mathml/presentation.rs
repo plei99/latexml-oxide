@@ -792,7 +792,7 @@ fn rule_line_kind(op: &Node) -> Option<bool> {
 
 /// Present `\overline` / `\underline` as a bordered `m:mrow` around the base
 /// (divergence #584; Perl `Apply:OVERACCENT:?`/`UNDERACCENT`, MathML.pm
-/// L1477-1493, emits `m:mover accent="true"` with a U+00AF `m:mo`).
+/// L1490-1506, emits `m:mover accent="true"` with a U+00AF `m:mo`).
 ///
 /// MathML Core makes U+00AF/U+203E horizontally stretchy, but stretching needs a
 /// horizontal construction in the font's MATH table and the common math fonts
@@ -813,6 +813,18 @@ fn rule_line_kind(op: &Node) -> Option<bool> {
 /// The rule takes the operator's colour (or the inherited context's), written
 /// out because `mathcolor` on the base tokens does not reach this `m:mrow`;
 /// with neither it is `currentColor` and follows any enclosing `mathcolor`.
+///
+/// A border is invisible to assistive technology, which reads the MathML
+/// elements and their text: a bare bordered row speaks as its base alone, so
+/// `\overline{\mathcal M}_{g,n}` would be read as `\mathcal M_{g,n}`. The row is
+/// therefore the base of Perl's `m:mover accent="true"` / `m:munder
+/// accentunder="true"`, whose operator is the XMTok's own glyph (U+00AF for
+/// both; U+00AF too should the token be empty) at `mathsize="0"`: it draws
+/// nothing and takes no room, the border stays the visible rule, and a reader
+/// still finds the bar. A font size of exactly zero is also exempt from a
+/// reader's minimum font size, which would enlarge any small nonzero one into a
+/// visible tick. `stretchy="false"` keeps engines from stretching a zero-size
+/// glyph to the base's width.
 fn pmml_rule_line(rop: &Node, base: NodeData, over: bool) -> NodeData {
   let color = rop
     .get_attribute("color")
@@ -824,7 +836,7 @@ fn pmml_rule_line(rop: &Node, base: NodeData, over: bool) -> NodeData {
   } else {
     ("ltx_underline", "bottom")
   };
-  NodeData::Element {
+  let ruled = NodeData::Element {
     tag:        "m:mrow".to_string(),
     attributes: Some(HashMap::from_iter([
       ("class".to_string(), class.to_string()),
@@ -834,6 +846,27 @@ fn pmml_rule_line(rop: &Node, base: NodeData, over: bool) -> NodeData {
       ),
     ])),
     children:   vec![base],
+  };
+  let glyph = Some(rop.get_content())
+    .filter(|g| !g.is_empty())
+    .unwrap_or_else(|| "\u{00AF}".to_string());
+  let accent = NodeData::Element {
+    tag:        "m:mo".to_string(),
+    attributes: Some(HashMap::from_iter([
+      ("mathsize".to_string(), "0".to_string()),
+      ("stretchy".to_string(), "false".to_string()),
+    ])),
+    children:   vec![NodeData::Text(glyph)],
+  };
+  let (tag, flag) = if over {
+    ("m:mover", "accent")
+  } else {
+    ("m:munder", "accentunder")
+  };
+  NodeData::Element {
+    tag:        tag.to_string(),
+    attributes: Some(HashMap::from_iter([(flag.to_string(), "true".to_string())])),
+    children:   vec![ruled, accent],
   }
 }
 
@@ -887,7 +920,7 @@ fn pmml_apply_dispatch(
       if let Some(over) = rule_line_kind(rop) {
         return pmml_rule_line(rop, pmml(doc, &args[0]), over);
       }
-      // Perl MathML.pm L1492-1504: check if base is XMApp with UNDERACCENT → m:munderover
+      // Perl MathML.pm L1490-1497: check if base is XMApp with UNDERACCENT → m:munderover
       let base = &args[0];
       let base_children = element_children(base);
       if doc.is_qname(base, "ltx:XMApp") && base_children.len() == 2 {
@@ -924,7 +957,7 @@ fn pmml_apply_dispatch(
       if let Some(over) = rule_line_kind(rop) {
         return pmml_rule_line(rop, pmml(doc, &args[0]), over);
       }
-      // Perl MathML.pm L1507-1519: check if base is XMApp with OVERACCENT → m:munderover
+      // Perl MathML.pm L1499-1506: check if base is XMApp with OVERACCENT → m:munderover
       let base = &args[0];
       let base_children = element_children(base);
       if doc.is_qname(base, "ltx:XMApp") && base_children.len() == 2 {
