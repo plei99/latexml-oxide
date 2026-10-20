@@ -1,11 +1,10 @@
 //! futs font encoding: the Fourier ornaments font (`\FourierOrns`, fourier-orns.sty:29), selected by
 //! `latexml_contrib`'s `fourier_orns_sty` through `\lx@fontencoding{futs}`. Perl has no `futs.fontmap.ltxml`
 //! (`futs` is only a serif family, Common/Font.pm:145). Each slot is the name fourier-orns.sty:33-72 gives it, as
-//! the nearest Unicode ornament: the aldines are the `\grappe`/`\leftgrappe`/`\rightgrappe` glyphs the package's own
-//! TU branch uses (fourier-orns.sty:80-82 `\char"2766`/`"2619`/`"2767`); the decorative curls
-//! (`\decofourright`…`\decothreeleft`), `\textthing` and the small aldines take the floral heart, the old
-//! pilcrows `¶`, `\decosix` the white four-pointed star. Slots the package never uses stay undecoded. The
-//! encoding is not attached to the `futs` family, which is also Fourier's Utopia text family. Guard:
+//! the nearest Unicode ornament, chosen by the shape (rendered with pdflatex): the aldines the rotated and reversed
+//! floral hearts (U+2767, U+2619) and `\aldine` U+2766; the decorative curls (`\decofourright`…`\decothreeleft`),
+//! `\textthing` and the small aldines the floral heart; the old pilcrows `¶`; `\decosix` the white four-pointed star. Slots the package never uses stay undecoded. The
+//! encoding is not attached to the `futs` family, which is also Fourier's Utopia text family. OXIDIZED_DESIGN #591; guard
 //! `native_notes_bindings::fourier_orns_print_their_ornaments`.
 use crate::prelude::*;
 

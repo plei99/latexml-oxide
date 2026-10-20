@@ -17750,6 +17750,58 @@ table semantics.
 `scope="col"`, no diagnostics) and `cluster_cli::equation_tables_are_presentational::tabular_header_cells_head_columns_and_rows`
 (a tabular with a header column: the corner and the column heads are `scope="col"`, both row heads `scope="row"`).
 
+### 591. `\FourierOrns` also switches the font encoding to a `futs` fontmap (Perl: no `futs` fontmap; the slot letter is printed)
+
+**Perl behavior**: Perl LaTeXML ships no `fourier-orns` binding and no `futs.fontmap.ltxml`; `futs` is only a serif
+family (`Common/Font.pm:145`). Without `--includestyles` `\usepackage{fourier-orns}` is a `missing_file` warning and
+`\warning`, `\lefthand`, … are undefined; with it, fourier-orns.sty:29 defines `\FourierOrns` as
+`\fontencoding{U}\fontfamily{futs}\selectfont`, and each ornament (`{\FourierOrns 1}`, :33-72) prints its slot
+letter: `1` for `\warning`, `M` for `\lefthand`, `e` for `\eurologo`. Under a TU engine (:16-27) the same letters come
+from the fontspec family.
+**Rust behavior**: `latexml_contrib`'s `fourier_orns_sty` raw-loads the file and redefines `\FourierOrns`, still a
+font switch (it is used on user text, fourier-orns-doc.tex:118-121, 150-151), to end with `\lx@fontencoding{futs}`,
+in both branches (`\fontencoding{U}\fontfamily{futs}\selectfont` or the fontspec switch first); `futs_fontmap.rs`
+maps the used slots to Unicode ornaments chosen by shape (`⚠` U+26A0, `☜` U+261C, `❖` U+2756, `€`, …; the
+decorative curls and small aldines take U+2766). Under a TU engine `\grappe`, `\leftgrappe` and `\rightgrappe`
+(:80-82) use the fontspec switch directly: their code points are not slots. The encoding is switched by
+`\FourierOrns`, never by the `futs` family, which is also Fourier's Utopia text family (t1futs.fd, fourier.sty:58).
+Text after a `\normalfont` inside the switch's group stays in the ornament encoding, because the engine's
+`\normalfont` omits latex.ltx:14306 `\fontencoding\encodingdefault` (SYNC_STATUS.md). When fourier-otf.sty loads
+fourier-orns (:17 skips the definition; fourier-otf.sty:109-110 makes `\FourierOrns` later) the wrap does not apply;
+that package has no binding here.
+**Why**: a document's ornaments are content; printing `1` and `M` in their place changes the text silently.
+
+**Guard**: `cluster_package_guards::native_notes_bindings::fourier_orns_print_their_ornaments`, `fourier_orns_is_a_font_switch`,
+`fourier_orns_under_a_tu_persona`, `futs_text_family_is_not_decoded_as_ornaments`.
+
+### 592. `euler-math` is a native binding that requires unicode-math (Perl: none; the raw file blanks the symbols it redefines)
+
+**Perl behavior**: no `euler-math.sty.ltxml` (the sibling `eulervm.sty.ltxml` is "nothing to do for LaTeXML"). Without
+`--includestyles` the package is skipped; with it, the `\AtBeginDocument` block (euler-math.sty:38-192) redefines
+`\hbar`, `\varPhi` (:49) and about ninety more symbols with `\Umathchardef` (92, :42-153). Perl's `\RequireTUTeX` is a
+no-op (`iftex.sty.ltxml:61`), so the raw file would not halt under pdfTeX there either.
+**Rust behavior**: `latexml_contrib/src/euler_math_sty.rs` is native: unicode-math with `math-style=upright`
+(:9), the key options (:19-26) accepted and ignored, nothing else. `\RequireTUTeX` (:8) is not run: the iftex binding
+passes it under every persona (`iftex_sty.rs`; witnesses 2605.02089, 2605.16477), so the package loads under the default
+persona as under luatex. `\Umathchardef` is an empty macro here, so a raw load would turn the redefined symbols into
+nothing. Not provided: the `\setmathfont` features (:30-35) and the names only the file defines (`\varemptyset`,
+`\lesseqslantgtr`, …).
+
+**Guard**: `native_notes_bindings::euler_math_keeps_the_symbols_it_redefines`, `euler_math_loads_under_the_default_persona`.
+
+### 593. `memhfixc` provides its two names and none of its patches (Perl: none; the raw file fails on `\book*`)
+
+**Perl behavior**: no `memhfixc.sty.ltxml`; memoir.cls requests it after hyperref, so without `--includestyles` that is
+a `missing_file` warning, and with it memhfixc.sty:76-83 patches `\@sbook` and :116-140 `\M@sect` with pdfTeX
+hyperref's anchor internals (`\Hy@MakeCurrentHrefAuto`, `\Hy@SectionHShift`, `\Hy@SectionAnchorHref`).
+**Rust behavior**: `latexml_contrib/src/memhfixc_sty.rs` defines only `\bookautorefname` (`Book`) and
+`\subfigureautorefname` (`Subfigure`) with `\providecommand` (:113-114), as the file does unconditionally.
+LaTeXML's hyperref binding lacks the internals the patches call (a raw load gives
+`Error:undefined:\Hy@MakeCurrentHrefAuto` on `\book*{Bk}`), the native sectioning runs `\@startsection` (sect04.rs)
+rather than `\M@sect`, and the memoir and hyperref bindings already make the anchors and ids.
+
+**Guard**: `native_notes_bindings::memhfixc_is_a_no_op_for_memoir_with_hyperref`.
+
 ### 594. Sources registered as interpretable are raw-loaded from the TeX tree without `--includestyles`, and under `localrawstyles` (Perl: only xparse's versioned files are registered, and the registration is gated on both)
 
 Perl registers exactly two sources as `INTERPRETABLE_SOURCES`, `xparse-2018-04-12.sty` and `xparse-2020-10-01.sty`

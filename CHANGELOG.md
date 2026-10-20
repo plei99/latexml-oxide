@@ -25,22 +25,25 @@
     that can only miss (`Warning:missing_file:zref-abspage` and the like); guard
     `::bindings_do_not_request_unbound_packages_under_localrawstyles`.
 
-  - **Native mode (`--preload=latexml.sty`, no `rawstyles`) loads sixteen more TeX Live packages that
-    have no Perl binding, and `fourier-orns` ornaments print as ornaments.** Each of `fixdif`,
+  - **Native mode (`--preload=latexml.sty`, no `rawstyles`) loads sixteen more TeX Live packages
+    that have no Perl binding, and `fourier-orns` ornaments print as ornaments.** Each of `fixdif`,
     `berasans`, `memhfixc`, `extdash`, `fourier-orns`, `spectralsequences`, `rank-2-roots`,
     `tkz-euclide`, `ebgaramond`, `PTSerif`, `fouriernc`, `euler-math`, `ninecolors`, `ctex` and the
     beamer themes `metropolis` and `Darmstadt` was skipped there (`Warning:missing_file … raw TeX
     loading is off`), so `\d{x_i}` in math stayed LaTeX's dot-under accent (`Script _ can only
     appear in math mode`), `\d\ab(x)` under physics2 looped to `Fatal:TooManyErrors`, and the
-    `sseqdata`, `rootSystem` and `\tkz…` pictures were lost. Each is now a `latexml_contrib`
-    wrapper that force-raw-loads the genuine file (the `alegreyasans_sty` pattern; package options
-    and the file's own `\RequirePackage`s reach it), except `euler-math`, a native binding that
-    requires unicode-math and ignores the key options, because its raw file blanks `\hbar`,
-    `\varPhi` and some seventy more symbols with `\Umathchardef`. The `futs` ornament font has a
-    glyph map (`futs_fontmap.rs`) that `\FourierOrns` selects, so `\warning` is `⚠` and
-    `\lefthand` is `☜` instead of the slot letters `1` and `M`; fourier's Utopia text in the same
-    `futs` family stays text, and fourier.sty's `noOTF` option reaches fourier-orns under every
-    persona. Under the default pdfTeX persona `ctex` itself errors, as pdflatex does (fontset
+    `sseqdata`, `rootSystem` and `\tkz…` pictures were lost. Each is now a `latexml_contrib` wrapper
+    that force-raw-loads the genuine file (the `alegreyasans_sty` pattern; package options and the
+    file's own `\RequirePackage`s reach it), except `euler-math`, a native binding that requires
+    unicode-math and ignores the key options (its raw file blanks `\hbar`, `\varPhi` and some
+    ninety more symbols with `\Umathchardef`), and `memhfixc`, which only provides
+    `\bookautorefname` and `\subfigureautorefname` (its patches call hyperref
+    internals LaTeXML lacks, so a raw load fails on `\book*`; OXIDIZED_DESIGN #592-593). The `futs`
+    ornament font has a glyph map (`futs_fontmap.rs`) that `\FourierOrns` selects (a font switch still),
+    in the `futs` and the TU (OTF) branch alike, so `\warning` is `⚠` and `\lefthand` is `☜` instead
+    of the slot letters `1` and `M` (OXIDIZED_DESIGN #591); fourier's Utopia text in the same `futs`
+    family stays text, and fourier.sty's `noOTF` option reaches fourier-orns under every persona.
+    Under the default pdfTeX persona `ctex` itself errors, as pdflatex does (fontset
     auto-detection), and the xetex persona that the corpus protocol gives ctex documents loads it
     clean. Guards `cluster_package_guards::native_notes_bindings::*`,
     `perfect_kernel_batch56::fourier_mathbb_is_its_blackboard`.

@@ -136,8 +136,8 @@ fn fouriernc_requires_fourier_and_its_ornaments() {
 
 /// euler-math.sty under the luatex persona (the corpus gives fontspec documents that persona): the native binding
 /// requires unicode-math with `math-style=upright` (euler-math.sty:9) and ignores the key options
-/// (euler-math.sty:18-24, here `Scale=0.9`). The raw file would blank `\hbar` and `\varPhi` (its `\Umathchardef`s run
-/// as empty macros); here both stay their symbols.
+/// (euler-math.sty:19-26, here `Scale=0.9`). The raw file would blank `\hbar` and `\varPhi` (its `\Umathchardef`s,
+/// :42-153, run as empty macros at `\AtBeginDocument`, :38); here both stay their symbols.
 #[test]
 fn euler_math_keeps_the_symbols_it_redefines() {
   let xml = native_with(
@@ -146,11 +146,29 @@ fn euler_math_keeps_the_symbols_it_redefines() {
     "[luatex]latexml.sty",
     0,
   );
-  assert!(
-    xml.contains(r#"<XMTok name="hbar" role="UNKNOWN">ℏ</XMTok>"#) || xml.contains(">ℏ</XMTok>"),
-    "{xml}"
+  latexml::util::test::assert_element(
+    &xml,
+    "XMath",
+    &[],
+    r##"<XMath><XMApp><XMTok meaning="plus" role="ADDOP">+</XMTok><XMTok meaning="Planck-constant-over-2-pi" name="hbar" role="ID">ℏ</XMTok><XMTok name="varPhi" role="UNKNOWN">Φ</XMTok><XMTok font="italic" role="UNKNOWN">x</XMTok></XMApp></XMath>"##,
   );
-  assert!(xml.contains(">Φ</XMTok>"), "{xml}");
+}
+
+/// euler-math.sty:8 `\RequireTUTeX` is not run (the iftex binding passes it under every persona, Perl
+/// `iftex.sty.ltxml:61` makes it a no-op): the default persona loads the package with no error and no warning, and
+/// the symbols the raw file would blank stay.
+#[test]
+fn euler_math_loads_under_the_default_persona() {
+  let xml = native(
+    "\\documentclass{article}\n\\usepackage{euler-math}\n\\begin{document}\n$\\hbar$\n\\end{document}\n",
+    0,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "XMath",
+    &[],
+    r##"<XMath><XMTok meaning="Planck-constant-over-2-pi" name="hbar" role="ID">ℏ</XMTok></XMath>"##,
+  );
 }
 
 /// futs is also Fourier's Utopia TEXT family (t1futs.fd; fourier.sty:58 `\rmdefault`): the ornament map is bound to
@@ -177,6 +195,34 @@ fn futs_text_family_is_not_decoded_as_ornaments() {
   latexml::util::test::assert_element(&xml, "p", &[], "<p>⚠</p>");
 }
 
+/// A direct `\usepackage{fourier-orns}` under a TU persona takes the file's fontspec branch (fourier-orns.sty:16-27,
+/// the OTF has the ornaments at the `futs` slots): the same ornaments, and `\grappe`, `\leftgrappe` and
+/// `\rightgrappe` (:80-82, `\char"2766` etc.) their code points, not the slot letters ("1", "M").
+#[test]
+fn fourier_orns_under_a_tu_persona() {
+  for preload in ["[xetex]latexml.sty", "[luatex]latexml.sty"] {
+    let xml = native_with(
+      "\\documentclass{article}\n\\usepackage{fourier-orns}\n\\begin{document}\n\
+       A \\warning\\ B \\lefthand\\ C \\grappe\\ \\leftgrappe\\ \\rightgrappe\n\\end{document}\n",
+      preload,
+      0,
+    );
+    latexml::util::test::assert_element(&xml, "p", &[], "<p>A ⚠ B ☜ C ❦ ☙ ❧</p>");
+  }
+}
+
+/// `\FourierOrns` stays a font switch for user text (fourier-orns-doc.tex:118-121, 150-151): `{\FourierOrns E 1 F}`
+/// puts all three characters in the ornament font (pdflatex's `\showbox` shows E, 1, F in `futs`).
+#[test]
+fn fourier_orns_is_a_font_switch() {
+  let xml = native(
+    "\\documentclass{article}\n\\usepackage{fourier-orns}\n\\begin{document}\n\
+     {\\FourierOrns E 1 F} {\\FourierOrns\\char`\\A}\n\\end{document}\n",
+    0,
+  );
+  latexml::util::test::assert_element(&xml, "p", &[], "<p>❀ ⚠ ❀ ☙</p>");
+}
+
 /// fourier-orns.sty:29-72: each ornament is a slot of the `futs` font, selected by `\FourierOrns` and decoded by
 /// `futs_fontmap.rs` into its Unicode ornament, not the slot letter ("1", "M", "U", "e").
 #[test]
@@ -190,7 +236,7 @@ fn fourier_orns_print_their_ornaments() {
   latexml::util::test::assert_element(&xml, "p", &[], "<p>⛔ ⚠ ☡ 💣 ☙ ❧ ❦ ☜ ☞ ❖ €</p>");
 }
 
-/// extdash.sty:79-110 under `[shortcuts]`: `\-` followed by `--` is the em dash with half-spaces around it, `\--` the
+/// extdash.sty:78-105 under `[shortcuts]`: `\-` followed by `--` is the em dash with half-spaces around it, `\--` the
 /// en dash, `\-/` a breakable hyphen, `\-,` a half-space; `\Emdash` and `\Endash` are the same by name.
 #[test]
 fn extdash_shortcuts_make_the_dashes() {
@@ -225,32 +271,51 @@ fn ninecolors_defines_the_numbered_shades() {
   );
 }
 
-/// memoir.cls loads memhfixc.sty after hyperref (memhfixc.sty:7-8 and the class); its `\M@sect` patch
-/// (memhfixc.sty:116-140, `\Hy@MakeCurrentHrefAuto`, `\Hy@SectionAnchorHref`) and `\@sbook` patch (:76-83) run through
-/// every heading kind (a numbered one, one below `secnumdepth`, a starred one) and a captioned float without errors,
-/// and the structure and ids survive. The one warning is the `\@iffirstamp` conditional memoir/hyperref define
-/// without `\if` (also present under `rawstyles`); no skipped package.
+/// memoir.cls requests memhfixc.sty after hyperref. The binding provides only `\bookautorefname` and
+/// `\subfigureautorefname` (memhfixc.sty:113-114): its patches call hyperref internals LaTeXML lacks (a raw load makes
+/// `\book*{Bk}` fail with `Error:undefined:\Hy@MakeCurrentHrefAuto`, :76-83), so a memoir document with hyperref
+/// converts with 0 errors, LaTeXML's own anchors, ids and structure, and no skipped package. The one warning is the
+/// `\@iffirstamp` conditional memoir/hyperref define without `\if` (also present under `rawstyles`).
 #[test]
-fn memhfixc_patches_memoir_with_hyperref() {
-  let xml = native(
-    "\\documentclass{memoir}\n\\usepackage{hyperref}\n\\setsecnumdepth{subsection}\n\\begin{document}\n\
-     \\chapter{Alpha}\\label{c}\n\\section{Beta}\n\\subsection{Gamma}\n\\subsubsection{Delta}\n\\section*{Epsilon}\n\
-     See \\ref{c}.\n\\begin{figure}\\caption{Cap}\\label{f}\\end{figure}\nFig \\ref{f}.\n\\end{document}\n",
+fn memhfixc_is_a_no_op_for_memoir_with_hyperref() {
+  let tex = "\\documentclass{memoir}\n\\usepackage{hyperref}\n\\setsecnumdepth{subsection}\n\\begin{document}\n\
+     \\book*{Bk}\n\\chapter{Alpha}\\label{c}\n\\section{Beta}\\footnote{Note.}\n\\subsubsection{Delta}\n\\section*{Epsilon}\n\
+     See \\ref{c}.\n\\begin{figure}\\caption{Cap}\\label{f}\\end{figure}\nFig \\ref{f}. \\bookautorefname/\\subfigureautorefname.\n\\end{document}\n";
+  let (stderr, xml) = convert_with(tex, Some("latexml.sty"));
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 1, "{stderr}");
+  assert_eq!(
+    stderr
+      .matches("Warning:misdefined:\\@iffirstamp The conditional \\@iffirstamp is being defined but doesn't start with \\if")
+      .count(),
     1,
+    "{stderr}"
   );
-  for needle in [
-    r#"<chapter class="ltx_chapterstyle_default" inlist="toc" labels="LABEL:c" xml:id="chapter1">"#,
+  assert!(!stderr.contains("missing_file"), "{stderr}");
+  latexml::util::test::assert_element(
+    &xml,
+    "text",
+    &[r#"fontsize="207%""#],
+    r#"<text align="center" font="bold" fontsize="207%">Bk</text>"#,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "title",
+    &[],
     r#"<title><tag close=" ">Chapter 1</tag>Alpha</title>"#,
-    r#"<section inlist="toc" xml:id="chapter1.section1">"#,
-    r#"<subsection inlist="toc" xml:id="chapter1.section1.subsection1">"#,
-    r#"<subsubsection inlist="toc" xml:id="chapter1.section1.subsection1.subsubsectionx1">"#,
-    r#"<section xml:id="chapter1.sectionx1">"#,
-    r#"<title>Epsilon</title>"#,
-    r#"<figure inlist="lof" labels="LABEL:f" xml:id="chapter1.figure1">"#,
-    "<caption><tag close=\": \">Figure\u{a0}1.1</tag>Cap</caption>",
-  ] {
-    assert!(xml.contains(needle), "missing {needle}:\n{xml}");
-  }
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "section",
+    &[r#"xml:id="chapter1.section1""#],
+    r##"<section inlist="toc" xml:id="chapter1.section1"><tags><tag>1.1</tag><tag role="autoref">section 1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title><tag close=" ">1.1</tag>Beta</title><toctitle><tag close=" ">1.1</tag>Beta</toctitle><note mark="1" role="footnote" xml:id="footnote1"><tags><tag>1</tag><tag role="autoref">footnote 1</tag><tag role="refnum">1</tag><tag role="typerefnum">footnote 1</tag></tags>Note.</note><subsubsection inlist="toc" xml:id="chapter1.section1.subsection0.subsubsectionx1"><title>Delta</title><toctitle>Delta</toctitle></subsubsection></section>"##,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "section",
+    &[r#"xml:id="chapter1.sectionx1""#],
+    r##"<section xml:id="chapter1.sectionx1"><title>Epsilon</title><para xml:id="chapter1.sectionx1.p1"><p>See <ref labelref="LABEL:c"/>.</p></para><figure inlist="lof" labels="LABEL:f" xml:id="chapter1.figure1"><tags><tag>Figure 1.1</tag><tag role="autoref">Figure 1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">Figure 1.1</tag></tags><toccaption><tag close=" ">1.1</tag>Cap</toccaption><caption><tag close=": ">Figure 1.1</tag>Cap</caption></figure><para xml:id="chapter1.sectionx1.p2"><p>Fig <ref labelref="LABEL:f"/>. Book/Subfigure.</p><pagination role="newpage"/></para></section>"##,
+  );
 }
 
 /// spectralsequences.sty: `{sseqdata}` + `\printpage` draw the diagram (an `ltx:picture`); the class labels keep
@@ -278,7 +343,7 @@ fn spectralsequences_draws_the_diagram() {
   assert!(xml.contains("Before ọ after."), "{xml}");
 }
 
-/// rank-2-roots.sty:131-137: `{rootSystem}{G}` with `\roots` and `\simpleroots` draws the G2 root system: an
+/// rank-2-roots.sty: `{rootSystem}{G}` (:111) with `\roots` (:481) and `\simpleroots` (:134) draws the G2 root system: an
 /// `ltx:picture` of the package's size holding its 31 paths, the first the 12-point root polygon.
 #[test]
 fn rank_2_roots_draws_the_root_system() {
@@ -377,10 +442,12 @@ const CTEX_BARE: &str =
 
 /// Under the default pdfTeX persona ANY `\usepackage{ctex}` errors, as under pdflatex: with no `fontset` option ctex
 /// detects the platform (`fandol`, or `mac` where `/System/Library/Fonts/Menlo.ttc` exists; ctex.sty:830-841) and the
-/// fontset file is `unavailable in current mode` under pdfTeX (`\msg_critical`, ctex.sty:802). The binding reports
-/// the real file's error once, no skipped-package warning, nothing else.
+/// fontset is `unavailable in current mode` under pdfTeX (`\msg_critical`, ctex.sty:802), which ends only that file
+/// (expl3-code.tex:11101-11107). The binding reports the real file's error, no skipped-package warning. Known
+/// difference: on the mac fontset path pdflatex reports a second error (`File ended while scanning use of
+/// \use_none_delimit_by_q_stop:w`, ctex-fontset-mac.def l.90); this engine reports one, which is what the count pins.
 #[test]
-fn ctex_fontset_is_refused_under_pdftex_as_in_pdflatex() {
+fn ctex_fontset_is_refused_under_pdftex() {
   let (stderr, _xml) = convert_with(CTEX_BARE, Some("latexml.sty"));
   assert_eq!(error_count(&stderr), 1, "{stderr}");
   assert_eq!(warning_count(&stderr), 0, "{stderr}");
