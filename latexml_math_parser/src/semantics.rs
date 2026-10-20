@@ -11095,31 +11095,6 @@ pub fn close_fenced(
   }
 }
 
-/// Double-fenced: <<expr>> or <<list>> — double angle brackets as a single
-/// semantic unit. Used in quantum mechanics (<<a|b>>), operator theory, etc.
-/// Produces Apply(delimited-<<>>, content).
-#[allow(dead_code)]
-pub fn double_fenced(
-  _rule_id: i32,
-  mut args: Vec<Option<XM>>,
-  _: &[ValidationPragmatics],
-  _ctxt: ActionContext,
-) -> Result<Option<XM>, Box<dyn Error>> {
-  // Args: open1, open2, content, close1, close2
-  unp!(args => _open1, _open2, arg_opt, _close1, _close2);
-  let arg = arg_opt.unwrap();
-  let op = XProps {
-    meaning: Some(Cow::Borrowed("delimited-\\langle\\langle\\rangle\\rangle")),
-    ..XProps::default()
-  };
-  Ok(Some(XM::Apply(
-    Operator::from(op),
-    Args(vec![Some(arg)]),
-    XProps::default(),
-    Meta::default(),
-  )))
-}
-
 /// Perl MathGrammar L259-260, MathParser.pm L1656-1668: NewEvalAt
 /// Handles `a|_{x=0}`, `f(x)|_{0}^{1}`, `\left.xyz\right|_{0}^{2}`
 /// Pattern: base evalAtOp sub [sup]
@@ -11343,19 +11318,6 @@ fn qm_fenced(
     XProps::default(),
     Meta::default(),
   )))
-}
-
-/// `<a>` → expectation@(a) — Perl enclose1: '<@>' => 'expectation'
-#[allow(dead_code)]
-pub fn qm_expectation(
-  _: i32,
-  mut args: Vec<Option<XM>>,
-  _: &[ValidationPragmatics],
-  ctxt: ActionContext,
-) -> Result<Option<XM>, Box<dyn Error>> {
-  let stuff: Vec<XM> = args.iter().flatten().cloned().collect();
-  unp!(args => _open, expr, _close);
-  qm_fenced("expectation", vec![expr], stuff, ctxt)
 }
 
 /// A Dirac label — a bra's, ket's, inner product's or operator product's part — reads no bar outside
