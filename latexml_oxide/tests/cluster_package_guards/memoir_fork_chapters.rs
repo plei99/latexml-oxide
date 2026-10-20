@@ -114,7 +114,7 @@ fn assert_refs(xml: &str, title: &str, refnum: &str, typerefnum: &str) {
 
 /// The `<toctitle>` of the unit titled `title` is the number and the title, both in `\cftchapterfont`'s bold: the
 /// contents entry carries `\thechapter` (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,
-/// memoir.cls:3065-3066), which `\@chapapp` and the chapter style do not touch, where the head prints what the style
+/// memoir.cls:3066-3067), which `\@chapapp` and the chapter style do not touch, where the head prints what the style
 /// prints ("Three" under `demo2`). A consumer of the XML that wants the contents' number reads it here.
 fn assert_toc_number(xml: &str, title: &str, number: &str) {
   let toctitle = format!(

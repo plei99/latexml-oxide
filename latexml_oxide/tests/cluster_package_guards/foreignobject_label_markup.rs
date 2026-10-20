@@ -2,8 +2,8 @@
 //! were errors of the Rust port (the stylesheet that mishandled the first is Perl's, byte for byte), and one is a
 //! stylesheet rule of Perl's that the fork changes (OXIDIZED_DESIGN_DIVERGENCES #597).
 //!
-//! 1. A picture inside a formula (`\overline{\left\{\begin{tikzpicture}...\right\}}`, the boundary divisor of
-//!    a boundary-divisor picture in a formula) reaches the HTML as an `m:mtext` holding the picture. A `$T^C$` label of that
+//! 1. A picture inside a formula (`\overline{\left\{\begin{tikzpicture}...\right\}}`, a boundary divisor of a
+//!    moduli space) reaches the HTML as an `m:mtext` holding the picture. A `$T^C$` label of that
 //!    picture is a nested `ltx:Math`; Perl's `convertXMTextContent` rebuilds it as `ltx:Math > m:math`, which the
 //!    stylesheet turns into `<math class="ltx_Math">`. Rust's #101 path emitted the bare `m:math`, which the
 //!    `foreignObject`'s `copy-foreign` rule (`m:*` resumes with the children of the element) reduced to an `msup`
@@ -13,7 +13,7 @@
 //!    children, so the `svg` stood bare in the `mtext` between NBSP text nodes (the markup's indentation), two lines
 //!    around a block, the fences stretched to twice the picture, and the picture stood at their bottom.
 //! 3. `<xsl:strip-space elements="ltx:picture svg:*"/>` dropped the blank text node between the words and the math
-//!    of a label (`\textbf{Family:} $xy$` in a `\node`, a figure of `\node` labels: "Family:xy"; Perl's too).
+//!    of a label (`\textbf{Family:} $xy$` in a `\node` of a figure: "Family:xy"; Perl's too).
 
 use latexml::util::test::assert_element;
 

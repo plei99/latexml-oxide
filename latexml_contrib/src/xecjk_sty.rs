@@ -21,7 +21,7 @@ LoadDefinitions!({
   // `\__xeCJK_pass_args:nnnn` runs `\xeCJK_set_family:nnn {family} {options} {font}` when the leading `o` argument was
   // given, and else reads a trailing `O{}` (`\__xeCJK_post_arg:w`), so `\setCJKmainfont{Songti SC}[BoldFont={Songti SC
   // Bold}]` is the same call as `\setCJKmainfont[BoldFont={Songti SC Bold}]{Songti SC}`, and a `[` after the name of the
-  // first form is not an argument (a document with `\setCJKmainfont{Songti SC}[BoldFont=...]` printed "[BoldFont=Songti SC Bold, ...]" as text).
+  // first form is not an argument (a document with `\setCJKmainfont{Songti SC}[BoldFont=...]` printed the options as text).
   // `\setCJKmainfont` is `{ o m }` (:6330), `\setCJKsansfont` (:6337), `\setCJKmonofont` (:6343) and `\setCJKmathfont`
   // (:6585) likewise, `\CJKfontspec` `{ o m }` (:6378), `\setCJKfamilyfont` and `\setCJKfallbackfamilyfont` `{ m o m }`
   // (:6356, :5710); `\setCJKromanfont` is `\setCJKmainfont` (:6336).

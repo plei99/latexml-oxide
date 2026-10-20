@@ -63,6 +63,11 @@ fn a_bracket_after_a_font_name_with_leading_options_is_text() {
   );
   let (stderr, xml) = super::convert(&tex, false);
   assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+  assert_eq!(
+    super::perfect_kernel_batch46::warning_count(&stderr),
+    0,
+    "{stderr}"
+  );
   assert_eq!(only_paragraph(&xml), "<p>[kept] text.</p>", "{xml}");
 }
 

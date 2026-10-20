@@ -1,8 +1,10 @@
-//! amsart, amsproc and amsbook number their parts with `\arabic{part}` (amsart.cls:1098, amsproc.cls:1033,
-//! amsbook.cls:878), where article, report and book use `\Roman{part}`. Perl's `amsart.cls.ltxml` loads the article
-//! binding and does not renew `\thepart`, so a document headed `\part{...}` read "Part I" in the heading, the contents
-//! and the references where the PDF reads "Part 1". amsart and amsproc also close the number of a heading with a
-//! full stop (`\@secnumpunct`, the `\edef` at amsart.cls:1059-1065 inside `\@sect`, :1050-1088; `\@seccntformat`, :1043-1048; `\part`, :1106-1108), "Part 1. Title", as they do for sections.
+//! amsart, amsproc and amsbook number their parts with `\arabic{part}` (amsart.cls:1098,
+//! amsproc.cls:1033, amsbook.cls:878), where article, report and book use `\Roman{part}`. Perl's
+//! `amsart.cls.ltxml` loads the article binding and does not renew `\thepart`, so a document headed
+//! `\part{...}` read "Part I" in the heading, and "I" in the contents and in a `\ref`, where the
+//! PDF reads "Part 1" and "1". amsart and amsproc also close the number of a heading with a full
+//! stop (`\@secnumpunct`, the `\edef` at amsart.cls:1059-1065 inside `\@sect`, :1050-1088;
+//! `\@seccntformat`, :1043-1048; `\part`, :1106-1108), "Part 1. Title", as they do for sections.
 
 /// The `<part>` element of the unit titled `title`, from its opening tag to its `</toctitle>`.
 fn part_head<'a>(xml: &'a str, title: &str) -> &'a str {

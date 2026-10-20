@@ -1179,7 +1179,7 @@ pub fn pmml_text_aux(doc: &PostDocument, node: &Node, attrs: &TextAttrs) -> Vec<
 /// bare `<mrow>` inside that HTML is parsed as HTML and renders as flat text —
 /// not math (subscripts/superscripts/calligraphic lost). The `<math>` re-enters
 /// MathML context. Nested math is always inline (a `$...$`), so `display=inline`;
-/// `alttext` rides from the `ltx:Math`. The top-level pass gets the same
+/// `alttext` and `class` ride from the `ltx:Math`. The top-level pass gets the same
 /// wrapper from `MathProcessor::outer_wrapper`; this is its nested analogue
 /// (arXiv html_feedback #6847 / OXIDIZED_DESIGN #101). The `ltx:Math` around it is
 /// what the stylesheet turns into the `<math class="ltx_Math">` (Perl's too), also
@@ -1191,6 +1191,10 @@ fn nested_ltx_math_to_inline_mathml(doc: &PostDocument, math_node: &Node) -> Opt
   attrs.insert("display".to_string(), "inline".to_string());
   if let Some(tex) = math_node.get_attribute("tex") {
     attrs.insert("alttext".to_string(), tex);
+  }
+  // As `outerWrapper` (MathML.pm:90-92) and the top-level wrapper (`MathProcessor::outer_wrapper`) do.
+  if let Some(class) = math_node.get_attribute("class") {
+    attrs.insert("class".to_string(), class);
   }
   let math = NodeData::Element {
     tag:        "m:math".to_string(),
@@ -1221,41 +1225,12 @@ fn rebuilt_attributes(node: &Node) -> HashMap<String, String> {
   attrs
 }
 
-/// Eagerly materialize an XMText-or-picture subtree into owned NodeData.
-///
-/// Port of `LaTeXML::Post::MathProcessor::convertXMTextContent`
-/// (Post.pm L456-489). Walks `node` recursively and rebuilds the subtree
-/// as owned NodeData, so downstream consumers do not depend on the
-/// source node's libxml2 lifetime. Internal `_*` attributes and stray
-/// `xml:id` are dropped (Perl mirrors this); `fragid` would be remapped
-/// to a fresh id in Perl but MathML::Presentation does not carry a
-/// processor-level id suffix through this path, so we drop it too and
-/// let the surrounding MathML ids govern.
-///
-/// When `convert_spaces` is true, leading/trailing whitespace on text
-/// nodes is replaced with NBSP so the rendered MathML does not collapse
-/// the space. A nested `ltx:Math` (a `$...$` inside a text box that itself
-/// sits in math) is CONVERTED to presentation MathML by
-/// `rebuild_text_subtree_with_doc` rather than cloned raw — see the
-/// reentrancy note there (arXiv html_feedback #6847); Perl leaves it raw and
-/// warns `unexpected:nested-math`, which renders operator-first (garbled).
-pub fn convert_xm_text_content(
-  doc: &PostDocument,
-  node: &Node,
-  convert_spaces: bool,
-) -> Vec<NodeData> {
-  node
-    .get_child_nodes()
-    .iter()
-    .filter_map(|c| rebuild_text_subtree_with_doc(c, convert_spaces, Some(doc)))
-    .collect()
-}
-
 /// Rebuild a libxml2 subtree into owned `NodeData`, dropping internal
-/// `_*`, `xml:id`, and `fragid` attributes. Shared between
-/// `convert_xm_text_content` (Perl `convertXMTextContent`,
-/// Post.pm L456-489) and `pmml_text_aux` for cases where Perl
-/// calls `cloneNode($node, 'nest')` (MathML.pm L1073) — i.e. when an
+/// `_*`, `xml:id`, and `fragid` attributes. It is Perl's `convertXMTextContent`
+/// (Post.pm L456-489: a text node's blank edges become NBSP when `convert_spaces`, a nested
+/// `ltx:Math` is rebuilt around its converted `m:math`) as `pmml_text_aux` calls it for the
+/// `ltx:picture` arm (MathML.pm L1061-1063), and the `cloneNode($node, 'nest')` of
+/// MathML.pm L1073 — i.e. when an
 /// unhandled element like `ltx:ref` appears inside a text-mode
 /// fragment and must survive into the output so the XSLT can
 /// transform it (e.g. `ltx:ref` → `<a>`).

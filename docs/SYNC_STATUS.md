@@ -112,7 +112,7 @@ TL manuals) and the per-batch arXiv A/B; the cortex reruns of sandboxes 2605/260
   MathML.pm:1061-1063 gives `convertXMTextContent($doc, 1, $node)` the picture node (Post.pm:456 iterates its argument
   list), so the stylesheet's as-svg path yields `<mtext><span class="ltx_inline-block"><svg class="ltx_picture">`; the port
   gave it the picture's CHILDREN, a bare `svg` between NBSP text nodes (two extra lines in MathML Core: the stretchy braces
-  of `\left\{ ... \right\}` were twice the picture, which stood at their bottom; a boundary-divisor picture in a formula). A label
+  of `\left\{ ... \right\}` were twice the picture, which stood at their bottom; the boundary-divisor picture of a moduli-space text). A label
   `$T^C$` of the picture (`ltx:Math`) came out as a bare `m:math` (the #101 path), which the stylesheet's `copy-foreign`
   rule for `m:*` turns into an `msup` in a span, "TC" on one baseline; Perl rebuilds the `ltx:Math` around the `m:math`
   (Post.pm:467-487), and so does the port now (the stylesheet is Perl's). Guards
