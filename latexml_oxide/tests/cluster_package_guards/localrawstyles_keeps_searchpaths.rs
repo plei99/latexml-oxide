@@ -106,3 +106,109 @@ fn a_local_sty_raw_loads_what_the_document_could_not() {
     "the local .sty itself loads:\n{xml}"
   );
 }
+
+/// A source registered in `INTERPRETABLE_SOURCES` (physics2.sty, its `phy-*` modules, fontawesome7.sty:
+/// `latex_constructs_rust_only.rs` §10) is vouched for as safe to interpret, so it raw-loads from the TeX tree under
+/// `localrawstyles` as it does by default (`require_package`'s notex default exempts it; the searchpaths_only gate
+/// must too). Without the exemption `\usepackage{physics2}` was skipped as "not under the document's search paths"
+/// and `\usephysicsmodule`, `\ab`, `\pdiagmat` were undefined, with `Error:unexpected:\middle` after them.
+#[test]
+fn localrawstyles_still_raw_loads_an_interpretable_source() {
+  let tex = "\\documentclass{article}\n\
+    \\usepackage{physics2}\n\
+    \\usephysicsmodule{ab,diagmat}\n\
+    \\begin{document}\n\
+    $\\ab(x)$ and $\\pdiagmat{a,b}$\n\
+    \\end{document}\n";
+  let (log, xml) = super::convert_files_with(tex, &[], PRELOAD);
+  assert_eq!(
+    (error_count(&log), warning_count(&log)),
+    (0, 0),
+    "physics2 loads without a diagnostic:\n{log}"
+  );
+  assert!(
+    !log.contains("missing_file"),
+    "physics2 is not reported missing:\n{log}"
+  );
+  assert!(
+    xml.contains(r#"<XMTok role="OPEN" stretchy="true">(</XMTok>"#)
+      && xml.contains(r#"<XMTok role="CLOSE" stretchy="true">)</XMTok>"#),
+    "\\ab(x) makes stretchy fences around x:\n{xml}"
+  );
+  // `\pdiagmat{a,b}` is the 2x2 diagonal matrix in parentheses: the pmatrix source, its array semantics, and two
+  // rows of two cells.
+  assert!(
+    xml.contains(r#"tex="\begin{pmatrix}a&amp;0\\&#10;0&amp;b\\&#10;\end{pmatrix}""#)
+      && xml.contains(r#"text="matrix@(Array[[a, 0], [0, b]])""#),
+    "\\pdiagmat builds the parenthesised diagonal matrix:\n{xml}"
+  );
+  assert_eq!(
+    (
+      xml.matches("<XMRow>").count(),
+      xml.matches("<XMCell ").count()
+    ),
+    (2, 4),
+    "the matrix has two rows of two cells:\n{xml}"
+  );
+}
+
+/// A binding that requests an unbound TeX Live package "only where raw loading is on" must not make the request under
+/// `localrawstyles`: INCLUDE_STYLES is then the string `searchpaths`, which is truthy, but the request can only miss
+/// (the package is in the TeX tree, outside the document's search paths) and adds a `missing_file` warning for a
+/// package nothing asked for. `mdframed_sty.rs` requests zref-abspage (mdframed.sty:72-77), `amsrefs_sty.rs`
+/// rkeyval and textcmds; `raw_tex_styles_enabled` is the gate.
+#[test]
+fn bindings_do_not_request_unbound_packages_under_localrawstyles() {
+  let tex = "\\documentclass{article}\n\
+    \\usepackage{mdframed}\n\
+    \\usepackage{amsrefs}\n\
+    \\usepackage{backref}\n\
+    \\begin{document}\n\
+    \\begin{mdframed}framed-text\\end{mdframed}\n\
+    \\end{document}\n";
+  let (log, xml) = super::convert_files_with(tex, &[], PRELOAD);
+  for missing in ["zref-abspage", "rkeyval", "textcmds", "rerunfilecheck"] {
+    assert!(
+      !log.contains(&format!("missing_file:{missing}")),
+      "{missing} must not be requested under localrawstyles:\n{log}"
+    );
+  }
+  for stub in [
+    "Warning:missing_file:mdframed.sty mdframed.sty is only minimally stubbed",
+    "Warning:missing_file:backref.sty backref.sty is minimally stubbed",
+  ] {
+    assert_eq!(log.matches(stub).count(), 1, "{stub} once:\n{log}");
+  }
+  assert_eq!(
+    (error_count(&log), warning_count(&log)),
+    (0, 2),
+    "the two bindings' own stub warnings are the only diagnostics:\n{log}"
+  );
+  assert!(
+    xml.contains("framed-text"),
+    "the framed text is present:\n{xml}"
+  );
+}
+
+/// The gate is not applied to a paper's own `arxiv.sty` (`arxiv_sty.rs`, `primearxiv_sty.rs`): that file is in the
+/// document's directory, so it is found under `localrawstyles` and stays authoritative over the bare fallbacks.
+#[test]
+fn a_local_arxiv_sty_still_loads_under_localrawstyles() {
+  let tex = "\\documentclass{article}\n\
+    \\usepackage{arxiv}\n\
+    \\begin{document}\n\
+    \\lxarxiv\n\
+    \\end{document}\n";
+  let sty =
+    "\\ProvidesPackage{arxiv}\n\\newcommand{\\lxarxiv}{from-the-local-arxiv-sty}\n\\endinput\n";
+  let (log, xml) = super::convert_files_with(tex, &[("arxiv.sty", sty)], PRELOAD);
+  assert_eq!(
+    (error_count(&log), warning_count(&log)),
+    (0, 0),
+    "no diagnostic at all:\n{log}"
+  );
+  assert!(
+    xml.contains("from-the-local-arxiv-sty"),
+    "the paper's own arxiv.sty is read:\n{xml}"
+  );
+}

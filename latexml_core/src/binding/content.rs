@@ -1177,7 +1177,7 @@ fn input_definitions_impl(raw_file: &str, mut options: InputDefinitionOptions) -
       }
       // Say which of the two things actually happened. `notex` (the DEFAULT
       // whenever `INCLUDE_STYLES` is off — see `require_package`, Perl
-      // `Package.pm` L2671-2672) gates the raw-search branch above, so in that
+      // `Package.pm` L2688-2689) gates the raw-search branch above, so in that
       // case NO disk lookup was performed at all. Claiming "no raw file found
       // on disk" there asserts a search that never ran, and the package is
       // usually installed and findable: `\usepackage{xstring}` on arXiv
@@ -2709,11 +2709,21 @@ fn source_tree_basename<'a>(name: &'a str, ext: &str) -> Cow<'a, str> {
   Cow::Owned(base.to_string())
 }
 
+/// Is raw `.sty` loading on in the sense of "an unbound TeX Live package can be read from the TeX tree"?
+/// `INCLUDE_STYLES` is true under `--includestyles`, and is the string `searchpaths` under latexml.sty's
+/// `localrawstyles` (latexml.sty.ltxml:76): truthy, but `require_package` then limits the search to the
+/// document's own directories (Perl `Package.pm:2691`), so a request for a package with no binding normally
+/// misses (it would load only if the paper shipped that `.sty` beside it). A binding that
+/// requests such a package "only where raw loading is on" gates on this, not on `lookup_bool("INCLUDE_STYLES")`.
+pub fn raw_tex_styles_enabled() -> bool {
+  lookup_bool("INCLUDE_STYLES") && lookup_string("INCLUDE_STYLES") != "searchpaths"
+}
+
 pub fn require_package(name: &str, mut options: RequireOptions) -> Result<()> {
   let ext = options.extension.as_deref().unwrap_or("sty").to_string();
   let name = source_tree_basename(name, &ext);
   let name = name.as_ref();
-  // Perl Package.pm L2671-2672: notex defaults to true unless the user
+  // Perl Package.pm L2688-2689: notex defaults to true unless the user
   // explicitly set it, or INCLUDE_STYLES is true, or noltxml was passed
   // (a raw-only load explicitly requests raw TeX).
   // A source registered in `INTERPRETABLE_SOURCES` is one a binding (or the
@@ -2723,19 +2733,26 @@ pub fn require_package(name: &str, mut options: RequireOptions) -> Result<()> {
   // latex_constructs_rust_only.rs §10; the alternative was the wrong
   // glued-suffix fallback binding). Perl gates it on `notex` too, and so
   // misloads physics2 under its default configuration.
+  let interpretable = lookup_mapping("INTERPRETABLE_SOURCES", &s!("{name}.{ext}")).is_some();
   if options.notex.is_none()
     && !lookup_bool("INCLUDE_STYLES")
     && !matches!(options.noltxml, Some(true))
-    && lookup_mapping("INTERPRETABLE_SOURCES", &s!("{name}.{ext}")).is_none()
+    && !interpretable
   {
     options.notex = Some(true);
   }
-  // Perl Package.pm L2674: top-level \RequirePackage can be limited to
+  // Perl Package.pm L2691: top-level \RequirePackage can be limited to
   // local sources via searchpaths_only. Triggered by the `localrawstyles`
   // option to latexml.sty (sets `INCLUDE_STYLES => 'searchpaths'`).
   // Only applies when raw TeX is allowed (notex==false); otherwise the
   // gate is moot since find_file won't search on-disk anyway.
+  // A source in `INTERPRETABLE_SOURCES` is exempt here exactly as from the
+  // notex default above: it is vouched for as safe to interpret, so
+  // `[localrawstyles]latexml.sty` + `\usepackage{physics2}` (or fontawesome7)
+  // still raw-loads it from the TeX tree rather than skipping it as "not
+  // under the document's search paths".
   if !options.searchpaths_only
+    && !interpretable
     && !matches!(options.notex, Some(true))
     && lookup_string("INCLUDE_STYLES") == "searchpaths"
   {

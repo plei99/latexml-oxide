@@ -41,7 +41,7 @@ LoadDefinitions!({
   RequirePackage!("kvoptions");
   RequirePackage!("kvsetkeys");
   // rerunfilecheck has no binding: read raw only where raw loading is on (see mdframed_sty.rs).
-  if lookup_bool("INCLUDE_STYLES") {
+  if raw_tex_styles_enabled() {
     RequirePackage!("rerunfilecheck");
   }
   // backref's user-facing API: setup, format, print. backref.sty:67 `\backrefsetup` = `\kvsetkeys{backref}`.

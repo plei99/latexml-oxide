@@ -13,7 +13,8 @@ LoadDefinitions!({
   // url.sty exists), rkeyval (:213, `\DefineSimpleKey`, `\DefineAdditiveKey`), and unless the `lite` option
   // (:179, :214-218) textcmds and mathscinet (`\cprime`, `\germ`, `\scr`, `\Dbar`: the MathSciNet
   // transliterations a `\bib` entry carries). rkeyval and textcmds have no binding: they are read raw, so only
-  // where raw loading is on (as `--preload=ar5iv.sty` has it). Witnesses 1907.08888, 2602.02342, math0410226,
+  // where raw loading is on (as `--preload=ar5iv.sty` has it; `raw_tex_styles_enabled`, so not under `localrawstyles`,
+  // where the TeX tree is out of reach and the request could only add a `missing_file` warning). Witnesses 1907.08888, 2602.02342, math0410226,
   // 1503.01599, 1102.5022.
   DeclareOption!("lite", { AssignValue!("amsrefs@lite" => true, Scope::Global); });
   DeclareOption!("msc-links", { AssignValue!("amsrefs@msc-links" => true, Scope::Global); });
@@ -24,11 +25,11 @@ LoadDefinitions!({
     RequirePackage!("hyperref");
   }
   RequirePackage!("url");
-  if lookup_bool("INCLUDE_STYLES") {
+  if raw_tex_styles_enabled() {
     RequirePackage!("rkeyval");
   }
   if !lookup_bool("amsrefs@lite") {
-    if lookup_bool("INCLUDE_STYLES") {
+    if raw_tex_styles_enabled() {
       RequirePackage!("textcmds");
     }
     RequirePackage!("mathscinet");
