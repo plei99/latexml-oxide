@@ -44,7 +44,8 @@ fn xmllint_format(path: &str) -> String {
 
 /// Run a post-processing test: read input XML, apply PMML conversion with
 /// keepXMath, compare against reference via libxml2-normalized line diff.
-fn post_test(name: &str, max_allowed_diffs: usize) {
+/// Returns the post-processed document, for tests that assert on it as well.
+fn post_test(name: &str, max_allowed_diffs: usize) -> String {
   let input_path = format!("{}/{}.xml", DIR, name);
   let reference_path = format!("{}/{}-post.xml", DIR, name);
 
@@ -113,6 +114,7 @@ fn post_test(name: &str, max_allowed_diffs: usize) {
       name, diff_count, max_allowed_diffs
     );
   }
+  actual
 }
 
 #[test]
@@ -161,15 +163,43 @@ fn opdecoration_post_test() {
 #[test]
 fn overline_post_test() {
   // `\overline` / `\underline` presentation (OXIDIZED_DESIGN_DIVERGENCES #584).
-  // Perl (MathML.pm L1477-1493) and we used to emit `<mover accent><base/><mo>¯</mo>`;
+  // Perl (MathML.pm L1490-1506) and we used to emit `<mover accent><base/><mo>¯</mo>`;
   // the macron's horizontal stretch needs a horizontal MATH-table construction that
   // common math fonts lack, so the "bar" rendered as a short tick. The operators NAMED
   // `overline`/`underline` now present as a bordered `<mrow class="ltx_overline|underline"
-  // style="…">` (TeXbook App. G rules 9/10: rule θ=0.04em, 3θ clearance, θ kern outside).
+  // style="…">` (TeXbook App. G rules 9/10: rule θ=0.04em, 3θ clearance, θ kern outside),
+  // the base of an accent `mover`/`munder` whose `¯` has `mathsize="0"`.
   // The fixture spans: bare/compound base, a script outside the rule (`\overline{\mathcal M}_{g,n}`),
   // scripts on a `\overline{H}`, nested/mixed rules (no `munderover` merge), a coloured rule,
   // and the control `\bar{z}`, whose narrow accent `<mover accent><mi>z</mi><mo>¯</mo>` is unchanged.
-  post_test("overline", 0);
+  let actual = post_test("overline", 0);
+
+  // A border is not read by assistive technology, so each ruled row is the base of
+  // an accent `mover`/`munder` whose `¯` is drawn at size zero: readers still find
+  // the bar. All 8 overlines and 3 underlines of the fixture, and nothing else.
+  let count = |s: &str| actual.matches(s).count();
+  assert_eq!(count(r#"<m:mrow class="ltx_overline""#), 8, "{actual}");
+  assert_eq!(
+    count(r#"<m:mover accent="true"><m:mrow class="ltx_overline""#),
+    8,
+    "{actual}"
+  );
+  assert_eq!(count(r#"<m:mrow class="ltx_underline""#), 3, "{actual}");
+  assert_eq!(
+    count(r#"<m:munder accentunder="true"><m:mrow class="ltx_underline""#),
+    3,
+    "{actual}"
+  );
+  assert_eq!(
+    count(r#"<m:mo mathsize="0" stretchy="false">¯</m:mo>"#),
+    11,
+    "{actual}"
+  );
+  // `\bar` keeps its visible accent.
+  assert!(
+    actual.contains(r#"<m:mover accent="true"><m:mi>z</m:mi><m:mo>¯</m:mo></m:mover>"#),
+    "{actual}"
+  );
 }
 
 #[test]

@@ -4,7 +4,7 @@
 
 > **Numbering note:** the `### N` numbers are load-bearing (referenced from `.rs` comments) and are kept verbatim. `#16` and the math-grammar entries `#7–#18` live in [OXIDIZED_DESIGN_MATH.md](../math/OXIDIZED_DESIGN_MATH.md); in particular the code-referenced **`#18` is the f(x) "Speculative function application"** entry there, *not* the "Source-Level Bindings" `#18` below.
 >
-> **`#76` is a RETIRED number, not an omission** — its entry was consolidated into `#74` and the number was deliberately not reused (see the placeholder in sequence below). Next free number: **#590** (allocate at integration with `tools/perfect_kernel/next_entry_numbers.sh`).
+> **`#76` is a RETIRED number, not an omission** — its entry was consolidated into `#74` and the number was deliberately not reused (see the placeholder in sequence below). Next free number: **#591** (allocate at integration with `tools/perfect_kernel/next_entry_numbers.sh`).
 
 ---
 
@@ -17425,12 +17425,12 @@ Reproducer: `tools/perfect_kernel/repros/sectioning-frontmatter/titlesec_label_i
 starred, a size switch in the format, book `[hang]`/`[block]`/`[display]`/`[runin]` chapters as whole `<h2>`); the
 `perfect_kernel_batch56::titlesec_*` goldens carry the tags.
 
-### 584. `\overline` / `\underline` are bordered `<mrow>`s, not macron accents (Perl: `<mover accent="true">` + U+00AF)
+### 584. `\overline` / `\underline` are drawn as a border on the accent's base, not by the stretched macron (Perl: `<mover accent="true">` + U+00AF)
 
 Perl binds `\overline`/`\underline` as `DefMath` with operator role `OVERACCENT`/`UNDERACCENT` and the
-glyph U+00AF (Package/TeX.pool.ltxml:6394-6425), and its presentation handlers emit
+glyph U+00AF (Engine/TeX_Math.pool.ltxml:954-963), and its presentation handlers emit
 `<mover accent="true"><mi>M</mi><mo>¯</mo></mover>` / `<munder accentunder="true">…`
-(Post/MathML.pm:1477-1493); ours did the same with an explicit `stretchy="true"` on the `<mo>`. MathML Core
+(Post/MathML.pm:1490-1506); ours did the same with an explicit `stretchy="true"` on the `<mo>`. MathML Core
 makes U+00AF and U+203E horizontally stretchy postfix operators, but stretching needs a horizontal
 construction (variants or an assembly) in the font's MATH table, and the common math fonts have none: Asana
 Math has no U+00AF and U+203E without a horizontal construction, Latin Modern Math has U+00AF without one and
@@ -17443,9 +17443,19 @@ Presentation MathML (`latexml_post/src/mathml/presentation.rs`, `pmml_rule_line`
 `<mover accent="true"><mi>z</mi><mo>¯</mo></mover>`) as
 
 ```
-<mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em">base</mrow>
-<mrow class="ltx_underline" style="border-bottom:0.04em solid currentColor;padding-bottom:0.12em;margin-bottom:0.04em">base</mrow>
+<mover accent="true"><mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em">base</mrow><mo mathsize="0" stretchy="false">¯</mo></mover>
+<munder accentunder="true"><mrow class="ltx_underline" style="border-bottom:0.04em solid currentColor;padding-bottom:0.12em;margin-bottom:0.04em">base</mrow><mo mathsize="0" stretchy="false">¯</mo></munder>
 ```
+
+The accent structure is Perl's; only its glyph is drawn at size zero, so the bordered row is the visible rule.
+Screen readers read the MathML elements and their text, not CSS: a bordered row alone speaks `\overline{\mathcal M}_{g,n}` as `\mathcal M_{g,n}`
+and `\overline{\mathbb Q}` as `\mathbb Q`.
+The `¯` operator (the XMTok's own glyph, or U+00AF should the token be empty) puts the bar in the accessibility
+tree (checked in Chrome's: `MathMLOver` › base, `¯`); `mathsize="0"` makes it draw nothing and take no room
+(checked in Chrome and Firefox; Safari unchecked), and a font size of exactly zero is exempt from a reader's
+minimum font size, which would enlarge a small nonzero size into a visible tick. `stretchy="false"` keeps an
+engine from stretching a zero-size glyph. The accent layout may add a little height outside the rule: up to
+0.07em on the boxes measured in Chrome, none in the rule's own position.
 
 A CSS border on a Core `<mrow>` spans exactly the base's box in Chrome, Firefox and WebKit with either font
 (`\overline{MMM}` covers all three letters), the baseline is the base's, and the style is inline so the markup
@@ -17457,11 +17467,13 @@ padding and margin follow the script level as TeX's θ does. The rule is the ope
 context's) written into the border, since `mathcolor` on the base's tokens does not reach the `<mrow>`; with none
 it is `currentColor`.
 
-Consequences: scripts attach to the rule box, so `\overline{\mathcal M}_{g,n}` is
-`<msub><mrow class="ltx_overline">…ℳ</mrow><mrow>g,n</mrow></msub>` (the bar is over ℳ only) and a script
-on `\underline{x}` drops below the rule as in TeX; `\overline{\overline X}` is two nested rows (two rules);
-`\underline{\overline X}` is two nested rows, no longer the single `<munderover>`, and likewise
-`\bar{\underline x}` / `\underline{\bar x}` (the bar stays a `<mover>` accent over/under the rule row).
+Consequences: scripts attach to the accent, so `\overline{\mathcal M}_{g,n}` is
+`<msub><mover accent="true"><mrow class="ltx_overline">…ℳ</mrow><mo>¯</mo></mover><mrow>g,n</mrow></msub>` (the bar is over ℳ only) and a script
+on `\underline{x}` drops below the rule as in TeX; `\overline{\overline X}` and `\underline{\overline X}` are
+nested accents with one ruled row each, no longer the single `<munderover>`, and likewise
+`\bar{\underline x}` / `\underline{\bar x}` (the visible `\bar` is a `<mover>` over the `<munder>` of the
+rule, or the rule's base). The line breaker (`linebreaker.rs`) does not break inside an `<mover>`/`<munder>`,
+so it does not break inside a ruled base.
 Only presentation changes: the XMath (`name="overline" role="OVERACCENT"`), content MathML and the
 `alttext`/annotations are untouched. Text-mode `\overline` (`ltx:text class="ltx_overline"`, Perl identical) is
 unrelated. LaTeXML.css gives text `.ltx_overline`/`.ltx_underline` a `text-decoration`, which an `<mrow>` with
@@ -17714,3 +17726,26 @@ definitions). Not applied to a file that was raw-loaded, whose `\let`s ran. 2610
 **Guard**: `cluster_package_guards::native_bindings_math_ge5::an_unread_style_rebinds_the_commands_of_its_packages`
 (the rebind applied; a `\let` of a kernel command, one in a macro body and one before a `\newenvironment` of the
 same name not applied).
+
+### 590. The table of a display equation is `role="presentation"`, and a header cell says which cells it heads (Perl: neither)
+
+`ltx:equation` and aligned `ltx:equationgroup` become a `<table class="ltx_eqn_table">` whose cells only place the
+equation: two centering pads, the equation, its number (`LaTeXML-block-xhtml.xsl` L462, L496 in the Perl tree;
+the `add_attributes` calls, whose `extra_classes` at L470/L503 give it the class and nothing else). Nothing in the markup says the table
+is for layout, so each browser's layout-table heuristic decides whether assistive technology treats it as a data
+table; no screen-reader behaviour was observed for it. A collection of 43 lecture notes has 10,020 of them. The same
+stylesheet's `ltx:td` template (`LaTeXML-tabular-xhtml.xsl` L128) turns a cell with `@thead` into a `<th>` with
+classes (`ltx_th_column`, `ltx_th_row`) but no `scope`, so nothing in the markup says which cells a header heads
+(211 header cells in 46 tabulars, none with a scope).
+
+**Rust**: `LaTeXML-block-xhtml.xsl` adds `role="presentation"` to the two equation tables (named template
+`eqn_table_role`; not in an inline context, where the element is a `span`). `LaTeXML-tabular-xhtml.xsl` adds
+`scope="col"` to a header cell whose `thead` is `column`, or `column row` inside a `thead`, and `scope="row"` to
+one whose `thead` is `row`. A `column row` cell is a header along both axes (the corner; `Alignment.pm:1239`
+merges the two values through `addSSValues`); outside a `thead` it gets no scope. `tabular` tables keep their
+table semantics.
+
+**Guard**: `cluster_cli::equation_tables_are_presentational::display_equation_tables_are_role_presentation_data_tables_are_not`
+(both equation tables carry the role and nothing else does, the tabular has none, its two header cells are
+`scope="col"`, no diagnostics) and `cluster_cli::equation_tables_are_presentational::tabular_header_cells_head_columns_and_rows`
+(a tabular with a header column: the corner and the column heads are `scope="col"`, both row heads `scope="row"`).

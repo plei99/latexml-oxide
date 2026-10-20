@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+  - **tikz-cd cells no longer leak `\lx@inpgf@ignorespaces` into the math `tex`, and a
+    `\cite` in a title fills the tooltips that reuse it.** Inside a PGF picture `\ignorespaces`
+    is `\lx@inpgf@ignorespaces` (pgfsys-latexml.def.ltxml:55), which Perl defines as a
+    primitive returning nothing (:63). The binding defined it with no body, which still made
+    an empty box, so the box's reversion put the command into the `tex` of the cell's math:
+    `\begin{tikzcd} x + y \end{tikzcd}` gave `tex="{\lx@inpgf@ignorespaces x+y}"`, now
+    `tex="{x+y}"` (Perl's too). Separately, a `\cite` in a theorem or section title left the
+    `title=` tooltips of references to it with empty brackets (`Theorem 1 ([, Prop. 2])`);
+    CrossRef now fills the citation as `fillInTitle` does (CrossRef.pm:899-901), giving
+    `Theorem 1 ([AB01, Prop. 2])`. Guards
+    `perfect_kernel_batch63::tikzcd_cell_math_tex_omits_inpgf_ignorespaces`,
+    `perfect_kernel_batch63::cite_in_title_fills_tooltip`.
+
+  - **Screen readers hear the bar of `\overline` and `\underline` again.** Presentation
+    MathML drew them only as a CSS border on an `<mrow>`, which assistive technology does
+    not read, so `\overline{\mathcal M}_{g,n}` spoke as `\mathcal M_{g,n}`. The bordered row
+    is now the base of an accent `<mover>`/`<munder>` (Perl's structure, MathML.pm
+    L1490-1506) whose `¯` is drawn at `mathsize="0"`; the border stays the visible rule
+    (OXIDIZED_DESIGN_DIVERGENCES #584). Guard `90_latexmlpost::overline_post_test`.
+
+  - **A display equation's layout table is `role="presentation"`, and table header cells carry
+    `scope`.** Nothing in the markup said that the `<table class="ltx_eqn_table">` placing a display
+    equation is for layout, so each browser's heuristic decided how assistive technology treats it;
+    it now has `role="presentation"`. A header cell (`<th>`) of a `tabular` gets `scope="col"` or
+    `scope="row"` where LaTeXML knows which it is. Guards
+    `cluster_cli::equation_tables_are_presentational::display_equation_tables_are_role_presentation_data_tables_are_not`,
+    `cluster_cli::equation_tables_are_presentational::tabular_header_cells_head_columns_and_rows`.
+
   - **`\usepackage[style=sbl]{biblatex}` loads without errors on TeX Live 2026.** The
     updated biblatex-sbl reaches three pieces of biblatex.sty that the native biblatex
     binding, which stands in for it, did not have: `\DeclareDatafieldSet{name}{…\member…}`

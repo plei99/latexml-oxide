@@ -185,6 +185,20 @@
       </xsl:call-template>
       <!-- add colspan, rowspan but NOT on fake td elements -->
       <xsl:if test="$context != 'inline'">
+        <!-- (latexml-oxide, OXIDIZED_DESIGN #590) A header cell says which cells it heads.
+             LaTeXML marks a cell a header along an axis, and a cell that is one along both
+             ("column row", Alignment.pm:1239 merges the two values; the corner) cannot be
+             given one scope; in a thead it heads its column, elsewhere it gets none. -->
+        <xsl:if test="@thead">
+          <xsl:choose>
+            <xsl:when test="@thead = 'column' or (@thead = 'column row' and parent::ltx:tr/parent::ltx:thead)">
+              <xsl:attribute name='scope'>col</xsl:attribute>
+            </xsl:when>
+            <xsl:when test="@thead = 'row'">
+              <xsl:attribute name='scope'>row</xsl:attribute>
+            </xsl:when>
+          </xsl:choose>
+        </xsl:if>
         <xsl:if test="@colspan">
           <xsl:attribute name='colspan'><xsl:value-of select='@colspan'/></xsl:attribute>
         </xsl:if>
