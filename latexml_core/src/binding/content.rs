@@ -1167,7 +1167,12 @@ fn input_definitions_impl(raw_file: &str, mut options: InputDefinitionOptions) -
       // where it is needed: the loop it prevents happens DURING a raw read,
       // which is itself INCLUDE_STYLES=true. Witness: nicematrix-then-
       // tcolorbox[most] (fairmeta.cls, ar5iv #520/#567/#576): 49 → 0 pgf errors.
-      if lookup_bool("INCLUDE_STYLES") || options.noltxml {
+      //
+      // A miss under `searchpaths_only` (latexml.sty's `localrawstyles`) is a deferral too: the
+      // search was limited to the document's own directories, and a local `.sty` that later
+      // `\RequirePackage`s the same package runs with INCLUDE_STYLES = 1 (Perl `Package.pm:2376`)
+      // and raw-loads it from the TeX tree, so the mark must not make `already_handled` skip it.
+      if (lookup_bool("INCLUDE_STYLES") && !options.searchpaths_only) || options.noltxml {
         assign_value(&s!("{filename}_load_attempted"), true, Some(Scope::Global));
       }
       // Say which of the two things actually happened. `notex` (the DEFAULT
@@ -1181,6 +1186,8 @@ fn input_definitions_impl(raw_file: &str, mut options: InputDefinitionOptions) -
       // exist. A diagnostic must not overclaim what it checked.
       let why = if options.notex {
         "no dispatcher entry, and raw TeX loading is off (enable with --includestyles)"
+      } else if options.searchpaths_only {
+        "no dispatcher entry, and the file is not under the document's search paths (localrawstyles)"
       } else {
         "no dispatcher entry, and no raw file found on disk"
       };
@@ -1997,7 +2004,12 @@ fn load_tex_definitions(
   let was_interpreting = lookup_bool_sym(crate::pin!("INTERPRETING_DEFINITIONS"));
   // And that if we're interpreting this TeX file of definitions,
   // we probably should interpret any TeX files IT loads.
-  let was_including_styles = lookup_bool("INCLUDE_STYLES");
+  // Perl Package.pm:2372 saves the scalar itself, not its truth: INCLUDE_STYLES is the string
+  // 'searchpaths' under latexml.sty's `localrawstyles`, and restoring it as a boolean (Package.pm:2392 restores the
+  // scalar) turned it into 1 after the first raw definitions file (ts1enc.dfu, autoloaded by LaTeX.pool),
+  // so `require_package`'s searchpaths_only gate never fired again. An unset key restores as `false`
+  // (Perl's undef; `Stored::None` would read back as true through `lookup_bool`).
+  let was_including_styles = lookup_value("INCLUDE_STYLES").unwrap_or(Stored::Bool(false));
   assign_value_sym(crate::pin!("INTERPRETING_DEFINITIONS"), true, None);
   // If we're reading in these definitions, probaly will accept included ones?
   // (but not forbid ltxml ?)

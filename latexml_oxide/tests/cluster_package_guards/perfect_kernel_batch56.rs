@@ -13464,15 +13464,10 @@ fn fourier_mathbb_is_its_blackboard() {
     None,
   );
   assert_eq!(error_count(&stderr), 0, "{stderr}");
-  // fourier-orns has no binding and stays unloaded (its raw `futs` slots would print as text).
-  assert_eq!(warning_count(&stderr), 1, "{stderr}");
-  assert!(
-    stderr.contains(
-      "Warning:missing_file:fourier-orns Can't find binding or file for 'fourier-orns.sty'. no \
-       dispatcher entry, and raw TeX loading is off (enable with --includestyles)."
-    ),
-    "{stderr}"
-  );
+  // fourier-orns loads through the contrib binding (its `futs` slots decode to ornaments), so the skipped-package
+  // warning of the days it had none is gone.
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert!(!stderr.contains("missing_file"), "{stderr}");
   latexml::util::test::assert_element(
     &xml,
     "Math",

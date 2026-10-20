@@ -1,9 +1,8 @@
 \documentclass{article}
 % WITNESS: pgfornament/tikzrput (residue43, tikzrput.tex:101); ORACLE: pdflatex 0 err
-% MECH: fourier_sty.rs is an empty stub (LoadDefinitions!({})). Real fourier.sty:61
-%   \RequirePackage[noOTF]{fourier-orns}, which (fourier-orns.sty:55) defines \lefthand.
-% Now: the futs fontmap prints "M" for the hand.
-% status:  RED
+% MECH: fourier.sty:61 `\RequirePackage[noOTF]{fourier-orns}` defines \lefthand (fourier-orns.sty:55) as slot `M`
+%   of the `futs` font; `\FourierOrns` (fourier_orns_sty.rs) selects the `futs` fontmap, so the hand is U+261C.
+% status:  GREEN (futs_fontmap.rs; was RED)
 % expect:  0 errors; the hand glyph
 \usepackage{fourier}
 \begin{document}

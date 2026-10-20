@@ -333,6 +333,25 @@ pub mod xltabular_sty;
 pub mod xr_sty;
 pub mod xwatermark_sty;
 
+// Native-mode raw wrappers (`--preload=latexml.sty` without `rawstyles`): TL packages with no Perl
+// binding, force-raw-loaded from the host texmf like `alegreyasans_sty` / `derivative_sty`.
+pub mod beamerthemedarmstadt_sty;
+pub mod beamerthememetropolis_sty;
+pub mod berasans_sty;
+pub mod ctex_sty;
+pub mod ebgaramond_sty;
+pub mod euler_math_sty;
+pub mod extdash_sty;
+pub mod fixdif_sty;
+pub mod fourier_orns_sty;
+pub mod fouriernc_sty;
+pub mod memhfixc_sty;
+pub mod ninecolors_sty;
+pub mod ptserif_sty;
+pub mod rank_2_roots_sty;
+pub mod spectralsequences_sty;
+pub mod tkz_euclide_sty;
+
 /// Type of a binding loader fn — matches the return type of every
 /// `*::load_definitions` in this crate.
 pub type BindingLoader = fn() -> Result<()>;
@@ -553,6 +572,35 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("wacv", "sty", cvpr_sty::load_definitions),
   ("widetext", "sty", widetext_sty::load_definitions),
   ("xwatermark", "sty", xwatermark_sty::load_definitions),
+  // Native-mode raw wrappers; see the per-module docs.
+  ("fixdif", "sty", fixdif_sty::load_definitions),
+  ("berasans", "sty", berasans_sty::load_definitions),
+  ("memhfixc", "sty", memhfixc_sty::load_definitions),
+  ("extdash", "sty", extdash_sty::load_definitions),
+  ("fourier-orns", "sty", fourier_orns_sty::load_definitions),
+  (
+    "spectralsequences",
+    "sty",
+    spectralsequences_sty::load_definitions,
+  ),
+  ("rank-2-roots", "sty", rank_2_roots_sty::load_definitions),
+  ("tkz-euclide", "sty", tkz_euclide_sty::load_definitions),
+  ("ebgaramond", "sty", ebgaramond_sty::load_definitions),
+  ("PTSerif", "sty", ptserif_sty::load_definitions),
+  ("fouriernc", "sty", fouriernc_sty::load_definitions),
+  ("euler-math", "sty", euler_math_sty::load_definitions),
+  ("ninecolors", "sty", ninecolors_sty::load_definitions),
+  ("ctex", "sty", ctex_sty::load_definitions),
+  (
+    "beamerthememetropolis",
+    "sty",
+    beamerthememetropolis_sty::load_definitions,
+  ),
+  (
+    "beamerthemeDarmstadt",
+    "sty",
+    beamerthemedarmstadt_sty::load_definitions,
+  ),
   (
     "scrlayer-scrpage",
     "sty",

@@ -9,5 +9,6 @@ cd "$CORPUS"
 [ -d .git ] || { git init -q; printf 'runs/\nrefs/\naccepted\n*.out\nfixtures/\nsrc/\n' > .gitignore; }
 ln -sfn "runs/$label" accepted
 rm -rf index; cp -R "$run/index" index
-printf '%s\t%s\n' "$label" "$(cat "$run/COMMIT")" > BASELINE
+# BASELINE: label, oxide commit, protocol (a run without a PROTOCOL file predates the knob: raw)
+printf '%s\t%s\t%s\n' "$label" "$(cat "$run/COMMIT")" "$(cat "$run/PROTOCOL" 2>/dev/null || echo raw)" > BASELINE
 git add -A . && git commit -qm "accept $label (oxide $(cut -c1-8 "$run/COMMIT"))" && git log --oneline -1

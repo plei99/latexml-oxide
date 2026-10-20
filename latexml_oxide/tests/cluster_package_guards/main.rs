@@ -59,6 +59,7 @@ mod href_semiverbatim_loop;
 mod hyperlink_bounded;
 mod hyperref_colorlinks;
 mod ifnextchar_scans;
+mod localrawstyles_keeps_searchpaths;
 mod lstinputlisting_range_crlf;
 mod lua_state_mirror;
 mod luacode_bridge;
@@ -76,6 +77,8 @@ mod multiline_node_rows;
 mod natbib_label_dotless_i;
 /// Native bindings for the arXiv mathematics sample's packages with no Perl binding (OXIDIZED_DESIGN #588).
 mod native_bindings_math_ge5;
+/// Native mode (`--preload=latexml.sty`): raw-wrapper bindings for TeX Live packages with no Perl binding.
+mod native_notes_bindings;
 mod neurips_anonymous;
 mod newtcblisting_verbatim;
 mod nfss_font_state;

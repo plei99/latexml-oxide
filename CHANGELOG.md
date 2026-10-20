@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+  - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
+    `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
+    loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,
+    Package.pm:2372/2392), so after the first raw definitions file every TeX Live package
+    without a binding was raw-loaded, as under `rawstyles`. `\usepackage{nowidow}` now gives one
+    `Warning:missing_file:nowidow` (worded "not under the document's search paths
+    (localrawstyles)", not "no raw file found on disk") and leaves `\setnoclub` undefined, while
+    a `.sty` beside the document still loads. That miss is no longer remembered as an attempted
+    load, so a local `.sty` that later does `\RequirePackage{nowidow}` (read with
+    `INCLUDE_STYLES` 1, Package.pm:2376) loads it, as in Perl. Guards
+    `localrawstyles_keeps_searchpaths::localrawstyles_raw_loads_only_the_documents_own_sty` and
+    `::a_local_sty_raw_loads_what_the_document_could_not`.
+
+  - **Native mode (`--preload=latexml.sty`, no `rawstyles`) loads sixteen more TeX Live packages that
+    have no Perl binding, and `fourier-orns` ornaments print as ornaments.** Each of `fixdif`,
+    `berasans`, `memhfixc`, `extdash`, `fourier-orns`, `spectralsequences`, `rank-2-roots`,
+    `tkz-euclide`, `ebgaramond`, `PTSerif`, `fouriernc`, `euler-math`, `ninecolors`, `ctex` and the
+    beamer themes `metropolis` and `Darmstadt` was skipped there (`Warning:missing_file … raw TeX
+    loading is off`), so `\d{x_i}` in math stayed LaTeX's dot-under accent (`Script _ can only
+    appear in math mode`), `\d\ab(x)` under physics2 looped to `Fatal:TooManyErrors`, and the
+    `sseqdata`, `rootSystem` and `\tkz…` pictures were lost. Each is now a `latexml_contrib`
+    wrapper that force-raw-loads the genuine file (the `alegreyasans_sty` pattern; package options
+    and the file's own `\RequirePackage`s reach it), except `euler-math`, a native binding that
+    requires unicode-math and ignores the key options, because its raw file blanks `\hbar`,
+    `\varPhi` and some seventy more symbols with `\Umathchardef`. The `futs` ornament font has a
+    glyph map (`futs_fontmap.rs`) that `\FourierOrns` selects, so `\warning` is `⚠` and
+    `\lefthand` is `☜` instead of the slot letters `1` and `M`; fourier's Utopia text in the same
+    `futs` family stays text, and fourier.sty's `noOTF` option reaches fourier-orns under every
+    persona. Under the default pdfTeX persona `ctex` itself errors, as pdflatex does (fontset
+    auto-detection), and the xetex persona that the corpus protocol gives ctex documents loads it
+    clean. Guards `cluster_package_guards::native_notes_bindings::*`,
+    `perfect_kernel_batch56::fourier_mathbb_is_its_blackboard`.
+
   - **tikz-cd cells no longer leak `\lx@inpgf@ignorespaces` into the math `tex`, and a
     `\cite` in a title fills the tooltips that reuse it.** Inside a PGF picture `\ignorespaces`
     is `\lx@inpgf@ignorespaces` (pgfsys-latexml.def.ltxml:55), which Perl defines as a

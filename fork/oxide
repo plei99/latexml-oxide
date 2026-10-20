@@ -1,22 +1,31 @@
 #!/usr/bin/env bash
 # fork/oxide <file.tex> [outdir] — convert one local document exactly as the corpus does: run_one.sh's
-# perfect-kernel raw protocol, engine persona, SOURCE_DATE_EPOCH and TeX Live 2026 first on PATH. Run bare,
-# the binary reports hundreds of spurious errors on real documents, so use this for every local conversion.
+# protocol (raw by default, see OXIDE_PROTOCOL), engine persona, SOURCE_DATE_EPOCH and TeX Live 2026 first on PATH.
+# Run bare, the binary reports hundreds of spurious errors on real documents, so use this for every local conversion.
 #   outdir       default /tmp/oxide/<stem>; WIPED first. Receives doc.html, doc.log and verdict.tsv.
 #   BIN=<path>   binary (default target/release/latexml_oxide; BIN=target/debug/latexml_oxide for a dev build)
 #   OXIDE_ARGS   extra latexml_oxide arguments, word-split (for example OXIDE_ARGS=--nomathparse)
+#   OXIDE_PROTOCOL  raw (default: rawstyles,rawclasses) or native (localrawstyles): under native a TeX Live package the
+#                document requests directly with no binding is skipped with Warning:missing_file; the document's own .sty
+#                files, whatever they load, and the .sty files a binding reads raw are read raw; classes go through
+#                bindings only. Checked before the conversion; passed through to run_one.sh.
 # Prints the binary's identity (binary_info.sh, STALE when the tree is newer), the verdict and the first errors.
-# Exit status: the cortex status (0 clean, 1 warnings, 2 errors, 3 fatal, 4 no output).
+# Exit status: the cortex status (0 clean, 1 warnings, 2 errors, 3 fatal, 4 no output); 2 also when the usage or
+# OXIDE_PROTOCOL is wrong or run_one.sh itself fails (nothing is reported then).
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-[ $# -ge 1 ] && [ -f "$1" ] || { sed -n '2,9p' "$0" >&2; exit 2; }
+[ $# -ge 1 ] && [ -f "$1" ] || { sed -n '2,14p' "$0" >&2; exit 2; }
 src=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 out=${2:-/tmp/oxide/$(basename "$src" .tex)}
 mkdir -p "$(dirname "$out")"; out=$(cd "$(dirname "$out")" && pwd)/$(basename "$out")
+case ${OXIDE_PROTOCOL:-raw} in raw|native) ;; *) echo "fork/oxide: OXIDE_PROTOCOL must be raw or native, not ${OXIDE_PROTOCOL}" >&2; exit 2 ;; esac
 BIN=${BIN:-$HERE/../target/release/latexml_oxide}
 export BIN="$(cd "$(dirname "$BIN")" && pwd)/$(basename "$BIN")"
 "$HERE/binary_info.sh" "$BIN" || exit 2
-OUTROOT=$(dirname "$out") "$HERE/corpus/run_one.sh" "$(basename "$out")" "$src"
+# A failed run_one.sh must not leave a stale verdict.tsv from an earlier run to be reported as this one's.
+rm -f "$out/verdict.tsv"
+OUTROOT=$(dirname "$out") "$HERE/corpus/run_one.sh" "$(basename "$out")" "$src" || { echo "fork/oxide: run_one.sh failed (exit $?)" >&2; exit 2; }
+[ -f "$out/verdict.tsv" ] || { echo "fork/oxide: run_one.sh wrote no verdict.tsv" >&2; exit 2; }
 IFS=$'\t' read -r _ st rc e w f secs < "$out/verdict.tsv"
 echo "status $st (exit $rc): $e errors, $w warnings, $f fatals in ${secs}s"
 grep -m5 -E '^(Error|Fatal):' "$out/doc.log"
