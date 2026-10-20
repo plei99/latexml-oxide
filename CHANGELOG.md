@@ -13,7 +13,12 @@
     load, so a local `.sty` that later does `\RequirePackage{nowidow}` (read with
     `INCLUDE_STYLES` 1, Package.pm:2376) loads it, as in Perl. Guards
     `localrawstyles_keeps_searchpaths::localrawstyles_raw_loads_only_the_documents_own_sty` and
-    `::a_local_sty_raw_loads_what_the_document_could_not`.
+    `::a_local_sty_raw_loads_what_the_document_could_not`. A source registered in
+    `INTERPRETABLE_SOURCES` (`physics2.sty` and its `phy-*` modules, `fontawesome7.sty`) is
+    exempt from that search-path restriction, as it is from the `notex` default, so
+    `\usepackage{physics2}` still loads under `localrawstyles` (it was skipped, leaving
+    `\usephysicsmodule`, `\ab` and `\pdiagmat` undefined); guard
+    `::localrawstyles_still_raw_loads_an_interpretable_source`.
 
   - **Native mode (`--preload=latexml.sty`, no `rawstyles`) loads sixteen more TeX Live packages that
     have no Perl binding, and `fourier-orns` ornaments print as ornaments.** Each of `fixdif`,

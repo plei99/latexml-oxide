@@ -1085,7 +1085,10 @@ fn input_definitions_impl(raw_file: &str, mut options: InputDefinitionOptions) -
           forbid_ltxml:      options.noltxml,
           notex:             false,
           ext_type:          options.extension.as_ref().cloned(),
-          search_paths_only: options.searchpaths_only,
+          // An INTERPRETABLE source (physics2.sty, ...) is vouched for, so it is found in the
+          // TeX tree even when the caller restricted the search (`localrawstyles`), as in
+          // `require_package`.
+          search_paths_only: options.searchpaths_only && !interpretable,
         }),
       )
     } else {
@@ -2723,10 +2726,11 @@ pub fn require_package(name: &str, mut options: RequireOptions) -> Result<()> {
   // latex_constructs_rust_only.rs §10; the alternative was the wrong
   // glued-suffix fallback binding). Perl gates it on `notex` too, and so
   // misloads physics2 under its default configuration.
+  let interpretable = lookup_mapping("INTERPRETABLE_SOURCES", &s!("{name}.{ext}")).is_some();
   if options.notex.is_none()
     && !lookup_bool("INCLUDE_STYLES")
     && !matches!(options.noltxml, Some(true))
-    && lookup_mapping("INTERPRETABLE_SOURCES", &s!("{name}.{ext}")).is_none()
+    && !interpretable
   {
     options.notex = Some(true);
   }
@@ -2735,7 +2739,13 @@ pub fn require_package(name: &str, mut options: RequireOptions) -> Result<()> {
   // option to latexml.sty (sets `INCLUDE_STYLES => 'searchpaths'`).
   // Only applies when raw TeX is allowed (notex==false); otherwise the
   // gate is moot since find_file won't search on-disk anyway.
+  // A source in `INTERPRETABLE_SOURCES` is exempt here exactly as from the
+  // notex default above: it is vouched for as safe to interpret, so
+  // `[localrawstyles]latexml.sty` + `\usepackage{physics2}` (or fontawesome7)
+  // still raw-loads it from the TeX tree rather than skipping it as "not
+  // under the document's search paths".
   if !options.searchpaths_only
+    && !interpretable
     && !matches!(options.notex, Some(true))
     && lookup_string("INCLUDE_STYLES") == "searchpaths"
   {

@@ -106,3 +106,37 @@ fn a_local_sty_raw_loads_what_the_document_could_not() {
     "the local .sty itself loads:\n{xml}"
   );
 }
+
+/// A source registered in `INTERPRETABLE_SOURCES` (physics2.sty, its `phy-*` modules, fontawesome7.sty:
+/// `latex_constructs_rust_only.rs` §10) is vouched for as safe to interpret, so it raw-loads from the TeX tree under
+/// `localrawstyles` as it does by default (`require_package`'s notex default exempts it; the searchpaths_only gate
+/// must too). Without the exemption `\usepackage{physics2}` was skipped as "not under the document's search paths"
+/// and `\usephysicsmodule`, `\ab`, `\pdiagmat` were undefined, with `Error:unexpected:\middle` after them.
+#[test]
+fn localrawstyles_still_raw_loads_an_interpretable_source() {
+  let tex = "\\documentclass{article}\n\
+    \\usepackage{physics2}\n\
+    \\usephysicsmodule{ab,diagmat}\n\
+    \\begin{document}\n\
+    $\\ab(x)$ and $\\pdiagmat{a,b}$\n\
+    \\end{document}\n";
+  let (log, xml) = super::convert_files_with(tex, &[], PRELOAD);
+  assert_eq!(
+    (error_count(&log), warning_count(&log)),
+    (0, 0),
+    "physics2 loads without a diagnostic:\n{log}"
+  );
+  assert!(
+    !log.contains("missing_file"),
+    "physics2 is not reported missing:\n{log}"
+  );
+  assert!(
+    xml.contains(r#"<XMTok role="OPEN" stretchy="true">(</XMTok>"#)
+      && xml.contains(r#"<XMTok role="CLOSE" stretchy="true">)</XMTok>"#),
+    "\\ab(x) makes stretchy fences around x:\n{xml}"
+  );
+  assert!(
+    xml.contains("pmatrix"),
+    "\\pdiagmat builds a parenthesised matrix:\n{xml}"
+  );
+}
