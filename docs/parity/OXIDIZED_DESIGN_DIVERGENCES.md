@@ -4127,10 +4127,11 @@ three `\Delta_k(S):=\sup\{…:\parbox{…}{$A\in…$,\\$B\in…$}\}` displays).
 
 **Divergence** (surpass-Perl): `rebuild_text_subtree_with_doc`
 (`latexml_post/src/mathml/mod.rs`) — the shared XMText-subtree materializer —
-now CONVERTS a nested `ltx:Math` to a self-contained inline `<m:math>` element
-(`nested_ltx_math_to_inline_mathml`) instead of cloning its `<ltx:XMath>` raw,
+now CONVERTS a nested `ltx:Math` (`nested_ltx_math_to_inline_mathml`: an inline `<m:math>`, wrapped in the `ltx:Math`
+as Perl's `convertXMTextContent` rebuilds it, Post.pm:467-487) instead of cloning its `<ltx:XMath>` raw,
 so the parbox's inline math renders as real math in reading order (`A ∈ ℒ(…)`,
-subscripts and all). The `<math>` wrapper is load-bearing: the parbox becomes an
+subscripts and all). The divergence is only that conversion, in place of the raw clone and its warning; the shape is
+Perl's `ltx:Math > m:math`, which the stylesheet turns into a `<math class="ltx_Math">`. The `<math>` wrapper is load-bearing: the parbox becomes an
 HTML `<span class="ltx_inline-block">`, and `span` is an HTML5 MathML-**breakout**
 tag, so a bare `<mrow>` there would be parsed as HTML and render as flat text —
 the `<math>` re-enters MathML context. (The top-level pass gets the equivalent
@@ -17830,3 +17831,52 @@ configuration) and
 `cluster_package_guards::localrawstyles_keeps_searchpaths::localrawstyles_still_raw_loads_an_interpretable_source`
 (`[localrawstyles]latexml.sty`: `\usephysicsmodule{ab,diagmat}`, stretchy `\ab(x)` fences and a `\pdiagmat` matrix,
 no diagnostics).
+
+### 595. `amsart`, `amsproc` and `amsbook` number their parts with `\arabic{part}`, and `amsart` closes the part number with a full stop (Perl: article's `\Roman{part}`, no full stop)
+
+**Perl behavior**: `amsart.cls.ltxml` loads `ams_core`, which loads the article class, and renews nothing of the
+numbering: `\thepart` stays article's `\Roman{part}`, so `\part{...}` reads "Part I" in the heading, and "I" in the
+contents and in a `\ref` (which shows the number alone). `amsbook.cls.ltxml` does the same with book's.
+**Rust behavior**: the three classes renew `\thepart` as `\arabic{part}` (amsart.cls:1098, amsproc.cls:1033,
+amsbook.cls:878; `ams_core_cls.rs`, `amsbook_cls.rs`), so the heading reads "Part 1", and the contents' number and a
+`\ref` read "1", as in the PDF, where the contents line reads "Part 1. Title" (amsart's `\tocpart` is `\tocsection`,
+amsart.cls:1224-1225, 1235). `amsart` and `amsproc` also set the heading `\format@title@part` as they set the sectional
+ones (ams_support `\format@title@section`), the number closed by a full stop (`\@sect`, amsart.cls:1050-1088, whose
+`\@secnumpunct` `\edef` is :1059-1065 and `\@seccntformat` :1043-1048; `\part` is :1106-1108: "Part 1. Title");
+`amsbook`'s `\part` is its own page (amsbook.cls:890-907) and keeps the tag without one. Witness: an amsart document
+with `\part{...}` units, "Part 1" in its PDF.
+
+**Guard**: `cluster_package_guards::amsart_part_number` (`amsart_parts_are_arabic`, `amsproc_parts_are_arabic`,
+`amsbook_parts_are_arabic`, and `article_parts_stay_roman` for the class that keeps the roman numeral).
+
+### 596. xeCJK's font commands read their options before or after the font name, not both (Perl: no xeCJK binding)
+
+**Perl behavior**: none; `xeCJK` has no `.ltxml`, and raw-loading it stops outside XeTeX (the raw package checks the
+engine through expl3).
+**Rust behavior**: `xecjk_sty.rs` binds the font commands as argument readers (no-ops, arXiv
+2605.30788) and reads the options where xeCJK does: `\setCJKmainfont`, `\setCJKromanfont`, `\setCJKsansfont`,
+`\setCJKmonofont`, `\setCJKmathfont` and `\CJKfontspec` are `{ o m }` (xeCJK.sty:6330-6346, :6378, :6585),
+`\setCJKfamilyfont` and `\setCJKfallbackfamilyfont` `{ m o m }` (:6356, :5710), and `\__xeCJK_pass_args:nnnn`
+(:6316-6324) takes a trailing `O{}` (`\__xeCJK_post_arg:w`, :6325-6329) only when the leading `o` was absent. So
+`\setCJKmainfont{Songti SC}[BoldFont={Songti SC Bold}]` is the same call as
+`\setCJKmainfont[BoldFont={Songti SC Bold}]{Songti SC}`, and a `[` after the name of the leading-option form is text.
+The binding read `[]{}` and left the trailing options of the first form as a visible paragraph "[BoldFont=Songti SC
+Bold, ItalicFont=Heiti SC, BoldItalicFont=Heiti SC Medium]" (an `amsart` document with `xeCJK`). `\CJKfontspec`
+also ends in `\ignorespaces`, in both forms (xeCJK.sty:6378-6382 passes `\tex_ignorespaces:D`), so the blank after it is
+dropped. `\newCJKfontfamily` (`{ o m o m }`) was already bound with both optional positions
+(`\lx@fontspec@definer`).
+
+**Guard**: `cluster_package_guards::xecjk_post_optional` (`options_after_the_font_name_are_arguments`,
+`options_before_the_font_name_are_arguments`, `a_bracket_after_a_font_name_with_leading_options_is_text`,
+`cjkfontspec_ignores_the_spaces_after_it`).
+
+### 597. The blank between words and math in a picture label is kept (Perl: `strip-space` on `svg:*` removes it)
+
+**Perl behavior**: `LaTeXML-picture-xhtml.xsl` has `<xsl:strip-space elements="ltx:picture svg:*"/>`, which includes
+`svg:foreignObject`, whose content is inline markup: in `\node{\textbf{Family:} $xy$ in Patch $(z=1)$}` the text node
+between `<ltx:text>Family:</ltx:text>` and `<ltx:Math>` is whitespace-only and is stripped, so the HTML reads "Family:xy"
+and "Patch(z = 1)" (a figure whose `\node` labels mix `\textbf` words and math). **Rust behavior**: `<xsl:preserve-space elements="svg:foreignObject"/>`
+follows it (a name test outranks `svg:*`); the blank between inline items of a label is kept, as TeX set it, and the
+blank-only nodes between the `svg` elements (`svg:g`, `svg:path`) are still stripped.
+
+**Guard**: `cluster_package_guards::foreignobject_label_markup::the_space_between_words_and_math_in_a_label_stays`.

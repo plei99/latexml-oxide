@@ -2,6 +2,49 @@
 
 ## Unreleased
 
+  - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
+    `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
+    (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,
+    memoir.cls:3066-3067), as the PDF's contents do; pinned in
+    `memoir_fork_chapters::chapter_heads_follow_the_chapterstyle`.
+
+  - **A picture's labels in the HTML keep their space, and a picture in a formula, its math.**
+    (1) The blank between `\textbf{Family:}` and `$xy$` in a `\node` was stripped as whitespace of
+    an `svg:*` element, giving "Family:xy" (Perl's stylesheet does the same); a `foreignObject` now
+    preserves its blanks (divergence #597). Guard
+    `foreignobject_label_markup::the_space_between_words_and_math_in_a_label_stays`. Two errors of
+    the Rust port are fixed (docs/SYNC_STATUS.md "Rust error fixes"): (2) a picture inside a
+    formula (`\overline{\left\{\begin{tikzpicture}...\right\}}`) gave its `m:mtext` the picture's
+    children where Perl's `convertXMTextContent` (Post.pm:456) is given the picture, so the `svg`
+    stood bare between two NBSP text nodes: MathML Core lays that out as two extra lines, the fences
+    stretched to twice the picture and the picture stood at their bottom; the `mtext` now holds the
+    picture's `<span class="ltx_inline-block"><svg class="ltx_picture">`; (3) a `$T^C$` label of such
+    a picture reached the HTML as a bare `m:math`, which the stylesheet's `copy-foreign` rule
+    reduces to an `msup` in a span ("TC" on one baseline); it is `ltx:Math > m:math`, as Perl builds it
+    (Post.pm:467-487). Guards `::a_picture_in_a_formula_is_the_mtext_content_as_in_perl` and
+    `::a_math_label_of_a_picture_in_a_formula_keeps_its_math_root`.
+
+  - **xeCJK font commands take their options after the font name too.** `\setCJKmainfont{Songti
+    SC}[BoldFont={Songti SC Bold}]` left its options as a paragraph of the document (the binding
+    read `[]{}`). xeCJK reads the options before the name, or after it when there were none before
+    (xeCJK.sty:6316-6329 `\__xeCJK_pass_args:nnnn`); `\setCJKmainfont`, `\setCJKromanfont`,
+    `\setCJKsansfont`, `\setCJKmonofont`, `\setCJKmathfont`, `\CJKfontspec`, `\setCJKfamilyfont`
+    and `\setCJKfallbackfamilyfont` now do the same, and a `[` after a name that had leading options
+    is text. Divergence #596; guards `xecjk_post_optional::options_after_the_font_name_are_arguments`,
+    `::options_before_the_font_name_are_arguments`,
+    `::a_bracket_after_a_font_name_with_leading_options_is_text` and
+    `::cjkfontspec_ignores_the_spaces_after_it` (`\CJKfontspec` ends in `\ignorespaces` too, xeCJK.sty:6378-6382).
+
+  - **`amsart`, `amsproc` and `amsbook` number parts with arabic numerals.** The classes renew
+    `\thepart` as `\arabic{part}` (amsart.cls:1098, amsproc.cls:1033, amsbook.cls:878); the
+    article/book classes they load have `\Roman{part}`, and Perl renews nothing, so a `\part` read
+    "Part I" in the heading, the contents and a `\ref` where the PDF reads "Part 1" in the heading, "1" in a
+    reference and "Part 1." in the contents line. `amsart` and
+    `amsproc` also close the heading's number with a full stop, "Part 1. Title", as for sections
+    (`\@secnumpunct`, amsart.cls:1059-1065). Divergence #595; guards
+    `amsart_part_number::amsart_parts_are_arabic`, `::amsproc_parts_are_arabic`,
+    `::amsbook_parts_are_arabic` and `::article_parts_stay_roman`.
+
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
     loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,

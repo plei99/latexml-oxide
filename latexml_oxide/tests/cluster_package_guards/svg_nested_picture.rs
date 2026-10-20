@@ -10,7 +10,10 @@ use crate::cluster::convert_to_xml;
 
 /// The HTML stage (where the SVG processor runs): the core XML through the
 /// embedded html5 stylesheet, POST errors counted.
-pub(crate) fn post_html(xml: &str) -> String {
+pub(crate) fn post_html(xml: &str) -> String { post_html_logged(xml).0 }
+
+/// [`post_html`], and the POST log (errors asserted zero here; a guard pins the warnings).
+pub(crate) fn post_html_logged(xml: &str) -> (String, String) {
   latexml_core::util::logger::bind_log();
   let opts = latexml::post::PostOptions {
     pmml:                      true,
@@ -48,7 +51,7 @@ pub(crate) fn post_html(xml: &str) -> String {
     0,
     "POST errors:\n{log}"
   );
-  out
+  (out, log)
 }
 
 /// The inner picture becomes an `svg` inside the outer picture's

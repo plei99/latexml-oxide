@@ -107,6 +107,18 @@ TL manuals) and the per-batch arXiv A/B; the cortex reruns of sandboxes 2605/260
 ## Secondary residuals & unranked active items
 
 ### Rust error fixes (recent)
+- **A picture in a formula is Perl's `ltx:picture` in its `m:mtext`, and its math labels are `ltx:Math > m:math`**
+  (`latexml_post/src/mathml/mod.rs`, the `ltx:picture` arm of `pmml_text_aux` and `nested_ltx_math_to_inline_mathml`).
+  MathML.pm:1061-1063 gives `convertXMTextContent($doc, 1, $node)` the picture node (Post.pm:456 iterates its argument
+  list), so the stylesheet's as-svg path yields `<mtext><span class="ltx_inline-block"><svg class="ltx_picture">`; the port
+  gave it the picture's CHILDREN, a bare `svg` between NBSP text nodes (two extra lines in MathML Core: the stretchy braces
+  of `\left\{ ... \right\}` were twice the picture, which stood at their bottom; the boundary-divisor picture of a moduli-space text). A label
+  `$T^C$` of the picture (`ltx:Math`) came out as a bare `m:math` (the #101 path), which the stylesheet's `copy-foreign`
+  rule for `m:*` turns into an `msup` in a span, "TC" on one baseline; Perl rebuilds the `ltx:Math` around the `m:math`
+  (Post.pm:467-487), and so does the port now (the stylesheet is Perl's). Guards
+  `cluster_package_guards::foreignobject_label_markup::a_picture_in_a_formula_is_the_mtext_content_as_in_perl` and
+  `::a_math_label_of_a_picture_in_a_formula_keeps_its_math_root`. The arXiv witnesses of the arm's materialization
+  (0710.1208, 1110.2158, 1605.07431) could not be re-converted here (no corpus).
 - **Native bindings for the 26 packages with no Perl binding requested by ≥5 papers of the 2026-10 arXiv mathematics
   sample** (quiver, extarrows, stackengine, centernot, colonequals, faktor, tensor, hypdvips, epic, eepic, mathalfa,
   mathalpha, manyfoot, environ, inconsolata, vruler, leftindex, xstring, calligra, xifthen, nccmath, tkz-graph,

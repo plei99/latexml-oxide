@@ -26,6 +26,11 @@
   <xsl:param name="USE_SVG">true</xsl:param>
 
   <xsl:strip-space elements="ltx:picture svg:*"/>
+  <!-- ... except a foreignObject, whose content is inline markup: the blank between
+       `<ltx:text>Family:</ltx:text> <ltx:Math>` is the space between the words and the math
+       (SVG.pm moves the label's children there, spaces included). The name test is more
+       specific than `svg:*`, so it takes precedence. -->
+  <xsl:preserve-space elements="svg:foreignObject"/>
 
   <!-- The namespace to use on SVG elements (typically SVG_NAMESPACE or none) -->
   <xsl:param name="svg_ns">
