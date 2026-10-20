@@ -18,7 +18,12 @@
     exempt from that search-path restriction, as it is from the `notex` default, so
     `\usepackage{physics2}` still loads under `localrawstyles` (it was skipped, leaving
     `\usephysicsmodule`, `\ab` and `\pdiagmat` undefined); guard
-    `::localrawstyles_still_raw_loads_an_interpretable_source`.
+    `::localrawstyles_still_raw_loads_an_interpretable_source`. The bindings that request an
+    unbound TeX Live package only where raw loading is on (`mdframed` for zref-abspage,
+    `amsrefs` for rkeyval and textcmds, `backref` for rerunfilecheck) now gate on
+    `raw_tex_styles_enabled()`, false under `localrawstyles`, so they no longer make a request
+    that can only miss (`Warning:missing_file:zref-abspage` and the like); guard
+    `::bindings_do_not_request_unbound_packages_under_localrawstyles`.
 
   - **Native mode (`--preload=latexml.sty`, no `rawstyles`) loads sixteen more TeX Live packages that
     have no Perl binding, and `fourier-orns` ornaments print as ornaments.** Each of `fixdif`,

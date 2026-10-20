@@ -45,8 +45,9 @@ LoadDefinitions!({
   RequirePackage!("xparse");
   RequirePackage!("etoolbox");
   // zref-abspage has no binding: it is read raw, so only where raw loading is on (as `--preload=ar5iv.sty` has it);
-  // otherwise its load would only add a missing-file warning.
-  if lookup_bool("INCLUDE_STYLES") {
+  // otherwise its load would only add a missing-file warning (so not under `localrawstyles` either, where the
+  // search is limited to the document's directories: `raw_tex_styles_enabled`).
+  if raw_tex_styles_enabled() {
     RequirePackage!("zref-abspage");
   }
   RequirePackage!("needspace");

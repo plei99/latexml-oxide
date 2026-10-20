@@ -140,3 +140,64 @@ fn localrawstyles_still_raw_loads_an_interpretable_source() {
     "\\pdiagmat builds a parenthesised matrix:\n{xml}"
   );
 }
+
+/// A binding that requests an unbound TeX Live package "only where raw loading is on" must not make the request under
+/// `localrawstyles`: INCLUDE_STYLES is then the string `searchpaths`, which is truthy, but the request can only miss
+/// (the package is in the TeX tree, outside the document's search paths) and adds a `missing_file` warning for a
+/// package nothing asked for. `mdframed_sty.rs` requests zref-abspage (mdframed.sty:72-77), `amsrefs_sty.rs`
+/// rkeyval and textcmds; `raw_tex_styles_enabled` is the gate.
+#[test]
+fn bindings_do_not_request_unbound_packages_under_localrawstyles() {
+  let tex = "\\documentclass{article}\n\
+    \\usepackage{mdframed}\n\
+    \\usepackage{amsrefs}\n\
+    \\begin{document}\n\
+    \\begin{mdframed}framed-text\\end{mdframed}\n\
+    \\end{document}\n";
+  let (log, xml) = super::convert_files_with(tex, &[], PRELOAD);
+  for missing in ["zref-abspage", "rkeyval", "textcmds"] {
+    assert!(
+      !log.contains(&format!("missing_file:{missing}")),
+      "{missing} must not be requested under localrawstyles:\n{log}"
+    );
+  }
+  assert_eq!(
+    log
+      .matches("Warning:missing_file:mdframed.sty mdframed.sty is only minimally stubbed")
+      .count(),
+    1,
+    "mdframed's own stub warning:\n{log}"
+  );
+  assert_eq!(
+    (error_count(&log), warning_count(&log)),
+    (0, 1),
+    "the stub warning is the only diagnostic:\n{log}"
+  );
+  assert!(
+    xml.contains("framed-text"),
+    "the framed text is present:\n{xml}"
+  );
+}
+
+/// The gate is not applied to a paper's own `arxiv.sty` (`arxiv_sty.rs`, `primearxiv_sty.rs`): that file is in the
+/// document's directory, so it is found under `localrawstyles` and stays authoritative over the bare fallbacks.
+#[test]
+fn a_local_arxiv_sty_still_loads_under_localrawstyles() {
+  let tex = "\\documentclass{article}\n\
+    \\usepackage{arxiv}\n\
+    \\begin{document}\n\
+    \\lxarxiv\n\
+    \\end{document}\n";
+  let sty =
+    "\\ProvidesPackage{arxiv}\n\\newcommand{\\lxarxiv}{from-the-local-arxiv-sty}\n\\endinput\n";
+  let (log, xml) = super::convert_files_with(tex, &[("arxiv.sty", sty)], PRELOAD);
+  assert_eq!(
+    (error_count(&log), warning_count(&log)),
+    (0, 0),
+    "no diagnostic at all:\n{log}"
+  );
+  assert!(
+    xml.contains("from-the-local-arxiv-sty"),
+    "the paper's own arxiv.sty is read:\n{xml}"
+  );
+}

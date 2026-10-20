@@ -2712,6 +2712,15 @@ fn source_tree_basename<'a>(name: &'a str, ext: &str) -> Cow<'a, str> {
   Cow::Owned(base.to_string())
 }
 
+/// Is raw `.sty` loading on in the sense of "an unbound TeX Live package can be read from the TeX tree"?
+/// `INCLUDE_STYLES` is true under `--includestyles`, and is the string `searchpaths` under latexml.sty's
+/// `localrawstyles` (Perl `Package.pm:2674`): truthy, but `require_package` then limits the search to the
+/// document's own directories, so a request for a package with no binding can only miss. A binding that
+/// requests such a package "only where raw loading is on" gates on this, not on `lookup_bool("INCLUDE_STYLES")`.
+pub fn raw_tex_styles_enabled() -> bool {
+  lookup_bool("INCLUDE_STYLES") && lookup_string("INCLUDE_STYLES") != "searchpaths"
+}
+
 pub fn require_package(name: &str, mut options: RequireOptions) -> Result<()> {
   let ext = options.extension.as_deref().unwrap_or("sty").to_string();
   let name = source_tree_basename(name, &ext);
