@@ -18,9 +18,10 @@
 #
 # A `Fatal:` line counts as an error. A run with no Fatal line counts one more
 # when it was killed by a signal (exit code >= 128) or failed (exit code other
-# than 0 and timeout's 124) without printing any Error line, as a panic does
-# (101). So a run that died is never BOTH CLEAN; the verdict line says which
-# run did (RUST_FATAL=, RUST_CRASH(rc=...), and the PERL_ forms).
+# than 0) without printing any Error line, as a panic does (101), and so does
+# a Rust run cut off by `timeout` (124); a Perl one keeps the PERL_TIMEOUT
+# handling below. So a Rust run that died is never BOTH CLEAN; the verdict line
+# says which run did (RUST_FATAL=, RUST_CRASH(rc=...), and the PERL_ forms).
 #
 # Usage:
 #   tools/parity_check.sh <arxiv_id_1> [arxiv_id_2] [...]
@@ -127,16 +128,19 @@ for paper in "${papers[@]}"; do
   perl_errs=$(grep -cE 'Error:[a-zA-Z_]+:' "$perl_log")
   # A run that died is not clean, whatever its Error: count: each Fatal counts
   # as an error; with no Fatal, a signal (rc >= 128) or a failure that printed
-  # no Error line (a panic's 101; timeout's 124 aside) counts as one.
+  # no Error line (a panic's 101) counts as one, and so does Rust's timeout
+  # (124; Perl's is handled below).
+  rust_partial=$rust_errs
   rust_fatal=$(grep -cE 'Fatal:[a-zA-Z_]+:' "$rust_log")
   perl_fatal=$(grep -cE 'Fatal:[a-zA-Z_]+:' "$perl_log")
   rust_died=""
   perl_died=""
   [[ "$rust_fatal" -gt 0 ]] && rust_died=" RUST_FATAL=$rust_fatal"
   [[ "$perl_fatal" -gt 0 ]] && perl_died=" PERL_FATAL=$perl_fatal"
-  if [[ "$rust_fatal" -eq 0 && "$rust_rc" -ne 0 && "$rust_rc" -ne 124 \
-        && ( "$rust_rc" -ge 128 || "$rust_errs" -eq 0 ) ]]; then
-    rust_died=" RUST_CRASH(rc=$rust_rc)"
+  if [[ "$rust_fatal" -eq 0 && "$rust_rc" -ne 0 \
+        && ( "$rust_rc" -eq 124 || "$rust_rc" -ge 128 || "$rust_errs" -eq 0 ) ]]; then
+    # A timeout is tagged RUST_TIMEOUT below.
+    [[ "$rust_rc" -eq 124 ]] || rust_died=" RUST_CRASH(rc=$rust_rc)"
     rust_errs=$((rust_errs + 1))
   fi
   if [[ "$perl_fatal" -eq 0 && "$perl_rc" -ne 0 && "$perl_rc" -ne 124 \
@@ -158,28 +162,26 @@ for paper in "${papers[@]}"; do
   fi
   rust_to_tag=""
   if [[ "$rust_rc" -eq 124 ]]; then
-    rust_to_tag=" RUST_TIMEOUT(partial=$rust_errs)"
+    rust_to_tag=" RUST_TIMEOUT(partial=$rust_partial)"
   fi
   status="UNKNOWN"
   # Perl's MAX_ERRORS default is 100: the 101st Error is followed by
-  # Fatal('too_many_errors') (Common/Error.pm:372-374), counted 102 here. At
-  # >= 101 the count is a CAP — Perl's true count is unknown and likely much
-  # larger. Don't classify as "Rust > Perl"
-  # in that case. Rust's default MAX_ERRORS is 10000.
-  perl_capped=""
-  if [[ "$perl_errs" -ge 101 ]]; then
-    perl_capped=" PERL_CAPPED@$perl_errs"
-  fi
+  # Fatal('too_many_errors') (Common/Error.pm:372-374). Then the count is a
+  # CAP — Perl's true count is unknown and likely much larger. Don't classify
+  # as "Rust > Perl" in that case. Rust's default MAX_ERRORS is 10000.
+  perl_cap=0
+  grep -q 'Fatal:too_many_errors' "$perl_log" && perl_cap=1
   if [[ "$rust_errs" -eq 0 && "$perl_errs" -eq 0 ]]; then
     status="BOTH CLEAN"
   elif [[ "$rust_errs" -eq "$perl_errs" ]]; then
     status="OUT-OF-SCOPE (Perl=$perl_errs)"
-  elif [[ "$perl_errs" -ge 101 && "$rust_errs" -lt "$perl_errs" ]]; then
-    # Perl hit MAX_ERRORS=101 cap (true count higher); Rust is below the
-    # cap. Rust is unambiguously better since Perl's true count >= 101.
+  elif [[ "$perl_cap" -eq 1 && "$rust_errs" -lt "$perl_errs" ]]; then
+    # Perl hit its MAX_ERRORS cap (Fatal:too_many_errors; true count higher);
+    # Rust is below it. Rust is unambiguously better since Perl's true count
+    # is at least what it printed.
     # Classify as PERL_REGRESSION (Rust win), with a note tagging the cap.
     status="PERL_REGRESSION (P>=$perl_errs vs R=$rust_errs; PERL_CAPPED)"
-  elif [[ "$perl_errs" -ge 101 ]]; then
+  elif [[ "$perl_cap" -eq 1 ]]; then
     # Rust >= Perl-cap — undetermined since Perl's true count is unknown.
     status="OUT-OF-SCOPE? (Perl-capped P=$perl_errs vs R=$rust_errs; cannot compare)"
   elif [[ "$rust_errs" -gt "$perl_errs" && "$perl_rc" -eq 124 ]]; then
