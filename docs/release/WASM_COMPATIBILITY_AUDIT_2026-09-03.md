@@ -296,7 +296,7 @@ flowchart TD
 
 ### Phase 4.2: WASI Headless Pipeline (`wasm32-wasip1`)
 - [ ] Set up CI target `wasm32-wasip1` with `wasi-sdk`.
-- [ ] Verify `cargo build -p latexml_oxide --target wasm32-wasip1`.
+- [ ] Verify `cargo build -p latexml --target wasm32-wasip1`.
 - [ ] Execute smoke tests running `latexml_oxide.wasm` under `wasmtime` with pre-opened directories.
 
 ### Phase 4.3: Virtual File System (VFS) & Asset Packaging

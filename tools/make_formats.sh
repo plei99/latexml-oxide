@@ -13,9 +13,12 @@
 #
 # Call this once after checkout, after any TeX Live upgrade, or before
 # running the test suite when matching a specific texlive is required
-# (e.g. in CI). The Rust build does NOT embed the dump — it is read
-# from disk at runtime (see latexml_package/build.rs), so regenerating
-# requires no rebuild.
+# (e.g. in CI). A conversion reads the dump from disk when it finds one built
+# from this TeX tree (LATEXML_DUMP_PATH, LATEXML_DUMP_DIR,
+# <exe_dir>/../resources/dumps/, <exe_dir>, then this tree's resources/dumps/),
+# so a regenerated dump takes effect without a rebuild; latexml_engine/build.rs
+# also embeds resources/dumps/ at compile time as the last fallback, which only
+# a rebuild refreshes.
 #
 # Usage:
 #   tools/make_formats.sh                  # debug build (default)

@@ -28,7 +28,7 @@ The live worklists and the ship contract. Read these first when resuming.
 | [`parity/DEFERRED_FAMILIES.md`](parity/DEFERRED_FAMILIES.md) | Parked deep families (`.bst`, xy-pic, mode-frame, …); several carry explicit "do NOT start". |
 | [`release/RELEASE_CRITERIA.md`](release/RELEASE_CRITERIA.md) | The "what must be true before a public 1.0" contract: gates, binary-size budget, portability, license audit, tail-latency/RSS signals. |
 | [`release/RELEASING.md`](release/RELEASING.md) | Tag-driven release procedure; the self-contained-binary requirement. |
-| [`release/CRATES_IO_PUBLISH.md`](release/CRATES_IO_PUBLISH.md) | `cargo publish` + docs.rs + library-use story: bottom-up publish order, open blockers (workspace-`resources/` packaging, `pericortex` git dep), docs.rs metadata, `latexml::api` entrypoint. |
+| [`release/CRATES_IO_PUBLISH.md`](release/CRATES_IO_PUBLISH.md) | `cargo publish` + docs.rs + library-use story: the publish procedure (bottom-up order, never an `-rc`), the resolved blockers and the traps for the next publish, docs.rs metadata, `latexml::api` entrypoint. |
 | [`release/LICENSE_INVENTORY.md`](release/LICENSE_INVENTORY.md) | Living license inventory for the redistributable binary (scopes the CC0 claim). |
 | [`release/SAFETY.md`](release/SAFETY.md) | Threat model and `unsafe` inventory. |
 | [`release/WINDOWS_COMPATIBILITY_PLAN.md`](release/WINDOWS_COMPATIBILITY_PLAN.md) | Living worklist for the Windows port (`windows-compatibility` branch): MSVC + vcpkg-static toolchain, phased plan to `cargo test --release` green on `windows-latest` CI and a zipped `.exe` artifact. |

@@ -4,9 +4,9 @@
 # which causes stack overflow at 8MB, crashing the entire test binary.
 RUST_MIN_STACK = "16777216"
 
-# For fresh-test (regenerate kernel dump against ambient TeXLive, then test),
-# see `make fresh-test` in the top-level Makefile. Cargo aliases can't chain
-# shell commands, so that orchestration lives in make, not here.
+# For a fresh test (regenerate the kernel dumps against the ambient TeX Live,
+# then test), run `tools/make_formats.sh`, then the tests. Cargo aliases can't
+# chain shell commands, so there is no alias for it here.
 
 # Linker + rustc parallel-frontend tuning for x86_64 Linux.
 #
