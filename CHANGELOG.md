@@ -9,6 +9,14 @@
     L1490-1506) whose `¯` is drawn at `mathsize="0"`; the border stays the visible rule
     (OXIDIZED_DESIGN_DIVERGENCES #584). Guard `90_latexmlpost::overline_post_test`.
 
+  - **A display equation's layout table is `role="presentation"`, and table header cells carry
+    `scope`.** Nothing in the markup said that the `<table class="ltx_eqn_table">` placing a display
+    equation is for layout, so each browser's heuristic decided how assistive technology treats it;
+    it now has `role="presentation"`. A header cell (`<th>`) of a `tabular` gets `scope="col"` or
+    `scope="row"` where LaTeXML knows which it is. Guards
+    `cluster_cli::equation_tables_are_presentational::display_equation_tables_are_role_presentation_data_tables_are_not`,
+    `cluster_cli::equation_tables_are_presentational::tabular_header_cells_head_columns_and_rows`.
+
   - **`\usepackage[style=sbl]{biblatex}` loads without errors on TeX Live 2026.** The
     updated biblatex-sbl reaches three pieces of biblatex.sty that the native biblatex
     binding, which stands in for it, did not have: `\DeclareDatafieldSet{name}{…\member…}`

@@ -2007,6 +2007,148 @@ mod display_math_text_nowrap {
   }
 }
 
+mod equation_tables_are_presentational {
+  //! The HTML table that lays out a display equation (its two centering pad cells,
+  //! the equation, its number) is a layout device, not tabular data. Nothing in the
+  //! unmarked table says so, leaving each browser's heuristic to decide. The
+  //! `ltx_eqn_table` of an `equation` and of an aligned `equationgroup` is
+  //! therefore `role="presentation"`, and a real `tabular` keeps its table semantics
+  //! and says which cells head a column (`scope="col"`) or a row (`scope="row"`).
+
+  use std::{fs, process::Command};
+
+  const DOC: &str = "\\documentclass{article}\n\
+                     \\usepackage{amsmath}\n\
+                     \\begin{document}\n\
+                     \\begin{equation}\na = b\n\\end{equation}\n\n\
+                     \\begin{align}\nc &= d \\\\\ne &= f\n\\end{align}\n\n\
+                     \\begin{tabular}{ll}\n\\hline\n$x$ & $y$ \\\\ \\hline\n1 & 2\n\\end{tabular}\n\
+                     \\end{document}\n";
+
+  #[test]
+  fn display_equation_tables_are_role_presentation_data_tables_are_not() {
+    let bin = env!("CARGO_BIN_EXE_latexml_oxide");
+    let workdir = tempfile::tempdir().expect("create tempdir");
+    let root = workdir.path();
+    fs::write(root.join("doc.tex"), DOC).unwrap();
+
+    let output = Command::new(bin)
+      .current_dir(root)
+      .arg("--format=html5")
+      .arg("--destination=out.html")
+      .arg("doc.tex")
+      .output()
+      .expect("failed to run latexml_oxide");
+    let html = fs::read_to_string(root.join("out.html")).unwrap_or_default();
+    let stderr = String::from_utf8_lossy(&output.stderr).replace('\u{1b}', "");
+
+    // Both display forms produce a layout table: the single equation and the aligned group.
+    let eqn_tables: Vec<&str> = html
+      .match_indices("<table")
+      .map(|(i, _)| &html[i..i + html[i..].find('>').unwrap() + 1])
+      .filter(|tag| tag.contains("ltx_eqn_table"))
+      .collect();
+    assert_eq!(
+      eqn_tables.len(),
+      2,
+      "one equation table and one equationgroup table;\nhtml=\n{html}"
+    );
+    for tag in &eqn_tables {
+      assert!(
+        tag.contains("role=\"presentation\""),
+        "equation table without role: {tag}"
+      );
+    }
+    // The data table is the document's only other table and carries no role.
+    let data_table = html
+      .match_indices("<table")
+      .map(|(i, _)| &html[i..i + html[i..].find('>').unwrap() + 1])
+      .find(|tag| tag.contains("ltx_tabular"))
+      .expect("the tabular is rendered as a table");
+    assert!(
+      !data_table.contains("role="),
+      "a data table must keep its semantics: {data_table}"
+    );
+    assert_eq!(
+      html.matches("role=\"presentation\"").count(),
+      2,
+      "only the layout tables are presentational"
+    );
+    // The header row of that data table names its columns for assistive technology.
+    let header_cells: Vec<&str> = html
+      .match_indices("<th ")
+      .map(|(i, _)| &html[i..i + html[i..].find('>').unwrap() + 1])
+      .collect();
+    assert_eq!(
+      header_cells.len(),
+      2,
+      "the tabular's two header cells;\nhtml=\n{html}"
+    );
+    for tag in &header_cells {
+      assert!(
+        tag.contains("scope=\"col\""),
+        "header cell without scope=col: {tag}"
+      );
+    }
+    assert!(
+      !html.contains("scope=\"row\""),
+      "no row header exists in this table"
+    );
+    assert!(
+      !stderr.contains("Warning:") && !stderr.contains("Error:"),
+      "unexpected diagnostics:\n{stderr}"
+    );
+  }
+
+  /// A tabular with a header row and a header column: the corner cell (a header along both
+  /// axes, `thead="column row"`, Alignment.pm:1239) sits in the `thead` and heads its column, the
+  /// other column heads head theirs, and both cells of the header column are row heads.
+  #[test]
+  fn tabular_header_cells_head_columns_and_rows() {
+    let bin = env!("CARGO_BIN_EXE_latexml_oxide");
+    let workdir = tempfile::tempdir().expect("create tempdir");
+    let root = workdir.path();
+    fs::write(
+      root.join("doc.tex"),
+      "\\documentclass{article}\n\\begin{document}\n\
+       \\begin{tabular}{l|ll} Name & A & B \\\\ \\hline r1 & 1 & 2 \\\\ r2 & 3 & 4\\end{tabular}\n\
+       \\end{document}\n",
+    )
+    .unwrap();
+
+    let output = Command::new(bin)
+      .current_dir(root)
+      .arg("--format=html5")
+      .arg("--destination=out.html")
+      .arg("doc.tex")
+      .output()
+      .expect("failed to run latexml_oxide");
+    let html = fs::read_to_string(root.join("out.html")).unwrap_or_default();
+    let stderr = String::from_utf8_lossy(&output.stderr).replace('\u{1b}', "");
+
+    let header_cells: Vec<&str> = html
+      .match_indices("<th ")
+      .map(|(i, _)| &html[i..i + html[i..].find('>').unwrap() + 1])
+      .collect();
+    assert_eq!(
+      header_cells,
+      vec![
+        // The corner: in the thead, a header along both axes; it heads its column.
+        "<th class=\"ltx_td ltx_align_left ltx_th ltx_th_column ltx_th_row ltx_border_r\" scope=\"col\">",
+        "<th class=\"ltx_td ltx_align_left ltx_th ltx_th_column\" scope=\"col\">",
+        "<th class=\"ltx_td ltx_align_left ltx_th ltx_th_column\" scope=\"col\">",
+        "<th class=\"ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r ltx_border_t\" scope=\"row\">",
+        "<th class=\"ltx_td ltx_align_left ltx_th ltx_th_row ltx_border_r\" scope=\"row\">",
+      ],
+      "html=\n{html}"
+    );
+    assert!(
+      !stderr.contains("Warning:") && !stderr.contains("Error:"),
+      "unexpected diagnostics:\n{stderr}"
+    );
+  }
+}
+
 mod browser_render_display_math {
   //! #527, the *rendered* guarantee: a real headless browser must lay out both a
   //! pure-`\text{}` display and a mixed math+text display on ONE line without

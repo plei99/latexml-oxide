@@ -4,7 +4,7 @@
 
 > **Numbering note:** the `### N` numbers are load-bearing (referenced from `.rs` comments) and are kept verbatim. `#16` and the math-grammar entries `#7–#18` live in [OXIDIZED_DESIGN_MATH.md](../math/OXIDIZED_DESIGN_MATH.md); in particular the code-referenced **`#18` is the f(x) "Speculative function application"** entry there, *not* the "Source-Level Bindings" `#18` below.
 >
-> **`#76` is a RETIRED number, not an omission** — its entry was consolidated into `#74` and the number was deliberately not reused (see the placeholder in sequence below). Next free number: **#590** (allocate at integration with `tools/perfect_kernel/next_entry_numbers.sh`).
+> **`#76` is a RETIRED number, not an omission** — its entry was consolidated into `#74` and the number was deliberately not reused (see the placeholder in sequence below). Next free number: **#591** (allocate at integration with `tools/perfect_kernel/next_entry_numbers.sh`).
 
 ---
 
@@ -17726,3 +17726,26 @@ definitions). Not applied to a file that was raw-loaded, whose `\let`s ran. 2610
 **Guard**: `cluster_package_guards::native_bindings_math_ge5::an_unread_style_rebinds_the_commands_of_its_packages`
 (the rebind applied; a `\let` of a kernel command, one in a macro body and one before a `\newenvironment` of the
 same name not applied).
+
+### 590. The table of a display equation is `role="presentation"`, and a header cell says which cells it heads (Perl: neither)
+
+`ltx:equation` and aligned `ltx:equationgroup` become a `<table class="ltx_eqn_table">` whose cells only place the
+equation: two centering pads, the equation, its number (`LaTeXML-block-xhtml.xsl` L462, L496 in the Perl tree;
+the `add_attributes` calls, whose `extra_classes` at L470/L503 give it the class and nothing else). Nothing in the markup says the table
+is for layout, so each browser's layout-table heuristic decides whether assistive technology treats it as a data
+table; no screen-reader behaviour was observed for it. A collection of 43 lecture notes has 10,020 of them. The same
+stylesheet's `ltx:td` template (`LaTeXML-tabular-xhtml.xsl` L128) turns a cell with `@thead` into a `<th>` with
+classes (`ltx_th_column`, `ltx_th_row`) but no `scope`, so nothing in the markup says which cells a header heads
+(211 header cells in 46 tabulars, none with a scope).
+
+**Rust**: `LaTeXML-block-xhtml.xsl` adds `role="presentation"` to the two equation tables (named template
+`eqn_table_role`; not in an inline context, where the element is a `span`). `LaTeXML-tabular-xhtml.xsl` adds
+`scope="col"` to a header cell whose `thead` is `column`, or `column row` inside a `thead`, and `scope="row"` to
+one whose `thead` is `row`. A `column row` cell is a header along both axes (the corner; `Alignment.pm:1239`
+merges the two values through `addSSValues`); outside a `thead` it gets no scope. `tabular` tables keep their
+table semantics.
+
+**Guard**: `cluster_cli::equation_tables_are_presentational::display_equation_tables_are_role_presentation_data_tables_are_not`
+(both equation tables carry the role and nothing else does, the tabular has none, its two header cells are
+`scope="col"`, no diagnostics) and `cluster_cli::equation_tables_are_presentational::tabular_header_cells_head_columns_and_rows`
+(a tabular with a header column: the corner and the column heads are `scope="col"`, both row heads `scope="row"`).
