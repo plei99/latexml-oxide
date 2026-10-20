@@ -28,10 +28,13 @@
 # `cargo test` gave them implicitly. A `max-threads = 1` group would only stop the
 # two from overlapping EACH OTHER, leaving a heavy tikz/pgf sibling free to spike
 # GBs beside them, which is the same hazard by another name — on a 7-16 GB runner.
-# A dev box has the headroom for a sibling, and there `threads-required` costs
-# far more: the pool drains before each of the two can start and nothing runs
-# beside it. So the `default` profile only keeps them off EACH OTHER (the
-# `rss-serial` group).
+# A dev box has the same hazard: on a 24 GB Mac, with five or more conversions
+# of the pair's over-budget document at once, neither memory guard fired (macOS
+# compresses pages under pressure, and both sample the resident set) and the
+# over-budget run exited 0; four at once kept the contract. A saturated full run
+# failed the pair another way, with no salvaged document. So the `default`
+# profile runs them alone too. At the head of the queue (priority below) that
+# costs their own ~17 s each with nothing beside them.
 #
 # Scheduling: nextest starts tests in `priority` order (higher first; ties keep
 # list order), so the slow ones below start first instead of trailing a shard.
@@ -65,8 +68,10 @@ test-threads = 8
 # Overrides are matched in order and, per setting, the first match wins; the
 # `ci` profile checks its own overrides first, then falls back to these, so the
 # priorities below apply to both profiles.
+# The RSS pair runs alone, as on CI (header).
 [[profile.default.overrides]]
 filter = 'test(=streaming_flag_is_byte_identical_and_fatal_contract_holds) | test(=over_budget_build_degrades_gracefully_instead_of_being_killed)'
+threads-required = "num-test-threads"
 test-group = "rss-serial"
 priority = 100
 
