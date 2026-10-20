@@ -63,7 +63,7 @@ LoadDefinitions!({
 
   define_xetex_interchar()?;
   // `\RequireXeTeX` and `\RequireTUTeX` pass (Perl makes every `\Require<engine>` a
-  // no-op, iftex.sty.ltxml:52-64): what XeTeX gives a document — UTF-8 input,
+  // no-op, iftex.sty.ltxml:51-63): what XeTeX gives a document — UTF-8 input,
   // OpenType font selection, script switching — the Unicode-native engine and
   // its fontspec/polyglossia/unicode-math bindings already provide, so an
   // XeLaTeX paper converts under the default persona (11 papers of arXiv 2605

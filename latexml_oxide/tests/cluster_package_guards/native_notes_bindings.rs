@@ -154,14 +154,20 @@ fn euler_math_keeps_the_symbols_it_redefines() {
   );
 }
 
-/// euler-math.sty:8 `\RequireTUTeX` is not run (the iftex binding passes it under every persona, Perl
-/// `iftex.sty.ltxml:61` makes it a no-op): the default persona loads the package with no error and no warning, and
-/// the symbols the raw file would blank stay.
+/// euler-math.sty:7-8 loads iftex and runs `\RequireTUTeX` (the iftex binding passes it under every persona, Perl
+/// `iftex.sty.ltxml:61` makes it a no-op): the default persona loads the package with no error and no warning,
+/// `\iftutex` stays defined (false here), and the symbols the raw file would blank stay.
 #[test]
 fn euler_math_loads_under_the_default_persona() {
   let xml = native(
-    "\\documentclass{article}\n\\usepackage{euler-math}\n\\begin{document}\n$\\hbar$\n\\end{document}\n",
+    "\\documentclass{article}\n\\usepackage{euler-math}\n\\begin{document}\n\\iftutex T\\else F\\fi $\\hbar$\n\\end{document}\n",
     0,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "p",
+    &[],
+    r##"<p>F<Math mode="inline" tex="\hbar" text="Planck-constant-over-2-pi" xml:id="p1.m1"><XMath><XMTok meaning="Planck-constant-over-2-pi" name="hbar" role="ID">ℏ</XMTok></XMath></Math></p>"##,
   );
   latexml::util::test::assert_element(
     &xml,
@@ -212,15 +218,19 @@ fn fourier_orns_under_a_tu_persona() {
 }
 
 /// `\FourierOrns` stays a font switch for user text (fourier-orns-doc.tex:118-121, 150-151): `{\FourierOrns E 1 F}`
-/// puts all three characters in the ornament font (pdflatex's `\showbox` shows E, 1, F in `futs`).
+/// puts all three characters in the ornament font (pdflatex's `\showbox` shows E, 1, F in `futs`), in the `futs`
+/// branch and under the TU personas' fontspec branch alike.
 #[test]
 fn fourier_orns_is_a_font_switch() {
-  let xml = native(
-    "\\documentclass{article}\n\\usepackage{fourier-orns}\n\\begin{document}\n\
-     {\\FourierOrns E 1 F} {\\FourierOrns\\char`\\A}\n\\end{document}\n",
-    0,
-  );
-  latexml::util::test::assert_element(&xml, "p", &[], "<p>❀ ⚠ ❀ ☙</p>");
+  for preload in ["latexml.sty", "[xetex]latexml.sty", "[luatex]latexml.sty"] {
+    let xml = native_with(
+      "\\documentclass{article}\n\\usepackage{fourier-orns}\n\\begin{document}\n\
+       {\\FourierOrns E 1 F} {\\FourierOrns\\char`\\A}\n\\end{document}\n",
+      preload,
+      0,
+    );
+    latexml::util::test::assert_element(&xml, "p", &[], "<p>❀ ⚠ ❀ ☙</p>");
+  }
 }
 
 /// fourier-orns.sty:29-72: each ornament is a slot of the `futs` font, selected by `\FourierOrns` and decoded by
@@ -277,7 +287,7 @@ fn ninecolors_defines_the_numbered_shades() {
 /// converts with 0 errors, LaTeXML's own anchors, ids and structure, and no skipped package. The one warning is the
 /// `\@iffirstamp` conditional memoir/hyperref define without `\if` (also present under `rawstyles`).
 #[test]
-fn memhfixc_is_a_no_op_for_memoir_with_hyperref() {
+fn memhfixc_provides_its_names_for_memoir_with_hyperref() {
   let tex = "\\documentclass{memoir}\n\\usepackage{hyperref}\n\\setsecnumdepth{subsection}\n\\begin{document}\n\
      \\book*{Bk}\n\\chapter{Alpha}\\label{c}\n\\section{Beta}\\footnote{Note.}\n\\subsubsection{Delta}\n\\section*{Epsilon}\n\
      See \\ref{c}.\n\\begin{figure}\\caption{Cap}\\label{f}\\end{figure}\nFig \\ref{f}. \\bookautorefname/\\subfigureautorefname.\n\\end{document}\n";
@@ -303,6 +313,12 @@ fn memhfixc_is_a_no_op_for_memoir_with_hyperref() {
     "title",
     &[],
     r#"<title><tag close=" ">Chapter 1</tag>Alpha</title>"#,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "chapter",
+    &[r#"labels="LABEL:c""#, r#"xml:id="chapter1""#],
+    r##"<chapter class="ltx_chapterstyle_default" inlist="toc" labels="LABEL:c" xml:id="chapter1"><tags><tag>Chapter 1</tag><tag role="autoref">chapter 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Chapter 1</tag></tags><title><tag close=" ">Chapter 1</tag>Alpha</title><toctitle><tag close=" "><text font="bold">1</text></tag><text font="bold">Alpha</text></toctitle><section inlist="toc" xml:id="chapter1.section1"><tags><tag>1.1</tag><tag role="autoref">section 1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title><tag close=" ">1.1</tag>Beta</title><toctitle><tag close=" ">1.1</tag>Beta</toctitle><note mark="1" role="footnote" xml:id="footnote1"><tags><tag>1</tag><tag role="autoref">footnote 1</tag><tag role="refnum">1</tag><tag role="typerefnum">footnote 1</tag></tags>Note.</note><subsubsection inlist="toc" xml:id="chapter1.section1.subsection0.subsubsectionx1"><title>Delta</title><toctitle>Delta</toctitle></subsubsection></section><section xml:id="chapter1.sectionx1"><title>Epsilon</title><para xml:id="chapter1.sectionx1.p1"><p>See <ref labelref="LABEL:c"/>.</p></para><figure inlist="lof" labels="LABEL:f" xml:id="chapter1.figure1"><tags><tag>Figure 1.1</tag><tag role="autoref">Figure 1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">Figure 1.1</tag></tags><toccaption><tag close=" ">1.1</tag>Cap</toccaption><caption><tag close=": ">Figure 1.1</tag>Cap</caption></figure><para xml:id="chapter1.sectionx1.p2"><p>Fig <ref labelref="LABEL:f"/>. Book/Subfigure.</p><pagination role="newpage"/></para></section></chapter>"##,
   );
   latexml::util::test::assert_element(
     &xml,

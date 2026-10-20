@@ -11,7 +11,7 @@
 //! `Error:undefined:\Hy@MakeCurrentHrefAuto`), and the macros it patches (`\M@sect`) are not the ones the native
 //! sectioning runs (`\@startsection`, sect04.rs). LaTeXML's own memoir and hyperref bindings make the anchors and ids.
 //! OXIDIZED_DESIGN #593; guard
-//! `native_notes_bindings::memhfixc_is_a_no_op_for_memoir_with_hyperref`.
+//! `native_notes_bindings::memhfixc_provides_its_names_for_memoir_with_hyperref`.
 use latexml_package::prelude::*;
 
 LoadDefinitions!({
