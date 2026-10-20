@@ -17749,3 +17749,31 @@ table semantics.
 (both equation tables carry the role and nothing else does, the tabular has none, its two header cells are
 `scope="col"`, no diagnostics) and `cluster_cli::equation_tables_are_presentational::tabular_header_cells_head_columns_and_rows`
 (a tabular with a header column: the corner and the column heads are `scope="col"`, both row heads `scope="row"`).
+
+### 594. Sources registered as interpretable are raw-loaded from the TeX tree without `--includestyles`, and under `localrawstyles` (Perl: only xparse's versioned files are registered, and the registration is gated on both)
+
+Perl registers exactly two sources as `INTERPRETABLE_SOURCES`, `xparse-2018-04-12.sty` and `xparse-2020-10-01.sty`
+(`xparse.sty.ltxml:20-21`), to keep the de-versioning fallback from rerouting xparse's own rollback files. Rust
+registers more, as the §10 rationale in `latexml_engine/src/latex_constructs_rust_only.rs` explains: `physics2.sty`
+and its `phy-*` modules, `fontawesome7.sty`. Perl never registers them, so `\usepackage{physics2}` falls back to
+`physics.sty.ltxml` (the glued-suffix fallback strips `2`), which is a different package: `\usephysicsmodule`,
+`\ab`, `\bra` are undefined (arXiv 2605.07772, `undefined:\usephysicsmodule`; KNOWN_PERL_ERRORS).
+
+Perl also gates an interpretable source on both raw-loading switches. `RequirePackage` defaults `notex` to true
+without `INCLUDE_STYLES` (`Package.pm:2688-2689`) and sets `searchpaths_only` for every top-level require under
+`localrawstyles` (`Package.pm:2691`); `FindFile_aux` lets an interpretable source through only as a lookup in the
+search paths (`Package.pm:2124`, `2132-2133`), and skips kpsewhich when `searchpaths_only` is set
+(`Package.pm:2152`). A TeX Live file is never in the document's search paths, so under either default Perl would not
+read it raw.
+
+**Rust**: `require_package` exempts a source in `INTERPRETABLE_SOURCES` from both the `notex` default and the
+`searchpaths_only` default, so it is read from the TeX tree with and without `[localrawstyles]latexml.sty`.
+Registration is the vouching: only sources a binding or the kernel has chosen are exempt, so `localrawstyles` still
+skips every other TeX Live package that has no binding. `FindFile_aux`'s behaviour is unchanged (the registered
+source is found by the ordinary kpsewhich step once the flags are clear).
+
+**Guard**: `cluster_package_guards::perfect_kernel_batch54::physics2_is_not_a_version_of_physics` (default
+configuration) and
+`cluster_package_guards::localrawstyles_keeps_searchpaths::localrawstyles_still_raw_loads_an_interpretable_source`
+(`[localrawstyles]latexml.sty`: `\usephysicsmodule{ab,diagmat}`, stretchy `\ab(x)` fences and a `\pdiagmat` matrix,
+no diagnostics).

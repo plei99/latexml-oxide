@@ -135,9 +135,20 @@ fn localrawstyles_still_raw_loads_an_interpretable_source() {
       && xml.contains(r#"<XMTok role="CLOSE" stretchy="true">)</XMTok>"#),
     "\\ab(x) makes stretchy fences around x:\n{xml}"
   );
+  // `\pdiagmat{a,b}` is the 2x2 diagonal matrix in parentheses: the pmatrix source, its array semantics, and two
+  // rows of two cells.
   assert!(
-    xml.contains("pmatrix"),
-    "\\pdiagmat builds a parenthesised matrix:\n{xml}"
+    xml.contains(r#"tex="\begin{pmatrix}a&amp;0\\&#10;0&amp;b\\&#10;\end{pmatrix}""#)
+      && xml.contains(r#"text="matrix@(Array[[a, 0], [0, b]])""#),
+    "\\pdiagmat builds the parenthesised diagonal matrix:\n{xml}"
+  );
+  assert_eq!(
+    (
+      xml.matches("<XMRow>").count(),
+      xml.matches("<XMCell ").count()
+    ),
+    (2, 4),
+    "the matrix has two rows of two cells:\n{xml}"
   );
 }
 
@@ -151,27 +162,27 @@ fn bindings_do_not_request_unbound_packages_under_localrawstyles() {
   let tex = "\\documentclass{article}\n\
     \\usepackage{mdframed}\n\
     \\usepackage{amsrefs}\n\
+    \\usepackage{backref}\n\
     \\begin{document}\n\
     \\begin{mdframed}framed-text\\end{mdframed}\n\
     \\end{document}\n";
   let (log, xml) = super::convert_files_with(tex, &[], PRELOAD);
-  for missing in ["zref-abspage", "rkeyval", "textcmds"] {
+  for missing in ["zref-abspage", "rkeyval", "textcmds", "rerunfilecheck"] {
     assert!(
       !log.contains(&format!("missing_file:{missing}")),
       "{missing} must not be requested under localrawstyles:\n{log}"
     );
   }
-  assert_eq!(
-    log
-      .matches("Warning:missing_file:mdframed.sty mdframed.sty is only minimally stubbed")
-      .count(),
-    1,
-    "mdframed's own stub warning:\n{log}"
-  );
+  for stub in [
+    "Warning:missing_file:mdframed.sty mdframed.sty is only minimally stubbed",
+    "Warning:missing_file:backref.sty backref.sty is minimally stubbed",
+  ] {
+    assert_eq!(log.matches(stub).count(), 1, "{stub} once:\n{log}");
+  }
   assert_eq!(
     (error_count(&log), warning_count(&log)),
-    (0, 1),
-    "the stub warning is the only diagnostic:\n{log}"
+    (0, 2),
+    "the two bindings' own stub warnings are the only diagnostics:\n{log}"
   );
   assert!(
     xml.contains("framed-text"),
