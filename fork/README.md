@@ -11,12 +11,13 @@ binary. Build the binary with `cargo build --release`. Rebuild the dumps after a
 upgrade or an upstream merge with `PROFILE=release tools/make_formats.sh`.
 
 Agents start at [`AGENTS.md`](AGENTS.md): where this checkout differs from upstream's instructions, and how
-parallel agents share it. Three tools serve any change:
+parallel agents share it. Four tools serve any change:
 
 ```sh
 fork/oxide doc.tex [outdir]        # convert one local document under the protocol; prints the verdict
 fork/binary_info.sh [bin]          # which build a binary is, and STALE when the tree is newer
-fork/worktree.sh <branch>          # a writer agent's own checkout, with LaTeXML/, dumps and .corpus/
+fork/worktree.sh <branch>          # a writer agent's own checkout on `agents`, with LaTeXML/, Cargo.lock and dumps
+fork/linux/run.sh <command>        # run a build or test in a guest worktree, from either host
 ```
 
 Fork-driven feature work has its own worklist: [`MEMOIR_ROADMAP.md`](MEMOIR_ROADMAP.md) for the memoir class.
@@ -97,7 +98,8 @@ fork/linux/check.sh <branch> [formats nextest lint]   # logs: /tmp/linux-check/<
 
 `setup.sh` installs the apt build dependencies, rustup with nightly, nextest and cargo-machete (in
 `~/.rustup` and `~/.cargo`), and TeX Live 2026 in `/usr/local/texlive/2026`, then sets `worktree.useRelativePaths` in the
-guest clone and adds the remote `mac`. Run it again to repair the machine; `setup.sh texlive` runs one
+guest clone, adds the remote `mac` and makes the clone's https remotes promisors, which supply the blobs that
+the Mac checkout, a `blob:none` partial clone, never fetched. Run it again to repair the machine; `setup.sh texlive` runs one
 step (`apt rust texlive clone`). The rust step downloads nextest again each time, which is how nextest
 is updated, and downloads cargo-machete's latest release unless that version is installed. `install-tl` pulls TL from `TL_REPO`, which defaults to the 16 October 2026 `tlnet`
 snapshot, whose package revisions match the Mac's TL 2026: when the Mac's TL is updated, move the date
