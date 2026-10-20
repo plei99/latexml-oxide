@@ -353,7 +353,7 @@ fn fold(series: char, d: Diagram, len: f64, r_fold: f64, indefinite: &[bool]) ->
         }
       }
       let xh = f.pos[h - 1].0;
-      if n % 2 == 0 {
+      if n.is_multiple_of(2) {
         f.arcs.push((h - 1, 90.0, -90.0));
         f.pos[h] = (xh, -r_fold);
       } else {
@@ -366,7 +366,7 @@ fn fold(series: char, d: Diagram, len: f64, r_fold: f64, indefinite: &[bool]) ->
         f.pos[j] = (f.pos[n - 1 - j].0, -r_fold);
       }
       for i in 0..n - 1 {
-        let is_arc = (n % 2 == 0 && i == h - 1) || (n % 2 == 1 && (i == h - 1 || i == h));
+        let is_arc = (n.is_multiple_of(2) && i == h - 1) || (n % 2 == 1 && (i == h - 1 || i == h));
         if !is_arc {
           f.edges.push((
             i,
