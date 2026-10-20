@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+  - **`amsart`, `amsproc` and `amsbook` number parts with arabic numerals.** The classes renew
+    `\thepart` as `\arabic{part}` (amsart.cls:1098, amsproc.cls:1033, amsbook.cls:878); the
+    article/book classes they load have `\Roman{part}`, and Perl renews nothing, so a `\part` read
+    "Part I" in the heading, the contents and references where the PDF reads "Part 1". `amsart` and
+    `amsproc` also close the heading's number with a full stop, "Part 1. Title", as for sections
+    (`\@secnumpunct`, amsart.cls:1051-1058). Divergence #595; guards
+    `amsart_part_number::amsart_parts_are_arabic`, `::amsproc_parts_are_arabic`,
+    `::amsbook_parts_are_arabic` and `::article_parts_stay_roman`.
+
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
     loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,

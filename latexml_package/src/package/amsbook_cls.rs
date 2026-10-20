@@ -47,6 +47,8 @@ LoadDefinitions!({
   RawTeX!(r"\let\lx@ams@ptsize\@ptsize");
   LoadClass!("book");
   RawTeX!(r"\let\@ptsize\lx@ams@ptsize");
+  // amsbook.cls:878: `\renewcommand\thepart{\arabic{part}}` (the book class this loads has `\Roman{part}`, book_cls.rs).
+  DefMacro!("\\thepart", "\\arabic{part}");
   RequirePackage!("ams_support");
   ams_support_sty::amsart_author_storage()?;
   ams_support_sty::amsart_uppercase_nonmath()?;

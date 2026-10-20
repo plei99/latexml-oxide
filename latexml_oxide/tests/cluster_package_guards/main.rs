@@ -20,6 +20,7 @@ mod aastex_contribution_appendix;
 mod accent_meaning_robust_shape;
 mod acmart_description_aria;
 mod aligned_overset_includestyles;
+mod amsart_part_number;
 mod babel_mainlocalename;
 mod beamer_setbeamertemplate_args;
 mod bib_eprint_arxiv_link;

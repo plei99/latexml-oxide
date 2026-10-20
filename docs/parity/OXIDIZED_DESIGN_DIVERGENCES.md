@@ -17830,3 +17830,18 @@ configuration) and
 `cluster_package_guards::localrawstyles_keeps_searchpaths::localrawstyles_still_raw_loads_an_interpretable_source`
 (`[localrawstyles]latexml.sty`: `\usephysicsmodule{ab,diagmat}`, stretchy `\ab(x)` fences and a `\pdiagmat` matrix,
 no diagnostics).
+
+### 595. `amsart`, `amsproc` and `amsbook` number their parts with `\arabic{part}`, and `amsart` closes the part number with a full stop (Perl: article's `\Roman{part}`, no full stop)
+
+**Perl behavior**: `amsart.cls.ltxml` loads `ams_core`, which loads the article class, and renews nothing of the
+numbering: `\thepart` stays article's `\Roman{part}`, so `\part{...}` reads "Part I" in the heading, "I" in the contents
+and "Part I" in a reference. `amsbook.cls.ltxml` does the same with book's.
+**Rust behavior**: the three classes renew `\thepart` as `\arabic{part}` (amsart.cls:1098, amsproc.cls:1033,
+amsbook.cls:878; `ams_core_cls.rs`, `amsbook_cls.rs`), so the PDF's "Part 1" is the heading, the contents line and the
+reference. `amsart` and `amsproc` also set the heading `\format@title@part` as they set the sectional ones (ams_support
+`\format@title@section`), the number closed by a full stop (`\@secnumpunct`, amsart.cls:1051-1058: "Part 1. Title");
+`amsbook`'s `\part` is its own page (amsbook.cls:890-907) and keeps the tag without one. Witness: an amsart document
+(amsart, `\part{Geometry of complex semisimple Lie algebras and groups}`), "Part 1" in its PDF.
+
+**Guard**: `cluster_package_guards::amsart_part_number` (`amsart_parts_are_arabic`, `amsproc_parts_are_arabic`,
+`amsbook_parts_are_arabic`, and `article_parts_stay_roman` for the class that keeps the roman numeral).
