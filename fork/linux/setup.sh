@@ -14,8 +14,9 @@
 #            and ~/.cargo
 #   texlive  TeX Live 2026 scheme-full in /usr/local/texlive/2026, from the pinned snapshot below; the
 #            marker file .setup-complete says an install finished
-#   clone    the guest clone's settings (worktree.useRelativePaths, the remote `mac`); the clone itself,
-#            /home/patrick/agent-work/repos/latexml, must already exist
+#   clone    the guest clone's settings (worktree.useRelativePaths, the remote `mac`, its https remotes as
+#            promisors of the blobs `mac` lacks); the clone itself, /home/patrick/agent-work/repos/latexml,
+#            must already exist
 set -euo pipefail
 
 MACHINE=agents
@@ -198,6 +199,19 @@ step_clone() {
     git -C "$GUEST_CLONE" remote add mac "$MAC_REPO"
   fi
   echo "clone: remote mac = $(git -C "$GUEST_CLONE" remote get-url mac)"
+  # The Mac checkout is a blob:none partial clone of GitHub, so what the guest fetches from `mac` lacks the
+  # blobs the Mac never needed, and `git log -S`, `git blame` or a checkout of old history stopped at
+  # "unable to read <sha>". A promisor remote supplies a missing blob on demand: an https one only, since
+  # the guest has no GitHub ssh key and a failing promisor is tried, and fails, once per missing blob.
+  local r url
+  for r in $(git -C "$GUEST_CLONE" remote); do
+    url=$(git -C "$GUEST_CLONE" remote get-url "$r")
+    case $url in
+      https://*) git -C "$GUEST_CLONE" config "remote.$r.promisor" true ;;
+      *) git -C "$GUEST_CLONE" config --unset "remote.$r.promisor" || true ;;
+    esac
+  done
+  echo "clone: promisor remotes = $(git -C "$GUEST_CLONE" config --get-regexp '^remote\..*\.promisor$' | cut -d. -f2 | tr '\n' ' ')"
 }
 
 for s in "${steps[@]}"; do
