@@ -112,6 +112,19 @@ fn assert_refs(xml: &str, title: &str, refnum: &str, typerefnum: &str) {
   );
 }
 
+/// The `<toctitle>` of the unit titled `title` is the number and the title, both in `\cftchapterfont`'s bold: the contents line carries
+/// `\thechapter` (memoir.cls:3063-3067 `\chapternumberline{\thechapter}`, which `\@chapapp` and the style do not touch),
+/// where the head prints what the style prints. A consumer of the XML that wants the contents' number reads it here.
+fn assert_toc_number(xml: &str, title: &str, number: &str) {
+  let toctitle = format!(
+    "<toctitle><tag close=\" \"><text font=\"bold\">{number}</text></tag><text font=\"bold\">{title}</text></toctitle>"
+  );
+  assert!(
+    xml.contains(&toctitle),
+    "the contents line of {title}:\n{xml}"
+  );
+}
+
 /// Every built-in style keeps the number a reference shows, so the references are checked once, here: chapter 3 is
 /// headed "Three" under `demo2` but referred to as 3 and "Chapter 3".
 const STYLES: &str = "\\documentclass{memoir}\n\\begin{document}\n\
@@ -140,8 +153,10 @@ fn chapter_heads_follow_the_chapterstyle() {
   // `demo2` (:3340): the number as a word. References keep the plain number and the typeref name.
   assert_head(&xml, "Gamma", "Three", "demo2");
   assert_refs(&xml, "Gamma", "3", "Chapter 3");
+  assert_toc_number(&xml, "Gamma", "3");
   // `brotherton` (:3295): the name and the number as a word.
   assert_head(&xml, "Delta", "Chapter Four", "brotherton");
+  assert_toc_number(&xml, "Delta", "4");
   // `article` (:3204): the number alone.
   assert_head(&xml, "Epsilon", "5", "article");
   // A group restores the style that was in force, class included.

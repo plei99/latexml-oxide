@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+  - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
+    `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
+    (memoir.cls:3063-3067 `\chapternumberline{\thechapter}`), as the PDF's contents do; pinned in
+    `memoir_fork_chapters::chapter_heads_follow_the_chapterstyle`.
+
   - **Labels of a picture in the HTML keep their math and their spaces, and a picture in a formula
     is no taller than itself.** (1) A `$T^C$` label of a picture inside a formula
     (`\overline{\left\{\begin{tikzpicture}...\right\}}`) lost its `<math>` root, so `msup` was a
