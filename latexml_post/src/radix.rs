@@ -21,8 +21,8 @@ const GREEK_UPPER: &[char] = &[
 /// Generic radix formatting: convert a 1-based number into a string
 /// using the given symbol set.
 ///
-/// Produces: symbols[0], symbols[1], ..., symbols[n-1],
-///           symbols[0]symbols[0], symbols[0]symbols[1], ...
+/// Produces: `symbols[0]`, `symbols[1]`, ..., `symbols[n-1]`,
+///           `symbols[0]symbols[0]`, `symbols[0]symbols[1]`, ...
 fn radix_format_chars(mut number: u32, symbols: &[char]) -> String {
   let mut result = String::new();
   let base = symbols.len() as u32;
