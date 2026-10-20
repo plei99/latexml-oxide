@@ -48,6 +48,7 @@ mod expl3_nested_raw_load_catcodes;
 mod fatal_salvages_partial_document;
 mod file_get_everyeof;
 mod filelist_letter_catcodes;
+mod foreignobject_label_markup;
 mod forest_chemnum;
 mod frontespizio_inline;
 mod graphics_asset_memo;
@@ -146,8 +147,8 @@ mod titlesec_label_tag;
 mod token_kernel_gaps;
 mod unicode_format_encoding;
 mod vfs_file_end;
-mod xetex_linebreak_primitives;
 mod xecjk_post_optional;
+mod xetex_linebreak_primitives;
 mod xkeyval_internals;
 mod ytableau_boxes;
 

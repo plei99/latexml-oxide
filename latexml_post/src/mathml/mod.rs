@@ -1111,10 +1111,21 @@ pub fn pmml_text_aux(doc: &PostDocument, node: &Node, attrs: &TextAttrs) -> Vec<
           // Perl L1061-1063 passes no %attr through this arm — the picture is
           // its own rendering, so the surrounding math font/color does not
           // restyle it.
+          //
+          // The picture's own content is the `svg:svg` alone, so a whitespace-only text node among its children is
+          // the markup's indentation. As NBSP (`convert_xm_text_content` makes every blank edge one) it would sit in
+          // the `m:mtext` on either side of the `svg`, which MathML Core lays out as a block: a line of NBSP above
+          // and below, so the `mtext` grew by two lines, the stretchy fences around it with it, and the picture
+          // stood at the bottom of them (a `tikzpicture` between `\left\{ ... \right\}`, a boundary-divisor picture in a formula
+          // §9.2). Only text inside the `svg` (a label's spaces) is content.
+          let children = convert_xm_text_content(doc, node, true)
+            .into_iter()
+            .filter(|c| !matches!(c, NodeData::Text(t) if t.chars().all(char::is_whitespace)))
+            .collect();
           vec![NodeData::Element {
-            tag:        "m:mtext".to_string(),
+            tag: "m:mtext".to_string(),
             attributes: None,
-            children:   convert_xm_text_content(doc, node, true),
+            children,
           }]
         },
         _ => {

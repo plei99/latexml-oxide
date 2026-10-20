@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+  - **Labels of a picture in the HTML keep their math and their spaces, and a picture in a formula
+    is no taller than itself.** (1) A `$T^C$` label of a picture inside a formula
+    (`\overline{\left\{\begin{tikzpicture}...\right\}}`) lost its `<math>` root, so `msup` was a
+    span of unknown elements and read "TC" on one baseline: the stylesheet's `copy-foreign` rule for
+    `m:*` resumed with the children of the `m:math`, not the element (divergence #597). (2) The blank
+    between `\textbf{Family:}` and `$xy$` in a `\node` was stripped as whitespace of an `svg:*`
+    element, giving "Family:xy"; a `foreignObject` now preserves its blanks (#598). (3) The
+    `m:mtext` that holds such a picture had a NBSP on each side of the `svg`, which MathML Core lays
+    out as two lines around a block: the stretchy braces of `\left\{ ... \right\}` covered both and
+    the picture stood at the bottom of them; the picture's indentation text is dropped (#599).
+    Guards `foreignobject_label_markup::a_math_label_of_a_picture_in_a_formula_keeps_its_math_root`,
+    `::the_space_between_words_and_math_in_a_label_stays` and
+    `::a_picture_in_a_formula_is_the_only_content_of_its_mtext`.
+
   - **xeCJK font commands take their options after the font name too.** `\setCJKmainfont{Songti
     SC}[BoldFont={Songti SC Bold}]` left its options as a paragraph of the document (the binding
     read `[]{}`). xeCJK reads the options before the name, or after it when there were none before
