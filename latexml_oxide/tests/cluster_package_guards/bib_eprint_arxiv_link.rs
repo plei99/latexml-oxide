@@ -8,7 +8,9 @@
 //! `ltx:bib-identifier scheme="arxiv"`, the same element the DOI uses, so the
 //! post stage renders it as an `ltx:ref` among the "External Links". Witness:
 //! 2404.01499 (`archivePrefix={arXiv}`, `primaryClass={math.AG}`).
-//! Both readers share it: the biblatex `.bib` path and classic `\bibliography`.
+//! Both readers share it: the biblatex `.bib` path and classic `\bibliography`. The classic list prints the link among
+//! the "External Links"; an alphabetic biblatex list prints it as standard.bbx's `eprint` macro does, "arXiv: <id>
+//! [<class>]" with the id and the class one link (OXIDIZED_DESIGN_DIVERGENCES #601).
 use std::process::Command;
 
 const RAW: &str = "--preload=[rawstyles,rawclasses]latexml.sty";
@@ -30,7 +32,7 @@ const BIB: &str = r#"
 "#;
 
 const BIBLATEX_TEX: &str = r"\documentclass{article}
-\usepackage[backend=biber,style=alphabetic]{biblatex}
+\usepackage[backend=biber,style=numeric]{biblatex}
 \addbibresource{x.bib}
 \begin{document}
 \cite{aliased,typed,noclass,oldstyle,other,untyped}\printbibliography
@@ -147,4 +149,61 @@ fn classic_bibtex_arxiv_eprint_is_linked() {
     "{stderr}"
   );
   check(&html);
+}
+
+/// The same entries in an alphabetic biblatex list, which prints them with standard.bbx's `eprint` macro
+/// (biblatex.def:526-533, :3286): `arXiv: <id> [<class>]` with the id and the class one link, in the aliased spellings
+/// too; any other `eprinttype` has its own format (`JSTOR: <id>`, biblatex.def:539-544), and an untyped eprint is
+/// `eprint: <id>` (biblatex.def:509-519).
+#[test]
+fn alphabetic_biblatex_prints_the_eprint_as_standard_bbx_does() {
+  let tex = BIBLATEX_TEX.replace("style=numeric", "style=alphabetic");
+  let (stderr, html) = convert_html(&tex);
+  assert!(
+    !stderr.contains("Error:") && !stderr.contains("Fatal:") && !stderr.contains("Warning:"),
+    "{stderr}"
+  );
+  let titled = |title: &str| -> String {
+    let at = html
+      .find(&format!(
+        r#"ltx_bib_title"><em class="ltx_emph">{title}</em></span>"#
+      ))
+      .unwrap_or_else(|| panic!("no bibitem titled {title}:\n{html}"));
+    let end = html[at..].find("</li>").map_or(html.len(), |e| at + e);
+    html[at..end].to_string()
+  };
+  for (title, link) in [
+    (
+      "Aliased",
+      r#"<span class="ltx_text ltx_bib_eprint">arXiv: <a href="https://arxiv.org/abs/2404.01499" title="" class="ltx_ref arxiv ltx_bib_external">2404.01499 <span class="ltx_text ltx_font_typewriter">[math.AG]</span></a></span>."#,
+    ),
+    (
+      "Noclass",
+      r#"<span class="ltx_text ltx_bib_eprint">arXiv: <a href="https://arxiv.org/abs/2301.00001" title="" class="ltx_ref arxiv ltx_bib_external">2301.00001</a></span>."#,
+    ),
+    (
+      "Oldstyle",
+      r#"<span class="ltx_text ltx_bib_eprint">arXiv: <a href="https://arxiv.org/abs/math/0211159" title="" class="ltx_ref arxiv ltx_bib_external">math/0211159 <span class="ltx_text ltx_font_typewriter">[math.GT]</span></a></span>."#,
+    ),
+    (
+      "Other",
+      r#"<span class="ltx_text ltx_bib_eprint">JSTOR: <a href="http://www.jstor.org/stable/hep-th/9901001" title="" class="ltx_ref ltx_bib_external">hep-th/9901001</a></span>."#,
+    ),
+  ] {
+    let item = titled(title);
+    assert!(item.contains(link), "{item}");
+    assert!(!item.contains("External Links"), "{item}");
+  }
+  assert!(
+    titled("Untyped")
+      .contains(r#"<span class="ltx_text ltx_bib_eprint">eprint: 2999.12345</span>."#),
+    "{}",
+    titled("Untyped")
+  );
+  // The DOI and the url of an entry follow the eprint's place in `doi+eprint+url`: doi, eprint, url.
+  let typed = titled("Typed");
+  assert!(
+    typed.contains(r#"<span class="ltx_text ltx_bib_doi"><span class="ltx_text ltx_font_smallcaps">doi</span>: <a href="https://doi.org/10.1000/example" title="" class="ltx_ref doi ltx_bib_external">10.1000/example</a></span>. <span class="ltx_text ltx_bib_eprint">arXiv: <a href="https://arxiv.org/abs/1201.4501" title="" class="ltx_ref arxiv ltx_bib_external">1201.4501 <span class="ltx_text ltx_font_typewriter">[math.QA]</span></a></span>. <span class="ltx_text ltx_bib_url"><span class="ltx_text ltx_font_smallcaps">url</span>: <a href="https://example.org/b" title="" class="ltx_ref ltx_bib_external">https://example.org/b</a></span>."#),
+    "{typed}"
+  );
 }

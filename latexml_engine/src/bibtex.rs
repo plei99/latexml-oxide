@@ -2497,6 +2497,10 @@ LoadDefinitions!({
       tokens.push(T_BEGIN!());
       tokens.extend(Explode!("ltx:bib-links"));
       tokens.push(T_END!());
+      // `class="eprint"` tells the eprint from `archive` and `preprint`, which fill the same element: biblatex's
+      // standard bibliography drivers print an eprint, "<type>: <id>" (biblatex.def:509), and neither of the others
+      // (latexml_post `biblatex_layout`; OXIDIZED_DESIGN_DIVERGENCES #601).
+      tokens.extend(Explode!("[class=eprint]"));
     }
     Ok(Tokens::new(tokens))
   });

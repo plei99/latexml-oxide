@@ -26,6 +26,7 @@ mod bib_eprint_arxiv_link;
 mod bib_field_digest_once;
 mod biblatex_alphabetic_labels;
 mod biblatex_fallback_no_cite_loop;
+mod biblatex_standard_layout;
 mod bibliography_crossref;
 mod bibliography_names_fields;
 mod bibref_show;

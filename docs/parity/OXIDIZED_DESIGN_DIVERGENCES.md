@@ -17830,3 +17830,85 @@ configuration) and
 `cluster_package_guards::localrawstyles_keeps_searchpaths::localrawstyles_still_raw_loads_an_interpretable_source`
 (`[localrawstyles]latexml.sty`: `\usephysicsmodule{ab,diagmat}`, stretchy `\ab(x)` fences and a `\pdiagmat` matrix,
 no diagnostics).
+
+### 601. A biblatex bibliography in an `alphabetic` style is laid out as biblatex prints it, its citations and heading as biblatex chooses them (Perl: LaTeXML's `%FMT_SPEC` layout, comma between citations, the class's heading)
+
+Perl has no biblatex binding, and the ar5iv one (and #306, #582 after it) rebuilds the entries and hands them to
+MakeBibliography, whose `%FMT_SPEC` rows (MakeBibliography.pm:689-695) print `Author (Year)`, then the title, the
+journal as `Journal 130 (5), pp. 1337-1398`, an "External Links:" block (MR reviews, ISSN, "Document"), a "Cited by:"
+block (:535-542) and, from the `.bib`, MathReview links. pdflatex + biber print the same entry as `Dan Abramovich, Tom
+Graber, and Angelo Vistoli. “Gromov-Witten theory of Deligne-Mumford stacks”. In: Amer. J. Math. 130.5 (2008), pp.
+1337–1398. ISSN: 0002-9327,1080-6377. DOI: 10.1353/ajm.0.0017.` — `standard.bbx`'s `article` driver. A web page of a biblatex
+document is read against the document's PDF, whose reference list is the biblatex's, so this layout is now biblatex's own when the bibliography style is `alphabetic` or `alphabetic-verb`, whose drivers are `standard.bbx`'s
+(alphabetic.bbx adds the label and the `set` driver). `numeric` and its variants have the same drivers
+(numeric.bbx:4-22) and are the next candidates, but their corpus-tested rows are left alone for now (the style list
+is `STANDARD_DRIVER_STYLES`, biblatex_sty.rs `blx_load_style_file`); `authoryear*`, `authortitle*`, `ieee*`,
+`verbose*` and every third-party `.bbx` redefine drivers or macros and keep MakeBibliography's rows.
+The entries' per-field markup (`ltx:bibentry`'s
+`ltx:bib-*`, the classes `ltx_bib_title`, `ltx_bib_journal`, …) is kept; running biblatex's `.bbx` raw over the `.bbl`
+(`KERNEL_CAPABILITIES.md` K16) was ruled out for losing it.
+
+- **Layout** (`latexml_post/src/biblatex_layout.rs`, called from `make_bibliography.rs` `format_bib_entry`). A port of
+  the part of biblatex the standard drivers run: the punctuation tracker (biblatex.sty:4130-4260 `\blx@begunit`,
+  `\newunit`, `\setunit`, `\printunit`, `\finentry`; :1738-2060 the space factors and `\DeclarePunctuationPairs`, which
+  decide that no period follows `etc.` or `?`, no comma a period, and that `\isdot` makes an abbreviation's dot take a
+  comma), the drivers of standard.bbx:28-733 (`article`, `book`, `booklet`, `collection`, `inbook`, `incollection`,
+  `inproceedings`, `manual`, `misc`, `online`, `proceedings`, `report`, `thesis`, `unpublished`; the other types are
+  `misc`, standard.bbx:740-752), their macros (biblatex.def:2728-3300: names, `in:`, `journal+issuetitle`,
+  `publisher+location+date`, `doi+eprint+url`, …), the field formats (:450-600: quoted article titles, italic journals
+  and book titles, `Vol. 4`, `pp. 1337–1398` / `p. 5` by `\ifnumeral`, `3rd ed.`, `496 pp.`, `ISSN:` and `DOI:` in
+  small capitals, `arXiv: 2301.01266 [math.AG]`, `URL: … (visited on 05/17/2021)`), the name formats (:877-1180:
+  `Given Family`, `A, B, and C`, `A and B`, `A et al.` past `maxnames`) and english.lbx's short strings (`ed.`,
+  `trans.`, `et al.`, `3rd ser.`, `In press.`). Translators never lead an entry (`usetranslator=false`, biblatex.sty:16427):
+  "Translated Only. Trans. by Tom Trans. Pub, 2000."; editors who are also the translators are "ed. and trans."
+  (biblatex.def:2911-2915, :3062-3065). A journal's `series`, its `issue` (inside the parentheses, in front of the date) and
+  its issue title (emphasised, after a colon) print as standard.bbx:784-804 does; a `language` list of the one item
+  `english`, `american`, `langenglish` or `langamerican` is not printed (biblatex.sty:7058-7078 `\blx@clearlang`,
+  english.lbx:4; every lookup is case-sensitive, so `English`, `british` and `USenglish` print as written), the other
+  items are english.lbx's `lang<name>` strings, an unknown one as written; a `pubstate` is english.lbx's string; a
+  title is quoted, emphasised or plain by the entry's own type (biblatex.def:579-585: `@review` and `@bookinbook` are
+  emphasised, `@suppbook` plain), read off the raw record the reader keeps, since the reader folds those types into
+  `article` and `inbook`. The whole entry is one `ltx:bibblock`; the entry has no "External Links:", no "Cited by:"
+  (`backref=true` prints "(cit. on p. N)" in the PDF; a web page has no pages to cite), and no MathReview link.
+  The options come from the binding in `bibstyle` (`biblatex;layout=standard;maxnames=5;minnames=1;isbn=false`;
+  `blx_bibstyle_value`): `maxnames`/`minnames`/`maxbibnames`/`minbibnames`, the `isbn` (which also gates `issn`,
+  standard.bbx:50), `url`, `doi` and `eprint` toggles (an `@online` entry shows its url whatever `url` says,
+  standard.bbx:23), `giveninits`. (Titles are printed as typed already: the binding sets `BibTeX_title_case` to
+  `asis`, biblatex_sty.rs:3522.)
+- **Citations** (`blx_load_style_file`). `alphabetic.cbx:64-69` separates the keys of a `\cite` with
+  `\multicitedelim`, biblatex.def:97 `\addsemicolon\space`: `[AGV08; Giv98]`, not LaTeXML's `[AGV08, Giv98]`
+  (numeric.cbx:6 makes it a comma, so numeric keeps `[1, 2]`). `alphabetic-verb.cbx:31-40` brackets each key,
+  `[AGV08]; [Giv98]`; it gets the semicolon inside one pair of brackets. A document's own
+  `\renewcommand*{\multicitedelim}` is not read.
+- **Heading** (`\biblatex@heading`). `\printbibliography` without `title=` says what biblatex.def:2184-2239 picks
+  from the class: `\refname` for the article-like classes, `scrartcl` and memoir's `article` option, `\bibname` for
+  `book`, `report`, `scrbook`, `scrreprt`, memoir and every other class with a `\chapter`
+  (english.lbx:112-113 gives `Bibliography` / `References`). The sectioning default (`\refname` if defined) printed
+  "References" for memoir with babel, which defines both names. An explicit `title=` wins (`参考文献`), and a
+  `heading=subbibliography`, `subbibintoc` or `subbibnumbered` says `\refname` in every class (biblatex.def:2257-2264).
+- **Fonts.** LaTeXML.css sets `.ltx_bib_title` italic and `.ltx_bib_volume` bold for the `.bst` rows; the standard
+  layout's quoted title is upright, its emphasis an `<em>`, its volume and label regular. The list carries
+  scoping class `ltx_bib_standard` (`ul.ltx_biblist.ltx_bib_standard`), and
+  `.ltx_bib_standard .ltx_bib_title`, `.ltx_bib_volume` and `.ltx_tag` reset those rules.
+- **Always a link**: a DOI, arXiv id or url is a link in the page (`\ifhyperref` is false for a document that does
+  not load hyperref, and its PDF prints them as plain text); the text is biblatex's.
+- **Reader**: an eprint that is not arXiv's was `ltx:bib-links` like `archive` and `preprint`, which standard.bbx
+  never prints; `\bib@field@default@eprint` (bibtex.rs) now marks it `class="eprint"` (an XML attribute Perl's reader
+  does not set), so the layout prints `eprint: 2999.12345 (math.XX)`, `HDL: …`, `JSTOR: …`, `PMID: …` and `<type>: …`
+  (biblatex.def:509-556) and the formatter rows are unchanged.
+- **Gate** (`blx_load_style_file`). Only the style the document asks for decides: `LNI.bbx`, `ext-alphabetic.bbx` and
+  the like `\RequireBibliographyStyle{alphabetic}` and then change drivers and macros, so a style that requires
+  `alphabetic` keeps the rows.
+- **Not modelled**, so approximated from `ltx:bibentry`: `titleaddon` is a `subtitle` (the reader files both under
+  `ltx:bib-subtitle`), the `maintitle` of a multi-volume work, `related` entries, `bybookauthor`, `volumes`, an `editor` of a `bookinbook`/`suppbook` (the reader files no host for them), the
+  types with a driver of their own (`patent`, `periodical`, `dataset`, which print as `misc`), a `type` that the
+  reader defaults for `@phdthesis`/`@mastersthesis`/`@techreport` (printed as biblatex's strings, also when the
+  author typed the same words), the document language (the strings and the quotation punctuation are english.lbx's;
+  `american` puts the period inside the quotes, `ngerman` says "Hrsg. von"), the `from the <origlanguage>` of
+  `byeditortr`/`bytranslator` (english.lbx:296), a DOI written with a TeX escape (`10.1007/…-2\_12`: the PDF prints the
+  backslash, the reader has unescaped it), and `\DeclareFieldFormat`/
+  `\DeclareBibliographyDriver`/`\renewbibmacro` in the document (the binding makes them no-ops, as before: a
+  customised bibliography keeps biblatex's standard layout). The heading is chosen when `\printbibliography` runs, not
+  once at load as biblatex.def:2184-2203 does. The label's collation (`sorting=anyt`) and `extraalpha` are #582's.
+
+**Guards**: `cluster_package_guards::biblatex_standard_layout::*`.

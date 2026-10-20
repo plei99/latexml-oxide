@@ -411,7 +411,7 @@ fn bbl_flush() -> Tokens {
   };
   // Only the `bibstyle`: the entries carry biber's labels (`labelalpha`/`extraalpha`), which MakeBibliography prints
   // whatever the `citestyle` ([`blx_label_citestyle`] is for the `.bib` path, where no backend labelled them).
-  assign_value("BIBSTYLE", pin(blx_bibstyle()), Some(Scope::Global));
+  assign_value("BIBSTYLE", pin(blx_bibstyle_value()), Some(Scope::Global));
   let mut tokens = vec![T_CS!("\\biblatex@bbl@thebibliography")];
   for key in keys {
     tokens.push(T_CS!("\\ProcessBibTeXEntry"));
@@ -2438,6 +2438,21 @@ LoadDefinitions!({
   }
   DefMacro!("\\printbibliography OptionalKeyVals:blx@bib2", sub[(kv)] {
     let mut tokens = vec![T_CS!("\\begingroup")];
+    // Without a `title=`, biblatex's own heading (biblatex.def:2184-2239), not the one the sectioning default picks:
+    // the class's, except that the `subbib*` headings say `\refname` in every class (:2257-2264, :2343-2350, :2460-2472).
+    if kv.as_ref().and_then(|kv| kv.get_value("title")).is_none() {
+      let sub = kv
+        .as_ref()
+        .and_then(|kv| kv.get_value("heading"))
+        .is_some_and(|heading| heading.to_string().trim().starts_with("subbib"));
+      tokens.extend([
+        T_CS!("\\def"),
+        T_CS!("\\lx@bibliography@title"),
+        T_BEGIN!(),
+        T_CS!(if sub { "\\biblatex@refname" } else { "\\biblatex@heading" }),
+        T_END!(),
+      ]);
+    }
     if let Some(kv) = kv.as_ref() {
       if BIBLIOGRAPHY_FILTERS.iter().any(|key| kv.get_value(key).is_some()) {
         tokens.push(T_CS!("\\biblatex@filtered@list"));
@@ -2470,10 +2485,19 @@ LoadDefinitions!({
   // `bibliography`/`references` strings (biblatex.sty:5781-5789; english.lbx:112-113), so a report's
   // `\printbibliography[title={\refname}]` (MIT-Thesis.tex:379) says "References". The binding keeps no string
   // tables: a `title=` gets the english strings where neither the class nor babel defined the name, in
-  // `\printbibliography`'s group — the default title stays the class's (biblatex.def:2184-2194 `\abx@classtype`).
+  // `\printbibliography`'s group — the default title is `\biblatex@heading`'s (biblatex.def:2184-2194 `\abx@classtype`).
   DefMacro!(
     "\\biblatex@strings",
     "\\providecommand*\\refname{References}\\providecommand*\\bibname{Bibliography}"
+  );
+  DefMacro!("\\biblatex@refname", "\\biblatex@strings\\refname");
+  // The heading `\printbibliography` has without a `title=`: biblatex.def:2184-2239 picks `\refname` or `\bibname` by
+  // the class (`\abx@classtype`: article-like classes and memoir's `article` option say `\refname`; `book`, `report`,
+  // memoir's book mode and the other classes with a `\chapter` say `\bibname`), whatever the class itself defines
+  // — memoir defines both, babel's `\refname` outranks the class's `\bibname`. english.lbx:112-113 gives the
+  // strings, which `\biblatex@strings` supplies where neither class nor babel does.
+  RawTeX!(
+    r"\def\biblatex@heading{\biblatex@strings\begingroup\def\abx@classtype{0}\@ifclassloaded{article}{}{\@ifclassloaded{book}{\def\abx@classtype{1}}{\@ifclassloaded{report}{\def\abx@classtype{1}}{\@ifclassloaded{scrartcl}{\def\abx@classtype{2}}{\@ifclassloaded{scrbook}{\def\abx@classtype{3}}{\@ifclassloaded{scrreprt}{\def\abx@classtype{3}}{\@ifclassloaded{memoir}{\ifbool{artopt}{\def\abx@classtype{4}}{\def\abx@classtype{5}}}{\ifundef\chapter{}{\def\abx@classtype{1}}}}}}}}}\xdef\biblatex@heading@name{\ifcase\abx@classtype\noexpand\refname\or\noexpand\bibname\or\noexpand\refname\or\noexpand\bibname\or\noexpand\refname\or\noexpand\bibname\fi}\endgroup\biblatex@heading@name}"
   );
   // `\defbibnote{name}{text}` (biblatex.sty:9372-9376 `\long\csdef{blx@note@#1}{#2}`).
   DefMacro!(
@@ -3751,7 +3775,7 @@ fn blx_name_format_given_form(code: &str) -> &'static str {
 /// Set `BIBSTYLE` (the style the `ltx:bibliography` records in `bibstyle`) and, for an alphabetic style, `CITE_STYLE`
 /// (its `citestyle`), as a bibliography is about to be built.
 fn blx_assign_bibstyle() {
-  assign_value("BIBSTYLE", pin(blx_bibstyle()), Some(Scope::Global));
+  assign_value("BIBSTYLE", pin(blx_bibstyle_value()), Some(Scope::Global));
   if let Some(citestyle) = blx_label_citestyle() {
     assign_value("CITE_STYLE", pin(&citestyle), Some(Scope::Global));
   }
@@ -3804,6 +3828,27 @@ fn blx_record_label_option(opt: &str) {
       Stored::from(value),
       Some(Scope::Global),
     ),
+    // The options the standard bibliography drivers read ([`blx_bibstyle_value`]): `maxnames`/`minnames` set the
+    // bibliography's and the citations' bounds alike (biblatex.sty:15284-15295), `maxbibnames`/`minbibnames` the
+    // bibliography's alone; the last setting wins. `isbn`, `url`, `doi` and `eprint` are standard.bbx:9-18's
+    // toggles, true by default and by a bare key.
+    "maxnames" | "minnames" | "maxbibnames" | "minbibnames" if value.parse::<u32>().is_ok() => {
+      let bib_key = if key.contains("bib") {
+        key.clone()
+      } else {
+        key.replace("names", "bibnames")
+      };
+      assign_value(
+        &s!("biblatex_opt_{bib_key}"),
+        Stored::from(value),
+        Some(Scope::Global),
+      );
+    },
+    "isbn" | "url" | "doi" | "eprint" => assign_value(
+      &s!("biblatex_opt_{key}"),
+      Stored::from(if value == "false" { "false" } else { "true" }),
+      Some(Scope::Global),
+    ),
     _ => {},
   }
 }
@@ -3841,6 +3886,31 @@ fn blx_bibstyle() -> &'static str {
   } else {
     "biblatex"
   }
+}
+
+/// The `bibstyle` a bibliography records: [`blx_bibstyle`], and, for a bibliography style whose drivers are
+/// `standard.bbx`'s ([`blx_load_style_file`]), `;layout=standard` with the options those drivers read — `maxnames`,
+/// `minnames` (the bibliography's `maxbibnames`/`minbibnames`, biblatex.sty:16425 defaults 3 and 1) and the
+/// `isbn`/`url`/`doi`/`eprint` toggles (standard.bbx:4-23) when they are off. MakeBibliography then lays the
+/// entries out as those drivers do (`latexml_post` `biblatex_layout`; OXIDIZED_DESIGN_DIVERGENCES #601).
+fn blx_bibstyle_value() -> String {
+  let mut style = blx_bibstyle().to_string();
+  if !lookup_bool("biblatex@standard_drivers") {
+    return style;
+  }
+  style.push_str(";layout=standard");
+  for (key, name) in [("maxbibnames", "maxnames"), ("minbibnames", "minnames")] {
+    let value = lookup_string(&s!("biblatex_opt_{key}"));
+    if value.parse::<u32>().is_ok_and(|n| n >= 1) {
+      style.push_str(&s!(";{name}={value}"));
+    }
+  }
+  for toggle in ["isbn", "url", "doi", "eprint"] {
+    if lookup_string(&s!("biblatex_opt_{toggle}")) == "false" {
+      style.push_str(&s!(";{toggle}=false"));
+    }
+  }
+  style
 }
 
 /// Whether the bibliography prints given names as initials. biblatex prints an
@@ -4216,6 +4286,19 @@ fn blx_standard_bbx_toggles() {
   let _ = raw_tex(&tex);
 }
 
+thread_local! {
+  /// How many style files are being loaded, the outermost being the one a package option or
+  /// `\RequireBibliographyStyle` of the document asked for ([`blx_load_style_file`]).
+  static STYLE_LOAD_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Leaves a [`STYLE_LOAD_DEPTH`] level when the style file is done, whichever way the loader returns.
+struct StyleLoadDepth;
+
+impl Drop for StyleLoadDepth {
+  fn drop(&mut self) { STYLE_LOAD_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1))); }
+}
+
 /// Raw-load `<name>.bbx` / `<name>.cbx` once (biblatex.sty `\blx@inputonce`,
 /// L2256-2258 / L11428-11435). Style files chain (`sbl.bbx` L1 inputs
 /// `biblatex-sbl.def`; ext-*.bbx `\RequireBibliographyStyle{standard}`), so
@@ -4283,6 +4366,36 @@ fn blx_load_style_file(name: &str, ext: &str) {
     assign_value(
       "biblatex_alphabetic_style",
       Stored::from(true),
+      Some(Scope::Global),
+    );
+  }
+  // alphabetic.cbx:64-69: the `\cite` loop's separator is `\multicitedelim`, biblatex.def:97 `\addsemicolon\space`, where
+  // numeric.cbx:6 makes it a comma: "[AGV08; Giv98]". alphabetic-verb.cbx:31-40 brackets each key ("[AGV08]; [Giv98]"),
+  // which the core citation does not do: it gets the semicolon, inside one pair of brackets. A document's own
+  // `\renewcommand*{\multicitedelim}` is not read.
+  if ext == "cbx" && matches!(name, "alphabetic" | "alphabetic-verb") {
+    assign_value(
+      "CITE_SEPARATOR",
+      Stored::Token(T_OTHER!(";")),
+      Some(Scope::Global),
+    );
+  }
+  // The bibliography style's drivers are `standard.bbx`'s unchanged in `alphabetic` (alphabetic.bbx adds the label
+  // and the `set` driver; `-verb` only the citations); every other style — `authoryear`, `authortitle`, `ieee`, a
+  // package's own — redefines macros or drivers, so its entries keep MakeBibliography's layout. `numeric` and its
+  // variants have the same drivers too (numeric.bbx:4-22), but the numeric corpus stays on MakeBibliography's rows
+  // for now (alphabetic is the style this layout was first checked against). `standard` itself, which each of
+  // them requires, leaves the decision to the style.
+  // Only the style that was asked for decides: a style it requires is its parent (LNI.bbx:19, ext-alphabetic.bbx,
+  // ams-alphabetic.bbx: `\RequireBibliographyStyle{alphabetic}` and then their own drivers and macros).
+  let requested = STYLE_LOAD_DEPTH.with(|depth| depth.get()) == 0;
+  STYLE_LOAD_DEPTH.with(|depth| depth.set(depth.get() + 1));
+  let _depth = StyleLoadDepth;
+  if requested && ext == "bbx" && name != "standard" {
+    const STANDARD_DRIVER_STYLES: &[&str] = &["alphabetic", "alphabetic-verb"];
+    assign_value(
+      "biblatex@standard_drivers",
+      Stored::Bool(STANDARD_DRIVER_STYLES.contains(&name)),
       Some(Scope::Global),
     );
   }

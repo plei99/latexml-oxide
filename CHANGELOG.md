@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+  - **A biblatex bibliography in an `alphabetic` style reads as biblatex prints it.**
+    The native biblatex path laid every entry out with LaTeXML's rows: `Author (2008)`, `Journal 130
+    (5), pp. 1337-1398`, an "External Links:" block of ISSN, "Document" and MathReview links, a
+    "Cited by:" block. pdflatex + biber print `Dan Abramovich, Tom Graber, and
+    Angelo Vistoli. “Gromov-Witten theory of Deligne-Mumford stacks”. In: Amer. J. Math. 130.5
+    (2008), pp. 1337–1398. ISSN: 0002-9327,1080-6377. DOI: 10.1353/ajm.0.0017.` For `alphabetic` and
+    `alphabetic-verb`, whose drivers are standard.bbx's,
+    `latexml_post/src/biblatex_layout.rs` ports those drivers, the punctuation tracker they run on
+    (no period after `etc.` or `?`, a comma after an abbreviation's dot) and the field, name and
+    string formats they use; the per-field markup is kept, and `maxnames`/`minnames`, `isbn` (which
+    also hides ISSN), `url`, `doi`, `eprint` and `giveninits` are honoured. The printed text of
+    the 42 fixture entries of the guards, over every driver and option, equals pdflatex + biber's up to the text of
+    formulas; translators do not lead,
+    a journal's series, issue and issue title, languages and publication states print, and a title is quoted
+    by its entry type; the list is `ul.ltx_biblist.ltx_bib_standard`, which LaTeXML.css's scoped rules
+    use to keep the `.bst` rows' italic title and bold volume off it. `[AGV08;
+    Giv98]` separates the keys of an alphabetic `\cite` with biblatex's `\multicitedelim` (a
+    semicolon; numeric keeps its comma), and `\printbibliography` without `title=` says
+    `\refname` or `\bibname` as biblatex.def:2184-2239 picks from the class (memoir with babel
+    printed "References" for a book-mode class). Other styles keep MakeBibliography's rows, and so
+    does a style that merely requires `alphabetic`. An eprint that is not arXiv's now carries
+    `class="eprint"` in the `.bib` reader's XML (it shared `ltx:bib-links` with `archive`),
+    so the alphabetic list can print it as `JSTOR: …` or `eprint: …`; DIVERGENCES #601. Guards
+    `biblatex_standard_layout::*`.
+
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
     loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,
