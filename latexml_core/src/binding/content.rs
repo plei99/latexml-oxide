@@ -2979,6 +2979,118 @@ fn maybe_require_dependencies(file: &str, ext_type: &str) {
   require_dependencies_except(file, ext_type, &[]);
 }
 
+/// A `{` of a scanned file: its offset, the offset of the `}` closing it (`usize::MAX` when none does) and the index of
+/// the group it opened inside.
+struct BraceGroup {
+  open:   usize,
+  close:  usize,
+  parent: Option<usize>,
+}
+
+/// Every `{` of `code` in order, as one left-to-right scan reads them: a `\` takes the next byte with it, a `}` closes
+/// the innermost open group (none open: it is skipped).
+fn brace_groups(code: &str) -> Vec<BraceGroup> {
+  let bytes = code.as_bytes();
+  let mut groups: Vec<BraceGroup> = Vec::new();
+  let mut stack: Vec<usize> = Vec::new();
+  let mut i = 0usize;
+  while i < bytes.len() {
+    match bytes[i] {
+      b'\\' => {
+        i += 2;
+        continue;
+      },
+      b'{' => {
+        groups.push(BraceGroup {
+          open:   i,
+          close:  usize::MAX,
+          parent: stack.last().copied(),
+        });
+        stack.push(groups.len() - 1);
+      },
+      b'}' => {
+        if let Some(g) = stack.pop() {
+          groups[g].close = i;
+        }
+      },
+      _ => {},
+    }
+    i += 1;
+  }
+  groups
+}
+
+/// The offsets of the `{` of the [`brace_groups`] still open at `start`, outermost first — the scan's stack when it
+/// reaches `start`: the last group opened before `start` and its ancestors, less those closed before `start` (a group
+/// closes before the group it opened inside).
+fn open_brace_groups(groups: &[BraceGroup], start: usize) -> Vec<usize> {
+  let mut innermost = groups.partition_point(|g| g.open < start).checked_sub(1);
+  while let Some(g) = innermost {
+    if groups[g].close >= start {
+      break;
+    }
+    innermost = groups[g].parent;
+  }
+  let mut stack: Vec<usize> = std::iter::successors(innermost, |&g| groups[g].parent)
+    .map(|g| groups[g].open)
+    .collect();
+  stack.reverse();
+  stack
+}
+
+#[cfg(test)]
+mod brace_group_tests {
+  use super::*;
+
+  /// The scan `open_brace_groups` replaced: from the first byte up to `start`, a `\` taking the next byte with it,
+  /// a `}` closing the innermost open `{`.
+  fn rescan(code: &str, start: usize) -> Vec<usize> {
+    let bytes = code.as_bytes();
+    let mut stack = Vec::new();
+    let mut i = 0usize;
+    while i < start {
+      match bytes[i] {
+        b'\\' => {
+          i += 2;
+          continue;
+        },
+        b'{' => stack.push(i),
+        b'}' => {
+          stack.pop();
+        },
+        _ => {},
+      }
+      i += 1;
+    }
+    stack
+  }
+
+  /// At every offset, the groups open are the rescan's stack: an escaped brace, an escaped backslash before a
+  /// brace, a `}` with no group open, groups left open, a trailing `\`, and offsets on a `{` and on a `}`.
+  #[test]
+  fn open_groups_are_the_rescans_stack() {
+    for code in [
+      "",
+      "{a{b}c}",
+      "\\{ {x} \\\\{y} }",
+      "}}{a}}{",
+      "\\def\\x{\\usepackage{p}}\\x{",
+      "{{{}}{}",
+      "a{b\\",
+      "{é{ü}\\é}",
+    ] {
+      let groups = brace_groups(code);
+      for start in 0..=code.len() {
+        assert_eq!(
+          open_brace_groups(&groups, start),
+          rescan(code, start),
+          "{code:?} at {start}"
+        );
+      }
+    }
+  }
+}
+
 /// Perl's `maybeRequireDependencies` (Package.pm:2776-2813) for `file` — load
 /// the classes and packages its source names that have a binding — except the
 /// classes and packages in `except`, for a binding that stands in for an
@@ -3151,7 +3263,7 @@ pub fn require_dependencies_except(file: &str, ext_type: &str, except: &[&str]) 
   // control-sequence occurrence not directly preceded by a `\…def`/`\let`
   // introducer counts as an invocation. Used to tell an executed deferred-load
   // idiom (`\def\@tempa{…\RequirePackage{P}…}\@tempa`) from a never-called one.
-  let is_invoked = |name: &str| -> bool {
+  let scan_invoked = |name: &str| -> bool {
     let pat = s!("\\{name}");
     let mut from = 0usize;
     while let Some(rel) = code[from..].find(&pat) {
@@ -3180,24 +3292,22 @@ pub fn require_dependencies_except(file: &str, ext_type: &str, except: &[&str]) 
     }
     false
   };
-  let in_macro_def_body = |start: usize| -> bool {
-    let bytes = code.as_bytes();
-    let mut stack: Vec<usize> = Vec::new();
-    let mut i = 0usize;
-    while i < start {
-      match bytes[i] {
-        b'\\' => {
-          i += 2;
-          continue;
-        },
-        b'{' => stack.push(i),
-        b'}' => {
-          stack.pop();
-        },
-        _ => {},
-      }
-      i += 1;
+  // A search of the whole file, asked for each enclosing `\def` group of every query: remembered per name.
+  let invoked = std::cell::RefCell::new(rustc_hash::FxHashMap::<String, bool>::default());
+  let is_invoked = |name: &str| -> bool {
+    if let Some(&known) = invoked.borrow().get(name) {
+      return known;
     }
+    let found = scan_invoked(name);
+    invoked.borrow_mut().insert(name.to_string(), found);
+    found
+  };
+  // The `{…}` groups of the file, scanned once: the `\let` pass below asks for every later definition of every
+  // top-level `\let` (aastex701.cls: 799 `\let`s, 2751 definitions), so each query costs the nesting depth at its
+  // offset, not a rescan from the top.
+  let groups = brace_groups(&code);
+  let in_macro_def_body = |start: usize| -> bool {
+    let stack = open_brace_groups(&groups, start);
     stack.iter().any(|&ob| {
       let lo = ob.saturating_sub(400);
       let window = code.get(lo..ob).unwrap_or(&code[..ob]);
