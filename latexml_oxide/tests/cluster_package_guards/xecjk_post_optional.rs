@@ -65,3 +65,28 @@ fn a_bracket_after_a_font_name_with_leading_options_is_text() {
   assert_eq!(super::error_count(&stderr), 0, "{stderr}");
   assert_eq!(only_paragraph(&xml), "<p>[kept] text.</p>", "{xml}");
 }
+
+/// `\CJKfontspec` ends in `\ignorespaces` in both forms (xeCJK.sty:6378-6382 passes `\tex_ignorespaces:D`), so
+/// the blank after the command is dropped: one space between the words, as in the PDF.
+#[test]
+fn cjkfontspec_ignores_the_spaces_after_it() {
+  for call in [
+    "\\CJKfontspec[Scale=0.9]{Songti SC} after",
+    "\\CJKfontspec{Songti SC}[Scale=0.9] after",
+    "\\CJKfontspec{Songti SC} after",
+  ] {
+    let tex = format!("{PREAMBLE}\\begin{{document}}\nBefore {call}.\n\\end{{document}}\n");
+    let (stderr, xml) = super::convert(&tex, false);
+    assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+    assert_eq!(
+      super::perfect_kernel_batch46::warning_count(&stderr),
+      0,
+      "{stderr}"
+    );
+    assert_eq!(
+      only_paragraph(&xml),
+      "<p>Before after.</p>",
+      "{call}:\n{xml}"
+    );
+  }
+}

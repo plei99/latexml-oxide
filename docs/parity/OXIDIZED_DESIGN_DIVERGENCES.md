@@ -17837,9 +17837,9 @@ no diagnostics).
 numbering: `\thepart` stays article's `\Roman{part}`, so `\part{...}` reads "Part I" in the heading, "I" in the contents
 and "Part I" in a reference. `amsbook.cls.ltxml` does the same with book's.
 **Rust behavior**: the three classes renew `\thepart` as `\arabic{part}` (amsart.cls:1098, amsproc.cls:1033,
-amsbook.cls:878; `ams_core_cls.rs`, `amsbook_cls.rs`), so the PDF's "Part 1" is the heading, the contents line and the
-reference. `amsart` and `amsproc` also set the heading `\format@title@part` as they set the sectional ones (ams_support
-`\format@title@section`), the number closed by a full stop (`\@secnumpunct`, amsart.cls:1051-1058: "Part 1. Title");
+amsbook.cls:878; `ams_core_cls.rs`, `amsbook_cls.rs`), so the heading, the contents' number and a reference read as the PDF's "Part 1" does (amsart's `\tocpart` is
+`\tocsection`, amsart.cls:1224-1225, 1235, which prints "Part 1. Title" in the PDF's contents). `amsart` and `amsproc` also set the heading `\format@title@part` as they set the sectional ones (ams_support
+`\format@title@section`), the number closed by a full stop (`\@sect`, amsart.cls:1050-1088, whose `\@secnumpunct` `\edef` is :1059-1065 and `\@seccntformat` :1043-1048; `\part` is :1106-1108: "Part 1. Title");
 `amsbook`'s `\part` is its own page (amsbook.cls:890-907) and keeps the tag without one. Witness: an amsart document
 (amsart, `\part{Geometry of complex semisimple Lie algebras and groups}`), "Part 1" in its PDF.
 
@@ -17864,22 +17864,7 @@ Bold, ItalicFont=Heiti SC, BoldItalicFont=Heiti SC Medium]" (an amsart document 
 **Guard**: `cluster_package_guards::xecjk_post_optional` (`options_after_the_font_name_are_arguments`,
 `options_before_the_font_name_are_arguments`, `a_bracket_after_a_font_name_with_leading_options_is_text`).
 
-### 597. A `$...$` label of a picture that sits in a formula keeps its `<math>` root in the HTML (Perl: the stylesheet drops it)
-
-**Perl behavior**: a picture inside a formula (`\overline{\left\{\begin{tikzpicture}...\right\}}`) is the content of an
-`ltx:XMText`; `convertXMTextContent` (Post.pm:456-488) converts the `ltx:XMath` of each `ltx:Math` label in it and wraps it
-with `outerWrapper`, an `m:math`, the label's root. The stylesheet then copies the picture's `foreignObject` content in
-`copy-foreign` mode, where its `m:*` template (`LaTeXML-math-xhtml.xsl`) is `<xsl:apply-templates/>`: that applies the
-templates to the CHILDREN of the context `m:math`, so the root is dropped and a label `$T^C$` arrives in the
-`foreignObject` as `<msup><mi>T</mi><mi>C</mi></msup>` in a span, which HTML does not render as math (it drew "TC" on one
-baseline; a boundary-divisor picture in a formula, the boundary divisor `D^T`).
-**Rust behavior**: the template is `<xsl:apply-templates select="."/>` ("resume as above" for the element itself), so the
-label is `<math alttext="T^{C}" display="inline"><msup>...</msup></math>`. Rust's own nested conversion
-(`nested_ltx_math_to_inline_mathml`, #101) already produces the `m:math`; only the stylesheet lost it.
-
-**Guard**: `cluster_package_guards::foreignobject_label_markup::a_math_label_of_a_picture_in_a_formula_keeps_its_math_root`.
-
-### 598. The blank between words and math in a picture label is kept (Perl: `strip-space` on `svg:*` removes it)
+### 597. The blank between words and math in a picture label is kept (Perl: `strip-space` on `svg:*` removes it)
 
 **Perl behavior**: `LaTeXML-picture-xhtml.xsl` has `<xsl:strip-space elements="ltx:picture svg:*"/>`, which includes
 `svg:foreignObject`, whose content is inline markup: in `\node{\textbf{Family:} $xy$ in Patch $(z=1)$}` the text node
@@ -17889,19 +17874,3 @@ follows it (a name test outranks `svg:*`); the blank between inline items of a l
 blank-only nodes between the `svg` elements (`svg:g`, `svg:path`) are still stripped.
 
 **Guard**: `cluster_package_guards::foreignobject_label_markup::the_space_between_words_and_math_in_a_label_stays`.
-
-### 599. A picture in a formula is the whole content of its `m:mtext` (Perl: the markup's indentation, as NBSP, on both sides)
-
-**Perl behavior**: `pmml_text_aux`'s `ltx:picture` arm (MathML.pm:1063) passes the picture to `convertXMTextContent` with
-`$convertspaces` set (Post.pm:456-466), which replaces the leading and the trailing whitespace of every text node, a
-whitespace-only one included, by a NBSP (`s/^\s+/\N{NBSP}/`); the indentation between `ltx:picture` and its `svg:svg` is such
-a node, and XSLT's `strip-space` (`ltx:picture svg:*`) does not treat a NBSP as a blank.
-**Rust behavior**: `convert_xm_text_content` is the same port, so the `m:mtext` was
-`NBSP <svg> NBSP`; MathML Core lays out an `svg` in an `mtext` as a block, so each NBSP was a line of its own: the
-`mtext` grew to the picture plus two lines, the stretchy braces of `\left\{ ... \right\}` stretched around all of it
-(124 px for a 32 px picture, Chromium), and the picture stood at the bottom of them. The whitespace-only children of the
-picture are not content (its only content is the `svg`), so they are dropped (`latexml_post/src/mathml/mod.rs`, the
-`ltx:picture` arm of `pmml_text_aux`); a label's own spaces inside the `svg` are unaffected. The braces now cover the
-picture as `\left\{ ... \right\}` covers a `tikzpicture` set on the baseline (57 px for 32 px).
-
-**Guard**: `cluster_package_guards::foreignobject_label_markup::a_picture_in_a_formula_is_the_only_content_of_its_mtext`.

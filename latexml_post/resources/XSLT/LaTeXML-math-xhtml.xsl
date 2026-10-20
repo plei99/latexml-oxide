@@ -141,12 +141,9 @@
     </xsl:element>
   </xsl:template>
 
-  <!-- If we hit MathML while copying "foreign" markup, resume as above.
-       The element itself resumes, not just its children: a `$...$` inside a label of a picture
-       that sits in math (a foreignObject in an svg in an mtext) arrives as a bare m:math, and
-       the children alone would be an msup/mi in a span, which HTML does not render as math. -->
+  <!-- If we hit MathML while copying "foreign" markup, resume as above -->
   <xsl:template match="m:*" mode="copy-foreign">
-    <xsl:apply-templates select="."/>
+    <xsl:apply-templates/>
   </xsl:template>
 
 </xsl:stylesheet>

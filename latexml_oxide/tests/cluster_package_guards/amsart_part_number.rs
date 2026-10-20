@@ -2,7 +2,7 @@
 //! amsbook.cls:878), where article, report and book use `\Roman{part}`. Perl's `amsart.cls.ltxml` loads the article
 //! binding and does not renew `\thepart`, so a document headed `\part{...}` read "Part I" in the heading, the contents
 //! and the references where the PDF reads "Part 1". amsart and amsproc also close the number of a heading with a
-//! full stop (`\@secnumpunct`, amsart.cls:1051-1058), "Part 1. Title", as they do for sections.
+//! full stop (`\@secnumpunct`, the `\edef` at amsart.cls:1059-1065 inside `\@sect`, :1050-1088; `\@seccntformat`, :1043-1048; `\part`, :1106-1108), "Part 1. Title", as they do for sections.
 
 /// The `<part>` element of the unit titled `title`, from its opening tag to its `</toctitle>`.
 fn part_head<'a>(xml: &'a str, title: &str) -> &'a str {
@@ -46,10 +46,16 @@ fn assert_arabic_parts(class: &str, close: &str) {
       )),
     "the second part of {class}:\n{second}"
   );
-  // A reference to a part shows its number as the PDF does.
+  // A reference to a part shows its number as the PDF does ("see 1", the contents line's number).
+  let (html, post_log) = super::svg_nested_picture::post_html_logged(&xml);
+  assert_eq!(
+    super::perfect_kernel_batch46::warning_count(&post_log),
+    0,
+    "{post_log}"
+  );
   assert!(
-    xml.contains("<ref labelref=\"LABEL:p:first\"/>"),
-    "the reference to the part:\n{xml}"
+    html.contains(r##"See <span class="ltx_ref ltx_ref_self"><span class="ltx_text ltx_ref_tag">1</span></span>."##),
+    "the reference to the part:\n{html}"
   );
 }
 
@@ -66,8 +72,14 @@ fn amsbook_parts_are_arabic() {
     false,
   );
   assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+  assert_eq!(
+    super::perfect_kernel_batch46::warning_count(&stderr),
+    0,
+    "{stderr}"
+  );
+  // amsbook's `\part` is its own page (amsbook.cls:890-907): the tag has no full stop.
   assert!(
-    part_head(&xml, "First").contains("<tag role=\"refnum\">1</tag>"),
+    part_head(&xml, "First").contains(r#"<title><tag close=" ">Part 1</tag>First</title>"#),
     "{xml}"
   );
   assert!(
@@ -84,6 +96,11 @@ fn article_parts_stay_roman() {
     false,
   );
   assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+  assert_eq!(
+    super::perfect_kernel_batch46::warning_count(&stderr),
+    0,
+    "{stderr}"
+  );
   assert!(
     part_head(&xml, "First").contains("<tag role=\"refnum\">I</tag>"),
     "{xml}"

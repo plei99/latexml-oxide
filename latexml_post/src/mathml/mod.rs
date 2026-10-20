@@ -1112,20 +1112,16 @@ pub fn pmml_text_aux(doc: &PostDocument, node: &Node, attrs: &TextAttrs) -> Vec<
           // its own rendering, so the surrounding math font/color does not
           // restyle it.
           //
-          // The picture's own content is the `svg:svg` alone, so a whitespace-only text node among its children is
-          // the markup's indentation. As NBSP (`convert_xm_text_content` makes every blank edge one) it would sit in
-          // the `m:mtext` on either side of the `svg`, which MathML Core lays out as a block: a line of NBSP above
-          // and below, so the `mtext` grew by two lines, the stretchy fences around it with it, and the picture
-          // stood at the bottom of them (a `tikzpicture` between `\left\{ ... \right\}`, a boundary-divisor picture in a formula
-          // §9.2). Only text inside the `svg` (a label's spaces) is content.
-          let children = convert_xm_text_content(doc, node, true)
-            .into_iter()
-            .filter(|c| !matches!(c, NodeData::Text(t) if t.chars().all(char::is_whitespace)))
-            .collect();
+          // Perl `convertXMTextContent($doc, 1, $node)` (Post.pm:456; MathML.pm:1061-1063) takes the `ltx:picture`
+          // NODE, so the mtext holds the picture itself, which the stylesheet turns into its
+          // `<span class="ltx_inline-block"><svg class="ltx_picture">` (LaTeXML-picture-xhtml.xsl, as-svg). Its
+          // CHILDREN were passed here before, which lost that wrapper (the picture's own size and baseline).
           vec![NodeData::Element {
-            tag: "m:mtext".to_string(),
+            tag:        "m:mtext".to_string(),
             attributes: None,
-            children,
+            children:   rebuild_text_subtree_with_doc(node, true, Some(doc))
+              .into_iter()
+              .collect(),
           }]
         },
         _ => {
@@ -1170,8 +1166,12 @@ pub fn pmml_text_aux(doc: &PostDocument, node: &Node, attrs: &TextAttrs) -> Vec<
 }
 
 /// Convert a nested `ltx:Math` — a `$...$` inside a text box (`\parbox`/`\mbox`/
-/// `\text`) that itself sits in math — into a self-contained INLINE `<m:math>`
-/// element, or `None` if the Math is empty.
+/// `\text`, a label of a picture) that itself sits in math — into the `ltx:Math`
+/// element Perl's `convertXMTextContent` builds (Post.pm:467-487): the same element
+/// with its attributes filtered as the rest of the subtree's (no `_*`, `xml:id`,
+/// `fragid`), its `ltx:XMath` replaced by a self-contained INLINE `<m:math>`.
+/// `None` if the Math is empty, or already converted on an earlier pass (its
+/// `m:math` is a child, which the generic copy keeps).
 ///
 /// Why a full `<m:math>` rather than the bare presentation `convert_to_pmml`
 /// returns: this node lands inside the text box's HTML (`ltx:inline-block` /
@@ -1179,32 +1179,46 @@ pub fn pmml_text_aux(doc: &PostDocument, node: &Node, attrs: &TextAttrs) -> Vec<
 /// bare `<mrow>` inside that HTML is parsed as HTML and renders as flat text —
 /// not math (subscripts/superscripts/calligraphic lost). The `<math>` re-enters
 /// MathML context. Nested math is always inline (a `$...$`), so `display=inline`;
-/// `alttext`/`class` ride from the `ltx:Math`. The top-level pass gets the same
+/// `alttext` rides from the `ltx:Math`. The top-level pass gets the same
 /// wrapper from `MathProcessor::outer_wrapper`; this is its nested analogue
-/// (arXiv html_feedback #6847 / OXIDIZED_DESIGN #101).
+/// (arXiv html_feedback #6847 / OXIDIZED_DESIGN #101). The `ltx:Math` around it is
+/// what the stylesheet turns into the `<math class="ltx_Math">` (Perl's too), also
+/// in a `foreignObject`, whose `copy-foreign` mode does not otherwise reach `m:math`.
 fn nested_ltx_math_to_inline_mathml(doc: &PostDocument, math_node: &Node) -> Option<NodeData> {
-  let inner = match doc.findnode_at("ltx:XMath", math_node) {
-    Some(xmath) => presentation::convert_to_pmml(doc, &xmath),
-    // No XMath left => already converted on an earlier pass; its `<m:math>` is
-    // already a full element, so reuse it as-is.
-    None => {
-      return element_child_named(math_node, MML_URI, "math")
-        .and_then(|mml| rebuild_text_subtree_with_doc(&mml, true, Some(doc)));
-    },
-  };
+  let xmath = doc.findnode_at("ltx:XMath", math_node)?;
+  let inner = presentation::convert_to_pmml(doc, &xmath);
   let mut attrs: HashMap<String, String> = HashMap::default();
   attrs.insert("display".to_string(), "inline".to_string());
   if let Some(tex) = math_node.get_attribute("tex") {
     attrs.insert("alttext".to_string(), tex);
   }
-  if let Some(class) = math_node.get_attribute("class") {
-    attrs.insert("class".to_string(), class);
-  }
-  Some(NodeData::Element {
+  let math = NodeData::Element {
     tag:        "m:math".to_string(),
     attributes: Some(attrs),
     children:   vec![inner],
+  };
+  let attributes = rebuilt_attributes(math_node);
+  Some(NodeData::Element {
+    tag:        "ltx:Math".to_string(),
+    attributes: (!attributes.is_empty()).then_some(attributes),
+    children:   vec![math],
   })
+}
+
+/// The attributes `convertXMTextContent` copies (Post.pm:474-483): not the internal `_*`, `xml:id` (reported under
+/// its local name `id`; a GENUINE plain `id`, which the model grants `ltx:bib-identifier`, stays) or `fragid`.
+fn rebuilt_attributes(node: &Node) -> HashMap<String, String> {
+  let has_xml_id = node
+    .get_attribute_ns("id", latexml_core::common::xml::XML_NS)
+    .is_some();
+  let mut attrs: HashMap<String, String> = HashMap::default();
+  for (k, v) in node.get_attributes() {
+    if k.starts_with('_') || k == "xml:id" || k == "fragid" || (k == "id" && has_xml_id) {
+      continue;
+    }
+    attrs.insert(k, v);
+  }
+  attrs
 }
 
 /// Eagerly materialize an XMText-or-picture subtree into owned NodeData.
@@ -1350,26 +1364,10 @@ fn rebuild_subtree(node: &Node, spaces: Spaces, doc: Option<&PostDocument>) -> O
           None => local,
         }
       };
-      // Copy attributes, skipping internal `_*`, `xml:id`, and `fragid`.
-      // Matches Perl convertXMTextContent (Post.pm L479-483); the
-      // `fragid → xml:id` remap requires the MathProcessor's IDSuffix
-      // which this helper does not receive — drop both here rather
-      // than forge a wrong id. NOTE: get_attributes() reports xml:id
-      // under its LOCAL name "id", so that spelling must be skipped
-      // too — it used to leak through as a plain id= duplicate. The
-      // namespace probe keeps a GENUINE plain `id` (the model grants
-      // one to `ltx:bib-identifier`/`ltx:bib-review`, carrying a
-      // DOI/ISSN) from being dropped along with it.
-      let has_xml_id = node
-        .get_attribute_ns("id", latexml_core::common::xml::XML_NS)
-        .is_some();
-      let mut attrs: HashMap<String, String> = HashMap::default();
-      for (k, v) in node.get_attributes() {
-        if k.starts_with('_') || k == "xml:id" || k == "fragid" || (k == "id" && has_xml_id) {
-          continue;
-        }
-        attrs.insert(k, v);
-      }
+      // Copy attributes, skipping internal `_*`, `xml:id`, and `fragid` (Perl convertXMTextContent, Post.pm L479-483;
+      // the `fragid → xml:id` remap requires the MathProcessor's IDSuffix which this helper does not receive — drop both
+      // here rather than forge a wrong id).
+      let attrs = rebuilt_attributes(node);
       let children: Vec<NodeData> = node
         .get_child_nodes()
         .iter()

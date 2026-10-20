@@ -4,22 +4,24 @@
 
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
-    (memoir.cls:3063-3067 `\chapternumberline{\thechapter}`), as the PDF's contents do; pinned in
+    (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`, memoir.cls:3065-3066), as the PDF's contents do; pinned in
     `memoir_fork_chapters::chapter_heads_follow_the_chapterstyle`.
 
-  - **Labels of a picture in the HTML keep their math and their spaces, and a picture in a formula
-    is no taller than itself.** (1) A `$T^C$` label of a picture inside a formula
-    (`\overline{\left\{\begin{tikzpicture}...\right\}}`) lost its `<math>` root, so `msup` was a
-    span of unknown elements and read "TC" on one baseline: the stylesheet's `copy-foreign` rule for
-    `m:*` resumed with the children of the `m:math`, not the element (divergence #597). (2) The blank
-    between `\textbf{Family:}` and `$xy$` in a `\node` was stripped as whitespace of an `svg:*`
-    element, giving "Family:xy"; a `foreignObject` now preserves its blanks (#598). (3) The
-    `m:mtext` that holds such a picture had a NBSP on each side of the `svg`, which MathML Core lays
-    out as two lines around a block: the stretchy braces of `\left\{ ... \right\}` covered both and
-    the picture stood at the bottom of them; the picture's indentation text is dropped (#599).
-    Guards `foreignobject_label_markup::a_math_label_of_a_picture_in_a_formula_keeps_its_math_root`,
-    `::the_space_between_words_and_math_in_a_label_stays` and
-    `::a_picture_in_a_formula_is_the_only_content_of_its_mtext`.
+  - **A picture's labels in the HTML keep their space, and a picture in a formula, its math.**
+    (1) The blank between `\textbf{Family:}` and `$xy$` in a `\node` was stripped as whitespace of
+    an `svg:*` element, giving "Family:xy" (Perl's stylesheet does the same); a `foreignObject` now
+    preserves its blanks (divergence #597; a figure of `\node` labels). Guard
+    `foreignobject_label_markup::the_space_between_words_and_math_in_a_label_stays`. Two errors of
+    the Rust port are fixed (docs/SYNC_STATUS.md "Rust error fixes"): (2) a picture inside a
+    formula (`\overline{\left\{\begin{tikzpicture}...\right\}}`) gave its `m:mtext` the picture's
+    children where Perl's `convertXMTextContent` (Post.pm:456) is given the picture, so the `svg`
+    stood bare between two NBSP text nodes: MathML Core lays that out as two extra lines, the fences
+    stretched to twice the picture and the picture stood at their bottom; the `mtext` now holds the
+    picture's `<span class="ltx_inline-block"><svg class="ltx_picture">`; (3) a `$T^C$` label of such
+    a picture reached the HTML as a bare `m:math`, which the stylesheet's `copy-foreign` rule
+    reduces to an `msup` in a span ("TC" on one baseline); it is `ltx:Math > m:math`, as Perl builds it
+    (Post.pm:467-487). Guards `::a_picture_in_a_formula_is_the_mtext_content_as_in_perl` and
+    `::a_math_label_of_a_picture_in_a_formula_keeps_its_math_root`.
 
   - **xeCJK font commands take their options after the font name too.** `\setCJKmainfont{Songti
     SC}[BoldFont={Songti SC Bold}]` left its options as a paragraph of the document (the binding
@@ -36,7 +38,7 @@
     article/book classes they load have `\Roman{part}`, and Perl renews nothing, so a `\part` read
     "Part I" in the heading, the contents and references where the PDF reads "Part 1". `amsart` and
     `amsproc` also close the heading's number with a full stop, "Part 1. Title", as for sections
-    (`\@secnumpunct`, amsart.cls:1051-1058). Divergence #595; guards
+    (`\@secnumpunct`, amsart.cls:1059-1065). Divergence #595; guards
     `amsart_part_number::amsart_parts_are_arabic`, `::amsproc_parts_are_arabic`,
     `::amsbook_parts_are_arabic` and `::article_parts_stay_roman`.
 

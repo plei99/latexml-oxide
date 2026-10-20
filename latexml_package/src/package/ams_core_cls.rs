@@ -51,8 +51,8 @@ LoadDefinitions!({
   RawTeX!(r"\let\@ptsize\lx@ams@ptsize");
   // amsart.cls:1098, amsproc.cls:1033: `\renewcommand\thepart{\arabic{part}}`, where the article class this loads
   // has `\Roman{part}` (article_cls.rs). Perl does not renew it (an amsart document with `\part`
-  // reads "Part 1" in the PDF). The heading is "Part 1. Title": `\@sect` (amsart.cls:1046-1068) sets `\partname\space` and the
-  // number in `\@seccntformat`, then `\@secnumpunct` (a full stop and an `\enspace` for a non-empty title, :1051-1058),
+  // reads "Part 1" in the PDF). The heading is "Part 1. Title": `\@sect` (amsart.cls:1050-1088) sets `\partname\space` and the
+  // number in `\@seccntformat` (:1043-1048), then `\@secnumpunct` (a full stop and an `\enspace` for a non-empty title, the `\edef` at :1059-1065),
   // as it does for sections (ams_support_sty.rs `\format@title@section`).
   DefMacro!("\\thepart", "\\arabic{part}");
   DefMacro!("\\format@title@part{}", "\\lx@tag[][.\\space]{\\lx@fnum@@{part}}#1");

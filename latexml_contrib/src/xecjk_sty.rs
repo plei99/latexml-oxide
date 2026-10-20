@@ -37,7 +37,6 @@ LoadDefinitions!({
     "\\setCJKsansfont",
     "\\setCJKmonofont",
     "\\setCJKmathfont",
-    "\\CJKfontspec",
   ] {
     DefMacro!(
       T_CS!(cs),
@@ -45,6 +44,17 @@ LoadDefinitions!({
       "\\@ifnextchar[{\\lx@xecjk@optional}{\\lx@xecjk@name}"
     );
   }
+  // `\CJKfontspec` passes `\tex_ignorespaces:D` as the code after the call (xeCJK.sty:6378-6382), in both forms.
+  DefMacro!("\\lx@xecjk@ignore@optional[]{}", "\\ignorespaces");
+  DefMacro!("\\lx@xecjk@ignore@skipoptional[]", "\\ignorespaces");
+  DefMacro!(
+    "\\lx@xecjk@ignore@name{}",
+    "\\@ifnextchar[{\\lx@xecjk@ignore@skipoptional}{\\ignorespaces}"
+  );
+  DefMacro!(
+    "\\CJKfontspec",
+    "\\@ifnextchar[{\\lx@xecjk@ignore@optional}{\\lx@xecjk@ignore@name}"
+  );
   for cs in ["\\setCJKfamilyfont", "\\setCJKfallbackfamilyfont"] {
     DefMacro!(
       T_CS!(cs),
