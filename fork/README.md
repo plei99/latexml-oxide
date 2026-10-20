@@ -10,6 +10,11 @@ via `--preload=[rawstyles,rawclasses]latexml.sty`, a fixed `SOURCE_DATE_EPOCH`, 
 binary. Build the binary with `cargo build --release`. Rebuild the dumps after a TeX Live
 upgrade or an upstream merge with `PROFILE=release tools/make_formats.sh`.
 
+`PROTOCOL=native` (an environment variable for `fork/oxide`, `fork/corpus/run.sh` and `run_one.sh`; default `raw`)
+switches to `--preload=[localrawstyles]latexml.sty`: TeX Live packages load through oxide's bindings only, and
+only the document's own `.sty` files load raw, as upstream's `localrawstyles` intends. Use it to see which packages
+lack a binding. `run.sh` records the choice in the run directory's `PROTOCOL` file beside `COMMIT` and `BINARY`.
+
 Agents start at [`AGENTS.md`](AGENTS.md): where this checkout differs from upstream's instructions, and how
 parallel agents share it. Four tools serve any change:
 

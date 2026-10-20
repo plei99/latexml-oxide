@@ -5,11 +5,13 @@
 #   outdir       default /tmp/oxide/<stem>; WIPED first. Receives doc.html, doc.log and verdict.tsv.
 #   BIN=<path>   binary (default target/release/latexml_oxide; BIN=target/debug/latexml_oxide for a dev build)
 #   OXIDE_ARGS   extra latexml_oxide arguments, word-split (for example OXIDE_ARGS=--nomathparse)
+#   PROTOCOL     raw (default) or native: native loads TeX Live packages through bindings only and the document's own
+#                local .sty files raw (latexml.sty's localrawstyles); passed through to run_one.sh
 # Prints the binary's identity (binary_info.sh, STALE when the tree is newer), the verdict and the first errors.
 # Exit status: the cortex status (0 clean, 1 warnings, 2 errors, 3 fatal, 4 no output).
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-[ $# -ge 1 ] && [ -f "$1" ] || { sed -n '2,9p' "$0" >&2; exit 2; }
+[ $# -ge 1 ] && [ -f "$1" ] || { sed -n '2,11p' "$0" >&2; exit 2; }
 src=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 out=${2:-/tmp/oxide/$(basename "$src" .tex)}
 mkdir -p "$(dirname "$out")"; out=$(cd "$(dirname "$out")" && pwd)/$(basename "$out")

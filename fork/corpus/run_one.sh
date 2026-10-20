@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# run_one.sh <id> <source.tex>   (OUTROOT env = run directory; BIN = binary; OXIDE_ARGS = extra arguments, word-split)
+# run_one.sh <id> <source.tex>   (OUTROOT env = run directory; BIN = binary; OXIDE_ARGS = extra arguments, word-split;
+#   PROTOCOL = raw (default: TeX Live packages and classes load raw) or native (TeX Live packages through bindings only,
+#   the document's own local .sty files raw: latexml.sty's `localrawstyles`))
 # Convert one corpus document under the perfect-kernel raw protocol into $OUTROOT/<id>/:
 #   doc.html     HTML5 output (deterministic for a fixed binary + SOURCE_DATE_EPOCH)
 #   doc.log      ANSI-free conversion log (carries `Status:conversion:N`)
@@ -24,10 +26,16 @@ if [ -z "$eng" ]; then
   grep -qE '^[^%]*\\(usepackage|documentclass)(\[[^]]*\])?\{[^}]*(xeCJK|ctex)' "$src" && eng=xelatex
 fi
 case $eng in xelatex) persona=xetex, ;; lualatex) persona=luatex, ;; *) persona= ;; esac
+# PROTOCOL picks the latexml.sty options: `raw` (upstream's perfect-kernel protocol) or `native` (localrawstyles).
+case ${PROTOCOL:-raw} in
+  raw) opts=${persona}rawstyles,rawclasses ;;
+  native) opts=${persona}localrawstyles ;;
+  *) echo "run_one.sh: PROTOCOL must be raw or native, not ${PROTOCOL}" >&2; exit 2 ;;
+esac
 rm -rf "$out"; mkdir -p "$out"; cd "$out" || exit 1
 t0=$(perl -MTime::HiRes=time -e 'print time')
 perl -e 'setpgrp(0,0); $SIG{ALRM}=sub{kill -9, 0}; alarm shift; system @ARGV; exit($? & 127 ? 128+($? & 127) : $?>>8)' \
-  $((TIMEOUT_S + 30)) "$BIN" --preload="[${persona}rawstyles,rawclasses]latexml.sty" --timeout="$TIMEOUT_S" \
+  $((TIMEOUT_S + 30)) "$BIN" --preload="[${opts}]latexml.sty" --timeout="$TIMEOUT_S" \
   --path="$d" ${extra:+--path="$extra"} --sourcedirectory="${extra:-$d}" --log="$out/doc.log" --dest="$out/doc.html" ${OXIDE_ARGS:-} "$src" > stdout.txt 2>&1
 rc=$?
 t1=$(perl -MTime::HiRes=time -e 'print time')
