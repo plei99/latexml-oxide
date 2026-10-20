@@ -1167,7 +1167,12 @@ fn input_definitions_impl(raw_file: &str, mut options: InputDefinitionOptions) -
       // where it is needed: the loop it prevents happens DURING a raw read,
       // which is itself INCLUDE_STYLES=true. Witness: nicematrix-then-
       // tcolorbox[most] (fairmeta.cls, ar5iv #520/#567/#576): 49 → 0 pgf errors.
-      if lookup_bool("INCLUDE_STYLES") || options.noltxml {
+      //
+      // A miss under `searchpaths_only` (latexml.sty's `localrawstyles`) is a deferral too: the
+      // search was limited to the document's own directories, and a local `.sty` that later
+      // `\RequirePackage`s the same package runs with INCLUDE_STYLES = 1 (Perl `Package.pm:2376`)
+      // and raw-loads it from the TeX tree, so the mark must not make `already_handled` skip it.
+      if (lookup_bool("INCLUDE_STYLES") && !options.searchpaths_only) || options.noltxml {
         assign_value(&s!("{filename}_load_attempted"), true, Some(Scope::Global));
       }
       // Say which of the two things actually happened. `notex` (the DEFAULT
@@ -1181,6 +1186,8 @@ fn input_definitions_impl(raw_file: &str, mut options: InputDefinitionOptions) -
       // exist. A diagnostic must not overclaim what it checked.
       let why = if options.notex {
         "no dispatcher entry, and raw TeX loading is off (enable with --includestyles)"
+      } else if options.searchpaths_only {
+        "no dispatcher entry, and the file is not under the document's search paths (localrawstyles)"
       } else {
         "no dispatcher entry, and no raw file found on disk"
       };

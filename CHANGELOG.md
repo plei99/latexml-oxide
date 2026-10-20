@@ -5,11 +5,15 @@
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
     loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,
-    Package.pm:2372/2392), so after the first raw definitions file (`ts1enc.dfu`) every TeX Live
-    package without a binding was raw-loaded, as under `rawstyles`. `\usepackage{nowidow}`
-    now gives one `Warning:missing_file:nowidow` and leaves `\setnoclub` undefined, while a
-    `.sty` beside the document still loads. Guard
-    `localrawstyles_keeps_searchpaths::localrawstyles_raw_loads_only_the_documents_own_sty`.
+    Package.pm:2372/2392), so after the first raw definitions file every TeX Live package
+    without a binding was raw-loaded, as under `rawstyles`. `\usepackage{nowidow}` now gives one
+    `Warning:missing_file:nowidow` (worded "not under the document's search paths
+    (localrawstyles)", not "no raw file found on disk") and leaves `\setnoclub` undefined, while
+    a `.sty` beside the document still loads. That miss is no longer remembered as an attempted
+    load, so a local `.sty` that later does `\RequirePackage{nowidow}` (read with
+    `INCLUDE_STYLES` 1, Package.pm:2376) loads it, as in Perl. Guards
+    `localrawstyles_keeps_searchpaths::localrawstyles_raw_loads_only_the_documents_own_sty` and
+    `::a_local_sty_raw_loads_what_the_document_could_not`.
 
   - **tikz-cd cells no longer leak `\lx@inpgf@ignorespaces` into the math `tex`, and a
     `\cite` in a title fills the tooltips that reuse it.** Inside a PGF picture `\ignorespaces`
