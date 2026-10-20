@@ -17845,3 +17845,21 @@ reference. `amsart` and `amsproc` also set the heading `\format@title@part` as t
 
 **Guard**: `cluster_package_guards::amsart_part_number` (`amsart_parts_are_arabic`, `amsproc_parts_are_arabic`,
 `amsbook_parts_are_arabic`, and `article_parts_stay_roman` for the class that keeps the roman numeral).
+
+### 596. xeCJK's font commands read their options before or after the font name, not both (Perl: no xeCJK binding)
+
+**Perl behavior**: none; `xeCJK` has no `.ltxml`, and raw-loading it stops outside XeTeX (the raw package checks the
+engine through expl3).
+**Rust behavior**: `xecjk_sty.rs` binds the font commands as argument readers (no-ops, arXiv
+2605.30788) and reads the options where xeCJK does: `\setCJKmainfont`, `\setCJKromanfont`, `\setCJKsansfont`,
+`\setCJKmonofont`, `\setCJKmathfont` and `\CJKfontspec` are `{ o m }` (xeCJK.sty:6330-6346, :6378, :6585),
+`\setCJKfamilyfont` and `\setCJKfallbackfamilyfont` `{ m o m }` (:6356, :5710), and `\__xeCJK_pass_args:nnnn`
+(:6316-6324) takes a trailing `O{}` (`\__xeCJK_post_arg:w`, :6325-6329) only when the leading `o` was absent. So
+`\setCJKmainfont{Songti SC}[BoldFont={Songti SC Bold}]` is the same call as
+`\setCJKmainfont[BoldFont={Songti SC Bold}]{Songti SC}`, and a `[` after the name of the leading-option form is text.
+The binding read `[]{}` and left the trailing options of the first form as a visible paragraph "[BoldFont=Songti SC
+Bold, ItalicFont=Heiti SC, BoldItalicFont=Heiti SC Medium]" (an amsart document with xeCJK). `\newCJKfontfamily`
+(`{ o m o m }`) was already bound with both optional positions (`\lx@fontspec@definer`).
+
+**Guard**: `cluster_package_guards::xecjk_post_optional` (`options_after_the_font_name_are_arguments`,
+`options_before_the_font_name_are_arguments`, `a_bracket_after_a_font_name_with_leading_options_is_text`).

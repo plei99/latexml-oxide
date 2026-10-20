@@ -17,14 +17,42 @@ LoadDefinitions!({
     "\\newCJKfontfamily[] DefToken []{}",
     "\\lx@fontspec@definer#2[#3]{#4}[]"
   );
+  // The font commands take their options before the font name or after it: xeCJK.sty:6316-6329
+  // `\__xeCJK_pass_args:nnnn` runs `\xeCJK_set_family:nnn {family} {options} {font}` when the leading `o` argument was
+  // given, and else reads a trailing `O{}` (`\__xeCJK_post_arg:w`), so `\setCJKmainfont{Songti SC}[BoldFont={Songti SC
+  // Bold}]` is the same call as `\setCJKmainfont[BoldFont={Songti SC Bold}]{Songti SC}`, and a `[` after the name of the
+  // first form is not an argument (a document with `\setCJKmainfont{Songti SC}[BoldFont=...]` printed "[BoldFont=Songti SC Bold, ...]" as text).
+  // `\setCJKmainfont` is `{ o m }` (:6330), `\setCJKsansfont` (:6337), `\setCJKmonofont` (:6343) and `\setCJKmathfont`
+  // (:6585) likewise, `\CJKfontspec` `{ o m }` (:6378), `\setCJKfamilyfont` and `\setCJKfallbackfamilyfont` `{ m o m }`
+  // (:6356, :5710); `\setCJKromanfont` is `\setCJKmainfont` (:6336).
+  DefMacro!("\\lx@xecjk@optional[]{}", "");
+  DefMacro!("\\lx@xecjk@skipoptional[]", "");
+  DefMacro!(
+    "\\lx@xecjk@name{}",
+    "\\@ifnextchar[{\\lx@xecjk@skipoptional}{}"
+  );
+  for cs in [
+    "\\setCJKmainfont",
+    "\\setCJKromanfont",
+    "\\setCJKsansfont",
+    "\\setCJKmonofont",
+    "\\setCJKmathfont",
+    "\\CJKfontspec",
+  ] {
+    DefMacro!(
+      T_CS!(cs),
+      None,
+      "\\@ifnextchar[{\\lx@xecjk@optional}{\\lx@xecjk@name}"
+    );
+  }
+  for cs in ["\\setCJKfamilyfont", "\\setCJKfallbackfamilyfont"] {
+    DefMacro!(
+      T_CS!(cs),
+      "{}",
+      "\\@ifnextchar[{\\lx@xecjk@optional}{\\lx@xecjk@name}"
+    );
+  }
   for sig in [
-    "\\setCJKmainfont[]{}",
-    "\\setCJKsansfont[]{}",
-    "\\setCJKmonofont[]{}",
-    "\\setCJKmathfont[]{}",
-    "\\setCJKfamilyfont{}[]{}",
-    "\\setCJKfallbackfamilyfont{}[]{}",
-    "\\CJKfontspec[]{}",
     "\\defaultCJKfontfeatures{}",
     "\\CJKsetecglue{}",
     "\\punctstyle{}",

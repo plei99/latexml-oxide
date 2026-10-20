@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+  - **xeCJK font commands take their options after the font name too.** `\setCJKmainfont{Songti
+    SC}[BoldFont={Songti SC Bold}]` left its options as a paragraph of the document (the binding
+    read `[]{}`). xeCJK reads the options before the name, or after it when there were none before
+    (xeCJK.sty:6316-6329 `\__xeCJK_pass_args:nnnn`); `\setCJKmainfont`, `\setCJKromanfont`,
+    `\setCJKsansfont`, `\setCJKmonofont`, `\setCJKmathfont`, `\CJKfontspec`, `\setCJKfamilyfont`
+    and `\setCJKfallbackfamilyfont` now do the same, and a `[` after a name that had leading options
+    is text. Divergence #596; guards `xecjk_post_optional::options_after_the_font_name_are_arguments`,
+    `::options_before_the_font_name_are_arguments` and
+    `::a_bracket_after_a_font_name_with_leading_options_is_text`.
+
   - **`amsart`, `amsproc` and `amsbook` number parts with arabic numerals.** The classes renew
     `\thepart` as `\arabic{part}` (amsart.cls:1098, amsproc.cls:1033, amsbook.cls:878); the
     article/book classes they load have `\Roman{part}`, and Perl renews nothing, so a `\part` read

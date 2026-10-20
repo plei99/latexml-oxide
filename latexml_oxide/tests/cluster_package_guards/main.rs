@@ -147,6 +147,7 @@ mod token_kernel_gaps;
 mod unicode_format_encoding;
 mod vfs_file_end;
 mod xetex_linebreak_primitives;
+mod xecjk_post_optional;
 mod xkeyval_internals;
 mod ytableau_boxes;
 
