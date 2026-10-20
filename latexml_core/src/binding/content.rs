@@ -1997,7 +1997,12 @@ fn load_tex_definitions(
   let was_interpreting = lookup_bool_sym(crate::pin!("INTERPRETING_DEFINITIONS"));
   // And that if we're interpreting this TeX file of definitions,
   // we probably should interpret any TeX files IT loads.
-  let was_including_styles = lookup_bool("INCLUDE_STYLES");
+  // Perl Package.pm:2372 saves the scalar itself, not its truth: INCLUDE_STYLES is the string
+  // 'searchpaths' under latexml.sty's `localrawstyles`, and restoring it as a boolean (Package.pm:2392 restores the
+  // scalar) turned it into 1 after the first raw definitions file (ts1enc.dfu, autoloaded by LaTeX.pool),
+  // so `require_package`'s searchpaths_only gate never fired again. An unset key restores as `false`
+  // (Perl's undef; `Stored::None` would read back as true through `lookup_bool`).
+  let was_including_styles = lookup_value("INCLUDE_STYLES").unwrap_or(Stored::Bool(false));
   assign_value_sym(crate::pin!("INTERPRETING_DEFINITIONS"), true, None);
   // If we're reading in these definitions, probaly will accept included ones?
   // (but not forbid ltxml ?)
