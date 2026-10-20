@@ -1916,6 +1916,17 @@ From 62f: Side risk, open: any genuine `\@ifnextchar` autoload in a plain
 - **Shared, surpass candidate:** `2604.16007` acmart `\@ACM@balancefalse`/`\@ACM@pbalancefalse` undefined (acmart.cls:123
   `\define@boolkey`; neither binding defines them).
 
+### `--max-memory` is not enforced under concurrent load on macOS (open, 2026-10-20)
+- `115_streaming_cli`'s over-budget conversion (`--max-memory 2400`: cooperative fuse at 1800 MiB, 75% of the ceiling,
+  stomach.rs:124, sampled every 1024 `check_timeout` calls, :394; hard watchdog at 2400 MiB, sampled every 100 ms,
+  watchdog.rs:660), debug build, 24 GB Mac. 1 or 4 copies at once: each ends `Fatal:Timeout:MemoryBudget`, exit 1,
+  with a salvaged document (`ru_maxrss` 1825 MiB alone). 5, 6, 7, 8 or 10 at once: 29 of 29 exit 0 with the whole
+  document and no Fatal; the highest `ru_maxrss` was 2464 MiB, above the watchdog's ceiling. A separate run of 6 at once,
+  sampling `ps` RSS every 100 ms, saw 2049-2100 MiB peaks, above the fuse, and every run exited 0. On Linux, alone,
+  the run peaks at 1831 MiB and keeps the contract. Cause open. `MIMALLOC_PURGE_DELAY` 0 or -1 was tried only on a run
+  alone, where the contract holds; untested under concurrency. The test runs alone in both nextest profiles
+  (`.config/nextest.toml`), which keeps it green but leaves the ceiling unenforced.
+
 ---
 
 ## Standing policies & method

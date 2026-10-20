@@ -23,18 +23,18 @@
 # guard could fire: non-zero exit but no Fatal line, failing
 # `115_streaming_cli` after 209 s. Caught by this change's own CI.
 #
-# In the `ci` profile, `threads-required = "num-test-threads"` makes each of them
-# occupy the WHOLE concurrency budget, so it runs alone — exactly the guarantee
-# `cargo test` gave them implicitly. A `max-threads = 1` group would only stop the
-# two from overlapping EACH OTHER, leaving a heavy tikz/pgf sibling free to spike
-# GBs beside them, which is the same hazard by another name — on a 7-16 GB runner.
-# A dev box has the same hazard: on a 24 GB Mac, with five or more conversions
-# of the pair's over-budget document at once, neither memory guard fired (macOS
-# compresses pages under pressure, and both sample the resident set) and the
-# over-budget run exited 0; four at once kept the contract. A saturated full run
-# failed the pair another way, with no salvaged document. So the `default`
-# profile runs them alone too. At the head of the queue (priority below) that
-# costs their own ~17 s each with nothing beside them.
+# `threads-required = "num-test-threads"` makes each of them occupy the WHOLE
+# concurrency budget, so it runs alone — exactly the guarantee `cargo test` gave
+# them implicitly. A `max-threads = 1` group would only stop the two from
+# overlapping EACH OTHER, leaving a heavy tikz/pgf sibling free to spike GBs
+# beside them, which is the same hazard by another name — on a 7-16 GB runner,
+# and on a dev box too: on a 24 GB Mac, the over-budget conversion of
+# `115_streaming_cli` (`--max-memory 2400`) kept the contract when 1 or 4 ran at
+# once, but when 5, 6, 7, 8 or 10 ran at once every run exited 0 with the whole
+# document and no Fatal, one with a peak resident set of 2464 MiB; and a
+# saturated full local run failed `115_streaming_cli` with no salvaged document.
+# So both profiles run them alone. At the head of the queue (priority below)
+# that costs their own ~17 s each with nothing beside them.
 #
 # Scheduling: nextest starts tests in `priority` order (higher first; ties keep
 # list order), so the slow ones below start first instead of trailing a shard.
@@ -52,9 +52,6 @@
 # cargo-nextest warns here rather than silently ignoring them.
 nextest-version = { recommended = "0.9.137" }
 
-[test-groups]
-rss-serial = { max-threads = 1 }
-
 [profile.default]
 # A failing run should report EVERY failure, not stop at the first binary —
 # the same reason the repo's canonical command carries `--no-fail-fast`.
@@ -68,11 +65,10 @@ test-threads = 8
 # Overrides are matched in order and, per setting, the first match wins; the
 # `ci` profile checks its own overrides first, then falls back to these, so the
 # priorities below apply to both profiles.
-# The RSS pair runs alone, as on CI (header).
+# The RSS pair runs alone (header).
 [[profile.default.overrides]]
 filter = 'test(=streaming_flag_is_byte_identical_and_fatal_contract_holds) | test(=over_budget_build_degrades_gracefully_instead_of_being_killed)'
 threads-required = "num-test-threads"
-test-group = "rss-serial"
 priority = 100
 
 [[profile.default.overrides]]
@@ -132,9 +128,3 @@ test-threads = 2
 # 20 periods (20 min) is the hard stop.
 slow-timeout = { period = "60s", terminate-after = 20 }
 
-# The RSS pair runs alone on a CI runner (header). `@global` takes it out of the
-# local `rss-serial` group, which it would otherwise inherit from `default`.
-[[profile.ci.overrides]]
-filter = 'test(=streaming_flag_is_byte_identical_and_fatal_contract_holds) | test(=over_budget_build_degrades_gracefully_instead_of_being_killed)'
-threads-required = "num-test-threads"
-test-group = "@global"
