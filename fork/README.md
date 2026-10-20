@@ -5,15 +5,19 @@ notes and papers. Everything fork-specific lives under `fork/`, so merges from u
 touch it. Personal sources and outputs never enter git: they live in `.corpus/`, which is listed
 in `.git/info/exclude`.
 
-Every conversion here uses upstream's perfect-kernel protocol: raw loading of `.sty`/`.cls`
-via `--preload=[rawstyles,rawclasses]latexml.sty`, a fixed `SOURCE_DATE_EPOCH`, and the release
-binary. Build the binary with `cargo build --release`. Rebuild the dumps after a TeX Live
+Every conversion here uses upstream's perfect-kernel protocol by default: raw loading of `.sty`/`.cls`
+via `--preload=[rawstyles,rawclasses]latexml.sty` (`OXIDE_PROTOCOL=native` below changes that), a fixed
+`SOURCE_DATE_EPOCH`, and the release binary. Build the binary with `cargo build --release`. Rebuild the dumps after a TeX Live
 upgrade or an upstream merge with `PROFILE=release tools/make_formats.sh`.
 
-`PROTOCOL=native` (an environment variable for `fork/oxide`, `fork/corpus/run.sh` and `run_one.sh`; default `raw`)
-switches to `--preload=[localrawstyles]latexml.sty`: TeX Live packages load through oxide's bindings only, and
-only the document's own `.sty` files load raw, as upstream's `localrawstyles` intends. Use it to see which packages
-lack a binding. `run.sh` records the choice in the run directory's `PROTOCOL` file beside `COMMIT` and `BINARY`.
+`OXIDE_PROTOCOL=native` (an environment variable for `fork/oxide`, `fork/corpus/run.sh` and `run_one.sh`; default
+`raw`) converts with `--preload=[localrawstyles]latexml.sty` instead. A TeX Live package the document requests
+directly and oxide has no binding for is then skipped with `Warning:missing_file`, and the document's own `.sty`
+files are read raw, along with whatever they load and the `.sty` files a binding itself reads raw. Classes go
+through bindings only (there is no `localrawclasses`: the notes have no local `.cls`). Use it to see which packages
+lack a binding. `run.sh` checks the value before it writes anything and records it in the run directory's
+`PROTOCOL` file beside `COMMIT` and `BINARY`; `accept.sh` adds it to `BASELINE`, and `compare.py` refuses to
+compare runs of different protocols (a run without the file counts as `raw`).
 
 Agents start at [`AGENTS.md`](AGENTS.md): where this checkout differs from upstream's instructions, and how
 parallel agents share it. Four tools serve any change:

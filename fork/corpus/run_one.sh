@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # run_one.sh <id> <source.tex>   (OUTROOT env = run directory; BIN = binary; OXIDE_ARGS = extra arguments, word-split;
-#   PROTOCOL = raw (default: TeX Live packages and classes load raw) or native (TeX Live packages through bindings only,
-#   the document's own local .sty files raw: latexml.sty's `localrawstyles`))
+#   OXIDE_PROTOCOL = raw (default: upstream's perfect-kernel protocol, `rawstyles,rawclasses`: TeX Live packages and
+#   classes load raw) or native (`localrawstyles`: a TeX Live package the document requests directly with no binding is
+#   skipped with `Warning:missing_file`; the document's own .sty files, whatever they load, and the .sty files a binding
+#   reads raw are read raw; classes go through bindings only))
 # Convert one corpus document under the perfect-kernel raw protocol into $OUTROOT/<id>/:
 #   doc.html     HTML5 output (deterministic for a fixed binary + SOURCE_DATE_EPOCH)
 #   doc.log      ANSI-free conversion log (carries `Status:conversion:N`)
@@ -26,11 +28,11 @@ if [ -z "$eng" ]; then
   grep -qE '^[^%]*\\(usepackage|documentclass)(\[[^]]*\])?\{[^}]*(xeCJK|ctex)' "$src" && eng=xelatex
 fi
 case $eng in xelatex) persona=xetex, ;; lualatex) persona=luatex, ;; *) persona= ;; esac
-# PROTOCOL picks the latexml.sty options: `raw` (upstream's perfect-kernel protocol) or `native` (localrawstyles).
-case ${PROTOCOL:-raw} in
+# OXIDE_PROTOCOL picks the latexml.sty options: `raw` (upstream's perfect-kernel protocol) or `native` (localrawstyles).
+case ${OXIDE_PROTOCOL:-raw} in
   raw) opts=${persona}rawstyles,rawclasses ;;
   native) opts=${persona}localrawstyles ;;
-  *) echo "run_one.sh: PROTOCOL must be raw or native, not ${PROTOCOL}" >&2; exit 2 ;;
+  *) echo "run_one.sh: OXIDE_PROTOCOL must be raw or native, not ${OXIDE_PROTOCOL}" >&2; exit 2 ;;
 esac
 rm -rf "$out"; mkdir -p "$out"; cd "$out" || exit 1
 t0=$(perl -MTime::HiRes=time -e 'print time')

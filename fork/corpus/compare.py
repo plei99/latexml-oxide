@@ -8,7 +8,8 @@ output), more errors or a new error class, more `ltx_ERROR` marks or leaked pars
 against the reference PDF down by more than 0.2 points, or visible words lost (content_diff.py's
 multiset rule, on rendered text). The mirror images are IMPROVEMENTS. A picture whose SVG digest
 changed with nothing else worse is a CHANGE: geometry moved and needs eyes (pictures.py renders
-both sides). Exit status 1 when any regression is found.
+both sides). Exit status 1 when any regression is found; 2, comparing nothing, when the two runs used
+different OXIDE_PROTOCOLs (the PROTOCOL file of a run directory; a missing file means raw).
 """
 import collections, csv, importlib.util, os, re, sys
 
@@ -42,12 +43,27 @@ def num(x, default=0.0):
         return default
 
 
+def protocol(run):
+    """The OXIDE_PROTOCOL a run was converted under (run.sh's PROTOCOL file; a run without one is raw)."""
+    try:
+        return open(os.path.join(run, "PROTOCOL")).read().strip() or "raw"
+    except OSError:
+        return "raw"
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     show = int(sys.argv[sys.argv.index("--show") + 1]) if "--show" in sys.argv else 6
     if "--show" in sys.argv:
         args.remove(str(show))
     old, new = (a.rstrip("/") for a in args)
+    po, pn = protocol(old), protocol(new)
+    if po != pn:
+        print(f"compare.py: refusing to compare a {po} run ({os.path.basename(os.path.realpath(old))}) "
+              f"with a {pn} run ({os.path.basename(os.path.realpath(new))}): their protocols load different "
+              "packages. Re-run the new one under the baseline's OXIDE_PROTOCOL, or accept a baseline of its own.",
+              file=sys.stderr)
+        sys.exit(2)
     od, nd = table(old, "docs", "id"), table(new, "docs", "id")
     oe, ne = table(old, "errors", "id"), table(new, "errors", "id")
     op, np_ = table(old, "pictures", "id"), table(new, "pictures", "id")
