@@ -32,7 +32,7 @@ ENV='export TEXMFCNF=/usr/local/texlive/2026/texmf-dist/web2c PATH=/usr/local/te
 export RUSTFLAGS="${RUSTFLAGS:--C link-arg=-fuse-ld=mold}" CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-6}"
 cd "$1" || exit 2; shift; exec "$@"'
 
-refuse() { echo "fork/linux/run.sh: $top is on the Mac's disk, not a guest worktree; make one with fork/worktree.sh" >&2; exit 2; }
+refuse() { echo "fork/linux/run.sh: $top is not a guest worktree (outside $GUEST_HOME); make one with fork/worktree.sh" >&2; exit 2; }
 if [ "$(uname -s)" = Darwin ]; then
   case $top in
     "$MAC_VIEW$GUEST_HOME"/*) guest_top=${top#"$MAC_VIEW"} ;;

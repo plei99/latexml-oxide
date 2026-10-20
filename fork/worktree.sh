@@ -5,9 +5,10 @@
 # binary under a running review.
 #
 # Creates <branch> from [base] (a commit of the invoking checkout, default its HEAD) in the guest clone, at
-# /home/patrick/agent-work/worktrees/latexml/<branch with / as ->, or reuses the branch if it exists, and supplies
-# what git does not carry: LaTeXML/ (a link to the Mac checkout's .upstream, the Perl source, which resolves on both
-# hosts), and Cargo.lock and resources/dumps/ (copied from the invoking checkout, else the Mac checkout). It prints
+# /home/patrick/agent-work/worktrees/latexml/<branch with / as ->, or reuses the branch if the guest clone has it (a
+# name that only the Mac checkout has is refused), and supplies what git does not carry: LaTeXML/ (a link to the Mac
+# checkout's .upstream, the Perl source, which resolves on both hosts), and Cargo.lock and resources/dumps/ (copied
+# from the invoking checkout, else the Mac checkout). It prints
 # the Linux path and its macOS view. Bind a T3 thread to it with T3's workspace controls (a shell `cd` does not), and
 # build and test in it with fork/linux/run.sh. The corpus loop (fork/oxide, .corpus/) stays on the Mac checkout.
 # Remove it with `git worktree remove <path>` in the guest.
