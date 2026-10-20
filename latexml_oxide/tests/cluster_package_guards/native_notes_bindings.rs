@@ -137,7 +137,7 @@ fn fouriernc_requires_fourier_and_its_ornaments() {
 /// euler-math.sty under the luatex persona (the corpus gives fontspec documents that persona): the native binding
 /// requires unicode-math with `math-style=upright` (euler-math.sty:9) and ignores the key options
 /// (euler-math.sty:19-26, here `Scale=0.9`). The raw file would blank `\hbar` and `\varPhi` (its `\Umathchardef`s,
-/// from :42, run as empty macros at `\AtBeginDocument` :38); here both stay their symbols.
+/// :42-153, run as empty macros at `\AtBeginDocument`, :38); here both stay their symbols.
 #[test]
 fn euler_math_keeps_the_symbols_it_redefines() {
   let xml = native_with(
@@ -154,20 +154,21 @@ fn euler_math_keeps_the_symbols_it_redefines() {
   );
 }
 
-/// euler-math.sty:8 `\RequireTUTeX`: the pdfTeX persona halts as pdflatex does ("LuaTeX or XeTeX is required"); the
-/// iftex binding itself passes `\RequireTUTeX`, so the binding calls the engine test.
+/// euler-math.sty:8 `\RequireTUTeX` is not run (the iftex binding passes it under every persona, Perl
+/// `iftex.sty.ltxml:61` makes it a no-op): the default persona loads the package with no error and no warning, and
+/// the symbols the raw file would blank stay.
 #[test]
-fn euler_math_requires_a_unicode_engine() {
-  let (stderr, _xml) = convert_with(
-    "\\documentclass{article}\n\\usepackage{euler-math}\n\\begin{document}\nx\n\\end{document}\n",
-    Some("latexml.sty"),
+fn euler_math_loads_under_the_default_persona() {
+  let xml = native(
+    "\\documentclass{article}\n\\usepackage{euler-math}\n\\begin{document}\n$\\hbar$\n\\end{document}\n",
+    0,
   );
-  assert!(
-    stderr.contains("LuaTeX or XeTeX is required to compile this document"),
-    "{stderr}"
+  latexml::util::test::assert_element(
+    &xml,
+    "XMath",
+    &[],
+    r##"<XMath><XMTok meaning="Planck-constant-over-2-pi" name="hbar" role="ID">ℏ</XMTok></XMath>"##,
   );
-  assert!(stderr.contains("Fatal:"), "{stderr}");
-  assert!(!stderr.contains("missing_file"), "{stderr}");
 }
 
 /// futs is also Fourier's Utopia TEXT family (t1futs.fd; fourier.sty:58 `\rmdefault`): the ornament map is bound to
@@ -210,16 +211,16 @@ fn fourier_orns_under_a_tu_persona() {
   }
 }
 
-/// `\FourierOrns` decodes its one slot, not the group: a `\normalfont` or `\textnormal` after an ornament leaves
-/// the text after it as text (this engine's `\normalfont` does not reset the encoding).
+/// `\FourierOrns` stays a font switch for user text (fourier-orns-doc.tex:118-121, 150-151): `{\FourierOrns E 1 F}`
+/// puts all three characters in the ornament font (pdflatex's `\showbox` shows E, 1, F in `futs`).
 #[test]
-fn ornament_slot_is_decoded_alone() {
+fn fourier_orns_is_a_font_switch() {
   let xml = native(
-    "\\documentclass{article}\n\\usepackage{fourier-orns}\n\\begin{document}\n\\makeatletter\n\
-     {\\FourierOrns 1 \\normalfont Abc1} {\\warning\\ \\textnormal{Abc1}}\n\\end{document}\n",
+    "\\documentclass{article}\n\\usepackage{fourier-orns}\n\\begin{document}\n\
+     {\\FourierOrns E 1 F} {\\FourierOrns\\char`\\A}\n\\end{document}\n",
     0,
   );
-  latexml::util::test::assert_element(&xml, "p", &[], "<p>⚠ Abc1 ⚠ Abc1</p>");
+  latexml::util::test::assert_element(&xml, "p", &[], "<p>❀ ⚠ ❀ ☙</p>");
 }
 
 /// fourier-orns.sty:29-72: each ornament is a slot of the `futs` font, selected by `\FourierOrns` and decoded by
@@ -235,7 +236,7 @@ fn fourier_orns_print_their_ornaments() {
   latexml::util::test::assert_element(&xml, "p", &[], "<p>⛔ ⚠ ☡ 💣 ☙ ❧ ❦ ☜ ☞ ❖ €</p>");
 }
 
-/// extdash.sty:79-110 under `[shortcuts]`: `\-` followed by `--` is the em dash with half-spaces around it, `\--` the
+/// extdash.sty:78-105 under `[shortcuts]`: `\-` followed by `--` is the em dash with half-spaces around it, `\--` the
 /// en dash, `\-/` a breakable hyphen, `\-,` a half-space; `\Emdash` and `\Endash` are the same by name.
 #[test]
 fn extdash_shortcuts_make_the_dashes() {
@@ -270,16 +271,16 @@ fn ninecolors_defines_the_numbered_shades() {
   );
 }
 
-/// memoir.cls requests memhfixc.sty after hyperref. The binding is a no-op (its patches call hyperref internals
-/// LaTeXML lacks: a raw load makes `\book*{Bk}` fail with `Error:undefined:\Hy@MakeCurrentHrefAuto`, memhfixc.sty:76-83),
-/// so a memoir document with hyperref converts with 0 errors, LaTeXML's own anchors, ids and structure, and no skipped
-/// package. The one warning is the `\@iffirstamp` conditional memoir/hyperref define without `\if` (also present
-/// under `rawstyles`).
+/// memoir.cls requests memhfixc.sty after hyperref. The binding provides only `\bookautorefname` and
+/// `\subfigureautorefname` (memhfixc.sty:113-114): its patches call hyperref internals LaTeXML lacks (a raw load makes
+/// `\book*{Bk}` fail with `Error:undefined:\Hy@MakeCurrentHrefAuto`, :76-83), so a memoir document with hyperref
+/// converts with 0 errors, LaTeXML's own anchors, ids and structure, and no skipped package. The one warning is the
+/// `\@iffirstamp` conditional memoir/hyperref define without `\if` (also present under `rawstyles`).
 #[test]
 fn memhfixc_is_a_no_op_for_memoir_with_hyperref() {
   let tex = "\\documentclass{memoir}\n\\usepackage{hyperref}\n\\setsecnumdepth{subsection}\n\\begin{document}\n\
      \\book*{Bk}\n\\chapter{Alpha}\\label{c}\n\\section{Beta}\\footnote{Note.}\n\\subsubsection{Delta}\n\\section*{Epsilon}\n\
-     See \\ref{c}.\n\\begin{figure}\\caption{Cap}\\label{f}\\end{figure}\nFig \\ref{f}.\n\\end{document}\n";
+     See \\ref{c}.\n\\begin{figure}\\caption{Cap}\\label{f}\\end{figure}\nFig \\ref{f}. \\bookautorefname/\\subfigureautorefname.\n\\end{document}\n";
   let (stderr, xml) = convert_with(tex, Some("latexml.sty"));
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert_eq!(warning_count(&stderr), 1, "{stderr}");
@@ -291,20 +292,30 @@ fn memhfixc_is_a_no_op_for_memoir_with_hyperref() {
     "{stderr}"
   );
   assert!(!stderr.contains("missing_file"), "{stderr}");
-  for needle in [
+  latexml::util::test::assert_element(
+    &xml,
+    "text",
+    &[r#"fontsize="207%""#],
     r#"<text align="center" font="bold" fontsize="207%">Bk</text>"#,
-    r#"<chapter class="ltx_chapterstyle_default" inlist="toc" labels="LABEL:c" xml:id="chapter1">"#,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "title",
+    &[],
     r#"<title><tag close=" ">Chapter 1</tag>Alpha</title>"#,
-    r#"<section inlist="toc" xml:id="chapter1.section1">"#,
-    r#"<note mark="1" role="footnote" xml:id="footnote1">"#,
-    r#"<subsubsection inlist="toc" xml:id="chapter1.section1.subsection0.subsubsectionx1">"#,
-    r#"<section xml:id="chapter1.sectionx1">"#,
-    r#"<title>Epsilon</title>"#,
-    r#"<figure inlist="lof" labels="LABEL:f" xml:id="chapter1.figure1">"#,
-    "<caption><tag close=\": \">Figure\u{a0}1.1</tag>Cap</caption>",
-  ] {
-    assert!(xml.contains(needle), "missing {needle}:\n{xml}");
-  }
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "section",
+    &[r#"xml:id="chapter1.section1""#],
+    r##"<section inlist="toc" xml:id="chapter1.section1"><tags><tag>1.1</tag><tag role="autoref">section 1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">§1.1</tag></tags><title><tag close=" ">1.1</tag>Beta</title><toctitle><tag close=" ">1.1</tag>Beta</toctitle><note mark="1" role="footnote" xml:id="footnote1"><tags><tag>1</tag><tag role="autoref">footnote 1</tag><tag role="refnum">1</tag><tag role="typerefnum">footnote 1</tag></tags>Note.</note><subsubsection inlist="toc" xml:id="chapter1.section1.subsection0.subsubsectionx1"><title>Delta</title><toctitle>Delta</toctitle></subsubsection></section>"##,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "section",
+    &[r#"xml:id="chapter1.sectionx1""#],
+    r##"<section xml:id="chapter1.sectionx1"><title>Epsilon</title><para xml:id="chapter1.sectionx1.p1"><p>See <ref labelref="LABEL:c"/>.</p></para><figure inlist="lof" labels="LABEL:f" xml:id="chapter1.figure1"><tags><tag>Figure 1.1</tag><tag role="autoref">Figure 1.1</tag><tag role="refnum">1.1</tag><tag role="typerefnum">Figure 1.1</tag></tags><toccaption><tag close=" ">1.1</tag>Cap</toccaption><caption><tag close=": ">Figure 1.1</tag>Cap</caption></figure><para xml:id="chapter1.sectionx1.p2"><p>Fig <ref labelref="LABEL:f"/>. Book/Subfigure.</p><pagination role="newpage"/></para></section>"##,
+  );
 }
 
 /// spectralsequences.sty: `{sseqdata}` + `\printpage` draw the diagram (an `ltx:picture`); the class labels keep

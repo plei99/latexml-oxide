@@ -13,9 +13,10 @@
     that force-raw-loads the genuine file (the `alegreyasans_sty` pattern; package options and the
     file's own `\RequirePackage`s reach it), except `euler-math`, a native binding that requires
     unicode-math and ignores the key options (its raw file blanks `\hbar`, `\varPhi` and some
-    seventy more symbols with `\Umathchardef`), and `memhfixc`, a no-op (its patches call hyperref
+    ninety more symbols with `\Umathchardef`), and `memhfixc`, which only provides
+    `\bookautorefname` and `\subfigureautorefname` (its patches call hyperref
     internals LaTeXML lacks, so a raw load fails on `\book*`; OXIDIZED_DESIGN #592-593). The `futs`
-    ornament font has a glyph map (`futs_fontmap.rs`) that `\FourierOrns` selects for its one slot,
+    ornament font has a glyph map (`futs_fontmap.rs`) that `\FourierOrns` selects (a font switch still),
     in the `futs` and the TU (OTF) branch alike, so `\warning` is `⚠` and `\lefthand` is `☜` instead
     of the slot letters `1` and `M` (OXIDIZED_DESIGN #591); fourier's Utopia text in the same `futs`
     family stays text, and fourier.sty's `noOTF` option reaches fourier-orns under every persona.

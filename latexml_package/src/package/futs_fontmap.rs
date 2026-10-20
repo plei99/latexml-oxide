@@ -1,5 +1,5 @@
-//! futs font encoding: the Fourier ornaments font (`\FourierOrns`, fourier-orns.sty:29), selected for one slot at a
-//! time by `latexml_contrib`'s `fourier_orns_sty` through `\lx@fontencoding{futs}`. Perl has no `futs.fontmap.ltxml`
+//! futs font encoding: the Fourier ornaments font (`\FourierOrns`, fourier-orns.sty:29), selected by
+//! `latexml_contrib`'s `fourier_orns_sty` through `\lx@fontencoding{futs}`. Perl has no `futs.fontmap.ltxml`
 //! (`futs` is only a serif family, Common/Font.pm:145). Each slot is the name fourier-orns.sty:33-72 gives it, as
 //! the nearest Unicode ornament, chosen by the shape (rendered with pdflatex): the aldines the rotated and reversed
 //! floral hearts (U+2767, U+2619) and `\aldine` U+2766; the decorative curls (`\decofourright`…`\decothreeleft`),
