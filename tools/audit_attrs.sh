@@ -20,6 +20,14 @@
 # Investigate each per case.
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+# LaTeXML/ (the Perl oracle) is gitignored and absent from a fresh checkout or worktree; without it every count
+# below is zero and the sweep would report no drift.
+if [ ! -d LaTeXML/lib/LaTeXML/Package ]; then
+  echo "$(basename "$0"): no Perl source at $PWD/LaTeXML/lib/LaTeXML/Package; link LaTeXML/ to a brucemiller/latexml checkout" >&2
+  exit 2
+fi
+
 map_rust_stem() {
   local name="$1"
   local stem="${name%.ltxml}"

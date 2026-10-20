@@ -15,6 +15,14 @@
 # or (c) Rust defensive-locking not mirrored in Perl.
 set -euo pipefail
 
+cd "$(dirname "$0")/.."
+# LaTeXML/ (the Perl oracle) is gitignored and absent from a fresh checkout or worktree; without it every count
+# below is zero and the sweep would report no drift.
+if [ ! -d LaTeXML/lib/LaTeXML/Package ]; then
+  echo "$(basename "$0"): no Perl source at $PWD/LaTeXML/lib/LaTeXML/Package; link LaTeXML/ to a brucemiller/latexml checkout" >&2
+  exit 2
+fi
+
 for pf in $(grep -rl 'locked *=> *1' LaTeXML/lib/LaTeXML/Package/ ar5iv-bindings/bindings/ 2>/dev/null); do
   name=$(basename "$pf")
   stem="${name%.ltxml}"
