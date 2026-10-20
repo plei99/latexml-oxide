@@ -1,5 +1,5 @@
 //! Binding for `extdash.sty` (ncctools) — breakable dashes: `\Hyphdash`, `\Endash`, `\Emdash`, `\Halfspace`, and
-//! with the `shortcuts` option `\-` followed by `-`, `--`, `/`, `,` (extdash.sty:79-110).
+//! with the `shortcuts` option `\-` followed by `-`, `--`, `/`, `,` (extdash.sty:78-110; the commands :31-34).
 //!
 //! Perl LaTeXML ships no `extdash.sty.ltxml` binding and, at the default `notex` setting, does not raw-load the
 //! real file; under `--preload=latexml.sty` (no `rawstyles`) the package was skipped with `Warning:missing_file`.

@@ -7,7 +7,8 @@ LoadDefinitions!({
   // fourier.sty:61 `\RequirePackage[noOTF]{fourier-orns}`: `noOTF` keeps fourier-orns off its TU (fontspec) branch
   // (fourier-orns.sty:11-27), so under the xetex/luatex personas too each ornament is a slot of the `futs` font,
   // decoded by `futs_fontmap.rs`; `latexml_contrib`'s `fourier_orns_sty` raw-loads the file.
-  // Guards `native_notes_bindings::fourier_orns_print_their_ornaments`, `fouriernc_and_euler_math_run_their_files`.
+  // Guards `native_notes_bindings::fourier_orns_print_their_ornaments`, `fourier_orns_under_a_tu_persona`,
+  // `futs_text_family_is_not_decoded_as_ornaments`, `fouriernc_requires_fourier_and_its_ornaments`.
   RequirePackage!("fourier-orns", options => vec![s!("noOTF")]);
   // fourier.sty:300-303: `\math@bb` is the fourier-bb blackboard alphabet, and `\mathbb` becomes
   // it at `\begin{document}`, over amsfonts' and over a preamble
