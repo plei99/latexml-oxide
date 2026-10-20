@@ -39,7 +39,8 @@ with `/<name>` or let it surface by description.
 
 - **`parity_check.sh`** — primary triage. Per-paper verdict: BOTH CLEAN /
   OUT-OF-SCOPE / REAL_REGRESSION / PERL_REGRESSION / Perl-capped / Perl-timeout.
-  Reads `SANDBOX_DIR`; respects `TIMEOUT_SECS=180`.
+  A `Fatal:` or a killed run counts as an error (tagged `RUST_FATAL=`,
+  `RUST_CRASH(rc=…)`). Reads `SANDBOX_DIR`; respects `TIMEOUT_SECS=180`.
 - **`triage_failure.sh`** — phase-2 single-paper triage under test profile
   with `RUST_BACKTRACE=full`. `KEEP_TMP=1` preserves the extracted dir.
 - **`bisect_repro.sh`** — coarse window-bisection from the first-error line,

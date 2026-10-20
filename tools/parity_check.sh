@@ -16,9 +16,15 @@
 # because the canvas list was generated under different conditions. Use
 # this tool to filter the list down to the actual Rust-only regressions.
 #
+# A `Fatal:` line counts as an error. A run with no Fatal line counts one more
+# when it was killed by a signal (exit code >= 128) or failed (exit code other
+# than 0 and timeout's 124) without printing any Error line, as a panic does
+# (101). So a run that died is never BOTH CLEAN; the verdict line says which
+# run did (RUST_FATAL=, RUST_CRASH(rc=...), and the PERL_ forms).
+#
 # Usage:
 #   tools/parity_check.sh <arxiv_id_1> [arxiv_id_2] [...]
-#   tools/parity_check.sh $(cat /tmp/sample.txt)
+#   tools/parity_check.sh - < /tmp/sample.txt     # one id per line on stdin
 #
 # Env:
 #   SANDBOX_DIR  default: $HOME/data/100k_noproblem_sandbox
@@ -39,20 +45,30 @@ TIMEOUT_SECS="${TIMEOUT_SECS:-90}"
 WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
 RUST_BIN="$WORKSPACE/target/debug/latexml_oxide"
 
+if [[ $# -eq 0 ]]; then
+  echo "Usage: $0 <arxiv_id> [<arxiv_id> ...]" >&2
+  echo "       $0 - < ids.txt      (one id per line)" >&2
+  exit 2
+fi
+
 if [[ ! -x "$RUST_BIN" ]]; then
   echo "ERROR: $RUST_BIN missing — run 'cargo build --bin latexml_oxide' first" >&2
   exit 1
 fi
-
-if [[ $# -eq 0 ]]; then
-  echo "Usage: $0 <arxiv_id> [<arxiv_id> ...]" >&2
-  echo "  Reads from stdin if no args:  cat ids.txt | $0" >&2
-  exit 2
+if ! command -v latexml >/dev/null 2>&1; then
+  echo "ERROR: no Perl latexml in PATH; every paper would read Perl=0" >&2
+  exit 1
 fi
 
-# Allow piped input too
+# Allow piped input too (a read loop: macOS's bash 3.2 has no mapfile)
 if [[ "$1" == "-" ]]; then
-  mapfile -t papers
+  papers=()
+  # `|| [[ -n $line ]]` keeps a last line with no newline.
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] && papers+=("$line")
+  done
+  # bash 3.2 under `set -u` treats an empty array's expansion as unbound.
+  [[ ${#papers[@]} -gt 0 ]] || { echo "no ids on stdin" >&2; exit 2; }
 else
   papers=("$@")
 fi
@@ -109,6 +125,27 @@ for paper in "${papers[@]}"; do
   perl_rc=$?
   rust_errs=$(grep -cE 'Error:[a-zA-Z_]+:' "$rust_log")
   perl_errs=$(grep -cE 'Error:[a-zA-Z_]+:' "$perl_log")
+  # A run that died is not clean, whatever its Error: count: each Fatal counts
+  # as an error; with no Fatal, a signal (rc >= 128) or a failure that printed
+  # no Error line (a panic's 101; timeout's 124 aside) counts as one.
+  rust_fatal=$(grep -cE 'Fatal:[a-zA-Z_]+:' "$rust_log")
+  perl_fatal=$(grep -cE 'Fatal:[a-zA-Z_]+:' "$perl_log")
+  rust_died=""
+  perl_died=""
+  [[ "$rust_fatal" -gt 0 ]] && rust_died=" RUST_FATAL=$rust_fatal"
+  [[ "$perl_fatal" -gt 0 ]] && perl_died=" PERL_FATAL=$perl_fatal"
+  if [[ "$rust_fatal" -eq 0 && "$rust_rc" -ne 0 && "$rust_rc" -ne 124 \
+        && ( "$rust_rc" -ge 128 || "$rust_errs" -eq 0 ) ]]; then
+    rust_died=" RUST_CRASH(rc=$rust_rc)"
+    rust_errs=$((rust_errs + 1))
+  fi
+  if [[ "$perl_fatal" -eq 0 && "$perl_rc" -ne 0 && "$perl_rc" -ne 124 \
+        && ( "$perl_rc" -ge 128 || "$perl_errs" -eq 0 ) ]]; then
+    perl_died=" PERL_CRASH(rc=$perl_rc)"
+    perl_errs=$((perl_errs + 1))
+  fi
+  rust_errs=$((rust_errs + rust_fatal))
+  perl_errs=$((perl_errs + perl_fatal))
   # Some sandbox papers genuinely need >>2min for Perl LaTeXML; bumping
   # the local timeout doesn't scale. If Perl timed out AND its partial
   # log shows zero errors, treat the run as Perl=0 (paper is fine in
@@ -124,9 +161,10 @@ for paper in "${papers[@]}"; do
     rust_to_tag=" RUST_TIMEOUT(partial=$rust_errs)"
   fi
   status="UNKNOWN"
-  # Perl's MAX_ERRORS default is 100 + Fatal('too_many_errors'), i.e. it hits
-  # exactly 101 and bails. When Perl=101 the count is a CAP — Perl's true
-  # count is unknown and likely much larger. Don't classify as "Rust > Perl"
+  # Perl's MAX_ERRORS default is 100: the 101st Error is followed by
+  # Fatal('too_many_errors') (Common/Error.pm:372-374), counted 102 here. At
+  # >= 101 the count is a CAP — Perl's true count is unknown and likely much
+  # larger. Don't classify as "Rust > Perl"
   # in that case. Rust's default MAX_ERRORS is 10000.
   perl_capped=""
   if [[ "$perl_errs" -ge 101 ]]; then
@@ -156,6 +194,6 @@ for paper in "${papers[@]}"; do
   else
     status="PERL_REGRESSION (P=$perl_errs vs R=$rust_errs)"
   fi
-  printf "%-30s Rust=%-3s Perl=%-3s %s%s%s\n" "$paper" "$rust_errs" "$perl_errs" "$status" "$perl_to_tag" "$rust_to_tag"
+  printf "%-30s Rust=%-3s Perl=%-3s %s%s%s%s%s\n" "$paper" "$rust_errs" "$perl_errs" "$status" "$perl_to_tag" "$rust_to_tag" "$rust_died" "$perl_died"
   cd / && rm -rf "$td"
 done
