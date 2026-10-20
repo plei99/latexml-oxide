@@ -4,11 +4,11 @@
 use crate::prelude::*;
 #[rustfmt::skip]
 LoadDefinitions!({
-  // fourier.sty:61 `\RequirePackage[noOTF]{fourier-orns}`: no binding, so a missing-file warning
-  // and the ornaments undefined. Its raw file draws each ornament as a slot of the `futs` font,
-  // which has no glyph map here (font.rs), so a raw load would print the slot characters ("1" for
-  // `\warning`) — invented text; RED `fonts-nfss/fourier_orns_ornaments_are_their_glyphs`.
-  RequirePackage!("fourier-orns");
+  // fourier.sty:61 `\RequirePackage[noOTF]{fourier-orns}`: `noOTF` keeps fourier-orns off its TU (fontspec) branch
+  // (fourier-orns.sty:11-27), so under the xetex/luatex personas too each ornament is a slot of the `futs` font,
+  // decoded by `futs_fontmap.rs`; `latexml_contrib`'s `fourier_orns_sty` raw-loads the file.
+  // Guards `native_notes_bindings::fourier_orns_print_their_ornaments`, `fouriernc_and_euler_math_run_their_files`.
+  RequirePackage!("fourier-orns", options => vec![s!("noOTF")]);
   // fourier.sty:300-303: `\math@bb` is the fourier-bb blackboard alphabet, and `\mathbb` becomes
   // it at `\begin{document}`, over amsfonts' and over a preamble
   // `\renewcommand{\mathbb}{\varmathbb}` (2406.06884; fourier has no `\varmathbb`).
