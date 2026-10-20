@@ -17780,10 +17780,11 @@ that package has no binding here.
 `--includestyles` the package is skipped; with it, the `\AtBeginDocument` block (euler-math.sty:38-192) redefines
 `\hbar`, `\varPhi` (:49) and about ninety more symbols with `\Umathchardef` (92, :42-153). Perl's `\RequireTUTeX` is a
 no-op (`iftex.sty.ltxml:61`), so the raw file would not halt under pdfTeX there either.
-**Rust behavior**: `latexml_contrib/src/euler_math_sty.rs` is native: unicode-math with `math-style=upright`
-(:9), the key options (:19-26) accepted and ignored, nothing else. `\RequireTUTeX` (:8) is not run: the iftex binding
-passes it under every persona (`iftex_sty.rs`; witnesses 2605.02089, 2605.16477), so the package loads under the default
-persona as under luatex. `\Umathchardef` is an empty macro here, so a raw load would turn the redefined symbols into
+**Rust behavior**: `latexml_contrib/src/euler_math_sty.rs` is native: iftex (:7) and `\RequireTUTeX` (:8) as the file
+runs them, unicode-math with `math-style=upright` (:9), the key options (:19-26) accepted and ignored, nothing else. The
+iftex binding passes `\RequireTUTeX` under every persona (`iftex_sty.rs:91`; witnesses 2605.02089, 2605.16477), so the
+package loads under the default persona as under luatex, `\iftutex` stays defined, and a later change to that rule
+applies here. `\Umathchardef` is an empty macro here, so a raw load would turn the redefined symbols into
 nothing. Not provided: the `\setmathfont` features (:30-35) and the names only the file defines (`\varemptyset`,
 `\lesseqslantgtr`, …).
 
@@ -17800,4 +17801,4 @@ LaTeXML's hyperref binding lacks the internals the patches call (a raw load give
 `Error:undefined:\Hy@MakeCurrentHrefAuto` on `\book*{Bk}`), the native sectioning runs `\@startsection` (sect04.rs)
 rather than `\M@sect`, and the memoir and hyperref bindings already make the anchors and ids.
 
-**Guard**: `native_notes_bindings::memhfixc_is_a_no_op_for_memoir_with_hyperref`.
+**Guard**: `native_notes_bindings::memhfixc_provides_its_names_for_memoir_with_hyperref`.
