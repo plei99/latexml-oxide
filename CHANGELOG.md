@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+  - **fix: a group's `\raggedleft`/`\raggedright`/`\centering` aligns the paragraphs it finishes, not the one still
+    open at its end; `\vspace` inside a paragraph no longer splits it.** A title page
+    `\begingroup\raggedleft … \par {\Large University}\vspace*{\baselineskip}\endgroup` ended with the last line in
+    `<para class="ltx_align_right">`; TeX sets that paragraph with the shape in force at its `\par`, after the group
+    (flush left). An environment or box (figure, minipage, `\parbox`, quote, ...) and a paragraph with a `\\` in the group still align as before. `\vspace` in
+    horizontal mode is a `\vadjust` (latex.ltx:9522-9532), not a paragraph-ending `\vskip`. Beyond Perl:
+    OXIDIZED_DESIGN_DIVERGENCES #602 and #603; guards `paragraph_alignment_at_par::*`.
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
     (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,

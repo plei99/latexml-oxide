@@ -2335,6 +2335,33 @@ where FnR: FnOnce(&[Digested]) -> R {
   caller(&stomach.box_list[floor..])
 }
 
+/// Whether the paragraph being built is a line of leaders so far: a `\leaders` item (`\hrulefill`, `\dotfill`) and
+/// nothing else that prints. `\vspace` after such a line separates it from what follows (the fixture
+/// `50_structure::vspace_closes_leader_para`, arXiv 2302.11635).
+pub fn own_paragraph_is_leader_line() -> bool {
+  if lookup_string_from_sym(crate::pin!("MODE")) != "horizontal" {
+    return false;
+  }
+  with_own_box_list(|items| {
+    let mut leaders = false;
+    for item in items.iter().filter(|item| !is_list_tail_transparent(item)) {
+      match item.data() {
+        DigestedData::Whatsit(w) => match w.try_borrow() {
+          Ok(w) => match w.get_definition().get_cs_name().as_ref() {
+            "\\leaders" => leaders = true,
+            "\\kern" | "\\hskip" | "\\hfill" | "\\indent" | "\\leavevmode" => {},
+            _ => return false,
+          },
+          Err(_) => return false,
+        },
+        DigestedData::TBox(_) if item.to_string().trim().is_empty() => {},
+        _ => return false,
+      }
+    }
+    leaders
+  })
+}
+
 /// `\lastbox` at the start of a paragraph begun by a letter or `\leavevmode` takes its indent box (tex.web §1080),
 /// which LaTeXML does not list: the paragraph is then without one, and null if nothing follows (§1096). True when
 /// there was one to take.

@@ -1317,8 +1317,33 @@ fn setup_aligning_context(doc: &mut Document) {
     }
   }
 }
+/// Whether the group an `\@add@centering`-style hook closes ends with a paragraph still in progress, recorded as the
+/// whatsit's `paragraph_open` property: the group is a bare `{...}`, `\bgroup` or `\begingroup` (the frame's
+/// initiator) and digestion is in horizontal mode. An environment's group is taken to end its paragraph, as LaTeX's
+/// box environments do with the `\par` before their `\egroup` (a binding that is a vbox or minipage in LaTeX, such as
+/// beamer's `{column}`, is not declared `mode => "internal_vertical"` and would still be in horizontal mode here); a
+/// user `\newenvironment` whose end code has no `\par` is taken to end it too, which TeX does not.
+fn mark_paragraph_in_progress(whatsit: &mut Whatsit) {
+  let plain_group = lookup_token("groupInitiator")
+    .is_some_and(|t| matches!(t.to_string().as_str(), "{" | "\\bgroup" | "\\begingroup"));
+  if plain_group && lookup_string("MODE") == "horizontal" {
+    whatsit.set_property("paragraph_open", Stored::Bool(true));
+  }
+}
+
 /// Perl: applyAligningContext — applies align/class to children added AFTER \centering.
-fn apply_aligning_context(document: &mut Document, align: &str, class: &str) -> Result<()> {
+///
+/// `paragraph_open`: the group ends in the middle of a paragraph. TeX breaks a paragraph into lines
+/// at its `\par`, with the `\leftskip`/`\rightskip`/`\parfillskip` then in force (tex.web §1096
+/// `end_graf` calls `line_break`), so a paragraph that is still open when the group ends takes the
+/// enclosing group's shape, not this one's, and only the paragraphs finished inside the group are
+/// stamped. Perl stamps every later child. OXIDIZED_DESIGN_DIVERGENCES #602.
+fn apply_aligning_context(
+  document: &mut Document,
+  align: &str,
+  class: &str,
+  paragraph_open: bool,
+) -> Result<()> {
   // with_value avoids two Stored envelope clones; Node is Rc-backed so we
   // still pay a Rc::clone inside the closure but skip the enum match work.
   let node_opt = with_value("ALIGNING_NODE", |v| match v {
@@ -1349,6 +1374,24 @@ fn apply_aligning_context(document: &mut Document, align: &str, class: &str) -> 
     });
     let children = node.get_child_nodes();
     let mut past_previous = previous_opt.is_none(); // if no previous, apply to all
+    // The nodes from the insertion point up: the paragraph still open at the group's end is among them.
+    let mut open_chain = Vec::new();
+    if paragraph_open {
+      let mut cursor = document.get_element();
+      while let Some(n) = cursor {
+        cursor = n.get_parent();
+        open_chain.push(n);
+      }
+    }
+    // The aligned element is itself the open paragraph (`\raggedleft` typed inside it): nothing to stamp.
+    let node_is_open_paragraph =
+      open_chain.contains(&node) && document::get_node_qname(&node) == pin!("ltx:p");
+    // Inside a declaration `\\` is `\@centercr`, which ends the paragraph (latex.ltx:15619-15620 `\par`): an open
+    // paragraph that holds a break had its lines ended inside the group, and is stamped. The text after the last
+    // break should not be; LaTeXML has one `ltx:p` for all of it.
+    let ended_by_newline = |document: &mut Document, child: &Node| {
+      !document.findnodes(".//ltx:break", Some(child)).is_empty()
+    };
     for mut child in children {
       if !past_previous {
         if let Some(ref prev) = previous_opt
@@ -1356,6 +1399,11 @@ fn apply_aligning_context(document: &mut Document, align: &str, class: &str) -> 
         {
           past_previous = true;
         }
+        continue;
+      }
+      if (node_is_open_paragraph || open_chain.contains(&child))
+        && !ended_by_newline(document, &child)
+      {
         continue;
       }
       if child.get_type() == Some(NodeType::ElementNode) {

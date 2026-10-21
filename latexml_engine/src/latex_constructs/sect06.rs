@@ -233,16 +233,16 @@ pub(crate) fn load() -> Result<()> {
       unshift_value("beforeAfterGroup", vec![T_CS!("\\@add@raggedleft")]);
     });
 
-  DefConstructor!("\\@add@centering", sub[document] {
-    apply_aligning_context(document, "center", "ltx_centering")?;
-  });
+  DefConstructor!("\\@add@centering", sub[document, _args, props] {
+    apply_aligning_context(document, "center", "ltx_centering", props.get("paragraph_open").is_some())?;
+  }, after_digest => sub[whatsit] { mark_paragraph_in_progress(whatsit); });
   // Note that \raggedright is essentially align left (undef align, just class)
-  DefConstructor!("\\@add@raggedright", sub[document] {
-    apply_aligning_context(document, "", "ltx_align_left")?;
-  });
-  DefConstructor!("\\@add@raggedleft", sub[document] {
-    apply_aligning_context(document, "", "ltx_align_right")?;
-  });
+  DefConstructor!("\\@add@raggedright", sub[document, _args, props] {
+    apply_aligning_context(document, "", "ltx_align_left", props.get("paragraph_open").is_some())?;
+  }, after_digest => sub[whatsit] { mark_paragraph_in_progress(whatsit); });
+  DefConstructor!("\\@add@raggedleft", sub[document, _args, props] {
+    apply_aligning_context(document, "", "ltx_align_right", props.get("paragraph_open").is_some())?;
+  }, after_digest => sub[whatsit] { mark_paragraph_in_progress(whatsit); });
   DefConstructor!("\\@add@flushright", sub[document] {
     let node_opt = lookup_value("ALIGNING_NODE");
     if let Some(Stored::Node(node)) = node_opt {

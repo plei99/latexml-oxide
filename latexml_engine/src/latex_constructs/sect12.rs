@@ -211,7 +211,22 @@ pub(crate) fn load() -> Result<()> {
   // `<ltx:para>` stayed open and `<rule>` landed inside it).
   // ntheorem_test, plus the simpler `bigskip_test`, both confirm the
   // Perl-faithful expansion produces the expected sibling layout.
-  DefMacro!("\\vspace OptionalMatch:* {}", "\\vskip #2\\relax");
+  //
+  // In horizontal mode `\vspace` does not end the paragraph: latex.ltx:9522-9532 `\@vspace` puts the
+  // skip in a `\vadjust` there, and only `\ifvmode` takes a plain `\vskip`. `\vskip` itself would
+  // end the paragraph (tex.web §1094), splitting `text \vspace{1ex} more` into two `ltx:para`, and
+  // would close the trailing paragraph of a `\raggedleft` group inside the group.
+  // A line of nothing but leaders (`\hrulefill\vspace*{4pt}` between float rows) keeps the `\vskip`, which ends it,
+  // although TeX continues the paragraph: the fixture `50_structure::vspace_closes_leader_para` and arXiv
+  // 2302.11635 (WISDOM #38, DIVERGENCES #97) need the rule on a line of its own, or the float panels after it join its
+  // `ltx:p`. OXIDIZED_DESIGN_DIVERGENCES #603.
+  DefConditional!("\\iflx@leader@line", { own_paragraph_is_leader_line() });
+  // latex.ltx:9522-9532 wraps the `\vadjust` in `\@bsphack…\@esphack`, which ignores the space after it when a
+  // glue came before (:9433-9445): `baz \vspace{5pt} qux` reads "baz qux". Robust, as `\DeclareRobustCommand`
+  // (:9521).
+  DefMacro!("\\vspace OptionalMatch:* {}",
+    "\\ifvmode\\vskip #2\\relax\\else\\iflx@leader@line\\vskip #2\\relax\\else\\ifdim\\lastskip>\\z@\\vadjust{\\vskip #2\\relax}\\ignorespaces\\else\\vadjust{\\vskip #2\\relax}\\fi\\fi\\fi",
+    protected => true);
   def_primitive_noop("\\addvspace {}")?;
   def_primitive_noop("\\addpenalty {}")?;
   def_primitive_noop("\\@endparenv")?;

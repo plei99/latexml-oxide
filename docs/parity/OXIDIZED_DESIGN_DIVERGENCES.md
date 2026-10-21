@@ -17964,3 +17964,55 @@ The entries' per-field markup (`ltx:bibentry`'s
   once at load as biblatex.def:2184-2203 does. The label's collation (`sorting=anyt`) and `extraalpha` are #582's.
 
 **Guards**: `cluster_package_guards::biblatex_standard_layout::*`.
+
+### 602. A ragged or centred group shapes the paragraphs it finishes, not the one still open at its end (Perl: every paragraph the group added)
+
+TeX breaks a paragraph into lines at its `\par` (tex.web §1096 `end_graf`, §877 `line_break`) with the
+`\leftskip`/`\rightskip`/`\parfillskip` in force then, which latex.ltx sets in `\centering`, `\raggedright` and
+`\raggedleft` (:15626-15640). A group that ends in the middle of a paragraph restores them before that `\par`, so
+the paragraph takes the enclosing shape: a title page `\begingroup\raggedleft … Title\par \vfill {\Large Some
+University}\endgroup` followed by a blank line has the title right-aligned and the last line flush left.
+
+Perl's `\@add@centering`/`\@add@raggedright`/`\@add@raggedleft` (latex_constructs.pool.ltxml:1226-1259,
+`applyAligningContext`) run when the group closes and stamp every element the group added after
+`\raggedleft` — the open paragraph too — so the last line was `<para class="ltx_align_right">`.
+
+Rust records at digestion whether a bare `{...}`, `\bgroup` or `\begingroup` closes in horizontal mode
+(`mark_paragraph_in_progress`, latex_constructs/mod.rs; the frame's `groupInitiator`). Every environment's group is
+taken to end its paragraph, as LaTeX's `\par` before the `\egroup` of its box environments (`{figure}`, `{minipage}`,
+`{quote}`, a list, a theorem, beamer's `{column}`): those keep stamping everything. When a plain group closes with the
+paragraph open, `apply_aligning_context` skips the child that holds the insertion point (and all children when the
+aligned element is itself the open `ltx:p`). The paragraphs finished inside the group are stamped as before.
+Inside a declaration `\\` is `\@centercr`, which ends the paragraph with `\par` (latex.ltx:15619-15626), so an open
+paragraph that holds an `ltx:break` is stamped whole (`{\centering A\\ B}` aligns B too, where TeX leaves B to the
+paragraph after the group; LaTeXML has one `ltx:p`, and `\newline` makes the same break). Not modelled: a declaration
+typed inside a paragraph that ends within the group (`{A \centering text\par}`) aligns nothing, as before (the
+paragraph is not a child added after the declaration); a user `\newenvironment` whose end code has no `\par` ends its
+paragraph, which TeX's does not.
+
+**Guards**: `cluster_package_guards::paragraph_alignment_at_par::*`. Golden: `perfect_kernel_batch64x::pos_has_no_jhep_journal_macros`
+sets `\begingroup\raggedright …\endgroup` and a paragraph that ends at `\end{document}`.
+
+### 603. `\vspace` in horizontal mode is a `\vadjust` and does not end the paragraph (Perl: `\vskip`)
+
+latex.ltx:9522-9532 `\@vspace` (and :9534-9550 `\@vspacer` for `\vspace*`) takes a plain `\vskip` only under
+`\ifvmode`; in horizontal mode the skip is `\vadjust{…}`, so the paragraph goes on and the space follows its line.
+Perl and the Rust port defined `\vspace` as `\vskip #2\relax` (latex_constructs.pool.ltxml:4643),
+and a `\vskip` in horizontal mode ends the paragraph (tex.web §1094 `head_for_vmode`): `baz \vspace{5pt} qux` became two
+`ltx:para`, and a `\vspace*` at the end of a `\raggedleft` group closed the open paragraph inside the group, which made
+#602's alignment unreachable. Rust defines `\vspace` as `\ifvmode\vskip #2\relax\else\vadjust{\vskip #2\relax}\fi`
+(sect12.rs); `\bigskip`, `\medskip` and `\smallskip` (`\vspace\…amount`) follow. The `\vadjust` material is the
+engine's (tex_paragraph.rs: queued to the paragraph's end, where the vertical space has no markup). The `\vspace*` rule
+that LaTeX adds in vertical mode is still not modelled. One exception keeps the `\vskip`, though TeX continues the
+paragraph there (`\hrulefill` starts with `\leavevmode`, and `\hrulefill\vspace*{4pt} Second` is one paragraph with the
+space after its line): a paragraph that holds only leaders so far (`\hrulefill\vspace*{4pt}` between float rows, #97,
+WISDOM #38, arXiv 2302.11635; `stomach::own_paragraph_is_leader_line`, `\iflx@leader@line`). The rule is a line of its
+own there and the float panels after it must not join its `ltx:p` (a captioned minipage in a `<p>` is schema-invalid);
+`50_structure::vspace_closes_leader_para` pins it. A leader inside a font or colour group is not recognised. The
+witness 2302.11635 could not be re-converted here (no corpus on this host): the fixture is its reduction. The space
+after the `\vadjust` is ignored when glue came before it (`\@bsphack…\@esphack`, latex.ltx:9433-9445), and the macro is
+protected, as `\DeclareRobustCommand` (:9521). The `\vadjust` material is queued globally, not per cell or row as in
+TeX (§799); the skip's row height in a cell is lost. Golden: `82_moderncv::cs_cv` (`\title{\vbox{A,\newline
+\vspace{1mm} B}}`) now keeps `A` and `B` in one `ltx:p`, as the vbox's one paragraph.
+
+**Guards**: `cluster_package_guards::paragraph_alignment_at_par::vspace_in_a_paragraph_does_not_split_it`.

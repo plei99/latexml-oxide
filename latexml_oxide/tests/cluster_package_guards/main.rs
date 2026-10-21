@@ -91,6 +91,7 @@ mod noexpand_input_ends;
 mod nul_byte_input;
 mod openright_kernel_contract;
 mod package_leads_56;
+mod paragraph_alignment_at_par;
 mod pgfkeys_sentinels;
 mod physics_qty_unparsed_argument;
 mod picture_makebox_offset;
