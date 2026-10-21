@@ -451,10 +451,14 @@ pub(crate) fn load() -> Result<()> {
 
   // Formatted item tags.
   // Really should be in the class file, but already was here.
-  DefMacro!("\\labelitemi", "\\textbullet");
-  DefMacro!("\\labelitemii", "\\normalfont\\bfseries \\textendash");
-  DefMacro!("\\labelitemiii", "\\textasteriskcentered");
-  DefMacro!("\\labelitemiv", "\\textperiodcentered");
+  // article.cls:355-359 (book.cls:457-461, report.cls:430-434): every bullet starts `\labelitemfont`, which is
+  // `\normalfont`, so a bullet is upright in an italic theorem while the enumerate label beside it is italic
+  // (`\showbox\@labels`). Perl: bare `\textbullet` (latex_constructs.pool.ltxml:1530-1533), the font of the context.
+  DefMacro!("\\labelitemfont", "\\normalfont");
+  DefMacro!("\\labelitemi", "\\labelitemfont \\textbullet");
+  DefMacro!("\\labelitemii", "\\labelitemfont \\bfseries \\textendash");
+  DefMacro!("\\labelitemiii", "\\labelitemfont \\textasteriskcentered");
+  DefMacro!("\\labelitemiv", "\\labelitemfont \\textperiodcentered");
 
   // Make the fake counters point to the real labels
   DefMacro!("\\label@itemi", "\\labelitemi");

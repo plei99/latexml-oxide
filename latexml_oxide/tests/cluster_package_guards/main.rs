@@ -62,6 +62,7 @@ mod href_semiverbatim_loop;
 mod hyperlink_bounded;
 mod hyperref_colorlinks;
 mod ifnextchar_scans;
+mod item_label_font;
 mod localrawstyles_keeps_searchpaths;
 mod lstinputlisting_range_crlf;
 mod lua_state_mirror;

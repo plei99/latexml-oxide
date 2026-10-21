@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+  - **An `\item`'s label is set in the font in force at the `\item`.** The `1.` `2.` of an `enumerate` inside a
+    `plain`-style theorem were upright beside italic item text (Perl builds every tag after `neutralizeFont` and
+    `\normalfont`, Base_Utility.pool.ltxml:1005, 1041; KNOWN_PERL_ERRORS #667); LaTeX's `\@item` sets `\makelabel{#1}` in
+    the list's current font (latex.ltx:16196, :16245), so they are italic, small in a `\small` list and red in a red one.
+    The displayed `ltx:tag` now carries that font (divergence #604); the `refnum` and `typerefnum` tags, which `\ref`
+    copies, do not, a description label keeps its bold upright, enumitem's `font=` adds to the context's and a footnote in
+    a label is set as one in the text. Bullets stay upright, as in LaTeX: the kernel's `\labelitemi`..`iv` start with
+    `\labelitemfont` (`\normalfont`, article.cls:355-359). Guards `item_label_font::*`.
+
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
     (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,
