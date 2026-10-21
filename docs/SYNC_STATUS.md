@@ -66,6 +66,7 @@ affected** → **is it unblocked** → **effort**.
 | **R4** | `--preload=<cls>` trips the LaTeX hook stack (`Extra \PopDefaultHookLabel`) | **OPEN**, re-verified (1 error with `--preload=article.cls`, 0 without). Pool load reordering | medium | Open items §R4 |
 | **R6** | **`Collector::rescan` Refactor for Generated Backmatter** | **OPEN**; `Scan` owns `ObjectDB` by value; generated backmatter lacks full relations/labels | medium | Open items §R6 |
 | **R7** | Presentation-MathML **F5** Linebreaker | **OPEN**, full linebreaker feature gap needing a port-or-drop scope decision | family | Open items §R7 |
+| **M1** | **`\selectfont` in math merges the text font's family, series and shape.** Only `\@setfontsize` is guarded (OD #288): a raw class's `\fontsize{…}{…}\selectfont`, `\usefont` or `\bfseries` met in math still turns the math letters that follow upright or bold, where TeX's `\selectfont` never chooses the math font (`\@nomath` only warns). Not fixed generally because packages select a symbol font in math this way (`\fontencoding{U}\fontfamily{msb}\selectfont`) | **OPEN**, found with the memoir `\scriptsize` repro | small-medium | [`parity/OXIDIZED_DESIGN_DIVERGENCES.md`](parity/OXIDIZED_DESIGN_DIVERGENCES.md) #288 |
 
 ---
 

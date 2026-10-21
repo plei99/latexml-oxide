@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+  - **A raw class's size command no longer turns math letters upright.** `\@setfontsize` ended in
+    `\selectfont`, which merges the text font's family, series and shape; run in math (memoir's
+    `\DeclareRobustCommand{\scriptsize}{\@setfontsize…}`, mem10.clo:70, as `\substack`'s
+    `style=\scriptsize`) it made every letter of the stacked subscript `mathvariant="normal"`. In math
+    it now runs only the size update, as the class bindings' own size switches do. A raw
+    `\fontsize…\selectfont` or `\usefont` in math still merges the text shape (SYNC_STATUS M1).
+    Guards `math_layout_parity::{raw_size_switch_keeps_math_italic, memoir_substack_keeps_math_italic}`
+    (OXIDIZED_DESIGN_DIVERGENCES #288).
+
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
     loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,

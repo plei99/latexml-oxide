@@ -9487,6 +9487,12 @@ at 10 pt instead of 10.95 pt and warns "Bad type area settings!" (765 KOMA-Scrip
   kernel's deferral does. The update disarms itself before its `\hbox`, not after, so it cannot
   re-enter.
 - `\@setfontsize` runs `\fontsize{#2}{#3}\selectfont` inside its `\@typeset@protect` guard.
+  In math it runs `\fontsize{#2}{#3}\size@update` instead: the math font in force is not chosen by
+  `\selectfont` (the class bindings' size switches skip it in math, dialect.rs), and the text font's upright
+  shape it merged turned every letter of a raw class's `\scriptsize` upright, memoir's
+  (`\DeclareRobustCommand{\scriptsize}{\@setfontsize…}`, mem10.clo:70) in `\substack`'s `style=\scriptsize`
+  (a `\substack` under a limit or sum in a memoir document). Guards
+  `cluster_package_guards::math_layout_parity::{raw_size_switch_keeps_math_italic, memoir_substack_keeps_math_italic}`.
 - The class bindings' size switches (`font => {size => …}`) record `\f@size` through the font merge
   (content.rs `merge_font_ref`, #309) and end in `\selectfont` (dialect.rs).
 - A preamble `\@setfontsize\normalsize…` sets `NOMINAL_FONT_SIZE`, as a0poster's binding does, so an
