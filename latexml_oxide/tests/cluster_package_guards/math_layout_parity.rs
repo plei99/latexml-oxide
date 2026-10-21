@@ -141,6 +141,119 @@ fn script_ending_in_a_star_parses() {
   );
 }
 
+/// fixdif's `\partial` is `\mathinner{\partial}\fd@mu@p` with `\fd@mu@p` a `\mathchoice` of four choices
+/// (`\mskip-\thinmuskip` in the first two) followed by an extra `{}` (fixdif.sty:52, :64, :70-75): that
+/// group is the empty nucleus of a following `_i`, which TeX sets beside the `\partial` the negative glue
+/// pulled back. Perl floats the script, so `\partial_i\partial_{\bar j}K` has `i` as a prescript of the
+/// second `\partial` and `\partial_{z^i}.` stays unparsed (OXIDIZED_DESIGN_DIVERGENCES #600). A script on an
+/// empty group with no such space still floats (`x{}^{14}_{6}C`), and one after another script stays
+/// staggered, as in TeX (`\Gamma^{\lambda}\!{}_{\mu\nu}` as `T^{a}{}_{b}`), while `X\!{}^{a}y` is `X`'s. The
+/// dropped group stays in the script's `tex=` reversion. An operator with limits (`\sum`, `\lim` in a
+/// display) keeps the script floating: bound, it would stand under the operator where TeX sets it beside.
+#[test]
+fn fixdif_script_binds_to_its_partial() {
+  let (stderr, html) = convert_html(
+    "\\documentclass{article}\n\\usepackage{amsmath}\n\\makeatletter\n\
+     \\def\\fd@mu@p{\\mathchoice{\\mskip-\\thinmuskip}{\\mskip-\\thinmuskip}{}{}{}}\n\
+     \\let\\partialnondif\\partial\n\
+     \\DeclareRobustCommand\\partial{\\mathinner{\\partialnondif}\\fd@mu@p}\n\\makeatother\n\
+     \\begin{document}\n\
+     \\[ G = \\partial_i \\partial_{\\bar j} K \\]\n\
+     \\[ \\mu = \\sum_{i,j} \\mu^i_{\\bar\\jmath} \\otimes \\partial_{z^i}. \\]\n\
+     $x{}^{14}_{6}C$ $\\frac{\\partial^2 f}{\\partial x^2}$\n\
+     $X\\!{}^{a}y$\n\\[ \\sum\\!{}_{i} a \\qquad \\lim\\!{}_{x} f \\]\n\\end{document}\n",
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert!(!html.contains("ltx_math_unparsed"), "{html}");
+  assert_element(
+    &html,
+    "math",
+    &["id=\"S0.Ex1.m1\""],
+    r##"<math id="S0.Ex1.m1" class="ltx_Math" alttext="G=\mathinner{\partial}\mathchoice{\mskip-3.0mu}{\mskip-3.0mu}{}{}{}_{i}\mathinner{\partial}\mathchoice{\mskip-3.0mu}{\mskip-3.0mu}{}{}{}_{\bar{j}}K" display="block"><mrow><mi>G</mi><mo rspace="0.111em">=</mo><mrow><msub><mpadded style="width:0.416em;" width="0.416em"><mo>∂</mo></mpadded><mi>i</mi></msub><mrow><msub><mpadded style="width:0.416em;" width="0.416em"><mo>∂</mo></mpadded><mover accent="true"><mi>j</mi><mo>¯</mo></mover></msub><mi>K</mi></mrow></mrow></mrow></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"S0.Ex2.m1\""],
+    r##"<math id="S0.Ex2.m1" class="ltx_Math" alttext="\mu=\sum_{i,j}\mu^{i}_{\bar{\jmath}}\otimes\mathinner{\partial}\mathchoice{\mskip-3.0mu}{\mskip-3.0mu}{}{}{}_{z^{i}}." display="block"><mrow><mrow><mi>μ</mi><mo rspace="0.111em">=</mo><mrow><munder><mo movablelimits="false">∑</mo><mrow><mi>i</mi><mo>,</mo><mi>j</mi></mrow></munder><mrow><msubsup><mi>μ</mi><mover accent="true"><mi>ȷ</mi><mo>¯</mo></mover><mi>i</mi></msubsup><mo lspace="0.222em" rspace="0.055em">⊗</mo><msub><mpadded style="width:0.416em;" width="0.416em"><mo>∂</mo></mpadded><msup><mi>z</mi><mi>i</mi></msup></msub></mrow></mrow></mrow><mo>.</mo></mrow></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"p1.m1\""],
+    r##"<math id="p1.m1" class="ltx_Math" alttext="x{}^{14}_{6}C" display="inline"><mrow><mi>x</mi><mo>⁢</mo><mmultiscripts><mi>C</mi><mprescripts></mprescripts><mn>6</mn><mn>14</mn></mmultiscripts></mrow></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"p1.m2\""],
+    r##"<math id="p1.m2" class="ltx_Math" alttext="\frac{\mathinner{\partial}\mathchoice{\mskip-3.0mu}{\mskip-3.0mu}{}{}{}^{2}f}{\mathinner{\partial}\mathchoice{\mskip-3.0mu}{\mskip-3.0mu}{}{}{}x^{2}}" display="inline"><mfrac><mrow><msup><mo>∂</mo><mn>2</mn></msup><mi>f</mi></mrow><mrow><mo>∂</mo><msup><mi>x</mi><mn>2</mn></msup></mrow></mfrac></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"p1.m3\""],
+    r##"<math id="p1.m3" class="ltx_Math" alttext="X\!{}^{a}y" display="inline"><mrow><msup><mi>X</mi><mi>a</mi></msup><mo>⁢</mo><mi>y</mi></mrow></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"S0.Ex3.m1\""],
+    r##"<math id="S0.Ex3.m1" class="ltx_Math" alttext="\sum\!{}_{i}a\qquad\lim\!{}_{x}f" display="block"><mrow><mrow><mpadded style="width:1.053em;" width="1.053em"><mo movablelimits="false">∑</mo></mpadded><mmultiscripts><mi>a</mi><mprescripts></mprescripts><mi>i</mi><mrow></mrow></mmultiscripts></mrow><mspace style="width:2.167em;" width="2.167em"></mspace><mrow><mpadded style="width:1.538em;" width="1.538em"><mo movablelimits="false">lim</mo></mpadded><mmultiscripts><mi>f</mi><mprescripts></mprescripts><mi>x</mi><mrow></mrow></mmultiscripts></mrow></mrow></math>"##,
+  );
+}
+
+/// A script after another script stays a nucleus of its own in TeX: `\Gamma^{\lambda}\!{}_{\mu\nu}` keeps
+/// `\mathord{}` with `_{\mu\nu}` after the glue (`\showlists`), staggered as `T^{a}{}_{b}` is. The empty group
+/// is not dropped and the script floats; the formula is unparsed in Perl as well, which has no stagger
+/// rule for it (OXIDIZED_DESIGN_DIVERGENCES #600).
+#[test]
+fn script_after_a_script_stays_staggered() {
+  let (stderr, html) = convert_html(
+    "\\documentclass{article}\n\\usepackage{amsmath}\n\\begin{document}\n\
+     $\\Gamma^{\\lambda}\\!{}_{\\mu\\nu}$ $T^{a}{}_{b}$\n\\end{document}\n",
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 2, "{stderr}");
+  assert_eq!(
+    stderr.matches("Warning:unparsed_math:").count(),
+    2,
+    "{stderr}"
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"p1.m1\""],
+    r##"<math id="p1.m1" class="ltx_math_unparsed" alttext="\Gamma^{\lambda}\!{}_{\mu\nu}" display="inline"><mrow><msup><mi mathvariant="normal">Γ</mi><mi>λ</mi></msup><msub><mrow></mrow><mrow><mi>μ</mi><mo>⁢</mo><mi>ν</mi></mrow></msub></mrow></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"p1.m2\""],
+    r##"<math id="p1.m2" class="ltx_math_unparsed" alttext="T^{a}{}_{b}" display="inline"><mrow><msup><mi>T</mi><mi>a</mi></msup><msub><mrow></mrow><mi>b</mi></msub></mrow></math>"##,
+  );
+}
+
+/// The package itself, which loads raw (`native_notes_bindings.rs`): its `\partial` and `\d` bind their
+/// scripts as the macro written out above.
+#[test]
+fn fixdif_package_script_binds_to_its_partial() {
+  let (stderr, html) = convert_html(
+    "\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{fixdif}\n\\begin{document}\n\
+     \\[ G = \\partial_i \\partial_{\\bar j} K \\qquad \\d{x}_i \\]\n\\end{document}\n",
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert!(!html.contains("ltx_math_unparsed"), "{html}");
+  assert_element(
+    &html,
+    "math",
+    &["id=\"S0.Ex1.m1\""],
+    r##"<math id="S0.Ex1.m1" class="ltx_Math" alttext="G=\mathinner{\partial}\mathchoice{\mskip-3.0mu}{\mskip-3.0mu}{}{}{}_{i}\mathinner{\partial}\mathchoice{\mskip-3.0mu}{\mskip-3.0mu}{}{}{}_{\bar{j}}K\qquad\mathinner{\mathrm{d}}\mathchoice{\mskip-3.0mu}{\mskip-3.0mu}{}{}{}{x}_{i}" display="block"><mrow><mrow><mi>G</mi><mo rspace="0.111em">=</mo><mrow><msub><mpadded style="width:0.416em;" width="0.416em"><mo>∂</mo></mpadded><mi>i</mi></msub><mrow><msub><mpadded style="width:0.416em;" width="0.416em"><mo>∂</mo></mpadded><mover accent="true"><mi>j</mi><mo>¯</mo></mover></msub><mi>K</mi></mrow></mrow></mrow><mspace style="width:2.000em;" width="2.000em"></mspace><mrow><mpadded style="width:0.350em;" width="0.350em"><mo>d</mo></mpadded><msub><mi>x</mi><mi>i</mi></msub></mrow></mrow></math>"##,
+  );
+}
+
 /// Perl runs its kludge on every failed parse (MathParser.pm:322, :374), and it keeps the wide
 /// spaces `filter_hints` made into punctuation. Ours ran it only for formulae with fences and read
 /// the hints once, unlinking them, so a formula left unparsed with no parenthesis kept its scripts as

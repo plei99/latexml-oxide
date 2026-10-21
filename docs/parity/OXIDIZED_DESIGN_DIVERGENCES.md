@@ -17869,3 +17869,29 @@ U+0302 for an operator named `widehat`; `\hat` keeps `^`, written `<mo>^</mo>` w
 `~`: U+0303 does not stretch in those fonts either, and no encoding of it was found that does.
 
 **Guard**: `cluster_package_guards::math_layout_parity::widehat_stretches_with_u0302`.
+
+### 600. A script on an empty group that follows negative math space belongs to the atom before the space (Perl: it floats)
+
+**Perl behavior**: `scriptHandler` (`TeX_Math.pool.ltxml:374-421`) drops an empty `{}` before a script and floats the
+script, so it becomes the prescript of whatever atom follows. fixdif's `\partial` and `\d` are
+`\mathinner{\partial}\fd@mu@p`, with `\def\fd@mu@p{\mathchoice{\mskip-\thinmuskip}{\mskip-\thinmuskip}{}{}{}}`
+(fixdif.sty:52, :64, :67, :70-75): a `\mathchoice` of four choices, then an extra `{}`, which TeX makes the empty
+nucleus of a following `_i`, set beside the `\partial` pulled back by the negative glue. In Perl
+`\partial_i\partial_{\bar j}K` is `\partial`, then `i` as a prescript (`pre1`) of the second `\partial`, then `\bar j` as a
+prescript of `K`; `\partial_{z^i}.` stays unparsed. The script's reversion (`tex=`) keeps the `{}`.
+**Rust behavior**: `script_handler` (`tex_math.rs`) looks one box further when it meets the empty group: if that box is
+a negative math space (`\mskip`, `\mkern`, `\!`, or a `\mathchoice` whose choice for its style is one or is empty, as
+fixdif's is in script styles: `\frac{\partial^2 f}{…}` inline) and the box before the space
+is a plain atom (not a script, not empty), the empty group is dropped and the script is that atom's. After a script the
+`{}` stays a nucleus of its own, as in TeX (`\Gamma^{\lambda}\!{}_{\mu\nu}` is staggered, `\showlists` keeps
+`\mathord{}` with `_{\mu\nu}`), and the script floats as before; so does a script after an empty group with no such
+space (`{}^{14}_{6}C`). An atom with a limits position (`mid`: `\sum`, `\lim` in display style) is not bound to
+either: `\sum\!{}_{i}a_i` floats, because the script would inherit the position and stand under the operator, where TeX
+sets it beside (`\mathop` unscripted, glue, `\mathord{}` with `_i`). An empty `\mathchoice` branch counts as negative
+space, so `a\mathchoice{}{}{}{}{}_i` binds while `a{}_i` floats. The dropped group is recorded on the script's whatsit (`emptygroup`), and its reversion gives the
+`{}` back, so `tex=` is unchanged. A bound script overlaps its `\partial` by the 0.094em the `\mskip-\thinmuskip` takes
+from the `mpadded` width: TeX's thin space between the `\mathinner` and the following ordinary atom cancels it, which
+the post-processor does not model.
+
+**Guard**: `cluster_package_guards::math_layout_parity::fixdif_script_binds_to_its_partial` (the macro as written out, the
+package itself, a staggered tensor index, `X\!{}^{a}y`).
