@@ -137,7 +137,13 @@ fn boxes_and_environments_still_align_their_last_paragraph() {
   ] {
     assert_eq!(xml.matches(element).count(), 1, "{element}\n{xml}");
   }
-  assert_eq!(xml.matches("D center env").count(), 1, "{xml}");
+  assert_eq!(
+    xml
+      .matches("<para xml:id=\"p6\">\n    <p align=\"center\">D center env</p>\n  </para>")
+      .count(),
+    1,
+    "{xml}"
+  );
 }
 
 /// `\vspace` between two words of one paragraph is a `\vadjust`: one paragraph, as in the PDF.
@@ -154,11 +160,76 @@ fn vspace_in_a_paragraph_does_not_split_it() {
   );
 }
 
-/// `\vspace` in a table cell and in a formula is a `\vadjust` there too: it converts cleanly and leaves its text.
+/// `\vspace` in an alignment row or a formula inside a paragraph: TeX sets its `\vadjust` material after the row or the
+/// line, and the paragraph around the display goes on. Two paragraphs here would split before the equation.
 #[test]
-fn vspace_in_a_cell_and_in_a_formula_converts_cleanly() {
-  let xml =
-    xml_of("\\begin{tabular}{ll}a & \\vspace{2mm} b\\\\\\end{tabular}\n\n$a\\vspace{1pt}b$\n");
+fn vspace_in_a_row_or_a_formula_leaves_the_paragraph_whole() {
+  let (stderr, xml) = super::convert(
+    "\\documentclass{article}\n\\usepackage{amsmath}\n\\begin{document}\nWe have\n\
+     \\begin{align} a&=b \\\\ \\vspace{2mm} c&=d \\end{align}\nand therefore\n\
+     \\begin{equation} e=f \\end{equation}\nwhich ends the argument.\n\n\
+     Lead \\begin{tabular}{ll}a & \\vspace{5mm} b\\\\ c & d\\end{tabular}\nmiddle $a\\vspace{1mm}b$ text\n\
+     \\[ x \\]\nafter display.\n\nNext.\n\\end{document}\n",
+    false,
+  );
+  assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+  assert_eq!(
+    super::perfect_kernel_batch46::warning_count(&stderr),
+    0,
+    "{stderr}"
+  );
+  let ids: Vec<&str> = paras(&xml)
+    .iter()
+    .map(|p| {
+      p.split("xml:id=\"")
+        .nth(1)
+        .and_then(|r| r.split('"').next())
+        .unwrap()
+    })
+    .collect();
+  assert_eq!(ids, ["p1", "p2", "p3"], "{xml}");
   assert_eq!(xml.matches("<td align=\"left\">b</td>").count(), 1, "{xml}");
-  assert_eq!(xml.matches("<Math mode=\"inline\"").count(), 1, "{xml}");
+  assert_eq!(xml.matches("a\\vskip 2.84526ptb").count(), 1, "{xml}");
+}
+
+/// Float rows separated by a rule line (arXiv 2302.11635, IEEEtran `figure*`): `\hrulefill\vspace*` after two
+/// minipages of one paragraph ends that paragraph, and each captioned minipage stays a panel of its own with its
+/// caption, in the one figure.
+#[test]
+fn vspace_after_a_rule_line_closes_the_paragraph_of_the_minipages() {
+  let panel = |text: &str| {
+    format!(
+      "\\begin{{minipage}}{{0.48\\textwidth}}\\centering {text}\\caption{{{text}}}\\end{{minipage}}"
+    )
+  };
+  let (stderr, xml) = super::convert(
+    &format!(
+      "\\documentclass{{article}}\n\\begin{{document}}\n\\begin{{figure*}}\n{}\\hfill\n{}\n\\hrulefill\n\\vspace*{{4pt}}\n{}\\hfill\n{}\n\\vspace*{{4pt}}\n{}\n\\end{{figure*}}\n\\end{{document}}\n",
+      panel("One"),
+      panel("Two"),
+      panel("Three"),
+      panel("Four"),
+      panel("Five")
+    ),
+    false,
+  );
+  assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+  assert_eq!(
+    super::perfect_kernel_batch46::warning_count(&stderr),
+    0,
+    "{stderr}"
+  );
+  assert_eq!(xml.matches("<figure ").count(), 6, "{xml}");
+  assert_eq!(xml.matches("<figure xml:id=\"fig1\">").count(), 1, "{xml}");
+  for (n, text) in ["One", "Two", "Three", "Four", "Five"].iter().enumerate() {
+    let n = n + 1;
+    let panel = format!(
+      "<figure class=\"ltx_figure_panel ltx_minipage\" inlist=\"lof\" vattach=\"middle\" width=\"165.6pt\" xml:id=\"S0.F{n}\">"
+    );
+    let caption = format!(
+      "<caption class=\"ltx_centering\"><tag close=\": \">Figure {n}</tag>{text}</caption>"
+    );
+    assert_eq!(xml.matches(&panel).count(), 1, "{panel}\n{xml}");
+    assert_eq!(xml.matches(&caption).count(), 1, "{caption}\n{xml}");
+  }
 }

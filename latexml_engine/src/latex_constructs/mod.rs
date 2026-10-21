@@ -1387,10 +1387,13 @@ fn apply_aligning_context(
     let node_is_open_paragraph =
       open_chain.contains(&node) && document::get_node_qname(&node) == pin!("ltx:p");
     // Inside a declaration `\\` is `\@centercr`, which ends the paragraph (latex.ltx:15619-15620 `\par`): an open
-    // paragraph that holds a break had its lines ended inside the group, and is stamped. The text after the last
-    // break should not be; LaTeXML has one `ltx:p` for all of it.
-    let ended_by_newline = |document: &mut Document, child: &Node| {
-      !document.findnodes(".//ltx:break", Some(child)).is_empty()
+    // paragraph with a break of its own (a direct child of its `ltx:p`; one inside an inline box ends nothing) had its
+    // lines ended inside the group, and is stamped. The text after the last break should not be; LaTeXML has one
+    // `ltx:p` for all of it, and `\newline` makes the same break.
+    let ended_by_newline = |document: &mut Document, para: &Node| {
+      !document
+        .findnodes("./ltx:break | ./ltx:p/ltx:break", Some(para))
+        .is_empty()
     };
     for mut child in children {
       if !past_previous {
@@ -1401,8 +1404,16 @@ fn apply_aligning_context(
         }
         continue;
       }
-      if (node_is_open_paragraph || open_chain.contains(&child))
-        && !ended_by_newline(document, &child)
+      let open = node_is_open_paragraph || open_chain.contains(&child);
+      if open
+        && !ended_by_newline(
+          document,
+          if node_is_open_paragraph {
+            &node
+          } else {
+            &child
+          },
+        )
       {
         continue;
       }

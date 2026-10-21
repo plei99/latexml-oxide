@@ -212,20 +212,23 @@ pub(crate) fn load() -> Result<()> {
   // ntheorem_test, plus the simpler `bigskip_test`, both confirm the
   // Perl-faithful expansion produces the expected sibling layout.
   //
-  // In horizontal mode `\vspace` does not end the paragraph: latex.ltx:9522-9532 `\@vspace` puts the
-  // skip in a `\vadjust` there, and only `\ifvmode` takes a plain `\vskip`. `\vskip` itself would
-  // end the paragraph (tex.web §1094), splitting `text \vspace{1ex} more` into two `ltx:para`, and
-  // would close the trailing paragraph of a `\raggedleft` group inside the group.
-  // A line of nothing but leaders (`\hrulefill\vspace*{4pt}` between float rows) keeps the `\vskip`, which ends it,
-  // although TeX continues the paragraph: the fixture `50_structure::vspace_closes_leader_para` and arXiv
-  // 2302.11635 (WISDOM #38, DIVERGENCES #97) need the rule on a line of its own, or the float panels after it join its
-  // `ltx:p`. OXIDIZED_DESIGN_DIVERGENCES #603.
-  DefConditional!("\\iflx@leader@line", { own_paragraph_is_leader_line() });
+  // In a paragraph (horizontal mode) `\vspace` does not end it: latex.ltx:9522-9532 `\@vspace` puts the skip in a
+  // `\vadjust` there, and only `\ifvmode` takes a plain `\vskip`. `\vskip` itself would end the paragraph (tex.web
+  // §1094), splitting `text \vspace{1ex} more` into two `ltx:para`, and would close the trailing paragraph of a
+  // `\raggedleft` group inside the group. Two cases keep the `\vskip`: restricted horizontal mode and math (a table
+  // cell, a formula), where TeX sets the material after the row or the line and the engine's one adjust queue would
+  // release it at the next display's `\par` and split the paragraph; and a paragraph whose last printing item is a
+  // `\leaders` (`\hrulefill\vspace*{4pt}` between float rows), although TeX continues the paragraph there: the
+  // fixture `50_structure::vspace_closes_leader_para` and arXiv 2302.11635 (WISDOM #38, DIVERGENCES #97) need the rule
+  // on a line of its own, or the float panels after it join its `ltx:p`. OXIDIZED_DESIGN_DIVERGENCES #603.
+  DefConditional!("\\iflx@vspace@vskip", {
+    lookup_string("MODE") != "horizontal" || own_paragraph_ends_in_leaders()
+  });
   // latex.ltx:9522-9532 wraps the `\vadjust` in `\@bsphack…\@esphack`, which ignores the space after it when a
-  // glue came before (:9433-9445): `baz \vspace{5pt} qux` reads "baz qux". Robust, as `\DeclareRobustCommand`
+  // glue came before (:9433-9449): `baz \vspace{5pt} qux` reads "baz qux". Robust, as `\DeclareRobustCommand`
   // (:9521).
   DefMacro!("\\vspace OptionalMatch:* {}",
-    "\\ifvmode\\vskip #2\\relax\\else\\iflx@leader@line\\vskip #2\\relax\\else\\ifdim\\lastskip>\\z@\\vadjust{\\vskip #2\\relax}\\ignorespaces\\else\\vadjust{\\vskip #2\\relax}\\fi\\fi\\fi",
+    "\\iflx@vspace@vskip\\vskip #2\\relax\\else\\ifdim\\lastskip>\\z@\\vadjust{\\vskip #2\\relax}\\ignorespaces\\else\\vadjust{\\vskip #2\\relax}\\fi\\fi",
     protected => true);
   def_primitive_noop("\\addvspace {}")?;
   def_primitive_noop("\\addpenalty {}")?;

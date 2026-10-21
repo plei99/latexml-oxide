@@ -2335,21 +2335,25 @@ where FnR: FnOnce(&[Digested]) -> R {
   caller(&stomach.box_list[floor..])
 }
 
-/// Whether the paragraph being built is a line of leaders so far: a `\leaders` item (`\hrulefill`, `\dotfill`) and
-/// nothing else that prints. `\vspace` after such a line separates it from what follows (the fixture
-/// `50_structure::vspace_closes_leader_para`, arXiv 2302.11635).
-pub fn own_paragraph_is_leader_line() -> bool {
+/// Whether the paragraph being built ends in leaders so far: its last item that prints, past spaces, `\kern`s, `\hskip`s
+/// and `\hfill`s (the `\kern\z@` that closes `\hrulefill`), is a `\leaders` item (`\hrulefill`, `\dotfill`). `\vspace`
+/// after such a line separates it from what follows (the fixture `50_structure::vspace_closes_leader_para`; arXiv
+/// 2302.11635, where the line follows two minipages of the same paragraph).
+pub fn own_paragraph_ends_in_leaders() -> bool {
   if lookup_string_from_sym(crate::pin!("MODE")) != "horizontal" {
     return false;
   }
   with_own_box_list(|items| {
-    let mut leaders = false;
-    for item in items.iter().filter(|item| !is_list_tail_transparent(item)) {
+    for item in items
+      .iter()
+      .rev()
+      .filter(|item| !is_list_tail_transparent(item))
+    {
       match item.data() {
         DigestedData::Whatsit(w) => match w.try_borrow() {
           Ok(w) => match w.get_definition().get_cs_name().as_ref() {
-            "\\leaders" => leaders = true,
-            "\\kern" | "\\hskip" | "\\hfill" | "\\indent" | "\\leavevmode" => {},
+            "\\leaders" => return true,
+            "\\kern" | "\\hskip" | "\\hfill" => {},
             _ => return false,
           },
           Err(_) => return false,
@@ -2358,7 +2362,7 @@ pub fn own_paragraph_is_leader_line() -> bool {
         _ => return false,
       }
     }
-    leaders
+    false
   })
 }
 
