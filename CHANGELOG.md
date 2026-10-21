@@ -14,6 +14,15 @@
     description labels and every `\textit`, `\textsl` and `\scshape` (no error), printed `T1` for `\fontencoding{T1}` and
     printed a `\jfont` spec. Where raw TeX Live packages are read (`rawstyles`) the genuine files still load. `luatexja-otf`, `luatexja-ruby` and `luatexja-ajmacros` stay unbound (their text comes from
     `\directlua`). Divergence #614. Guards `cluster_package_guards::native_notes_bindings::luatexja_*`.
+  - **TikZ path fadings fade.** `\fill[white, path fading=fade right]` (and `scope fading`, `\pgfsetfading`, the `east`,
+    `circle with fuzzy edge 10 percent`… fadings of the library, `\tikzfading`, `tikzfadingfrompicture`) drew an opaque
+    shape: the driver's `\pgfsys@fadingfrombox`/`\pgfsys@usefading` were no-ops (Perl: `# NOT IMPLEMENTED`). The fading's
+    box is now an `svg:mask` placed as the pdf driver places its soft mask, referenced by the faded path's group; a second
+    fading in a scope replaces the first, an undefined name is an error, as in pgf, and a fading with text in its box
+    (a `foreignObject` no browser paints in a mask) leaves the path unmasked with a warning. `\pgfsys@endscope` outside a
+    picture no longer leaves a space in the box (divergence #615). A shading's size read pixels as points, so a picture of
+    `\pgfuseshading` was 1.38 times too large and a node holding one placed it off its centre: both are exact now
+    (divergence #616; `unit_tests_by_silviu` regenerated). Guards `pgf_fadings::*`.
 
   - **A set-builder bar of class 3 keeps its relation spacing.** `\left\{d \delimiter"326A30C D\right\}` came out `d|D`,
     the bar with `lspace="0em" rspace="0em"`: the glyph's role (VERTBAR, MIDDLE in a fence) won over the class

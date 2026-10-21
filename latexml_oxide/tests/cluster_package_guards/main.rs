@@ -98,6 +98,7 @@ mod openright_kernel_contract;
 mod overline_box_size;
 mod package_leads_56;
 mod paragraph_alignment_at_par;
+mod pgf_fadings;
 mod pgfkeys_sentinels;
 mod physics_qty_unparsed_argument;
 mod picture_makebox_offset;

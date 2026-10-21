@@ -440,6 +440,13 @@ fn collapse_svg_group(document: &mut Document, node: &mut Node) -> Result<()> {
     for (key, val) in c.get_attributes() {
       if key.starts_with('_') || COLLAPSIBLE.contains(&key.as_str()) {
         av.insert(key, val);
+      } else if key == "transform" && nodeattr.contains_key("mask") {
+        // A mask lives in the user space of the group that refers to it, that group's `transform`
+        // included: the child's transform merged here would move the mask with it. The soft mask of the
+        // PDF graphics state stays where `gs` set it. Perl's rule for `clip-path` (TeX_Box.pool.ltxml:250) is the same;
+        // the fadings' masks are OXIDIZED_DESIGN_DIVERGENCES #615.
+        mergeable = false;
+        break;
       } else if key == "transform" {
         // Compose transforms: parent's transform + child's transform
         let composed = if let Some(parent_t) = nodeattr.get("transform") {

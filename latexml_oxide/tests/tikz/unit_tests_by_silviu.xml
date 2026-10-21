@@ -1035,7 +1035,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#808080"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh11);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -1818,7 +1818,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#000000"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh16);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -1837,7 +1837,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#000000"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh18);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -1856,7 +1856,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#000000"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh20);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -1887,7 +1887,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#800080"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh22);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -1912,7 +1912,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#800080"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh24);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -1922,9 +1922,9 @@ Hello</p>
       </picture>
     </para>
     <para xml:id="S14.p3">
-      <picture height="54.48" width="217.91" xml:id="S14.p3.pic1">
-        <svg:svg height="54.48" overflow="visible" version="1.1" viewBox="0 0 217.91 54.48" width="217.91">
-          <svg:g transform="translate(0,54.48) matrix(1 0 0 -1 0 0)">
+      <picture height="39.37" width="157.48" xml:id="S14.p3.pic1">
+        <svg:svg height="39.37" overflow="visible" version="1.1" viewBox="0 0 157.48 39.37" width="157.48">
+          <svg:g transform="translate(0,39.37) matrix(1 0 0 -1 0 0)">
             <svg:defs>
               <svg:linearGradient id="pgfsh25">
                 <svg:stop offset="0.0" stop-color="#FF0000"/>
@@ -1938,9 +1938,9 @@ Hello</p>
       </picture>
     </para>
     <para xml:id="S14.p4">
-      <picture height="54.48" width="108.95" xml:id="S14.p4.pic1">
-        <svg:svg height="54.48" overflow="visible" version="1.1" viewBox="0 0 108.95 54.48" width="108.95">
-          <svg:g transform="translate(0,54.48) matrix(1 0 0 -1 0 0)">
+      <picture height="39.37" width="78.74" xml:id="S14.p4.pic1">
+        <svg:svg height="39.37" overflow="visible" version="1.1" viewBox="0 0 78.74 39.37" width="78.74">
+          <svg:g transform="translate(0,39.37) matrix(1 0 0 -1 0 0)">
             <svg:defs>
               <svg:linearGradient id="pgfsh26">
                 <svg:stop offset="0.0" stop-color="#FF0000"/>
@@ -1953,9 +1953,9 @@ Hello</p>
       </picture>
     </para>
     <para xml:id="S14.p5">
-      <picture height="54.48" width="108.95" xml:id="S14.p5.pic1">
-        <svg:svg height="54.48" overflow="visible" version="1.1" viewBox="0 0 108.95 54.48" width="108.95">
-          <svg:g transform="translate(0,54.48) matrix(1 0 0 -1 0 0)">
+      <picture height="39.37" width="78.74" xml:id="S14.p5.pic1">
+        <svg:svg height="39.37" overflow="visible" version="1.1" viewBox="0 0 78.74 39.37" width="78.74">
+          <svg:g transform="translate(0,39.37) matrix(1 0 0 -1 0 0)">
             <svg:defs>
               <svg:linearGradient id="pgfsh27">
                 <svg:stop offset="0.0" stop-color="#FF0000"/>
@@ -1968,9 +1968,9 @@ Hello</p>
       </picture>
     </para>
     <para xml:id="S14.p6">
-      <picture height="217.91" width="108.95" xml:id="S14.p6.pic1">
-        <svg:svg height="217.91" overflow="visible" version="1.1" viewBox="0 0 108.95 217.91" width="108.95">
-          <svg:g transform="translate(0,217.91) matrix(1 0 0 -1 0 0)">
+      <picture height="157.48" width="78.74" xml:id="S14.p6.pic1">
+        <svg:svg height="157.48" overflow="visible" version="1.1" viewBox="0 0 78.74 157.48" width="78.74">
+          <svg:g transform="translate(0,157.48) matrix(1 0 0 -1 0 0)">
             <svg:defs>
               <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh28">
                 <svg:stop offset="0.0" stop-color="#FF0000"/>
@@ -1984,9 +1984,9 @@ Hello</p>
       </picture>
     </para>
     <para xml:id="S14.p7">
-      <picture height="114.4" width="114.4" xml:id="S14.p7.pic1">
-        <svg:svg height="114.4" overflow="visible" version="1.1" viewBox="0 0 114.4 114.4" width="114.4">
-          <svg:g transform="translate(0,114.4) matrix(1 0 0 -1 0 0)">
+      <picture height="82.68" width="82.68" xml:id="S14.p7.pic1">
+        <svg:svg height="82.68" overflow="visible" version="1.1" viewBox="0 0 82.68 82.68" width="82.68">
+          <svg:g transform="translate(0,82.68) matrix(1 0 0 -1 0 0)">
             <svg:defs>
               <svg:radialGradient fx="0.73815" fy="0.73815" id="pgfsh29">
                 <svg:stop offset="0.0" stop-color="#E60000"/>
@@ -2001,11 +2001,11 @@ Hello</p>
       </picture>
     </para>
     <para xml:id="S14.p8">
-      <picture height="201.41" width="595.11" xml:id="S14.p8.pic1">
-        <svg:svg height="201.41" overflow="visible" version="1.1" viewBox="0 0 595.11 201.41" width="595.11">
-          <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,201.41) matrix(1 0 0 -1 0 0) translate(31.26,0) translate(0,31.26)">
+      <picture height="165.3" width="541.81" xml:id="S14.p8.pic1">
+        <svg:svg height="165.3" overflow="visible" version="1.1" viewBox="0 0 541.81 165.3" width="541.81">
+          <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,165.3) matrix(1 0 0 -1 0 0) translate(4.61,0) translate(0,21.8)">
             <svg:path d="M 69.44 69.44" style="fill:none"/>
-            <svg:g fill="#000000" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 -26.65 -26.65)">
+            <svg:g fill="#000000" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 0 0)">
               <svg:g class="ltx_nestedsvg" transform="matrix(1 0 0 1 0 0)">
                 <svg:defs>
                   <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh30">
@@ -2026,7 +2026,7 @@ Hello</p>
               <svg:foreignObject height="12.3" overflow="visible" style="--ltx-fo-width:9.26em;--ltx-fo-height:0.69em;--ltx-fo-depth:0.19em;font-size:10pt;" transform="matrix(1 0 0 -1 0 9.61)" width="128.19">first two applications</svg:foreignObject>
             </svg:g>
             <svg:path d="M 266.29 69.44" style="fill:none"/>
-            <svg:g fill="#000000" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 170.2 -26.65)">
+            <svg:g fill="#000000" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 196.85 0)">
               <svg:g class="ltx_nestedsvg" transform="matrix(1 0 0 1 0 0)">
                 <svg:defs>
                   <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh31">
@@ -2047,7 +2047,7 @@ Hello</p>
               <svg:foreignObject height="12.3" overflow="visible" style="--ltx-fo-width:7.34em;--ltx-fo-height:0.69em;--ltx-fo-depth:0.19em;font-size:10pt;" transform="matrix(1 0 0 -1 0 9.61)" width="101.51">third application</svg:foreignObject>
             </svg:g>
             <svg:path d="M 463.15 69.44" style="fill:none"/>
-            <svg:g fill="#000000" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 367.05 -26.65)">
+            <svg:g fill="#000000" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 393.7 0)">
               <svg:g class="ltx_nestedsvg" transform="matrix(1 0 0 1 0 0)">
                 <svg:defs>
                   <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh32">
@@ -2072,9 +2072,9 @@ Hello</p>
       </picture>
     </para>
     <para xml:id="S14.p9">
-      <picture height="192.17" width="192.17" xml:id="S14.p9.pic1">
-        <svg:svg height="192.17" overflow="visible" version="1.1" viewBox="0 0 192.17 192.17" width="192.17">
-          <svg:g transform="translate(0,192.17) matrix(1 0 0 -1 0 0)">
+      <picture height="138.89" width="138.89" xml:id="S14.p9.pic1">
+        <svg:svg height="138.89" overflow="visible" version="1.1" viewBox="0 0 138.89 138.89" width="138.89">
+          <svg:g transform="translate(0,138.89) matrix(1 0 0 -1 0 0)">
             <svg:defs>
               <svg:radialGradient fx="0.39999" fy="0.60001" id="pgfsh33">
                 <svg:stop offset="0.0" stop-color="#FFD9D9"/>
@@ -2169,7 +2169,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#000000"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh41);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -2188,7 +2188,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#000000"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh43);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -2207,7 +2207,7 @@ Hello</p>
                     <svg:stop offset="1.0" stop-color="#000000"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:g transform="translate(-69.44499 -69.44499)">
+                <svg:g transform="translate(-69.44 -69.44)">
                   <svg:rect height="138.89" style="fill:url(#pgfsh45);stroke:none" width="138.89"/>
                 </svg:g>
               </svg:g>
@@ -2648,7 +2648,24 @@ Hello</p>
             <svg:g color="#B3B3B3" fill="#B3B3B3" stroke="#B3B3B3">
               <svg:path d="M 0 0 C 0 21.74 17.63 39.37 39.37 39.37 C 61.11 39.37 78.74 21.74 78.74 0" style="stroke:none"/>
             </svg:g>
-            <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
+            <svg:defs>
+              <svg:mask height="200000" id="pgffade48" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
+                <svg:g fill="#FFFFFF" stroke="#FFFFFF" transform="matrix(1.0 0.0 0.0 1.0 39.37 39.37) translate(-59.06 -59.06)">
+                  <svg:g class="ltx_nestedsvg" color="#FFFFFF" transform="matrix(1 0 0 1 0 0)">
+                    <svg:defs>
+                      <svg:radialGradient fx="0.5" fy="0.5" id="pgfsh47">
+                        <svg:stop offset="0.0" stop-color="#FFFFFF"/>
+                        <svg:stop offset="0.33339" stop-color="#FFFFFF"/>
+                        <svg:stop offset="0.53336" stop-color="#000000"/>
+                        <svg:stop offset="1.0" stop-color="#000000"/>
+                      </svg:radialGradient>
+                    </svg:defs>
+                    <svg:circle cx="59.06" cy="59.06" r="59.06" style="fill:url(#pgfsh47);stroke:none"/>
+                  </svg:g>
+                </svg:g>
+              </svg:mask>
+            </svg:defs>
+            <svg:g color="#FF0000" fill="#FF0000" mask="url(#pgffade48)" stroke="#FF0000">
               <svg:path d="M 0 0 M 0 0 L 0 78.74 L 78.74 78.74 L 78.74 0 Z M 78.74 78.74" style="stroke:none"/>
             </svg:g>
           </svg:g>
@@ -2663,7 +2680,34 @@ Hello</p>
             <svg:g color="#B3B3B3" fill="#B3B3B3" stroke="#B3B3B3">
               <svg:path d="M 0 0 C 0 21.74 17.63 39.37 39.37 39.37 C 61.11 39.37 78.74 21.74 78.74 0" style="stroke:none"/>
             </svg:g>
-            <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
+            <svg:defs>
+              <svg:mask height="200000" id="pgffade51" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
+                <svg:g fill="#FFFFFF" stroke="#FFFFFF" transform="matrix(1.0 0.0 0.0 1.0 0 0) translate(-39.37 -39.37)">
+                  <svg:g class="ltx_nestedsvg" color="#FFFFFF" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="0.4pt" transform="matrix(1 0 0 1 0 0)">
+                    <svg:clipPath id="pgfcp49">
+                      <svg:path d="M 0 0 M 0 0 L 0 78.74 L 78.74 78.74 L 78.74 0 Z M 78.74 78.74"/>
+                    </svg:clipPath>
+                    <svg:g clip-path="url(#pgfcp49)">
+                      <svg:g transform="matrix(1.0 0.0 0.0 1.0 39.37 39.37) matrix(0.0 1.0 -1.0 0.0 0 0) matrix(1.134 0.0 0.0 1.134 0 0)">
+                        <svg:defs>
+                          <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh50">
+                            <svg:stop offset="0.0" stop-color="#000000"/>
+                            <svg:stop offset="0.24998" stop-color="#000000"/>
+                            <svg:stop offset="0.49996" stop-color="#808080"/>
+                            <svg:stop offset="0.75002" stop-color="#FFFFFF"/>
+                            <svg:stop offset="1.0" stop-color="#FFFFFF"/>
+                          </svg:linearGradient>
+                        </svg:defs>
+                        <svg:g transform="translate(-69.44 -69.44)">
+                          <svg:rect height="138.89" style="fill:url(#pgfsh50);stroke:none" width="138.89"/>
+                        </svg:g>
+                      </svg:g>
+                    </svg:g>
+                  </svg:g>
+                </svg:g>
+              </svg:mask>
+            </svg:defs>
+            <svg:g color="#FF0000" fill="#FF0000" mask="url(#pgffade51)" stroke="#FF0000">
               <svg:path d="M 0 0 M 0 0 L 0 78.74 L 78.74 78.74 L 78.74 0 Z M 78.74 78.74" style="stroke:none"/>
             </svg:g>
           </svg:g>
@@ -2678,7 +2722,34 @@ Hello</p>
             <svg:g color="#B3B3B3" fill="#B3B3B3" stroke="#B3B3B3">
               <svg:path d="M 0 0 C 0 21.74 17.63 39.37 39.37 39.37 C 61.11 39.37 78.74 21.74 78.74 0" style="stroke:none"/>
             </svg:g>
-            <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
+            <svg:defs>
+              <svg:mask height="200000" id="pgffade52" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
+                <svg:g fill="#FFFFFF" stroke="#FFFFFF" transform="matrix(0.9397 0.34203 -0.34203 0.9397 39.37 39.37) translate(-39.37 -39.37)">
+                  <svg:g class="ltx_nestedsvg" color="#FFFFFF" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="0.4pt" transform="matrix(1 0 0 1 0 0)">
+                    <svg:clipPath id="pgfcp49a">
+                      <svg:path d="M 0 0 M 0 0 L 0 78.74 L 78.74 78.74 L 78.74 0 Z M 78.74 78.74"/>
+                    </svg:clipPath>
+                    <svg:g clip-path="url(#pgfcp49a)">
+                      <svg:g transform="matrix(1.0 0.0 0.0 1.0 39.37 39.37) matrix(0.0 1.0 -1.0 0.0 0 0) matrix(1.134 0.0 0.0 1.134 0 0)">
+                        <svg:defs>
+                          <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh50a">
+                            <svg:stop offset="0.0" stop-color="#000000"/>
+                            <svg:stop offset="0.24998" stop-color="#000000"/>
+                            <svg:stop offset="0.49996" stop-color="#808080"/>
+                            <svg:stop offset="0.75002" stop-color="#FFFFFF"/>
+                            <svg:stop offset="1.0" stop-color="#FFFFFF"/>
+                          </svg:linearGradient>
+                        </svg:defs>
+                        <svg:g transform="translate(-69.44 -69.44)">
+                          <svg:rect height="138.89" style="fill:url(#pgfsh50a);stroke:none" width="138.89"/>
+                        </svg:g>
+                      </svg:g>
+                    </svg:g>
+                  </svg:g>
+                </svg:g>
+              </svg:mask>
+            </svg:defs>
+            <svg:g color="#FF0000" fill="#FF0000" mask="url(#pgffade52)" stroke="#FF0000">
               <svg:path d="M 0 0 M 0 0 L 0 78.74 L 78.74 78.74 L 78.74 0 Z M 78.74 78.74" style="stroke:none"/>
             </svg:g>
           </svg:g>
@@ -2695,10 +2766,46 @@ Hello</p>
             <svg:g color="#B3B3B3" fill="#B3B3B3" stroke="#B3B3B3">
               <svg:path d="M 0 0 C 0 21.74 17.63 39.37 39.37 39.37 C 61.11 39.37 78.74 21.74 78.74 0" style="stroke:none"/>
             </svg:g>
-            <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
-              <svg:path d="M 0 0 M 0 0 L 0 39.37 L 78.74 39.37 L 78.74 0 Z M 78.74 39.37" style="stroke:none"/>
+            <svg:defs>
+              <svg:mask height="200000" id="pgffade54" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
+                <svg:g fill="#FFFFFF" stroke="#FFFFFF" transform="matrix(1.13835 0.0 0.0 0.56917 39.37 19.69) translate(-69.44 -69.44)">
+                  <svg:g class="ltx_nestedsvg" color="#FFFFFF" transform="matrix(1 0 0 1 0 0)">
+                    <svg:defs>
+                      <svg:linearGradient id="pgfsh53">
+                        <svg:stop offset="0.0" stop-color="#FFFFFF"/>
+                        <svg:stop offset="0.24998" stop-color="#FFFFFF"/>
+                        <svg:stop offset="0.75002" stop-color="#000000"/>
+                        <svg:stop offset="1.0" stop-color="#000000"/>
+                      </svg:linearGradient>
+                    </svg:defs>
+                    <svg:rect height="138.89" style="fill:url(#pgfsh53);stroke:none" width="138.89"/>
+                  </svg:g>
+                </svg:g>
+              </svg:mask>
+            </svg:defs>
+            <svg:g mask="url(#pgffade54)">
+              <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
+                <svg:path d="M 0 0 M 0 0 L 0 39.37 L 78.74 39.37 L 78.74 0 Z M 78.74 39.37" style="stroke:none"/>
+              </svg:g>
+              <svg:defs>
+                <svg:mask height="200000" id="pgffade55" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
+                  <svg:g fill="#FFFFFF" stroke="#FFFFFF" transform="matrix(0.0 0.56917 -1.13835 0.0 39.37 59.06) translate(-69.44 -69.44)">
+                    <svg:g class="ltx_nestedsvg" color="#FFFFFF" transform="matrix(1 0 0 1 0 0)">
+                      <svg:defs>
+                        <svg:linearGradient id="pgfsh53a">
+                          <svg:stop offset="0.0" stop-color="#FFFFFF"/>
+                          <svg:stop offset="0.24998" stop-color="#FFFFFF"/>
+                          <svg:stop offset="0.75002" stop-color="#000000"/>
+                          <svg:stop offset="1.0" stop-color="#000000"/>
+                        </svg:linearGradient>
+                      </svg:defs>
+                      <svg:rect height="138.89" style="fill:url(#pgfsh53a);stroke:none" width="138.89"/>
+                    </svg:g>
+                  </svg:g>
+                </svg:mask>
+              </svg:defs>
             </svg:g>
-            <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
+            <svg:g color="#FF0000" fill="#FF0000" mask="url(#pgffade55)" stroke="#FF0000">
               <svg:path d="M 0 39.37 M 0 39.37 L 0 78.74 L 78.74 78.74 L 78.74 39.37 Z M 78.74 78.74" style="stroke:none"/>
             </svg:g>
           </svg:g>
@@ -2832,24 +2939,24 @@ Hello</p>
     </tags>
     <title><tag close=" ">18</tag>Fun Patterns</title>
     <para xml:id="S18.p1">
-      <picture height="210.63" width="440.09" xml:id="S18.p1.pic1">
-        <svg:svg height="210.63" overflow="visible" version="1.1" viewBox="0 0 440.09 210.63" width="440.09">
-          <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,210.63) matrix(1 0 0 -1 0 0) translate(220.05,0) translate(0,105.32) matrix(1.0 0.0 0.0 1.0 -215.44 -100.7)">
-            <svg:g class="ltx_nestedsvg" fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="matrix(1 0 0 1 0 0) translate(77.67,0) translate(0,61.33)">
+      <picture height="157.34" width="333.51" xml:id="S18.p1.pic1">
+        <svg:svg height="157.34" overflow="visible" version="1.1" viewBox="0 0 333.51 157.34" width="333.51">
+          <svg:g fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="translate(0,157.34) matrix(1 0 0 -1 0 0) translate(166.76,0) translate(0,78.67) matrix(1.0 0.0 0.0 1.0 -162.14 -74.06)">
+            <svg:g class="ltx_nestedsvg" fill="#000000" stroke="#000000" stroke-width="0.4pt" transform="matrix(1 0 0 1 0 0) translate(51.02,0) translate(0,34.69)">
               <svg:path d="M 39.37 39.37" style="fill:none"/>
-              <svg:g fill="#000000" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 -73.06 -56.72)">
-                <svg:foreignObject height="192.18" overflow="visible" style="--ltx-fo-width:16.42em;--ltx-fo-height:13.89em;--ltx-fo-depth:0em;font-size:10pt;" transform="matrix(1 0 0 -1 0 192.18)" width="227.16">YAY!<picture height="192.18" width="192.18" xml:id="S18.p1.pic1.pic1">
-                    <svg:svg height="192.18" overflow="visible" version="1.1" viewBox="0 0 192.18 192.18" width="192.18">
-                      <svg:g transform="translate(0,192.18) matrix(1 0 0 -1 0 0)">
+              <svg:g fill="#000000" stroke="#000000" transform="matrix(1.0 0.0 0.0 1.0 -46.41 -30.07)">
+                <svg:foreignObject height="138.89" overflow="visible" style="--ltx-fo-width:12.57em;--ltx-fo-height:10.04em;--ltx-fo-depth:0em;font-size:10pt;" transform="matrix(1 0 0 -1 0 138.89)" width="173.87">YAY!<picture height="138.89" width="138.89" xml:id="S18.p1.pic1.pic1">
+                    <svg:svg height="138.89" overflow="visible" version="1.1" viewBox="0 0 138.89 138.89" width="138.89">
+                      <svg:g transform="translate(0,138.89) matrix(1 0 0 -1 0 0)">
                         <svg:defs>
-                          <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh50">
+                          <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh56">
                             <svg:stop offset="0.0" stop-color="#FF0000"/>
                             <svg:stop offset="0.24998" stop-color="#00FF00"/>
                             <svg:stop offset="0.75002" stop-color="#0000FF"/>
                             <svg:stop offset="1.0" stop-color="#000000"/>
                           </svg:linearGradient>
                         </svg:defs>
-                        <svg:rect height="138.89" style="fill:url(#pgfsh50);stroke:none" width="138.89"/>
+                        <svg:rect height="138.89" style="fill:url(#pgfsh56);stroke:none" width="138.89"/>
                       </svg:g>
                     </svg:svg>
                   </picture></svg:foreignObject>
@@ -2859,14 +2966,14 @@ Hello</p>
             <svg:g fill="#000000" stroke="#000000">
               <svg:g class="ltx_nestedsvg" transform="matrix(1 0 0 1 0 0)">
                 <svg:defs>
-                  <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh51">
+                  <svg:linearGradient gradientTransform="rotate(90)" id="pgfsh57">
                     <svg:stop offset="0.0" stop-color="#FF0000"/>
                     <svg:stop offset="0.24998" stop-color="#00FF00"/>
                     <svg:stop offset="0.75002" stop-color="#0000FF"/>
                     <svg:stop offset="1.0" stop-color="#000000"/>
                   </svg:linearGradient>
                 </svg:defs>
-                <svg:rect height="138.89" style="fill:url(#pgfsh51);stroke:none" width="138.89"/>
+                <svg:rect height="138.89" style="fill:url(#pgfsh57);stroke:none" width="138.89"/>
               </svg:g>
             </svg:g>
           </svg:g>
