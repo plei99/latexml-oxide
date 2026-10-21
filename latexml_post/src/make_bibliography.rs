@@ -18,6 +18,7 @@ use libxml::tree::Node;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
 use crate::{
+  biblatex_layout::{self, Layout},
   document::{NodeData, PostDocument, PostDocumentOptions},
   object_db::ObjectDB,
   processor::{ProcessResult, Processor, find_documentclass_and_packages},
@@ -87,6 +88,10 @@ thread_local! {
   /// ([`PeriodRule`]); set per `ltx:bibliography`, read by `format_blocks`.
   static PERIOD_RULE: std::cell::Cell<PeriodRule> =
     const { std::cell::Cell::new(PeriodRule::AddPeriod) };
+  /// The layout of biblatex's standard bibliography drivers, when the bibliography being formatted asks for it
+  /// (its `bibstyle` says `layout=standard`, [`Layout::from_bibstyle`]); set per `ltx:bibliography`.
+  static BIBLATEX_LAYOUT: std::cell::RefCell<Option<Layout>> =
+    const { std::cell::RefCell::new(None) };
   /// Whether the bibliography being formatted is biblatex's (its `bibstyle` is
   /// one the biblatex binding records): its drivers print rows a `.bst` does not.
   static BIBLATEX_BIBLIOGRAPHY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -1087,9 +1092,15 @@ impl MakeBibliography {
       })
       .collect();
 
+    // biblatex's standard layout sets its own fonts (a quoted title is upright, a volume regular); the class tells
+    // LaTeXML.css's `.ltx_bib_title`/`.ltx_bib_volume` rules for the `.bst` rows to leave this list alone.
+    let mut attributes = HashMap::from_iter([("xml:id".to_string(), id)]);
+    if BIBLATEX_LAYOUT.with(|slot| slot.borrow().is_some()) {
+      attributes.insert("class".to_string(), "ltx_bib_standard".to_string());
+    }
     NodeData::Element {
       tag:        "ltx:biblist".to_string(),
-      attributes: Some(HashMap::from_iter([("xml:id".to_string(), id)])),
+      attributes: Some(attributes),
       children:   items,
     }
   }
@@ -1268,15 +1279,24 @@ impl MakeBibliography {
     }
 
     // --- Content blocks ---
+    // biblatex's standard drivers print the whole entry as one paragraph, with neither LaTeXML's "External Links:" and
+    // "Cited by:" blocks nor its MathReview links (biblatex_layout.rs; OXIDIZED_DESIGN_DIVERGENCES #601).
+    let biblatex_layout = BIBLATEX_LAYOUT.with(|slot| slot.borrow().clone());
     let mut dropped_year = None;
-    let blocks = self.format_blocks(
-      doc,
-      entry,
-      bibentry,
-      skip_first_block,
-      drop_first_block_year,
-      &mut dropped_year,
-    );
+    let blocks = match &biblatex_layout {
+      Some(layout) => {
+        let content = biblatex_layout::format_entry(layout, bibentry, &entry.entry_type);
+        vec![make_bibblock("", &content)]
+      },
+      None => self.format_blocks(
+        doc,
+        entry,
+        bibentry,
+        skip_first_block,
+        drop_first_block_year,
+        &mut dropped_year,
+      ),
+    };
     if let Some(year) = dropped_year {
       self.dropped_years.borrow_mut().insert(id.clone(), year);
     }
@@ -1284,7 +1304,11 @@ impl MakeBibliography {
 
     // --- Cited-by block ---
     let mut citedby: Vec<NodeData> = Vec::new();
-    let mut sorted_referrers: Vec<&String> = entry.referrers.iter().collect();
+    let mut sorted_referrers: Vec<&String> = if biblatex_layout.is_some() {
+      Vec::new()
+    } else {
+      entry.referrers.iter().collect()
+    };
     sorted_referrers.sort();
     for ref_id in &sorted_referrers {
       citedby.push(NodeData::Element {
@@ -1296,7 +1320,7 @@ impl MakeBibliography {
         children:   vec![],
       });
     }
-    if !entry.bibreferrers.is_empty() {
+    if biblatex_layout.is_none() && !entry.bibreferrers.is_empty() {
       let mut sorted_bibrefs: Vec<&String> = entry.bibreferrers.iter().collect();
       sorted_bibrefs.sort();
       citedby.push(NodeData::Element {
@@ -1688,6 +1712,11 @@ impl Processor for MakeBibliography {
         .get_attribute("bibstyle")
         .is_some_and(|style| style.starts_with("biblatex"));
       BIBLATEX_BIBLIOGRAPHY.with(|flag| flag.set(biblatex));
+      let layout = bib
+        .get_attribute("bibstyle")
+        .as_deref()
+        .and_then(Layout::from_bibstyle);
+      BIBLATEX_LAYOUT.with(|slot| *slot.borrow_mut() = layout);
       // Skip if already populated
       if !doc.findnodes_at(".//ltx:bibitem", Some(bib)).is_empty() {
         continue;
@@ -1932,6 +1961,9 @@ impl Processor for MakeBibliography {
         self.db.register(&format!("ID:{}", bibitem_id), values);
       }
     }
+
+    // The layout belongs to the bibliography just built.
+    BIBLATEX_LAYOUT.with(|slot| *slot.borrow_mut() = None);
 
     // Stand in for Perl's rescan of the generated subtree.
     //
@@ -3316,7 +3348,7 @@ fn get_fmt_spec(format_type: &str) -> Vec<Vec<FieldSpec>> {
 /// the field element itself and lets the XSLT render it transparently; we clone
 /// its CHILDREN, which yields the same HTML without changing our flatter
 /// intermediate shape.)
-fn field_content(node: &Node) -> Vec<NodeData> {
+pub(crate) fn field_content(node: &Node) -> Vec<NodeData> {
   let mut children = Vec::new();
   let mut child = node.get_first_child();
   let mut has_element = false;
@@ -3395,7 +3427,7 @@ fn push_unit_text(items: &mut Vec<NodeData>, text: &str) {
 /// mark, and the space factor biblatex's tracker reads is reset — and
 /// neither does a reference whose text the cross-referencer fills in later;
 /// both read as the empty text.
-fn trailing_text(items: &[NodeData]) -> Option<String> {
+pub(crate) fn trailing_text(items: &[NodeData]) -> Option<String> {
   items.iter().rev().find_map(|item| match item {
     NodeData::Text(text) => (!text.trim().is_empty()).then(|| text.clone()),
     NodeData::Element { tag, children, .. } => {
@@ -4176,6 +4208,9 @@ fn do_name_node(namenode: &Node) -> String {
 /// full names). Any other name is a `.bst`, found beside the document or through
 /// kpsewhich as a `.bib` is ([`bst_given_name_form`]).
 fn style_given_name_form(bibstyle: &str, search_paths: &[String]) -> GivenNameForm {
+  // The biblatex binding appends the options of biblatex's standard drivers after a `;`
+  // ([`Layout::from_bibstyle`]).
+  let bibstyle = bibstyle.split(';').next().unwrap_or(bibstyle);
   match bibstyle {
     "biblatex" => GivenNameForm::Full,
     "biblatex-giveninits" => GivenNameForm::Initials,
@@ -4549,7 +4584,7 @@ fn find_file(name: &str, search_paths: &[String]) -> Option<String> {
 /// Percent-encode a DOI into its canonical absolute resolver URL.
 /// Mirrors the engine's `\bib@field@default@doi` (bibtex.rs; Perl
 /// BibTeX.pool L750-756): `[^0-9a-zA-Z./\-+]` chars are %-encoded.
-fn doi_href(doi: &str) -> String {
+pub(crate) fn doi_href(doi: &str) -> String {
   let mut href = String::from("https://doi.org/");
   for c in doi.trim().chars() {
     if c.is_ascii_alphanumeric() || matches!(c, '.' | '/' | '-' | '+') {

@@ -705,64 +705,36 @@ fn bbl_keeps_bibers_alphabetic_labels_and_order() {
     &[r#"class="ltx_p""#],
     r##"<p class="ltx_p">See <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="Seminumerical Algorithms" class="ltx_ref">Knu84b</a>]</cite> and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="On Many Authors" class="ltx_ref">Ada+01</a>]</cite> and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="Fundamental Algorithms" class="ltx_ref">Knu84a</a>]</cite> and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="Flow Diagrams" class="ltx_ref">Böh66</a>]</cite>.</p>"##,
   );
-  let cited_by = r##"<span class="ltx_bibblock ltx_bib_cited">Cited by: <a href="#p1" title="" class="ltx_ref">p1</a>.
-</span>"##;
+  // The entries are standard.bbx's (alphabetic.bbx adds only the label): one paragraph each, `maxnames=3` cutting the
+  // four authors of the article to "Alice Adams et al."; no "Cited by:" block (DIVERGENCES #601).
   for (id, bibitem) in [
     (
       "bib.bib1",
-      format!(
-        r#"<li id="bib.bib1" class="ltx_bibitem ltx_bib_article"><span class="ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem">[Ada+01]</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">Alice Adams, Bob Brown, Carl Cole, and Dora Dunn</span><span class="ltx_text ltx_bib_year"> (2001)</span>
-</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_title">On Many Authors</span>.
-</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_journal">Journal of Y</span>.
-</span>
-{cited_by}</li>"#
-      ),
+      r#"<li id="bib.bib1" class="ltx_bibitem ltx_bib_article"><span class="ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem">[Ada+01]</span>
+<span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">Alice Adams et al.</span> <span class="ltx_text ltx_bib_title">“On Many Authors”</span>. In: <span class="ltx_text ltx_bib_journal"><em class="ltx_emph">Journal of Y</em></span> (<span class="ltx_text ltx_bib_date">2001</span>).
+</span></li>"#,
     ),
     (
       "bib.bib2",
-      format!(
-        r#"<li id="bib.bib2" class="ltx_bibitem ltx_bib_book"><span class="ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem">[Böh66]</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">Corrado Böhm</span><span class="ltx_text ltx_bib_year"> (1966)</span>
-</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_title">Flow Diagrams</span>.
-</span>
-<span class="ltx_bibblock"> <span class="ltx_text ltx_bib_publisher">Pub</span>.
-</span>
-{cited_by}</li>"#
-      ),
+      r#"<li id="bib.bib2" class="ltx_bibitem ltx_bib_book"><span class="ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem">[Böh66]</span>
+<span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">Corrado Böhm</span>. <span class="ltx_text ltx_bib_title"><em class="ltx_emph">Flow Diagrams</em></span>. <span class="ltx_text ltx_bib_publisher">Pub</span>, <span class="ltx_text ltx_bib_date">1966</span>.
+</span></li>"#,
     ),
     (
       "bib.bib3",
-      format!(
-        r#"<li id="bib.bib3" class="ltx_bibitem ltx_bib_book"><span class="ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem">[Knu84a]</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">Donald E. Knuth</span><span class="ltx_text ltx_bib_year"> (1984)</span>
-</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_title">Fundamental Algorithms</span>.
-</span>
-<span class="ltx_bibblock"> <span class="ltx_text ltx_bib_publisher">Addison-Wesley</span>.
-</span>
-{cited_by}</li>"#
-      ),
+      r#"<li id="bib.bib3" class="ltx_bibitem ltx_bib_book"><span class="ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem">[Knu84a]</span>
+<span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">Donald E. Knuth</span>. <span class="ltx_text ltx_bib_title"><em class="ltx_emph">Fundamental Algorithms</em></span>. <span class="ltx_text ltx_bib_publisher">Addison-Wesley</span>, <span class="ltx_text ltx_bib_date">1984</span>.
+</span></li>"#,
     ),
     (
       "bib.bib4",
-      format!(
-        r#"<li id="bib.bib4" class="ltx_bibitem ltx_bib_book"><span class="ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem">[Knu84b]</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">Donald E. Knuth</span><span class="ltx_text ltx_bib_year"> (1984)</span>
-</span>
-<span class="ltx_bibblock"><span class="ltx_text ltx_bib_title">Seminumerical Algorithms</span>.
-</span>
-<span class="ltx_bibblock"> <span class="ltx_text ltx_bib_publisher">Addison-Wesley</span>.
-</span>
-{cited_by}</li>"#
-      ),
+      r#"<li id="bib.bib4" class="ltx_bibitem ltx_bib_book"><span class="ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem">[Knu84b]</span>
+<span class="ltx_bibblock"><span class="ltx_text ltx_bib_author">Donald E. Knuth</span>. <span class="ltx_text ltx_bib_title"><em class="ltx_emph">Seminumerical Algorithms</em></span>. <span class="ltx_text ltx_bib_publisher">Addison-Wesley</span>, <span class="ltx_text ltx_bib_date">1984</span>.
+</span></li>"#,
     ),
   ] {
     let selector = format!(r#"id="{id}""#);
-    latexml::util::test::assert_element(&html, "li", &[selector.as_str()], &bibitem);
+    latexml::util::test::assert_element(&html, "li", &[selector.as_str()], bibitem);
   }
 }
 

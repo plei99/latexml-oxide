@@ -42,6 +42,7 @@ pub mod processor;
 pub mod radix;
 
 // Concrete post-processors (alphabetical)
+pub(crate) mod biblatex_layout;
 pub mod collector;
 pub mod crossref;
 pub mod extract;
