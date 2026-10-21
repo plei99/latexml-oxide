@@ -17994,15 +17994,26 @@ Two things Perl does that the fix needs, both made as Perl does them:
   `$x^{\sum a\over b}$` `scriptscript`, as in Perl.
 - (beyond Perl) a script whose base is in another style than its context is wrapped by `pmml_script`
   (MathML.pm:883-887) with `displaystyle` only, and its limits are sized from the context. `latexml_post`'s
-  `pmml_script_full` now wraps with the whole `%stylemap` entry (`scriptlevel` included) and lays the limits out under
-  the base's style, so `$\scriptstyle\sum_i a_i$` is `<m:mstyle scriptlevel="+1"><m:msub><m:mo>∑</m:mo><m:mi>i</m:mi>…` and
-  `\scriptscriptstyle\int_0^1` `scriptlevel="+2"`.
+  `pmml_script_full` wraps with the whole `%stylemap` entry (`scriptlevel` included). Where the base's style was in
+  force over the scripts (`\scriptstyle\sum_i a_i`: the XML records `i` at 50%) the whole layout is wrapped and the
+  scripts are laid out under that style: `<m:mstyle scriptlevel="+1"><m:msub><m:mo>∑</m:mo><m:mi>i</m:mi>…`, and
+  `\scriptscriptstyle\int_0^1` `scriptlevel="+2"`. Where the style was set in a group around the base alone
+  (`{\scriptstyle\sum}_i a`, `\mathop{\scriptstyle\sum}\limits_{i=1}^n`: the scripts are recorded at 70%, TeX sets
+  them in the script style of the context) the scripts keep Perl's layout under the context and the base alone is
+  wrapped: `<m:msub><m:mstyle scriptlevel="+1"><m:mo>∑</m:mo></m:mstyle><m:mi>i</m:mi></m:msub>` (`i` and `∑` both
+  11.2px in Chromium; laid out under the base's style they were stepped to scriptscript and given
+  `mathsize="1.400em"`, 15.7px against 11.2px). The test is the recorded `fontsize` of the first script token
+  (`scripts_follow_base_style`); a script that records none is laid out as Perl does. A residual of the new wrap: the
+  spacing pass (`space_walk`/`descend_embellishers`) no longer sees the operator under the `m:mstyle`, so
+  `\scriptstyle\sum_i\sum_j a` loses the `lspace="0.167em"` the second sum had.
 
 **Guards**: `cluster_package_guards::script_largeop::{a_sum_in_a_script_records_the_script_style,
 a_sum_in_an_exponent_is_script_size_without_compensation,
 a_sum_in_a_script_of_a_fraction_is_script_size_without_compensation,
 a_mathchar_operator_in_a_script_records_the_script_style, over_moves_a_large_operator_to_the_next_style,
-a_scriptstyle_sum_with_a_limit_is_wrapped_to_script_level}`.
+a_scriptstyle_sum_with_a_limit_is_wrapped_to_script_level,
+a_grouped_scriptstyle_sum_wraps_the_base_alone, over_in_display_style_records_text,
+a_displaystyle_sum_stays_displaystyle_without_a_scriptlevel}`.
 
 ### 607. A centred stackengine stack in a formula is held in a line of its own, and has the width of its content (Perl: a bare child of `m:mtext`)
 

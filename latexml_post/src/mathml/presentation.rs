@@ -2005,17 +2005,36 @@ fn pmml_script_full(doc: &PostDocument, op: &Node, base: &Node, script: &Node) -
     CURRENT_STYLE.with(|s| s.set(b));
   }
   let base_mml = pmml(doc, &inner_base);
-  // The scripts are laid out under the base's style too: their sizes are relative to it, and the m:mstyle
-  // below (a scriptlevel as well as a displaystyle) moves the browser to it for the whole layout.
-  // (latexml-oxide, OXIDIZED_DESIGN #606: Perl wraps with `displaystyle` only, MathML.pm:883-887, so a base in
-  // a smaller style than its context, `\scriptstyle\sum_i a_i`, stayed at the size of the line.)
+  // A script on a base in another style than its context (Perl wraps the whole layout with `displaystyle`
+  // only, MathML.pm:883-887, so `\scriptstyle\sum_i a_i` stayed at the size of the line; latexml-oxide,
+  // OXIDIZED_DESIGN #606). When the base's style was in force over the scripts, the XML records their sizes
+  // from it (the scripts of `\scriptstyle\sum_i` are 50%), and the whole layout is wrapped for that style
+  // with its scriptlevel, the scripts laid out under it. When the style was set inside a group around the
+  // base (`{\scriptstyle\sum}_i`, `\mathop{\scriptstyle\sum}\limits`), the scripts keep the sizes of the
+  // context's script step: Perl's layout, with the base alone wrapped.
+  let layout_style = match bstyle {
+    Some(b)
+      if b != ostyle
+        && !scripts_follow_base_style(b, ostyle, &pre_scripts, &mid_scripts, &post_scripts) =>
+    {
+      CURRENT_STYLE.with(|s| s.set(ostyle));
+      None
+    },
+    Some(b) => Some(b),
+    None => None,
+  };
+  let base_alone = bstyle.filter(|&b| b != ostyle && layout_style.is_none());
+  let base_mml = match base_alone {
+    Some(b) => maybe_style_wrap(base_mml, ostyle, Some(b)),
+    None => base_mml,
+  };
   // Apply mid scripts (under/over)
   let base_mml = apply_mid_scripts(doc, base_mml, &mid_scripts, emb_right.as_ref());
 
   // Apply pre/post scripts
   let layout = apply_multi_scripts(doc, base_mml, &pre_scripts, &post_scripts);
   CURRENT_STYLE.with(|s| s.set(ostyle));
-  match bstyle {
+  match layout_style {
     Some(b) if b != ostyle => NodeData::Element {
       tag:        "m:mstyle".to_string(),
       attributes: Some(HashMap::from_iter(
@@ -2027,6 +2046,42 @@ fn pmml_script_full(doc: &PostDocument, op: &Node, base: &Node, script: &Node) -
     },
     _ => layout,
   }
+}
+
+/// The first `fontsize` recorded in a subtree, in document order.
+fn first_fontsize(node: &Node) -> Option<String> {
+  node
+    .get_attribute("fontsize")
+    .or_else(|| element_children_iter(node).find_map(|c| first_fontsize(&c)))
+}
+
+/// Were the scripts of a base in style `base` typeset in it? Their tokens' recorded `fontsize` says: the
+/// script step of `base` when its style was in force over them, the script step of the context `outer`
+/// when the base's style was set in a group around the base alone. Where both steps are the same size
+/// there is nothing to tell apart (`Display` and `Text`), and a script that records no size is laid
+/// out as Perl does, under the context.
+fn scripts_follow_base_style(
+  base: MathStyle,
+  outer: MathStyle,
+  pre: &[ScriptPair],
+  mid: &[ScriptPair],
+  post: &[ScriptPair],
+) -> bool {
+  let (step_base, step_outer) = (
+    base.script_step().size_percent(),
+    outer.script_step().size_percent(),
+  );
+  if step_base == step_outer {
+    return true;
+  }
+  pre
+    .iter()
+    .chain(mid)
+    .chain(post)
+    .flat_map(|(under, over)| [under, over])
+    .flatten()
+    .find_map(first_fontsize)
+    .is_some_and(|size| size == step_base)
 }
 
 /// Decipher nested script applications into pre/mid/post groups.
