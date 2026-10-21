@@ -4,12 +4,13 @@
 //! enumerate inside a plain-style theorem (`\itshape` body) print in italic, as a bullet does. Perl LaTeXML builds every
 //! `ltx:tag` after `neutralizeFont` and `\normalfont` (Base_Utility.pool.ltxml:1005, 1041), so its labels are always
 //! upright: the item body carries the italic, the label does not. Only the displayed tag follows the context: the
-//! `refnum` and `typerefnum` tags, which `\ref` copies into running text, stay plain. A description label keeps the
-//! `\descriptionlabel`'s `\normalfont\bfseries`, and a label with an explicit font (`enumitem`'s `font=`) adds to the
-//! context's, as it does in LaTeX.
+//! `refnum` and `typerefnum` tags, which `\ref` copies into running text, stay plain. A bullet is upright all the same (`\labelitemi` starts `\labelitemfont`,
+//! `\normalfont`, article.cls:355-359), a description label keeps the `\descriptionlabel`'s `\normalfont\bfseries`, and a
+//! label with an explicit font (`enumitem`'s `font=`) adds to the context's, as it does in LaTeX. The font is the label's
+//! only: a footnote in it, whose mark is `\normalfont`, is typeset as one in the text.
 use super::perfect_kernel_batch46::{error_count, warning_count};
 
-const PREAMBLE: &str = "\\documentclass{article}\n\\usepackage{amsthm}\n\\usepackage{enumitem}\n\\newtheorem{lemma}{Lemma}\n\\begin{document}\n";
+const PREAMBLE: &str = "\\documentclass{article}\n\\usepackage{amsthm}\n\\usepackage{enumitem}\n\\usepackage{xcolor}\n\\newtheorem{lemma}{Lemma}\n\\begin{document}\n";
 
 /// `body` in an article, converted to XML: (stderr, xml), with the conversion required clean.
 fn xml(body: &str) -> String {
@@ -24,7 +25,11 @@ fn xml(body: &str) -> String {
 fn item_labels(xml: &str) -> Vec<String> {
   let mut labels = Vec::new();
   let mut rest = xml;
-  while let Some(at) = rest.find("<item ") {
+  while let Some(at) = [rest.find("<item "), rest.find("<inline-item ")]
+    .into_iter()
+    .flatten()
+    .min()
+  {
     rest = &rest[at..];
     let from = rest.find("<tag>").expect("an item with a tag");
     let to = from + rest[from..].find("</tag>").expect("end of the tag") + "</tag>".len();
@@ -76,15 +81,14 @@ fn enumerate_labels_in_upright_text_stay_upright() {
 }
 
 #[test]
-fn itemize_bullets_follow_the_context_font() {
+fn itemize_bullets_are_upright_in_an_italic_theorem() {
+  // `\labelitemi` is `\labelitemfont \textbullet` and `\labelitemfont` is `\normalfont` (pdflatex's `\showbox\@labels`
+  // in a plain lemma: the bullet `\TS1/cmr/m/n/10`, the enumerate label `\OT1/cmr/m/it/10`).
   let xml = xml(
     "\\begin{lemma}\\begin{itemize}\\item Dot.\\end{itemize}\\end{lemma}\n\
      \\begin{itemize}\\item Dot.\\end{itemize}",
   );
-  assert_eq!(item_labels(&xml), [
-    r#"<tag><text font="italic">•</text></tag>"#,
-    "<tag>•</tag>"
-  ]);
+  assert_eq!(item_labels(&xml), ["<tag>•</tag>", "<tag>•</tag>"]);
 }
 
 #[test]
@@ -120,4 +124,64 @@ fn a_label_takes_the_size_in_force() {
   assert_eq!(item_labels(&xml), [
     r#"<tag><text fontsize="90%">1.</text></tag>"#
   ]);
+}
+
+#[test]
+fn a_label_takes_the_colour_in_force() {
+  let xml =
+    xml("{\\color{red}\\begin{lemma}\\begin{enumerate}\\item Red.\\end{enumerate}\\end{lemma}}");
+  assert_eq!(item_labels(&xml), [
+    r##"<tag><text color="#FF0000" font="italic">1.</text></tag>"##
+  ]);
+}
+
+#[test]
+fn a_label_inside_a_small_caption_is_not_resized() {
+  // The tag is typeset in the caption's `\small`, which is also the context: no `<text fontsize>` of its own (the
+  // neutral font was normalsize, and read as 111% of the caption).
+  let xml = xml(
+    "\\begin{figure}\\caption{\\small cap \\begin{enumerate}\\item In caption.\\end{enumerate}}\\end{figure}",
+  );
+  assert_eq!(item_labels(&xml), ["<tag>1.</tag>", "<tag>1.</tag>"]);
+}
+
+#[test]
+fn inline_item_labels_in_an_italic_theorem_are_not_wrapped() {
+  // An `enumerate*` item sits in the theorem's italic text, so the label's italic is the context's: no wrapper, where
+  // the neutral font made it `<text font="upright">`.
+  let tex = "\\documentclass{article}\n\\usepackage{amsthm}\n\\usepackage[inline]{enumitem}\n\\newtheorem{lemma}{Lemma}\n\\begin{document}\n\
+    \\begin{lemma}Let. \\begin{enumerate*}\\item One \\item Two\\end{enumerate*}\\end{lemma}\n\\end{document}\n";
+  let (stderr, xml) = super::convert(tex, false);
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert_eq!(item_labels(&xml), ["<tag>1.</tag>", "<tag>2.</tag>"]);
+}
+
+/// The `ltx:tags` of the first footnote, whole, with the indentation removed.
+fn note_tags(xml: &str) -> String {
+  let note = &xml[xml.find("<note ").expect("a footnote")..];
+  let from = note.find("<tags>").expect("the note's tags");
+  let to = from + note[from..].find("</tags>").expect("end of the tags") + "</tags>".len();
+  note[from..to]
+    .lines()
+    .map(str::trim)
+    .collect::<Vec<_>>()
+    .join("")
+}
+
+#[test]
+fn a_footnote_in_a_label_is_set_as_a_footnote_in_the_text() {
+  // The restored font is for the item's own counter: `\@makefnmark` is `\normalfont` (latex.ltx:17879), so the mark
+  // of a footnote in the label is upright, as in the theorem's text, not italic from the label.
+  let in_label = xml(
+    "\\begin{lemma}\\begin{enumerate}\\item[a\\footnote{inlabel}] Foot.\\end{enumerate}\\end{lemma}",
+  );
+  let in_text = xml("\\begin{lemma}Text\\footnote{plain}.\\end{lemma}");
+  let expected = concat!(
+    "<tags><tag><text font=\"upright\">1</text></tag>",
+    "<tag role=\"refnum\"><text font=\"upright\">1</text></tag>",
+    "<tag role=\"typerefnum\"><text font=\"upright\">footnote 1</text></tag></tags>"
+  );
+  assert_eq!(note_tags(&in_text), expected);
+  assert_eq!(note_tags(&in_label), expected);
 }

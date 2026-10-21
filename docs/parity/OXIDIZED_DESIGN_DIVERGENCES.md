@@ -17967,20 +17967,31 @@ The entries' per-field markup (`ltx:bibentry`'s
 
 ### 604. An `\item`'s label is set in the font in force at the `\item` (Perl: the label is always upright)
 
-**Perl behavior**: every `ltx:tag` is built by `\lx@tag@intags`, whose `beforeDigest` is `neutralizeFont()`
-(Base_Utility.pool.ltxml:1005), and the displayed one is `\lx@fnum@@`, which opens with `\normalfont`
-(Base_Utility.pool.ltxml:1041). The label of an `\item` is therefore upright and the size of the text whatever surrounds
-the list: an `enumerate` inside a `plain`-style theorem (the body is `\itshape`) gives
-`<tag>1.</tag>` beside a `<para>` whose text is `<text font="italic">`. **LaTeX behavior**: `\@item` typesets
-`\makelabel{\labelenumi}` in the list's current font, so the `1.` `2.` of that theorem, and a `\small` list's, are italic
-and small (`\descriptionlabel`, `\labelitemii` and enumitem's `font=` set their own on top). **Rust behavior**:
-`ref_step_item_counter` (latexml_core `binding/counter/dialect.rs`) holds the font in force at the `\item` under
-`itemlabel_font` while the item's tags are digested, and `\lx@fnum@@` puts it back, with `\lx@itemlabel@font`
+**Perl behavior** (KNOWN_PERL_ERRORS #667): every `ltx:tag` is built by `\lx@tag@intags`, whose `beforeDigest` is
+`neutralizeFont()` (Base_Utility.pool.ltxml:1005), and the displayed one is `\lx@fnum@@`, which opens with `\normalfont`
+(Base_Utility.pool.ltxml:1041). The label of an `\item` is therefore upright and the size and colour of the document
+whatever surrounds the list: an `enumerate` inside a `plain`-style theorem (the body is `\itshape`) gives `<tag>1.</tag>`
+beside a `<para>` whose text is `<text font="italic">`. **LaTeX behavior**: `\@item` typesets
+`\sbox\@tempboxa{\makelabel{#1}}` (latex.ltx:16196, :16245) in the list's current font, so the `1.` `2.` of that
+theorem are italic, and small in a `\small` list, red in a red one. pdfLaTeX's `\showbox\@labels` in an `amsthm` plain
+lemma: the enumerate label `\OT1/cmr/m/it/10`, the itemize bullet `\TS1/cmr/m/n/10`, because `\labelitemi` is
+`\labelitemfont \textbullet` and `\labelitemfont` is `\normalfont` (article.cls:355-359, book.cls:457-461,
+report.cls:430-434). `\descriptionlabel`, `\labelitemii` and enumitem's `font=` set their own on top.
+
+**Rust behavior**: `ref_step_item_counter` (latexml_core `binding/counter/dialect.rs`) holds the font, the math font and
+the counter in force at the `\item` (`itemlabel_font`, `itemlabel_mathfont`, `itemlabel_counter`; the previous values are
+put back afterwards) while the item's tags are digested, and `\lx@fnum@@` puts them back, with `\lx@itemlabel@font{type}`
 (base_utilities.rs), right after its `\normalfont` and before the `fnum@font@<counter>` that enumitem's `font=` defines:
-`font=\bfseries` in an italic theorem is bold italic, as in LaTeX. The displayed tag is the only one that follows the
-context: the `refnum` and `typerefnum` tags, which a `\ref` copies into running text, keep the neutral font. A
-description label stays bold and upright (`\normalfont\bfseries` is its own); an itemize bullet in an italic context is
-`<text font="italic">•</text>`, the same glyph (the golden `tests/theorem/ntheorem.xml` has three, which Perl's reference lacks). In an
-upright context nothing changes (no `<text>` wrapper).
+`font=\bfseries` in an italic theorem is bold italic, as in LaTeX. The font includes its size and colour. It acts for the
+item's own counter only: a footnote in a label (`\item[a\footnote{x}]`) keeps `\normalfont` for its mark
+(latex.ltx:17879), as a footnote in the text. The displayed tag is the only one that follows the context: the `refnum`
+and `typerefnum` tags, which a `\ref` copies into running text, keep the neutral font. The kernel's bullets mirror the
+class files (sect06.rs): `\labelitemfont` is `\normalfont` and `\labelitemi`..`iv` start with it (Perl: bare
+`\textbullet`, `\textasteriskcentered`, `\textperiodcentered`), so a bullet in an italic theorem is upright, as above;
+a class that defines `\labelitemi` as a bare `\textbullet` (revtex4-2.cls:6468) gets the context's font. A description
+label stays bold and upright (`\normalfont\bfseries` is its own). In an upright context nothing changes (no `<text>`
+wrapper). Two side effects, both closer to LaTeX: a list in a `\small` caption no longer has its tag read as
+`<text fontsize="111%">` (the neutral font was normalsize, the caption's `\small` the context), and an `enumerate*`
+item in an italic theorem no longer has `<text font="upright">` on its tag.
 
 **Guard**: `cluster_package_guards::item_label_font::*`.

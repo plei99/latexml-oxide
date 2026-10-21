@@ -13160,3 +13160,20 @@ would fix it, but it changes the text after every environment whose end code use
 environments), a change of its own with its own A/B. It is environ's default final code
 (`\environfinalcode{\ignorespacesafterend}`, environ.sty:55), so every `\NewEnviron` environment keeps the space after
 its `\end` (environ_sty.rs, OXIDIZED_DESIGN_DIVERGENCES #588(l)).
+
+## 667. An `\item`'s label is upright whatever surrounds the list
+
+```latex
+\documentclass{article}\usepackage{amsthm}\newtheorem{lemma}{Lemma}
+\begin{document}
+\begin{lemma}Let $x$. \begin{enumerate}\item First. \item Second.\end{enumerate}\end{lemma}
+\end{document}
+```
+
+→ pdfLaTeX sets `1.` `2.` in italic (the plain-style theorem is `\itshape`; `\showbox\@labels` reads `\OT1/cmr/m/it/10`),
+since `\@item` typesets `\makelabel{#1}` in the list's current font (latex.ltx:16196, :16245). Perl: `<tag>1.</tag>`
+beside `<text font="italic">First.</text>`: `\lx@tag@intags` is `beforeDigest => neutralizeFont()`
+(Base_Utility.pool.ltxml:1005) and `\lx@fnum@@` starts `\normalfont` (:1041), so no tag keeps the context's font, size
+or colour. A bullet is upright in LaTeX (`\labelitemi` is `\labelitemfont \textbullet`, `\labelitemfont` is `\normalfont`,
+article.cls:355-359), which Perl's bare `\textbullet` (latex_constructs.pool.ltxml:1530) would turn italic if the tags kept
+the font. Fixed in Rust, for the item's displayed tag only: OXIDIZED_DESIGN_DIVERGENCES #604.

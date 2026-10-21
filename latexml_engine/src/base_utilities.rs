@@ -2657,18 +2657,27 @@ LoadDefinitions!({
   // prefix). The group is transparent for the declaration-style values.
   DefMacro!(
     r"\lx@fnum@@{}",
-    r"{\normalfont\lx@itemlabel@font\@ifundefined{fnum@font@#1}{}{\csname fnum@font@#1\endcsname}{\@ifundefined{fnum@#1}{\lx@@fnum@@{#1}}{\csname fnum@#1\endcsname{}}}}"
+    r"{\normalfont\lx@itemlabel@font{#1}\@ifundefined{fnum@font@#1}{}{\csname fnum@font@#1\endcsname}{\@ifundefined{fnum@#1}{\lx@@fnum@@{#1}}{\csname fnum@#1\endcsname{}}}}"
   );
 
-  // `\lx@itemlabel@font` (right after `\normalfont`) puts back the font the `\item` was typeset in: LaTeX sets
-  // `\makelabel{\labelenumi}` in the list's current font (latex.ltx `\@item`), so an enumerate inside a plain-style
-  // theorem numbers in italic. It acts only while `ref_step_item_counter` holds that font, so no other tag changes.
-  // Beyond Perl: Perl's `\lx@tag@intags` neutralizes the font and `\lx@fnum@@` normalizes it (Base_Utility.pool.ltxml:
-  // 1004, 1041). OXIDIZED_DESIGN_DIVERGENCES #604.
-  DefPrimitive!("\\lx@itemlabel@font", {
-    if let Some(Stored::Font(font)) = lookup_value("itemlabel_font") {
-      sync_nfss_font_codes(&font);
-      assign_value("font", Stored::Font(font), Some(Scope::Local));
+  // `\lx@itemlabel@font{type}` (right after `\normalfont`) puts back the font the `\item` was typeset in: LaTeX's
+  // `\@item` sets `\sbox\@tempboxa{\makelabel{#1}}` (latex.ltx:16196, :16245) in the list's current font, so an enumerate
+  // inside a plain-style theorem numbers in italic (`\showbox\@labels`: `\OT1/cmr/m/it/10`), in the colour and size in
+  // force too. It acts only for the counter of the `\item` whose tags `ref_step_item_counter` is digesting
+  // (`itemlabel_counter`), so a footnote in a label, or any other tag, keeps the neutral font (`\@makefnmark` is
+  // `\normalfont`, latex.ltx:17879). A bullet is upright all the same: `\labelitemi` starts `\labelitemfont`
+  // (`\normalfont`, article.cls:355-359; sect06.rs). Beyond Perl, whose `\lx@tag@intags` neutralizes the font
+  // (Base_Utility.pool.ltxml:1005) and `\lx@fnum@@` normalizes it (:1041): OXIDIZED_DESIGN_DIVERGENCES #604.
+  DefPrimitive!("\\lx@itemlabel@font {}", sub[(counter)] {
+    let wanted = lookup_string("itemlabel_counter");
+    if !wanted.is_empty() && wanted == counter.to_string() {
+      if let Some(Stored::Font(font)) = lookup_value("itemlabel_font") {
+        sync_nfss_font_codes(&font);
+        assign_value("font", Stored::Font(font), Some(Scope::Local));
+      }
+      if let Some(Stored::Font(mathfont)) = lookup_value("itemlabel_mathfont") {
+        assign_value("mathfont", Stored::Font(mathfont), Some(Scope::Local));
+      }
     }
   });
 

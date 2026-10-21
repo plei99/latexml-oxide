@@ -1004,16 +1004,29 @@ pub fn reset_counter(ctr: &Token) -> Result<()> {
 /// Create id, and tags for an itemize type \item
 ///
 /// The `\item`'s label is typeset in the font in force at the `\item`, as LaTeX's `\@item` does
-/// (`\makelabel{\labelenumi}` in the list's current font): that font is held under `itemlabel_font` while the tags
-/// are digested, for `\lx@itemlabel@font` (base_utilities.rs, `\lx@fnum@@`) to put back after the tag's
-/// `neutralize_font` and `\normalfont`. Beyond Perl: OXIDIZED_DESIGN_DIVERGENCES #604.
+/// (`\sbox\@tempboxa{\makelabel{#1}}`, latex.ltx:16245): that font, the math font and the counter are held under
+/// `itemlabel_font`, `itemlabel_mathfont` and `itemlabel_counter` while the tags are digested, for
+/// `\lx@itemlabel@font{<counter>}` (base_utilities.rs, `\lx@fnum@@`) to put back after the tag's `neutralize_font` and
+/// `\normalfont`: only for this counter, so a footnote in the label stays neutral. The previous values are restored on
+/// the way out. Beyond Perl: OXIDIZED_DESIGN_DIVERGENCES #604.
 pub fn ref_step_item_counter(tag_opt: Option<&Tokens>) -> Result<HashMap<Stored>> {
-  match lookup_font() {
-    Some(font) => assign_value("itemlabel_font", Stored::Font(font), Some(Scope::Local)),
-    None => assign_value("itemlabel_font", Stored::None, Some(Scope::Local)),
+  const KEYS: [&str; 3] = ["itemlabel_font", "itemlabel_mathfont", "itemlabel_counter"];
+  let previous: Vec<Option<Stored>> = KEYS.iter().map(|key| lookup_value(key)).collect();
+  let mut held = [Stored::None, Stored::None, Stored::None];
+  if let Some(font) = lookup_font() {
+    held[0] = Stored::Font(font);
+  }
+  if let Some(mathfont) = lookup_mathfont() {
+    held[1] = Stored::Font(mathfont);
+  }
+  held[2] = Stored::String(arena::pin(lookup_string("itemcounter")));
+  for (key, value) in KEYS.iter().zip(held) {
+    assign_value(key, value, Some(Scope::Local));
   }
   let result = ref_step_item_counter_in_font(tag_opt);
-  assign_value("itemlabel_font", Stored::None, Some(Scope::Local));
+  for (key, value) in KEYS.iter().zip(previous) {
+    assign_value(key, value.unwrap_or(Stored::None), Some(Scope::Local));
+  }
   result
 }
 
