@@ -105,3 +105,36 @@ fn widehat_stretches_with_u0302() {
   assert_element(&html, "math", &["id=\"S0.Ex1.m1\""], &r##"<math id="S0.Ex1.m1" class="ltx_Math" alttext="\widehat{\bigoplus}\ \widehat{\mathfrak{gl}(1)}" display="block"><mrow><mover accent="true"><mo movablelimits="false">⨁</mo><mo>@U0302@</mo></mover><mo lspace="0.667em">⁢</mo><mover accent="true"><mrow><mi>𝔤</mi><mo>⁢</mo><mi>𝔩</mi><mo>⁢</mo><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></mrow><mo>@U0302@</mo></mover></mrow></math>"##.replace("@U0302@", "\u{0302}"));
 }
 
+/// Perl runs its kludge on every failed parse (MathParser.pm:322, :374), and it keeps the wide
+/// spaces `filter_hints` made into punctuation. Ours ran it only for formulae with fences and read
+/// the hints once, unlinking them, so a formula left unparsed with no parenthesis kept its scripts as
+/// markers presented over an empty base and lost its `\qquad`: `a_i\qquad=\to b` (two relations in a
+/// row: unparsed in Perl too, whose XML has `<XMHint name="qquad" role="PUNCT" width="20pt"/>`).
+#[test]
+fn unparsed_formula_keeps_its_scripts_and_wide_spaces() {
+  let (stderr, html) = convert_html(
+    "\\documentclass{article}\n\\usepackage{amsmath}\n\\begin{document}\n\
+     \\[ a_i^j \\qquad = \\to b \\]\n\\[ a + \\text{and $c_i \\qquad = \\to b$} \\]\n\\end{document}\n",
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 2, "{stderr}");
+  assert_eq!(
+    stderr.matches("Warning:unparsed_math:").count(),
+    2,
+    "{stderr}"
+  );
+  assert!(stderr.contains("Warning:unparsed_math:"), "{stderr}");
+  assert_element(
+    &html,
+    "math",
+    &["id=\"S0.Ex1.m1\""],
+    r##"<math id="S0.Ex1.m1" class="ltx_math_unparsed" alttext="a_{i}^{j}\qquad=\to b" display="block"><mrow><msubsup><mi>a</mi><mi>i</mi><mi>j</mi></msubsup><mspace style="width:2em;" width="2em"></mspace><mo rspace="0em">=</mo><mo lspace="0em" stretchy="false">→</mo><mi>b</mi></mrow></math>"##,
+  );
+  // a failed formula inside a parsed one (an `\text` argument) is kludged where it fails, before the outer copy
+  assert_element(
+    &html,
+    "math",
+    &["id=\"S0.Ex2.m1\""],
+    r##"<math id="S0.Ex2.m1" class="ltx_Math" alttext="a+\text{and $c_{i}\qquad=\to b$}" display="block"><mrow><mi>a</mi><mo>+</mo><mrow><mtext>and </mtext><mrow><msub><mi>c</mi><mi>i</mi></msub><mspace style="width:2em;" width="2em"></mspace><mo rspace="0em">=</mo><mo lspace="0em" stretchy="false">→</mo><mi>b</mi></mrow></mrow></mrow></math>"##,
+  );
+}

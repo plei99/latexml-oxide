@@ -26,6 +26,16 @@
     `\widetilde` are unchanged. Guard `math_layout_parity::widehat_stretches_with_u0302`
     (OXIDIZED_DESIGN_DIVERGENCES #599).
 
+  - **An unparsed formula keeps its scripts and its `\qquad`.** Perl kludges every failed parse and
+    keeps the wide spaces (`\quad` and up) as `XMHint role="PUNCT"`; ours kludged only formulae with
+    fences and had unlinked the hints, so an unparsed `XMath` without parentheses presented its scripts
+    over an empty `mrow` and lost its `\qquad`. The kludge now runs where an `XMath` fails, as Perl's does, so
+    before an enclosing formula copies it (`\text{and $c_i\qquad=\to b$}` in a parsed formula); Perl also kludges a
+    failed `XMArg` and `XMWrap`, which ours still does not. Goldens `ams/mathtools` (the
+    `\qquad` before `\text{Maxwell's equations}`, which Perl's golden has) and `complex/physics` (three
+    `\quad`s) gain their `XMHint`. Guard
+    `math_layout_parity::unparsed_formula_keeps_its_scripts_and_wide_spaces`.
+
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
     loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,

@@ -2155,11 +2155,13 @@
               <XMWrap>
                 <XMTok role="OPEN" stretchy="false">[</XMTok>
                 <XMText lpadding="10.0pt">word or phrase</XMText>
+                <XMHint name="quad" role="PUNCT" width="10pt"/>
                 <XMTok role="CLOSE" stretchy="false">]</XMTok>
               </XMWrap>
               <XMWrap>
                 <XMTok role="OPEN" stretchy="false">[</XMTok>
                 <XMText>word or phrase</XMText>
+                <XMHint name="quad" role="PUNCT" width="10pt"/>
                 <XMTok role="CLOSE" stretchy="false">]</XMTok>
               </XMWrap>
             </XMath>
@@ -2179,6 +2181,7 @@
               <XMWrap>
                 <XMTok role="OPEN" stretchy="false">[</XMTok>
                 <XMText lpadding="10.0pt">c.c.</XMText>
+                <XMHint name="quad" role="PUNCT" width="10pt"/>
                 <XMTok role="CLOSE" stretchy="false">]</XMTok>
               </XMWrap>
               <XMTok role="PUNCT">,</XMTok>
