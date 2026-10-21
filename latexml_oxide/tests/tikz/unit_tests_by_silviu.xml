@@ -2631,14 +2631,7 @@ Hello</p>
             <svg:g color="#B3B3B3" fill="#B3B3B3" stroke="#B3B3B3">
               <svg:path d="M 0 0 C 0 21.74 17.63 39.37 39.37 39.37 C 61.11 39.37 78.74 21.74 78.74 0" style="stroke:none"/>
             </svg:g>
-            <svg:defs>
-              <svg:mask height="200000" id="pgffade46" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
-                <svg:g fill="#FFFFFF" stroke="#FFFFFF" transform="matrix(1.0 0.0 0.0 1.0 39.37 39.37) translate(-14.33 -4.8)">
-                  <svg:foreignObject height="9.61" overflow="visible" style="--ltx-fo-width:2.07em;--ltx-fo-height:0.69em;--ltx-fo-depth:0em;font-size:10pt;" transform="matrix(1 0 0 -1 0 9.61)" width="28.66"><text color="#FFFFFF">Ti<emph font="italic">k</emph>Z</text></svg:foreignObject>
-                </svg:g>
-              </svg:mask>
-            </svg:defs>
-            <svg:g color="#FF0000" fill="#FF0000" mask="url(#pgffade46)" stroke="#FF0000">
+            <svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000">
               <svg:path d="M 0 0 M 0 0 L 0 78.74 L 78.74 78.74 L 78.74 0 Z M 78.74 78.74" style="stroke:none"/>
             </svg:g>
           </svg:g>

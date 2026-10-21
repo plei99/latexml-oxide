@@ -320,11 +320,11 @@ fn a_second_fading_replaces_the_first_in_its_scope() {
   );
 }
 
-/// A fading made of text (`\pgfdeclarefading{…}{\color{white}Ti\emph{k}Z}`) keeps its text, in the mask's
-/// `foreignObject`: the document is valid and the faded path is masked. Browsers that skip a `foreignObject` in a
-/// mask (Chromium) show nothing of the path.
+/// A fading made of text (`\pgfdeclarefading{…}{\color{white}Ti\emph{k}Z}`) has its text in a `foreignObject`, which
+/// browsers do not paint inside a mask (Chromium): the mask would hide the path entirely, worse than the opaque
+/// drawing of before. The path is left unmasked, with one warning naming the fading, and no mask is written.
 #[test]
-fn a_text_fading_keeps_its_text_in_the_mask() {
+fn a_text_fading_leaves_the_path_unmasked_with_a_warning() {
   let tex = format!(
     "{PREAMBLE}\\pgfdeclarefading{{tikz}}{{\\color{{white}}Ti\\emph{{k}}Z}}\n\\begin{{document}}\n\
      \\begin{{tikzpicture}}\n\\pgfsetfading{{tikz}}{{}}\n\\fill[red] (0,0) rectangle (2,2);\n\\end{{tikzpicture}}\n\
@@ -332,19 +332,25 @@ fn a_text_fading_keeps_its_text_in_the_mask() {
   );
   let (stderr, xml) = convert(&tex, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
-  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 1, "{stderr}");
+  assert!(
+    stderr.contains("Warning:unexpected:fading The fading 'tikz' has text in its box"),
+    "{stderr}"
+  );
   if let Some(lines) = latexml::util::test::rng_error_count(&xml) {
     assert_eq!(lines, 0, "jing:\n{xml}");
   }
+  assert!(
+    !xml.contains("svg:mask") && !xml.contains("mask=") && !xml.contains("foreignObject"),
+    "{xml}"
+  );
   assert_element(
     &xml,
-    "svg:mask",
-    &[],
-    r##"<svg:mask height="200000" id="pgffade9" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
-      <svg:g fill="#FFFFFF" stroke="#FFFFFF" transform="matrix(1.0 0.0 0.0 1.0 0 0) translate(-14.33 -4.8)">
-        <svg:foreignObject height="9.61" overflow="visible" style="--ltx-fo-width:2.07em;--ltx-fo-height:0.69em;--ltx-fo-depth:0em;font-size:10pt;" transform="matrix(1 0 0 -1 0 9.61)" width="28.66"><text color="#FFFFFF">Ti<emph font="italic">k</emph>Z</text></svg:foreignObject>
-      </svg:g>
-    </svg:mask>"##,
+    "svg:g",
+    &[r##"transform="translate(0,78.74) matrix(1 0 0 -1 0 0)""##],
+    r##"<svg:g color="#FF0000" fill="#FF0000" stroke="#FF0000" stroke-width="0.4pt" transform="translate(0,78.74) matrix(1 0 0 -1 0 0)">
+      <svg:path d="M 0 0 M 0 0 L 0 78.74 L 78.74 78.74 L 78.74 0 Z M 78.74 78.74" style="stroke:none"/>
+    </svg:g>"##,
   );
 }
 

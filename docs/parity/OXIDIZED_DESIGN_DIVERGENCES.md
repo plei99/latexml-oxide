@@ -18408,9 +18408,11 @@ its box in a scope outside any picture, and the unguarded protocol literal came 
 `\space` (pgfsysprotocol.code.tex:32-35) in the box (3.3pt of width the pdf drivers' `\pdfliteral` has not) and a `\lxSVG@closescope` that closed
 whatever `svg:g` was open.
 
-**Residual**: a fading of text (`\pgfdeclarefading{…}{\color{white}Ti\emph{k}Z}`) holds its text in a `foreignObject`
-in the mask, valid and in the document; Chromium does not paint a `foreignObject` in a mask, so the faded path is
-hidden entirely there (the PDF shows it through the letters; before, the path was drawn opaque). A fading replaces
+**Residual**: a fading of text (`\pgfdeclarefading{…}{\color{white}Ti\emph{k}Z}`, anything that becomes a `foreignObject`
+in the mask) is not applied: browsers do not paint a `foreignObject` in a mask (Chromium), so the mask would hide the
+path entirely, worse than the opaque drawing before. `\pgfsys@usefading` finds the `foreignObject` in the mask it just
+built, drops the mask, leaves the path unmasked and warns once (`Warning:unexpected:fading`, naming the fading); a
+fading set earlier in the scope stays in force. The PDF shows the path through the letters. A fading replaces
 the one in force only within its own scope: `\path[scope fading=A] …; \fill[path fading=B] …` puts the path's scope
 inside A's group, so the picture shows A and B intersected where the PDF's inner `gs` replaces A. The colours a picture
 draws with inside a fading's box are those in force where it was typeset: `\tikzfading`'s picture is typeset before
@@ -18424,7 +18426,7 @@ the mask the veil hides the figure.
 `::the_faded_path_is_drawn_in_a_group_that_refers_to_the_mask`, `::a_fading_ends_with_its_scope`,
 `::a_library_fading_masks_the_path`, `::every_use_of_a_fading_has_its_own_mask_and_ids`,
 `::an_undefined_fading_is_an_error_and_masks_nothing`, `::a_second_fading_replaces_the_first_in_its_scope`,
-`::a_text_fading_keeps_its_text_in_the_mask`, `::a_transformed_scope_does_not_move_the_mask_of_its_group`. Checked in Chromium against the PDF of each source: the rectangle fades left
+`::a_text_fading_leaves_the_path_unmasked_with_a_warning`, `::a_transformed_scope_does_not_move_the_mask_of_its_group`. Checked in Chromium against the PDF of each source: the rectangle fades left
 to right with the PDF's pixel values (229 at the left edge of the blue region to 204 at its fully visible part).
 
 ### 616. A shading is as large as it was declared (Perl: the pixel size is read as points, 1.38 times too large)

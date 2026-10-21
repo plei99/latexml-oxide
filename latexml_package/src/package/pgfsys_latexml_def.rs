@@ -1629,7 +1629,7 @@ LoadDefinitions!({
       let dim_px = |i: usize| Dimension::from_str(&arg(i)).map(dim_to_px).unwrap_or(0.0);
       ensure_svg_context(document)?;
       let id = format!("pgffade{obj}");
-      document.open_element("svg:defs", None, None)?;
+      let defs = document.open_element("svg:defs", None, None)?;
       let mask = document.open_element("svg:mask", Some(string_map!(
         "id" => id.clone(),
         "maskUnits" => "userSpaceOnUse".to_string(),
@@ -1650,6 +1650,14 @@ LoadDefinitions!({
       document.maybe_close_node(&group)?;
       document.maybe_close_node(&mask)?;
       document.close_element("svg:defs")?;
+      // A fading with text in its box holds a `foreignObject` in the mask, which browsers do not paint there
+      // (Chromium): the mask would hide the path entirely, worse than drawing it opaque as before. Leave the
+      // path unmasked, and say so.
+      if !document.findnodes("descendant::svg:foreignObject", Some(&mask)).is_empty() {
+        document.remove_node(defs);
+        Warn!("unexpected", "fading", s!("The fading '{}' has text in its box, which a mask cannot show in a browser; the path is drawn unmasked", arg(0)));
+        return Ok(());
+      }
       // A fading replaces the one in force — the soft mask of the graphics state (`/pgfsmask… gs`) — where the
       // masks of nested groups intersect. Close the group of the earlier mask of this scope, with the groups the
       // scope opened inside it (colour, opacity, line settings), and reopen those outside it. pgf installs a

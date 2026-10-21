@@ -6,7 +6,8 @@
     `circle with fuzzy edge 10 percent`… fadings of the library, `\tikzfading`, `tikzfadingfrompicture`) drew an opaque
     shape: the driver's `\pgfsys@fadingfrombox`/`\pgfsys@usefading` were no-ops (Perl: `# NOT IMPLEMENTED`). The fading's
     box is now an `svg:mask` placed as the pdf driver places its soft mask, referenced by the faded path's group; a second
-    fading in a scope replaces the first, and an undefined name is an error, as in pgf. `\pgfsys@endscope` outside a
+    fading in a scope replaces the first, an undefined name is an error, as in pgf, and a fading with text in its box
+    (a `foreignObject` no browser paints in a mask) leaves the path unmasked with a warning. `\pgfsys@endscope` outside a
     picture no longer leaves a space in the box (divergence #615). A shading's size read pixels as points, so a picture of
     `\pgfuseshading` was 1.38 times too large and a node holding one placed it off its centre: both are exact now
     (divergence #616; `unit_tests_by_silviu` regenerated). Guards `pgf_fadings::*`.
