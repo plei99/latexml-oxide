@@ -58,6 +58,7 @@ LoadDefinitions!({
   DefMacro!("\\thepart", "\\arabic{part}");
   DefMacro!("\\format@title@part{}", "\\lx@tag[][.\\space]{\\lx@fnum@@{part}}#1");
   RequirePackage!("ams_support");
+  ams_support_sty::amsart_caption_head_font()?;
   ams_support_sty::amsart_author_storage()?;
   ams_support_sty::amsart_uppercase_nonmath()?;
   // amsart.cls:518-520 (amsproc.cls alike): `\\enddoc@text`, run `\\AtEndDocument`, sets the translators and the

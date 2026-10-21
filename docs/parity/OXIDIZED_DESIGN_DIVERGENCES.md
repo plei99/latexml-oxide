@@ -18016,3 +18016,21 @@ TeX (§799); the skip's row height in a cell is lost. Golden: `82_moderncv::cs_c
 \vspace{1mm} B}}`) now keeps `A` and `B` in one `ltx:p`, as the vbox's one paragraph.
 
 **Guards**: `cluster_package_guards::paragraph_alignment_at_par::vspace_in_a_paragraph_does_not_split_it`.
+
+### 605. The label of a figure or table caption in the AMS classes is in small capitals (Perl: upright, ltx-amsart.css)
+
+amsart.cls:1386-1390 `\@makecaption` prints the label (`#1`, `Figure 1`) under `\@captionheadfont`, defined `\scshape`
+at :1354 (amsproc.cls:1290/:1325, amsbook.cls:1250/:1285), and the title after it in `\@captionfont\upshape`.
+LaTeXML builds the label from `\fnum@font@<type>` (Base_Utility.pool.ltxml:1041-1044, `\lx@fnum@@`), which is `\@empty` in
+the kernel binding; Perl's amsart leaves it so and `ltx-amsart.css` (`.ltx_figure .ltx_tag, .ltx_table .ltx_tag`)
+supplies the small capitals, so a page that does not load that sheet shows the label upright. The AMS class bindings
+(`ams_support_sty::amsart_caption_head_font`, called from ams_core_cls.rs and amsbook_cls.rs) define
+`\@captionheadfont` and set `\fnum@font@figure` and `\fnum@font@table` to `\fnum@font@float\@captionheadfont`, so the
+label is `<text font="smallcaps">Figure 1</text>` (class `ltx_font_smallcaps`), after a caption package's size
+(`\fnum@font@float`: subcaption's binding makes it `\small`; real caption-ams-smf.sto keeps `\@captionfont`). Other
+classes are untouched, and the stylesheet's rule stays (the same effect twice). acmart, which loads amsart and sets its
+own label fonts through caption (acmart.cls:878-906), is reset to `\fnum@font@float` (`acmart_cls.rs`); its
+`labelfont={bf}` is not modelled. Not modelled: `\captionsetup{labelfont=…}` on an AMS class still gets the small
+capitals (caption_sty.rs ignores `labelfont`).
+
+**Guards**: `cluster_package_guards::ams_caption_label_smallcaps::*`.

@@ -9,6 +9,9 @@
     (flush left). An environment or box (figure, minipage, `\parbox`, quote, ...) and a paragraph with a `\\` in the group still align as before. `\vspace` in
     horizontal mode is a `\vadjust` (latex.ltx:9522-9532), not a paragraph-ending `\vskip`. Beyond Perl:
     OXIDIZED_DESIGN_DIVERGENCES #602 and #603; guards `paragraph_alignment_at_par::*`.
+  - **fix: amsart, amsproc and amsbook set the label of a figure or table caption in small capitals**
+    (`\@makecaption` under `\@captionheadfont`, amsart.cls:1354/:1389), where the markup was upright and left the
+    small capitals to a stylesheet. OXIDIZED_DESIGN_DIVERGENCES #605; guards `ams_caption_label_smallcaps::*`.
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
     (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,

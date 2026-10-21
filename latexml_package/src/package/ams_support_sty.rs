@@ -405,6 +405,20 @@ LoadDefinitions!({
   def_primitive_noop("\\markleft{}")?;
 });
 
+/// The label of a figure or table caption, `Figure 1`, in small capitals. `\@makecaption` prints `#1` under
+/// `\@captionheadfont`, `\scshape`, and the title after it in `\@captionfont\upshape` (amsart.cls:1354 and :1389,
+/// amsproc.cls:1290 and :1325, amsbook.cls:1250 and :1285). LaTeXML builds the label from `\fnum@font@<type>`, the
+/// number's own font (base_utilities.rs `\lx@fnum@@`): Perl leaves it `\@empty` and ltx-amsart.css's
+/// `.ltx_figure .ltx_tag` carries the small capitals, so a page that does not load that sheet shows the label
+/// upright. `\fnum@font@float`, a caption package's size, still applies first.
+/// OXIDIZED_DESIGN_DIVERGENCES #605; guards `ams_caption_label_smallcaps::*`.
+#[rustfmt::skip]
+pub fn amsart_caption_head_font() -> Result<()> {
+  raw_tex(r"\def\@captionheadfont{\scshape}
+\def\fnum@font@figure{\fnum@font@float\@captionheadfont}
+\def\fnum@font@table{\fnum@font@float\@captionheadfont}")
+}
+
 /// amsart's author storage (amscls/amsart.cls:460-477, amsbook.cls the same): `\authors`,
 /// `\shortauthors` and `\addresses` are parameterless macros, empty until `\author[#1]{#2}` adds
 /// its names, joined by `\and`; a document's `\maketitle` or running head prints them. Perl's
