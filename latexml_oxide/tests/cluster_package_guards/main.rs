@@ -76,6 +76,7 @@ mod memoir_fork_layout;
 mod memoir_fork_text;
 mod memoir_output_streams;
 mod memoir_tableofcontents;
+mod mtext_block_alignment;
 mod multiline_node_rows;
 mod natbib_label_dotless_i;
 /// Native bindings for the arXiv mathematics sample's packages with no Perl binding (OXIDIZED_DESIGN #588).

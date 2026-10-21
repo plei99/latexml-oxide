@@ -18003,3 +18003,28 @@ a_sum_in_an_exponent_is_script_size_without_compensation,
 a_sum_in_a_script_of_a_fraction_is_script_size_without_compensation,
 a_mathchar_operator_in_a_script_records_the_script_style, over_moves_a_large_operator_to_the_next_style,
 a_scriptstyle_sum_with_a_limit_is_wrapped_to_script_level}`.
+
+### 607. A centred stackengine stack in a formula is held in a line of its own, and has the width of its content (Perl: a bare child of `m:mtext`)
+
+**Perl behavior**: stackengine has no Perl binding; the port's `\Centerstack` (OXIDIZED_DESIGN #588(b)) in a formula is an
+`ltx:XMText` holding an `ltx:inline-block vattach="middle"`, which reaches the page as
+`<mtext><span class="ltx_inline-block ltx_align_middle">…` (`LaTeXML-misc-xhtml.xsl`, `ltx:inline-block`, byte for byte
+Perl's). A child of an `mtext` is a block-level box of the math layout whatever its `display` (computed `block`, checked in
+Chromium), so `.ltx_align_middle { vertical-align:middle }` (LaTeXML.css) finds no line to act on: Chromium puts the last
+line of the box on the baseline and Firefox the first, and a stretchy fence around it (`\left\{ … \right\}`) grows to one
+side only, with an empty half. TeX centres `\Centerstack` on the axis. `\parbox` and `minipage` in a formula are not
+this: they arrive as `<mtext class="ltx_parbox">` / `"ltx_minipage"`, which LaTeXML.css makes an `inline-block` itself
+(:416, :716), and their geometry is as it was; `\shortstack` has no `vattach` and is a `vbox` whose last line is on the
+baseline in TeX, so it is not centred either.
+**Rust behavior**: `LaTeXML-misc-xhtml.xsl` holds an `inline-block` whose `vattach` is `middle` and whose parent is a
+class-less `m:mtext` in a `<span class="ltx_mtext_line">`; the span is the block of the math layout, and the box is aligned
+in its line, centred on the baseline plus half the x-height (near the axis), with compact fences (checked in Chromium 1243
+through playwright, and Firefox). Chromium sizes the `mtext` without the box's text (math element 198px for 253px of
+content), which drew a following `.` over the box; LaTeXML.css gives the box the width of its content:
+`.ltx_mtext_line > .ltx_inline-block:not([style*="width"]) { width:max-content; }` (math element 260px, the `.` right after
+the `}`). A page that does not load LaTeXML.css (a site with its own stylesheet) needs this rule as well; `.ltx_align_middle` is the
+existing rule and `ltx_mtext_line` has no other. `top` and `bottom` boxes and boxes outside a formula are untouched.
+
+**Guards**: `cluster_package_guards::mtext_block_alignment::{a_centered_stack_in_a_formula_is_aligned_in_a_line_of_its_own,
+the_wrapped_box_has_the_width_of_its_content, a_top_parbox_in_a_formula_is_not_wrapped,
+a_shortstack_in_a_formula_is_not_wrapped, a_centered_stack_in_text_is_not_wrapped}`.

@@ -397,6 +397,12 @@ dl.ltx_description dl.ltx_description dd { margin-left:3em; }
 .ltx_stackinset_b > :first-child { align-self:end; }
 .ltx_stackinset_l > :first-child { justify-self:start; }
 .ltx_stackinset_r > :first-child { justify-self:end; }
+/* A box centred in a formula (OXIDIZED_DESIGN #607): the stylesheet holds a vattach=middle inline-block that
+   is a child of an m:mtext in this line, where its vertical-align applies. Chromium sizes the mtext without
+   the box's own text (math 198px for 253px of content), so the next item of the formula, a `.` after a
+   \right\}, was drawn over the box; max-content gives the box (and so the mtext) its width. A box with a
+   width of its own (a style="width:..") keeps it. */
+.ltx_mtext_line > .ltx_inline-block:not([style*="width"]) { width:max-content; }
 .ltx_listingline { white-space:nowrap; min-height:1em; }
 .ltx_lst_space { white-space: pre; }
 .ltx_lst_numbers_left .ltx_listingline .ltx_tag {

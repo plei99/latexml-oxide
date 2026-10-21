@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+  - **A centred stackengine stack in a formula is centred in the page.** `\left\{ \Centerstack{…}
+    \right\}` is a block of the math layout in an `mtext`, so its `vertical-align:middle` did nothing:
+    Chromium set its last line on the baseline and Firefox its first, and the braces had an empty half. The
+    stylesheet holds the stack in a line of a `span.ltx_mtext_line` and LaTeXML.css gives it the width of its
+    content (divergence #607). `\parbox`, `minipage`, `\shortstack` and `top`/`bottom` boxes are unchanged.
+    Guards `mtext_block_alignment::*`.
+
   - **A large operator in a script is script size.** `e^{\sum x_iB_i}` and `z^{\sum D_i\cdot d}` in a
     fraction put a `\sum`, `\int`, ... in a script into `<mstyle scriptlevel="-1">`, the operator and its
     operands back at the size of the line (Perl's `doVariablesizeOp` records `text` for every style but display,
