@@ -13,10 +13,12 @@
     (no period after `etc.` or `?`, a comma after an abbreviation's dot) and the field, name and
     string formats they use; the per-field markup is kept, and `maxnames`/`minnames`, `isbn` (which
     also hides ISSN), `url`, `doi`, `eprint` and `giveninits` are honoured. The printed text of
-    the 42 fixture entries of the guards, over every driver and option, equals pdflatex + biber's up to the text of
-    formulas; translators do not lead,
+    the guards' 42 fixture entries (article, book, incollection, inbook, manual, misc, online, proceedings and
+    report entries, and the review, bookinbook and suppbook types; with `maxnames`/`minnames`, `isbn=false`,
+    `doi=false`, `url=false` and `giveninits`) equals pdflatex + biber's; translators do not lead,
     a journal's series, issue and issue title, languages and publication states print, and a title is quoted
-    by its entry type; the list is `ul.ltx_biblist.ltx_bib_standard`, which LaTeXML.css's scoped rules
+    by its entry type; an incollection's `journaltitle` (biber's name for `JOURNAL`) is ignored, as its driver does, and an
+    `\emph` inside an emphasised title is upright; the list is `ul.ltx_biblist.ltx_bib_standard`, which LaTeXML.css's scoped rules
     use to keep the `.bst` rows' italic title and bold volume off it. `[AGV08;
     Giv98]` separates the keys of an alphabetic `\cite` with biblatex's `\multicitedelim` (a
     semicolon; numeric keeps its comma), and `\printbibliography` without `title=` says

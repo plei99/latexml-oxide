@@ -357,6 +357,8 @@ dl.ltx_description dl.ltx_description dd { margin-left:3em; }
 .ltx_bib_standard .ltx_bib_title { font-style:normal; }
 .ltx_bib_standard .ltx_bib_volume { font-weight:normal; }
 .ltx_bib_standard .ltx_tag { font-weight:normal; }
+/* \emph inside an emphasised title or journal is upright (the emphasis toggles). */
+.ltx_bib_standard em em { font-style:normal; }
 
 /* Indices */
 .ltx_indexlist li { list-style-type:none;  }

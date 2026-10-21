@@ -430,7 +430,7 @@ style feature is added.
 
 **Landing.** (a) is standalone and closes the DEFERRED_FAMILIES `.bib`+`.bst`-without-`.bbl` family
 (abntex2cite 80.5 → 99.4 % measured with bibtex's own `.bbl`); (b) per declaration kind. Running
-biblatex's drivers raw over the `.bbl` would be exact but loses the per-field markup — ruled out 2026-10-21: the native path
+biblatex's drivers raw over the `.bbl` would be exact but loses the per-field markup — not taken for `alphabetic`: the native path
 keeps its per-field markup and lays the entries out as `standard.bbx` does for `alphabetic`
 (`latexml_post/src/biblatex_layout.rs`, DIVERGENCES #601; `numeric` has the same drivers and is the next
 candidate); other styles keep the formatter rows.

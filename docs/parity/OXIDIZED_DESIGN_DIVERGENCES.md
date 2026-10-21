@@ -17846,7 +17846,7 @@ is `STANDARD_DRIVER_STYLES`, biblatex_sty.rs `blx_load_style_file`); `authoryear
 `verbose*` and every third-party `.bbx` redefine drivers or macros and keep MakeBibliography's rows.
 The entries' per-field markup (`ltx:bibentry`'s
 `ltx:bib-*`, the classes `ltx_bib_title`, `ltx_bib_journal`, …) is kept; running biblatex's `.bbx` raw over the `.bbl`
-(`KERNEL_CAPABILITIES.md` K16) was ruled out for losing it.
+(`KERNEL_CAPABILITIES.md` K16) was not taken, for losing it.
 
 - **Layout** (`latexml_post/src/biblatex_layout.rs`, called from `make_bibliography.rs` `format_bib_entry`). A port of
   the part of biblatex the standard drivers run: the punctuation tracker (biblatex.sty:4130-4260 `\blx@begunit`,
@@ -17880,7 +17880,7 @@ The entries' per-field markup (`ltx:bibentry`'s
   (numeric.cbx:6 makes it a comma, so numeric keeps `[1, 2]`). `alphabetic-verb.cbx:31-40` brackets each key,
   `[AGV08]; [Giv98]`; it gets the semicolon inside one pair of brackets. A document's own
   `\renewcommand*{\multicitedelim}` is not read.
-- **Heading** (`\biblatex@heading`). `\printbibliography` without `title=` says what biblatex.def:2184-2239 picks
+- **Heading** (`\biblatex@heading`; it applies to every biblatex document, whatever the style). `\printbibliography` without `title=` says what biblatex.def:2184-2239 picks
   from the class: `\refname` for the article-like classes, `scrartcl` and memoir's `article` option, `\bibname` for
   `book`, `report`, `scrbook`, `scrreprt`, memoir and every other class with a `\chapter`
   (english.lbx:112-113 gives `Bibliography` / `References`). The sectioning default (`\refname` if defined) printed
@@ -17899,7 +17899,9 @@ The entries' per-field markup (`ltx:bibentry`'s
 - **Gate** (`blx_load_style_file`). Only the style the document asks for decides: `LNI.bbx`, `ext-alphabetic.bbx` and
   the like `\RequireBibliographyStyle{alphabetic}` and then change drivers and macros, so a style that requires
   `alphabetic` keeps the rows.
-- **Not modelled**, so approximated from `ltx:bibentry`: `titleaddon` is a `subtitle` (the reader files both under
+- **Not modelled**, so approximated from `ltx:bibentry`: `heading=biblist`, `biblistintoc` and `biblistnumbered` (they
+  default to `\biblistname`; the binding gives `\refname` or `\bibname`), the emphasis toggle beyond one level (an
+  `\emph` nested twice in an emphasised title is upright in LaTeXML.css's `em em` rule, italic again in TeX), `titleaddon` is a `subtitle` (the reader files both under
   `ltx:bib-subtitle`), the `maintitle` of a multi-volume work, `related` entries, `bybookauthor`, `volumes`, an `editor` of a `bookinbook`/`suppbook` (the reader files no host for them), the
   types with a driver of their own (`patent`, `periodical`, `dataset`, which print as `misc`), a `type` that the
   reader defaults for `@phdthesis`/`@mastersthesis`/`@techreport` (printed as biblatex's strings, also when the

@@ -686,6 +686,7 @@ fn the_standard_list_carries_the_class_that_scopes_its_fonts() {
     ".ltx_bib_standard .ltx_bib_title { font-style:normal; }",
     ".ltx_bib_standard .ltx_bib_volume { font-weight:normal; }",
     ".ltx_bib_standard .ltx_tag { font-weight:normal; }",
+    ".ltx_bib_standard em em { font-style:normal; }",
   ] {
     assert!(css.contains(rule), "{rule}");
   }
@@ -709,5 +710,59 @@ fn alphabetic_verb_cite_has_the_semicolon_in_one_pair_of_brackets() {
       "<cite class=\"ltx_cite ltx_citemacro_cite\">[<a href=\"#bib.bib1\" title=\"Gromov-Witten theory of Deligne-Mumford stacks\" class=\"ltx_ref\">AGV08</a>; <a href=\"#bib.bib2\" title=\"A mirror theorem for toric complete intersections\" class=\"ltx_ref\">Giv98</a>]</cite>"
     ],
     "{html}"
+  );
+}
+
+/// A `journaltitle` on an `@incollection` (what biber's `.bbl` makes of `JOURNAL`) is ignored by the incollection
+/// driver, which prints the book part: `In: vol. 1. 4. Dedicated. 2001, pp. 551–568.` — the reader files the journal
+/// and the book part (`volume`, `number`) as two hosts, and the book's is the one this driver reads.
+#[test]
+fn a_journal_title_on_an_incollection_is_ignored() {
+  let bib = "@incollection{vf, AUTHOR = {Givental, Alexander B.}, TITLE = {Gromov-{W}itten invariants}, NOTE = {Dedicated}, JOURNALTITLE = {Mosc. Math. J.}, VOLUME = {1}, NUMBER = {4}, YEAR = {2001}, PAGES = {551--568}}\n";
+  for field in ["JOURNALTITLE", "JOURNAL"] {
+    let bib = bib.replace("JOURNALTITLE", field);
+    let html = clean_html(
+      &document(
+        "article",
+        "style=alphabetic",
+        "\\nocite{*}\\printbibliography",
+      ),
+      &bib,
+    );
+    latexml::util::test::assert_element(
+      &html,
+      "li",
+      &["id=\"bib.bib1\""],
+      "<li id=\"bib.bib1\" class=\"ltx_bibitem ltx_bib_incollection\"><span class=\"ltx_tag ltx_bib_abbrv ltx_role_refnum ltx_tag_bibitem\">[Giv01]</span>\n<span class=\"ltx_bibblock\"><span class=\"ltx_text ltx_bib_author\">Alexander B. Givental</span>. <span class=\"ltx_text ltx_bib_title\">“Gromov-Witten invariants”</span>. In: <span class=\"ltx_text ltx_bib_volume\">vol.\u{a0}1</span>. <span class=\"ltx_text ltx_bib_number\">4</span>. <span class=\"ltx_text ltx_bib_note\">Dedicated</span>. <span class=\"ltx_text ltx_bib_date\">2001</span>, <span class=\"ltx_text ltx_bib_pages\">pp.\u{a0}551–568</span>.\n</span></li>",
+    );
+  }
+}
+
+/// An `\emph` inside an emphasised title or journal is upright (the emphasis toggles): the markup nests an `<em>` in the
+/// `<em>`, and LaTeXML.css makes the inner one upright for the standard list; in a quoted title it stays italic.
+#[test]
+fn emphasis_nested_in_an_emphasised_title_nests_its_markup() {
+  let bib = "@book{b1, author={A, A}, title={The \\emph{Foo} book}, publisher={Pub}, year={2001}}\n@article{a1, author={B, B}, title={On \\emph{Bar}}, journal={J. \\emph{Baz}}, year={2001}}\n";
+  let html = clean_html(
+    &document(
+      "article",
+      "style=alphabetic",
+      "\\nocite{*}\\printbibliography",
+    ),
+    bib,
+  );
+  let item = bibitem(&html, "A01");
+  assert!(
+    item.contains("<span class=\"ltx_text ltx_bib_title\"><em class=\"ltx_emph\">The <em class=\"ltx_emph ltx_font_italic\">Foo</em> book</em></span>"),
+    "{item}"
+  );
+  let item = bibitem(&html, "B01");
+  assert!(
+    item.contains("“On <em class=\"ltx_emph ltx_font_italic\">Bar</em>”"),
+    "{item}"
+  );
+  assert!(
+    item.contains("<em class=\"ltx_emph\">J. <em class=\"ltx_emph ltx_font_italic\">Baz</em></em>"),
+    "{item}"
   );
 }

@@ -552,13 +552,26 @@ impl Fields {
       })
       .filter(|name| !name.is_empty());
     let title_type = raw_type.as_deref().unwrap_or(entry_type);
-    let host = PostDocument::findnodes_foreign("ltx:bib-related[@role='host']", entry)
-      .into_iter()
-      .next();
+    // The reader files a `journaltitle` as a `journal` host and the `volume`/`number` of a book part in a `book` host
+    // (bibtex.rs `\bib@field@default@journaltitle`, `\bib@field@incollection@volume`): an incollection, inbook or
+    // inproceedings takes the host that is not a journal (its driver ignores a journal title: "In: vol. 1. 4."), the
+    // article the journal.
+    let driver = Driver::of(entry_type);
+    let hosts = PostDocument::findnodes_foreign("ltx:bib-related[@role='host']", entry);
+    let is_journal = |node: &Node| node.get_attribute("type").as_deref() == Some("journal");
+    let host = if matches!(
+      driver,
+      Driver::Incollection | Driver::Inbook | Driver::Inproceedings
+    ) {
+      hosts.into_iter().find(|node| !is_journal(node))
+    } else {
+      let index = hosts.iter().position(is_journal).unwrap_or(0);
+      hosts.into_iter().nth(index)
+    };
     Fields {
       entry: entry.clone(),
       host,
-      driver: Driver::of(entry_type),
+      driver,
       title_style: TitleStyle::of(title_type),
     }
   }
