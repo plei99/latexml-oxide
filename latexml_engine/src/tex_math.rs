@@ -333,6 +333,37 @@ pub fn frac_sizer(top: &Digested, bottom: &Digested) -> Result<(Dimension, Dimen
   Ok((w, h, d))
 }
 
+/// Size of `\overline{x}` / `\underline{x}`: the argument's own width, with the rule and the clearance TeX
+/// puts on the open side. Perl's `defmath_cons` (Package.pm:1869-1873) gives every DefMath with arguments the
+/// size of its operator glyph alone (`computeStringSize($presentation)`, here the 5pt macron), so a box
+/// holding `\overline{C\setminus C_i}` measured half an em wide: TikZ-cd drew the arrows through such a node
+/// (divergence #610). TeX's `make_over` / `make_under` (tex.web §734-735) is `overbar(clean_box, 3θ, θ)`:
+/// kern 3θ, a rule θ thick and a kern θ above the argument, θ the font's default rule thickness (0.04em at
+/// cmex10, 0.4pt at 10pt); `\underline` (§735) is the same below the box.
+fn rule_accent_size(w: &Whatsit, over: bool) -> Result<(Dimension, Dimension, Dimension)> {
+  let mut arg = match w.get_arg(1) {
+    Some(arg) => arg.clone(),
+    None => {
+      return Ok((
+        Dimension::default(),
+        Dimension::default(),
+        Dimension::default(),
+      ));
+    },
+  };
+  let (wd, ht, dp, ..) = arg.get_size(None)?;
+  let theta = match w.get_font()? {
+    Some(font) => font.get_em_width() / 25,
+    None => 0,
+  };
+  let clearance = 5 * theta;
+  Ok(if over {
+    (wd, Dimension(ht.value_of() + clearance), dp)
+  } else {
+    (wd, ht, Dimension(dp.value_of() + clearance))
+  })
+}
+
 fn script_sizer(
   script: &Digested,
   base_opt: Option<&Stored>,
@@ -1410,7 +1441,8 @@ LoadDefinitions!({
   // Perl: TeX_Math.pool.ltxml lines 951-987
   // Note that (over|under) brace accents act like \limit, but lines, arrows do NOT!
   DefMath!("\\lx@math@overline{}", "\u{00AF}", operator_role => "OVERACCENT",
-    operator_stretchy => true, name => "overline", alias => "\\overline");
+    operator_stretchy => true, name => "overline", alias => "\\overline",
+    sizer => sub[whatsit] { rule_accent_size(whatsit, true) });
   DefConstructor!(
     "\\lx@text@overline{}",
     // Perl TeX_Math.pool.ltxml:957-958 uses `class='ltx_overline'`, NOT
@@ -1420,7 +1452,8 @@ LoadDefinitions!({
     enter_horizontal => true
   );
   DefMath!("\\lx@math@underline{}", "\u{00AF}", operator_role => "UNDERACCENT",
-    operator_stretchy => true, name => "underline", alias => "\\underline");
+    operator_stretchy => true, name => "underline", alias => "\\underline",
+    sizer => sub[whatsit] { rule_accent_size(whatsit, false) });
   DefConstructor!(
     "\\lx@text@underline{}",
     // Perl TeX_Math.pool.ltxml:964-965 uses `class='ltx_underline'`, NOT

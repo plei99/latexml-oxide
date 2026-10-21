@@ -17964,3 +17964,23 @@ The entries' per-field markup (`ltx:bibentry`'s
   once at load as biblatex.def:2184-2203 does. The label's collation (`sorting=anyt`) and `extraalpha` are #582's.
 
 **Guards**: `cluster_package_guards::biblatex_standard_layout::*`.
+
+### 610. `\overline{x}` and `\underline{x}` are as wide as `x`, with TeX's rule clearance (Perl: the width of the macron glyph)
+**Perl**: `defmath_cons` (Package.pm:1869-1873) gives every DefMath that takes arguments the sizer
+`computeStringSize($presentation)`, the size of its operator glyph alone. `\lx@math@overline{}`
+(TeX_Math.pool.ltxml:954) is such a DefMath with the presentation U+00AF, so `\hbox{$\overline{C}$}` measures
+5pt x 5.68pt (TeX: 7.86pt x 8.83pt) and `\overline{C\setminus C_i}` as one macron.
+
+**Rust**: `\lx@math@overline` and `\lx@math@underline` (`tex_math.rs`, `rule_accent_size`) are sized by their argument:
+its width, its height and depth, and 5θ above the box for `\overline` and below it for `\underline`, as tex.web §734-735
+(`make_over`, `make_under`: `overbar(clean_box, 3θ, θ)`) builds them, θ = 0.04em (0.4pt at 10pt). `\hbox{$\overline{C}$}`
+is 7.86249pt x 8.83328pt + 0pt here, 7.86249pt x 8.8332pt + 0pt in TeX 2026; `\underline{C}` has depth 1.99997pt
+(TeX 1.9999pt). The other DefMath accents (`\overrightarrow`, `\overbrace`, `\widehat`, ...) keep Perl's operator-glyph
+size: TeX's width for them is at least the argument's, so they are still too narrow.
+
+**Why**: a TikZ-cd node holds its label as a `foreignObject` of the measured size, and the arrows run to the node's
+border; a node `\overline{C\setminus C_i}` was 0.5em wide (`--ltx-fo-width:0.5em`) so the arrows ended inside the
+label (slug deformation-theory, section 7.2). Now 2.68em x 0.88em + 0.15em.
+
+**Guards**: `cluster_package_guards::overline_box_size::*`.
+
