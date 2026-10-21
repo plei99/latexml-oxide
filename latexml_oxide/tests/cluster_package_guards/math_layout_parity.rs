@@ -59,3 +59,32 @@ fn memoir_substack_keeps_math_italic() {
   );
 }
 
+/// amsopn.sty:98-108 defines `\varinjlim`, `\varprojlim`, `\varliminf` and `\varlimsup` as
+/// `\mathop{…}\nmlimits@` with `\nmlimits@` = `\displaylimits` (:109): their limits go below or above in
+/// display style and beside inline. Perl gives them no `scriptpos`, so a limit was always an `msub` or
+/// `msup` at the operator's side (OXIDIZED_DESIGN_DIVERGENCES #598). The `XMDual` the operator is made of
+/// carries `mid` on its content branch, which the parser's script attachment reads as Perl's `NewScript`
+/// does (MathParser.pm:1602-1614). The `nonamelimits` option is not honoured.
+#[test]
+fn varlim_operators_take_display_limits_below() {
+  let (stderr, html) = convert_html(
+    "\\documentclass{article}\n\\usepackage{amsmath}\n\\begin{document}\n\
+     \\[ \\varprojlim_r A \\quad \\varinjlim_{n\\to\\infty} B \\quad \\varliminf_n C \\quad \\varlimsup^n D \\]\n\
+     $\\varprojlim_r A \\varinjlim_r B \\varliminf_n C \\varlimsup^n D$\n\\end{document}\n",
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert_element(
+    &html,
+    "math",
+    &["id=\"S0.Ex1.m1\""],
+    r##"<math id="S0.Ex1.m1" class="ltx_Math" alttext="\varprojlim_{r}A\quad\varinjlim_{n\to\infty}B\quad\varliminf_{n}C\quad\varlimsup^{n}D" display="block"><mrow><mrow><munder><munder accentunder="true"><mi>lim</mi><mo>←</mo></munder><mi>r</mi></munder><mo lspace="0.167em">⁡</mo><mi>A</mi></mrow><mspace style="width:1.167em;" width="1.167em"></mspace><mrow><munder><munder accentunder="true"><mi>lim</mi><mo>→</mo></munder><mrow><mi>n</mi><mo stretchy="false">→</mo><mi mathvariant="normal">∞</mi></mrow></munder><mo lspace="0.167em">⁡</mo><mi>B</mi></mrow><mspace style="width:1.167em;" width="1.167em"></mspace><mrow><munder><munder accentunder="true"><mrow class="ltx_underline" style="border-bottom:0.04em solid currentColor;padding-bottom:0.12em;margin-bottom:0.04em"><mi>lim</mi></mrow><mo mathsize="0" stretchy="false">¯</mo></munder><mi>n</mi></munder><mo lspace="0.167em">⁡</mo><mi>C</mi></mrow><mspace style="width:1.167em;" width="1.167em"></mspace><mrow><mover><mover accent="true"><mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><mi>lim</mi></mrow><mo mathsize="0" stretchy="false">¯</mo></mover><mi>n</mi></mover><mo lspace="0.167em">⁡</mo><mi>D</mi></mrow></mrow></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"p1.m1\""],
+    r##"<math id="p1.m1" class="ltx_Math" alttext="\varprojlim_{r}A\varinjlim_{r}B\varliminf_{n}C\varlimsup^{n}D" display="inline"><mrow><msub><munder accentunder="true"><mi>lim</mi><mo>←</mo></munder><mi>r</mi></msub><mo lspace="0.167em">⁡</mo><mrow><mi>A</mi><mo lspace="0.167em">⁢</mo><mrow><msub><munder accentunder="true"><mi>lim</mi><mo>→</mo></munder><mi>r</mi></msub><mo lspace="0.167em">⁡</mo><mrow><mi>B</mi><mo lspace="0.167em">⁢</mo><mrow><msub><munder accentunder="true"><mrow class="ltx_underline" style="border-bottom:0.04em solid currentColor;padding-bottom:0.12em;margin-bottom:0.04em"><mi>lim</mi></mrow><mo mathsize="0" stretchy="false">¯</mo></munder><mi>n</mi></msub><mo lspace="0.167em">⁡</mo><mrow><mi>C</mi><mo lspace="0.167em">⁢</mo><mrow><msup><mover accent="true"><mrow class="ltx_overline" style="border-top:0.04em solid currentColor;padding-top:0.12em;margin-top:0.04em"><mi>lim</mi></mrow><mo mathsize="0" stretchy="false">¯</mo></mover><mi>n</mi></msup><mo lspace="0.167em">⁡</mo><mi>D</mi></mrow></mrow></mrow></mrow></mrow></mrow></mrow></math>"##,
+  );
+}
+

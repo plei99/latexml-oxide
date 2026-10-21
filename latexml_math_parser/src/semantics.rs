@@ -7563,13 +7563,39 @@ fn extract_base_scriptpos(
     // look up the XML node to get scriptpos
     Some(XM::Lexeme(lex, _)) => {
       if let Ok(node) = lookup_lex_node(lex, ctxt.nodes) {
-        let sp = node.get_attribute("scriptpos").unwrap_or_default();
+        let mut sp = node.get_attribute("scriptpos").unwrap_or_default();
+        // Perl MathParser.pm:1596-1614 NewScript: a base that is an XMDual also offers its "inner"
+        // (content) branch, the first child element, whose `scriptpos` counts when the dual has
+        // none of its own — `\varprojlim`, `\varinjlim` (amsopn.sty.ltxml:44-47) are such duals
+        // around an `\underleftarrow{\operatorname{lim}}` presentation.
+        if sp.is_empty()
+          && node.get_name() == "XMDual"
+          && let Some(inner) = node.get_child_elements().first()
+        {
+          sp = inner.get_attribute("scriptpos").unwrap_or_default();
+        }
         if !sp.is_empty() {
           let (bx, bl) = parse_scriptpos(&sp);
           return (bx, bl, false, 0);
         }
       }
       ("post", 0, false, 0)
+    },
+    // A dual the parser has already built: its own `scriptpos` first, then its content branch, Perl's
+    // "inner" base (`@bsp`: the base's, then the inner base's, MathParser.pm:1611-1614).
+    Some(XM::Dual(content, _, dual_props, _)) => {
+      if let Some(sp) = dual_props.scriptpos.as_deref().filter(|sp| !sp.is_empty()) {
+        let (bx, bl) = parse_scriptpos(sp);
+        return (bx, bl, false, 0);
+      }
+      match &**content {
+        XM::Token(props, _) => {
+          let (bx, bl) = parse_scriptpos(props.scriptpos.as_deref().unwrap_or("post"));
+          (bx, bl, false, 0)
+        },
+        inner @ XM::Lexeme(..) => extract_base_scriptpos(&Some(inner.clone()), ctxt),
+        _ => ("post", 0, false, 0),
+      }
     },
     Some(XM::Token(props, _)) => {
       let sp = props.scriptpos.as_deref().unwrap_or("post");

@@ -116,15 +116,19 @@ LoadDefinitions!({
   DefMath!("\\projlim", "proj lim",
     role => "LIMITOP", meaning => "projective-limit", dynamic_scriptpos => true);
 
-  // Perl: amsopn.sty.ltxml — var limit operators
+  // Perl: amsopn.sty.ltxml:40-47 — var limit operators. Perl gives these no `scriptpos`, so their
+  // limits are always sub/superscripts (`post`). amsopn.sty:98-108 defines each as
+  // `\mathop{...}\nmlimits@` with `\nmlimits@` = `\displaylimits` (:109): below/above in display
+  // style, beside inline (the `nonamelimits` option, :111, is not honoured). `dynamic_scriptpos` is that rule (OXIDIZED_DESIGN_DIVERGENCES #598); construct
+  // `\varprojlim_r`, `\varinjlim_{n\to\infty}` in a display.
   DefMath!("\\varlimsup", "\\overline{\\operatorname{lim}}",
-    role => "LIMITOP", meaning => "limit-supremum");
+    role => "LIMITOP", meaning => "limit-supremum", dynamic_scriptpos => true);
   DefMath!("\\varliminf", "\\underline{\\operatorname{lim}}",
-    role => "LIMITOP", meaning => "limit-infimum");
+    role => "LIMITOP", meaning => "limit-infimum", dynamic_scriptpos => true);
   DefMath!("\\varinjlim", "\\underrightarrow{\\operatorname{lim}}",
-    role => "LIMITOP", meaning => "injective-limit");
+    role => "LIMITOP", meaning => "injective-limit", dynamic_scriptpos => true);
   DefMath!("\\varprojlim", "\\underleftarrow{\\operatorname{lim}}",
-    role => "LIMITOP", meaning => "projective-limit");
+    role => "LIMITOP", meaning => "projective-limit", dynamic_scriptpos => true);
 
   DefMacro!("\\nolimits@", "\\nolimits");
   // amsopn.sty:90 `\def\operatorfont{\operator@font}` — the user-level name

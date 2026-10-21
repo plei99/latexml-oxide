@@ -17836,3 +17836,21 @@ configuration) and
 `cluster_package_guards::localrawstyles_keeps_searchpaths::localrawstyles_still_raw_loads_an_interpretable_source`
 (`[localrawstyles]latexml.sty`: `\usephysicsmodule{ab,diagmat}`, stretchy `\ab(x)` fences and a `\pdiagmat` matrix,
 no diagnostics).
+
+### 598. `\varinjlim`, `\varprojlim`, `\varliminf` and `\varlimsup` put their limits below or above in display style (Perl: always beside)
+
+**Perl behavior**: `amsopn.sty.ltxml:40-47` defines the four with `DefMath` and no `scriptpos`, so a subscript is a
+`post` script: `\varprojlim_r` is an `msub` of the operator, `r` at its lower right, in display style too.
+**Rust behavior**: amsopn.sty:98-108 defines each as `\mathop{…}\nmlimits@` with `\let\nmlimits@\displaylimits`
+(:109): the limits go under in display style and stay beside inline. `amsopn_sty.rs` gives all four
+`dynamic_scriptpos` (Perl's `doScriptpos`, `mid` in display and `post` otherwise, as `\injlim` and `\projlim` have in
+Perl, amsopn.sty.ltxml:33-38), so `\varprojlim_r` and `\varinjlim_{n\to\infty}` are an `munder` in display style.
+The `nonamelimits` option (:111, `\let\nmlimits@\nolimits`) is not honoured: the operators always follow
+`\displaylimits`.
+The operator is a wrapped `DefMath` (an `XMDual` whose content branch carries the `scriptpos`), and the Rust parser's
+`NewScript` did not look into one: it read the base's `scriptpos` from the `XMDual` node itself and so never saw
+`mid`. `extract_base_scriptpos` now reads the dual's own `scriptpos` and then its inner (content) branch, as Perl's
+`NewScript` does (MathParser.pm:1602-1614, `@bsp`); that part is parity.
+
+**Guard**: `cluster_package_guards::math_layout_parity::varlim_operators_take_display_limits_below` (all four operators,
+display and inline).

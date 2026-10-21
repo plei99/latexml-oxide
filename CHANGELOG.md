@@ -11,6 +11,15 @@
     Guards `math_layout_parity::{raw_size_switch_keeps_math_italic, memoir_substack_keeps_math_italic}`
     (OXIDIZED_DESIGN_DIVERGENCES #288).
 
+  - **`\varinjlim`, `\varprojlim`, `\varliminf` and `\varlimsup` take display limits below or
+    above.** amsopn.sty defines them with `\nmlimits@` (`\displaylimits`); Perl gives them no
+    `scriptpos` and so always sets the limit beside the operator. In display style they are now an
+    `munder`/`mover`; inline they stay beside it. The `nonamelimits` option is not honoured. The
+    parser's script attachment now reads the `scriptpos` of an `XMDual` base, its own and then its
+    content branch's, as Perl's `NewScript` does. Guard
+    `math_layout_parity::varlim_operators_take_display_limits_below` (all four, display and inline;
+    OXIDIZED_DESIGN_DIVERGENCES #598).
+
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
     loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,
