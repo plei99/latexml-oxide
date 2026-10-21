@@ -20,6 +20,12 @@
     `math_layout_parity::varlim_operators_take_display_limits_below` (all four, display and inline;
     OXIDIZED_DESIGN_DIVERGENCES #598).
 
+  - **`\widehat` stretches over its base.** The math fonts have wide-hat variants for U+0302, not for
+    the ASCII `^` Perl presents it with, so `\widehat{\bigoplus}` and `\widehat{\mathfrak{gl}(1)}` showed
+    a small caret at the base's left edge. `\widehat` is now `<mo>U+0302</mo>` over its base; `\hat` and
+    `\widetilde` are unchanged. Guard `math_layout_parity::widehat_stretches_with_u0302`
+    (OXIDIZED_DESIGN_DIVERGENCES #599).
+
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions
     loader saved it as a boolean and restored `true` (Perl saves and restores the scalar,

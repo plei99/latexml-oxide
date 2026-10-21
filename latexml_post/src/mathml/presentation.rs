@@ -870,6 +870,36 @@ fn pmml_rule_line(rop: &Node, base: NodeData, over: bool) -> NodeData {
   }
 }
 
+/// The glyph `\widehat` is presented with: U+0302 COMBINING CIRCUMFLEX ACCENT (divergence #599; Perl
+/// `math_common.pool.ltxml:528` presents it as the ASCII `^` U+005E, which MathML 3's operator
+/// dictionary stretched).
+///
+/// MathML Core has no such rule for U+005E, and what a browser can stretch is what the math font has a
+/// horizontal construction for: the fonts' MATH tables hang the wide-hat variants on U+0302. Probed in
+/// Chromium with STIX Two, Latin Modern, Fira and Noto Sans Math, `<mover accent="true"><mrow>ABCDE</mrow>
+/// <mo>^</mo></mover>` stayed a small caret over the base's left edge, as did U+02C6 with
+/// `stretchy="true"` (the attribute asks, the font has nothing to answer with), while U+0302 spans the
+/// whole base, as TeX's wide hat does (`\widehat{\bigoplus}`, `\widehat{\mathfrak{gl}(1)}`). Keyed on the
+/// operator's NAME, as `rule_line_kind`: `\hat` shares U+005E and keeps the narrow `^` (written
+/// `<mo>^</mo>`, with no `stretchy`). `\widetilde` keeps `~`: U+0303 does not stretch in any of those
+/// fonts either.
+fn pmml_accent_operator(doc: &PostDocument, op: &Node, rop: &Node) -> NodeData {
+  let mut presented = pmml(doc, op);
+  if rop.get_attribute("name").as_deref() == Some("widehat")
+    && let NodeData::Element { tag, children, .. } = &mut presented
+    && tag == "m:mo"
+  {
+    for child in children.iter_mut() {
+      if let NodeData::Text(text) = child
+        && text == "^"
+      {
+        *text = "\u{0302}".to_string();
+      }
+    }
+  }
+  presented
+}
+
 /// Role/meaning dispatch for an XMApp (the body of Perl's
 /// `lookupPresenter('Apply',…)` call in `pmml_internal`).
 fn pmml_apply_dispatch(
@@ -936,9 +966,9 @@ fn pmml_apply_dispatch(
               ("accentunder".to_string(), "true".to_string()),
             ])),
             children:   vec![
-              pmml(doc, &base_children[1]), // the actual base
-              pmml(doc, &base_children[0]), // the under-accent
-              pmml(doc, op),                // the over-accent
+              pmml(doc, &base_children[1]),       // the actual base
+              pmml(doc, &base_children[0]),       // the under-accent
+              pmml_accent_operator(doc, op, rop), // the over-accent
             ],
           };
         }
@@ -949,7 +979,7 @@ fn pmml_apply_dispatch(
           "accent".to_string(),
           "true".to_string(),
         )])),
-        children:   vec![pmml(doc, base), pmml(doc, op)],
+        children:   vec![pmml(doc, base), pmml_accent_operator(doc, op, rop)],
       }
     },
     "UNDERACCENT" if !args.is_empty() => {
@@ -972,7 +1002,7 @@ fn pmml_apply_dispatch(
             children:   vec![
               pmml(doc, &base_children[1]), // the actual base
               pmml(doc, op),                // the under-accent
-              pmml(doc, &base_children[0]), // the over-accent
+              pmml_accent_operator(doc, &base_children[0], &base_children[0]), // the over-accent
             ],
           };
         }

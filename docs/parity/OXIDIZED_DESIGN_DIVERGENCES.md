@@ -17854,3 +17854,18 @@ The operator is a wrapped `DefMath` (an `XMDual` whose content branch carries th
 
 **Guard**: `cluster_package_guards::math_layout_parity::varlim_operators_take_display_limits_below` (all four operators,
 display and inline).
+
+### 599. `\widehat` is presented with U+0302, which the math fonts stretch (Perl: the ASCII `^`)
+
+**Perl behavior**: `math_common.pool.ltxml:528` defines `\widehat` as `UTF(0x5E)` with `operator_role => OVERACCENT`
+and no `stretchy`, so `Post/MathML.pm` writes `<m:mover accent="true"><base/><m:mo>^</m:mo></m:mover>`, which MathML 3's
+operator dictionary stretched to the base.
+**Rust behavior**: MathML Core has no such rule for U+005E, and a browser stretches what the math font has a horizontal
+construction for. Probed in Chromium with STIX Two Math, Latin Modern Math, Fira Math and Noto Sans Math, over `AB`,
+`\bigoplus` and a letter: U+005E, and U+02C6 with `stretchy="true"`, stay a small mark over the base's left edge
+(the attribute asks, the font has nothing to answer with), while U+0302 COMBINING CIRCUMFLEX ACCENT spans the base,
+the fonts hanging the wide-hat variants on it. `pmml_accent_operator` (`latexml_post/src/mathml/presentation.rs`) writes
+U+0302 for an operator named `widehat`; `\hat` keeps `^`, written `<mo>^</mo>` with no `stretchy`. `\widetilde` keeps
+`~`: U+0303 does not stretch in those fonts either, and no encoding of it was found that does.
+
+**Guard**: `cluster_package_guards::math_layout_parity::widehat_stretches_with_u0302`.

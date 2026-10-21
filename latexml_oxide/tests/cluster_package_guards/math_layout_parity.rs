@@ -88,3 +88,20 @@ fn varlim_operators_take_display_limits_below() {
   );
 }
 
+/// `\widehat` is U+0302 over its base (OXIDIZED_DESIGN_DIVERGENCES #599): the only circumflex the math
+/// fonts have a horizontal construction for (U+005E stays a small caret), so it spans `AB` and `\bigoplus` as TeX's
+/// wide hat does (`\widehat{\bigoplus}`, `\widehat{\mathfrak{gl}(1)}`).
+/// `\hat` stays the narrow `^`, `\widetilde` the `~`.
+#[test]
+fn widehat_stretches_with_u0302() {
+  let (stderr, html) = convert_html(
+    "\\documentclass{article}\n\\usepackage{amsmath,amssymb}\n\\begin{document}\n\
+     $\\widehat{AB}\\ \\hat{AB}\\ \\widetilde{AB}$\n\
+     \\[ \\widehat{\\bigoplus}\\ \\widehat{\\mathfrak{gl}(1)} \\]\n\\end{document}\n",
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert_element(&html, "math", &["id=\"p1.m1\""], &r##"<math id="p1.m1" class="ltx_Math" alttext="\widehat{AB}\ \hat{AB}\ \widetilde{AB}" display="inline"><mrow><mover accent="true"><mrow><mi>A</mi><mo>⁢</mo><mi>B</mi></mrow><mo>@U0302@</mo></mover><mo lspace="0.500em">⁢</mo><mover accent="true"><mrow><mi>A</mi><mo>⁢</mo><mi>B</mi></mrow><mo>^</mo></mover><mo>⁢</mo><mover accent="true"><mrow><mi>A</mi><mo>⁢</mo><mi>B</mi></mrow><mo>~</mo></mover></mrow></math>"##.replace("@U0302@", "\u{0302}"));
+  assert_element(&html, "math", &["id=\"S0.Ex1.m1\""], &r##"<math id="S0.Ex1.m1" class="ltx_Math" alttext="\widehat{\bigoplus}\ \widehat{\mathfrak{gl}(1)}" display="block"><mrow><mover accent="true"><mo movablelimits="false">⨁</mo><mo>@U0302@</mo></mover><mo lspace="0.667em">⁢</mo><mover accent="true"><mrow><mi>𝔤</mi><mo>⁢</mo><mi>𝔩</mi><mo>⁢</mo><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></mrow><mo>@U0302@</mo></mover></mrow></math>"##.replace("@U0302@", "\u{0302}"));
+}
+
