@@ -337,9 +337,10 @@ pub fn frac_sizer(top: &Digested, bottom: &Digested) -> Result<(Dimension, Dimen
 /// puts on the open side. Perl's `defmath_cons` (Package.pm:1869-1873) gives every DefMath with arguments the
 /// size of its operator glyph alone (`computeStringSize($presentation)`, here the 5pt macron), so a box
 /// holding `\overline{C\setminus C_i}` measured half an em wide: TikZ-cd drew the arrows through such a node
-/// (divergence #610). TeX's `make_over` / `make_under` (tex.web §734-735) is `overbar(clean_box, 3θ, θ)`:
-/// kern 3θ, a rule θ thick and a kern θ above the argument, θ the font's default rule thickness (0.04em at
-/// cmex10, 0.4pt at 10pt); `\underline` (§735) is the same below the box.
+/// (divergence #610). TeX's `make_over` (tex.web §734) is `overbar(clean_box, 3θ, θ)`: a kern 3θ, a rule θ
+/// thick and a kern θ above the argument; `make_under` (§735) is a kern, a rule and a `vpack` below it, 5θ in
+/// total. θ is TeX's `\fontdimen8` of family 3 (0.4pt at every size without amsmath, whose script size is
+/// cmex7, θ = 0.34pt); here it is approximated as 0.04 of the current font's em, as #584 draws the rule.
 fn rule_accent_size(w: &Whatsit, over: bool) -> Result<(Dimension, Dimension, Dimension)> {
   let mut arg = match w.get_arg(1) {
     Some(arg) => arg.clone(),

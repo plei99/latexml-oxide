@@ -11,6 +11,7 @@ fn overline_and_underline_boxes_take_the_width_of_their_argument() {
              \\setbox0\\hbox{$C$}C: \\the\\wd0, \\the\\ht0, \\the\\dp0.\n\
              \\setbox0\\hbox{$\\overline{C}$}over: \\the\\wd0, \\the\\ht0, \\the\\dp0.\n\
              \\setbox0\\hbox{$\\underline{C}$}under: \\the\\wd0, \\the\\ht0, \\the\\dp0.\n\
+             \\newlength{\\mylen}\\settowidth{\\mylen}{$\\overline{xyz}$}settowidth: \\the\\mylen.\n\
              \\end{document}\n";
   let (stderr, xml) = super::convert(tex, true);
   assert_eq!(super::error_count(&stderr), 0, "{stderr}");
@@ -19,6 +20,7 @@ fn overline_and_underline_boxes_take_the_width_of_their_argument() {
     "C: 7.86249pt, 6.83331pt, 0.0pt.",
     "over: 7.86249pt, 8.83328pt, 0.0pt.",
     "under: 7.86249pt, 6.83331pt, 1.99997pt.",
+    "settowidth: 16.06717pt.",
   ] {
     assert!(xml.contains(line), "`{line}` expected:\n{xml}");
   }
@@ -35,6 +37,6 @@ fn tikzcd_node_of_an_overlined_formula_is_as_wide_as_the_formula() {
     xml.contains(
       r#"style="--ltx-fo-width:2.68em;--ltx-fo-height:0.88em;--ltx-fo-depth:0.15em;font-size:10pt;""#
     ),
-    "the node's box holds the overlined formula (TeX: 26.8pt wide, 8.8pt high):\n{xml}"
+    "the node's box holds the overlined formula (TeX: 27.78pt wide, 9.5pt high + 2.5pt; the residual is the measure of `C\\setminus C_i` as an argument, divergence #610):\n{xml}"
   );
 }

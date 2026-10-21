@@ -37,9 +37,9 @@ fn spectral_sequence_diagram_is_drawn_and_d_stays_an_accent() {
 
 /// A class is a circle of `minimum size=0.35em` with `inner sep=0pt` (spectralsequences.sty:332 `classes={draw,circle,
 /// inner sep=0pt,minimum size=0.35em}`). The package stores those keys by redefining `\pgfkeys@case@one` and
-/// `\pgfkeys@case@two@extern` around its option lists (sseqkeys.code.tex:260-261, 307-325); the native pgfkeys loop,
+/// `\pgfkeys@case@two@extern` around its option lists (sseqkeys.code.tex:259-260, restored at 270-271, defined at 314-336); the native pgfkeys loop,
 /// which never calls them, ran the keys at once and dropped them, so the dot kept TikZ's default `inner sep=.3333em`
-/// (radius 4.71pt = 6.52 in picture units, three times the 1.75pt = 2.42 TeX draws: the notes' spectral-sequence dots).
+/// (radius 4.71pt = 6.52 in picture units, three times the 1.75pt = 2.42 TeX draws).
 #[test]
 fn class_dot_has_its_declared_size() {
   let tex = "\\documentclass{article}\n\\usepackage{spectralsequences}\n\\begin{document}\n\
@@ -57,7 +57,7 @@ fn class_dot_has_its_declared_size() {
 }
 
 /// A package that swaps `\pgfkeys@case@one` / `\pgfkeys@case@two@extern` for the length of a key list (spectralsequences)
-/// is obeyed: the native loop stands aside while either differs from the raw file's definition (pgfkeys.code.tex:422-437).
+/// is obeyed: the native loop stands aside while either differs from the raw file's definition (pgfkeys.code.tex:422-443).
 #[test]
 fn redefined_case_one_step_is_called_by_the_key_loop() {
   let tex = "\\documentclass{article}\n\\usepackage{tikz}\n\\makeatletter\n\\newcount\\casecalls\n\

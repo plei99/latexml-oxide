@@ -214,30 +214,24 @@ fn newif_true(cs: &str) -> bool {
   matches!((lookup_meaning(&T_CS!(cs)), lookup_meaning(&T_CS!("\\iftrue"))), (Some(a), Some(b)) if a == b)
 }
 
-/// The raw file's case steps that a package may redefine around a key list
-/// (spectralsequences' `\sseq@keys@addtooptions@checkalso` swaps
-/// `\pgfkeys@case@one` and `\pgfkeys@case@two@extern` for versions that store
-/// a handler's code instead of running it, sseqkeys.code.tex:260-261,
-/// 307-325): `\let` snapshots of them, `\lx@pgfkeys@raw@<step>`, are taken
-/// when the file loads.
-const CASE_STEPS: [&str; 2] = ["case@one", "case@two@extern"];
-
-fn case_step_snapshot(step: &str) -> Token { T_CS!(&s!("\\lx@pgfkeys@raw@{step}")) }
-
-/// The shapes the raw loop keeps: filtering active, the case-three
-/// dispatch reconfigured (`/handler config=only existing|full or existing`),
-/// or case one / case two redefined (spectralsequences; a key it stores for
-/// later, `inner sep=0pt` in `classes={...}`, then ran at once and was lost
-/// from the class's node: spectralsequences class dots three times too large).
+/// The shapes the raw loop keeps: filtering active, the case-three dispatch reconfigured
+/// (`/handler config=only existing|full or existing`), or case one / case two redefined. spectralsequences
+/// stores the keys of an option list instead of running them by swapping `\pgfkeys@case@one` and
+/// `\pgfkeys@case@two@extern` for versions of its own around the list (sseqkeys.code.tex:259-260, restored at
+/// 270-271; the `@save` lets and `@store` definitions at 314-336); the native loop never read them, so
+/// `inner sep=0pt` in `classes={...}` ran at once and was lost from the class's node (class dots three times too
+/// large). `\lx@pgfkeys@raw@case@one` and `\lx@pgfkeys@raw@case@two@extern` are `\let` snapshots of the raw
+/// definitions (pgfkeys.code.tex:422-443), taken when the file loads.
 fn raw_loop_needed() -> bool {
   newif_true("\\ifpgfkeysfilteringisactive")
     || !matches!(
       (lookup_meaning(&T_CS!("\\pgfkeys@case@three")), lookup_meaning(&T_CS!("\\pgfkeys@case@three@handleall"))),
       (Some(a), Some(b)) if a == b
     )
-    || CASE_STEPS.iter().any(|step| {
-      lookup_meaning(&T_CS!(&s!("\\pgfkeys@{step}"))) != lookup_meaning(&case_step_snapshot(step))
-    })
+    || lookup_meaning(&T_CS!("\\pgfkeys@case@one"))
+      != lookup_meaning(&T_CS!("\\lx@pgfkeys@raw@case@one"))
+    || lookup_meaning(&T_CS!("\\pgfkeys@case@two@extern"))
+      != lookup_meaning(&T_CS!("\\lx@pgfkeys@raw@case@two@extern"))
 }
 
 /// `\expandafter\pgfkeys@code\pgfkeyscurrentvalue\pgfeov` with `\pgfkeys@code`
@@ -760,9 +754,8 @@ LoadDefinitions!({
     for h in NATIVE_HANDLERS {
       let_i(&raw_handler_snapshot(h), &T_CS!(&s!("\\pgfk@/handlers/{h}/.@cmd")), None);
     }
-    for step in CASE_STEPS {
-      let_i(&case_step_snapshot(step), &T_CS!(&s!("\\pgfkeys@{step}")), None);
-    }
+    let_i(&T_CS!("\\lx@pgfkeys@raw@case@one"), &T_CS!("\\pgfkeys@case@one"), None);
+    let_i(&T_CS!("\\lx@pgfkeys@raw@case@two@extern"), &T_CS!("\\pgfkeys@case@two@extern"), None);
     // :29 — the branch selector every case-dispatch step runs.
     DefMacro!("\\pgfkeys@ifcsname{}", sub[(name)] {
       let name = key_text(&Expand!(name));
