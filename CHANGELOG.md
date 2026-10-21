@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+  - **Native mode binds `luatexja-fontspec`, `luatexja`, `luatexja-preset`, `luatexja-adjust` and `luatexja-zhfonts` as
+    stand-ins that print nothing, so `\setmainjfont{FandolSong}` no longer leaks the font name.**
+    `\usepackage{luatexja-fontspec}` was skipped (`Warning:missing_file`), `\setmainjfont` was `Error:undefined` and
+    `FandolSong` printed as page text. The packages are native bindings (`luatexja_sty.rs`, `luatexja_fontspec_sty.rs`,
+    `luatexja_preset_sty.rs`, `luatexja_adjust_sty.rs`, `luatexja_zhfonts_sty.rs`): each user command reads the operands its
+    definition takes (`\setmainjfont[…]{…}[…]`, the `\…jfont{family,face}` definers whose `\cs` is a font switch,
+    `\jfont\cs=<spec> at <dimen>`, `\ltjsetparameter{…}`, `\ltjgetparameter{…}` (`\z@`), `\ltjnewpreset`, …) and prints
+    nothing. They are not raw-loaded: the raw `luatexja` pulls lltjfont.sty, which redefines `\fontseries`, `\fontshape`,
+    `\fontencoding` and `\usefont`, and a document using it lost the bold of `\maketitle`, `\caption`, `\item[…]` and
+    description labels and every `\textit`, `\textsl` and `\scshape` (no error), printed `T1` for `\fontencoding{T1}` and
+    printed a `\jfont` spec. Where raw TeX Live packages are read (`rawstyles`) the genuine files still load. `luatexja-otf`, `luatexja-ruby` and `luatexja-ajmacros` stay unbound (their text comes from
+    `\directlua`). Divergence #614. Guards `cluster_package_guards::native_notes_bindings::luatexja_*`.
+
   - **A set-builder bar of class 3 keeps its relation spacing.** `\left\{d \delimiter"326A30C D\right\}` came out `d|D`,
     the bar with `lspace="0em" rspace="0em"`: the glyph's role (VERTBAR, MIDDLE in a fence) won over the class
     (Package.pm:2993) and the spacing walk types MIDDLE as Ord. A class-3 `\delimiter` or `\mathchar` now records

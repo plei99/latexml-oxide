@@ -200,6 +200,11 @@ pub mod ltnews_cls;
 pub mod ltxdockit_cls;
 pub mod luacode_sty;
 pub mod luatexbase_sty;
+pub mod luatexja_adjust_sty;
+pub mod luatexja_fontspec_sty;
+pub mod luatexja_preset_sty;
+pub mod luatexja_sty;
+pub mod luatexja_zhfonts_sty;
 pub mod mathpartir_sty;
 pub mod mathspec_sty;
 pub mod mciteplus_sty;
@@ -451,6 +456,27 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("piton", "sty", piton_sty::load_definitions),
   ("unicode-math", "sty", unicode_math_sty::load_definitions),
   ("luatexbase", "sty", luatexbase_sty::load_definitions),
+  ("luatexja", "sty", luatexja_sty::load_definitions),
+  (
+    "luatexja-adjust",
+    "sty",
+    luatexja_adjust_sty::load_definitions,
+  ),
+  (
+    "luatexja-fontspec",
+    "sty",
+    luatexja_fontspec_sty::load_definitions,
+  ),
+  (
+    "luatexja-preset",
+    "sty",
+    luatexja_preset_sty::load_definitions,
+  ),
+  (
+    "luatexja-zhfonts",
+    "sty",
+    luatexja_zhfonts_sty::load_definitions,
+  ),
   ("needspace", "sty", needspace_sty::load_definitions),
   ("nlctuserguide", "sty", nlctuserguide_sty::load_definitions),
   ("phyzzx", "plus", phyzzx_plus::load_definitions),

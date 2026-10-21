@@ -477,3 +477,208 @@ fn ctex_fontset_is_refused_under_pdftex() {
   );
   assert!(!stderr.contains("missing_file"), "{stderr}");
 }
+
+/// The persona and protocol a LuaLaTeX document converts under natively (`fork/oxide` with `OXIDE_PROTOCOL=native`).
+const LUATEX_NATIVE: &str = "[luatex,localrawstyles]latexml.sty";
+
+/// luatexja-fontspec.sty:7, :30 require `luatexja` and fontspec; its `\setmainjfont` (luatexja-fontspec-29e.sty:373) takes
+/// `O{} m O{}`. Skipped as a package, `\setmainjfont` was `Error:undefined` and the font name `FandolSong` printed as
+/// page text. Now the font name is read and dropped, and the CJK text stays, in text and as math identifiers.
+#[test]
+fn luatexja_fontspec_reads_the_font_name_and_keeps_the_cjk_text() {
+  let xml = native_with(
+    "\\documentclass{amsart}\n\\usepackage{fontspec}\n\\usepackage{unicode-math}\n\
+     \\usepackage{luatexja-fontspec}\n\\setmainjfont{FandolSong}\n\\begin{document}\n\
+     Text with 入谷 and $\\mathcal{F}^{入谷}$.\n\\end{document}\n",
+    LUATEX_NATIVE,
+    0,
+  );
+  assert!(!xml.contains("Fandol"), "the font name leaked:\n{xml}");
+  latexml::util::test::assert_element(
+    &xml,
+    "para",
+    &[r#"xml:id="p1""#],
+    r##"<para xml:id="p1"><p>Text with 入谷 and <Math mode="inline" tex="\mathcal{F}^{入谷}" text="F ^ (入 * 谷)" xml:id="p1.m1"><XMath><XMApp><XMTok role="SUPERSCRIPTOP" scriptpos="post1"/><XMTok font="caligraphic" role="UNKNOWN">F</XMTok><XMApp><XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok fontsize="70%" role="UNKNOWN">入</XMTok><XMTok fontsize="70%" role="UNKNOWN">谷</XMTok></XMApp></XMApp></XMath></Math>.</p></para>"##,
+  );
+}
+
+/// Every command of luatexja-fontspec-29e.sty:367-507 reads the arguments its signature takes and leaves none in the
+/// text: `\setmainjfont[…]{…}[…]` (`O{} m O{}`), the family and face definers (`m O{} m O{}`) with `\defaultjfontfeatures`
+/// (`t+ o m`) and `\addjfontfeatures` (`m`). A defined `\cs` is a font switch, usable as a group switch and as a command
+/// with an argument.
+#[test]
+fn luatexja_fontspec_commands_read_their_arguments() {
+  let xml = native_with(
+    "\\documentclass{article}\n\\usepackage{fontspec}\n\\usepackage[match,scale=1,Ligatures=TeX]{luatexja-fontspec}\n\
+     \\setmainjfont[BoldFont=FandolHei]{FandolSong}[Scale=1]\n\\setsansjfont{FandolHei}\n\\setmonojfont{FandolFang}\n\
+     \\newjfontfamily\\kai[Scale=0.9]{FandolKai}[Color=red]\n\\newjfontface\\heif{FandolHei}\n\
+     \\renewjfontfamily\\kai{FandolKai}\n\\providejfontfamily\\kaib{FandolKai}\n\\setjfontfamily\\kaic{FandolKai}\n\
+     \\renewjfontface\\heif{FandolHei}\n\\setjfontface\\heifb{FandolHei}\n\\providejfontface\\heifc{FandolHei}\n\
+     \\defaultjfontfeatures{Scale=1}\n\\defaultjfontfeatures+{Scale=1}\n\\defaultjfontfeatures[FandolKai]{Scale=1}\n\
+     \\jfontspec[Scale=1]{FandolSong}[Color=red]\n\\begin{document}\n\
+     \\setmainjfont{FandolSong}\\setsansjfont[Scale=1]{FandolHei}\\addjfontfeatures{Scale=1}\\addjfontfeature{Scale=1}\n\
+     A {\\kai 漢字} B {\\kaib X}{\\kaic Y}{\\heif Z}\\heifb{W}\\heifc V \\jfontspec{FandolKai}U\n\\end{document}\n",
+    LUATEX_NATIVE,
+    0,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "para",
+    &[r#"xml:id="p1""#],
+    r##"<para xml:id="p1"><p>A 漢字 B XYZWV U</p></para>"##,
+  );
+}
+
+/// A document whose fonts matter to the XML: bold, italic, slanted, small caps and sans in a title, a caption, a list
+/// label, a description term, a footnote and math text. LuaTeX-ja's NFSS patch (lltjfont.sty) must not reach it.
+const FONT_BODY: &str = "\\title{T \\textbf{bt}}\\author{Au}\\maketitle\n\
+  \\section{Intro \\texttt{x}}\n\
+  Text\\footnote{Foot \\textit{n}.} \\textsl{sl} \\textup{up} {\\scshape SC} {\\sffamily\\bfseries SB} \\emph{e}.\n\
+  \\begin{itemize}\\item one \\item[\\textbf{b}] two\\end{itemize}\n\
+  \\begin{figure}[h]\\centering X\\caption{Cap \\textbf{c}}\\end{figure}\n\
+  \\begin{description}\\item[\\textbf{Term}] def\\end{description}\n\
+  \\begin{tabular}{>{\\bfseries}c|c}\\textbf{入谷} & b \\\\\\end{tabular}\n\
+  {\\fontencoding{T1}\\selectfont x} $\\text{t \\textbf{b}}$\n";
+
+fn font_doc(preamble: &str) -> String {
+  format!(
+    "\\documentclass{{article}}\n\\usepackage{{amsmath,array,fontspec}}\n{preamble}\\begin{{document}}\n{FONT_BODY}\\end{{document}}\n"
+  )
+}
+
+/// `<?latexml …?>` records which packages loaded; everything else must be the same with and without LuaTeX-ja.
+fn without_package_pis(xml: &str) -> String {
+  xml
+    .lines()
+    .filter(|l| !l.starts_with("<?latexml"))
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
+/// `\usepackage{luatexja-fontspec}` leaves every font of the document alone. Raw-loading luatexja pulled lltjfont.sty,
+/// which redefines `\fontseries`, `\fontshape`, `\fontencoding` and `\usefont` (lltjfont.sty:573, :813, :822, :863), and the
+/// bold of the title, caption, list label and description term, the italics, slants and small caps were lost (no
+/// error), `\fontencoding{T1}` printed `T1`. The conversion is the same as without the package, and carries the fonts.
+#[test]
+fn luatexja_fontspec_keeps_the_fonts_of_the_document() {
+  let with = native_with(
+    &font_doc("\\usepackage{luatexja-fontspec}\n"),
+    LUATEX_NATIVE,
+    0,
+  );
+  let without = native_with(&font_doc(""), LUATEX_NATIVE, 0);
+  assert_eq!(without_package_pis(&with), without_package_pis(&without));
+  let el = latexml::util::test::assert_element;
+  el(
+    &with,
+    "title",
+    &[r#"font="bold""#],
+    r##"<title font="bold"><text font="medium">T </text>bt</title>"##,
+  );
+  el(
+    &with,
+    "para",
+    &[r#"xml:id="S1.p1""#],
+    r##"<para xml:id="S1.p1"><p>Text<note mark="1" role="footnote" xml:id="footnote1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">footnote 1</tag></tags>Foot <text font="italic">n</text>.</note> <text font="slanted">sl</text> up <text font="smallcaps">SC</text> <text font="sansserif bold">SB</text> <emph font="italic">e</emph>.</p><itemize xml:id="S1.I1"><item xml:id="S1.I1.i1"><tags><tag>•</tag><tag role="typerefnum">1st item</tag></tags><para xml:id="S1.I1.i1.p1"><p>one</p></para></item><item xml:id="S1.I1.ix1"><tags><tag><text font="bold">b</text></tag><tag role="typerefnum">item <text font="bold">b</text></tag></tags><para xml:id="S1.I1.ix1.p1"><p>two</p></para></item></itemize></para>"##,
+  );
+  el(
+    &with,
+    "figure",
+    &[r#"xml:id="S1.F1""#],
+    r##"<figure inlist="lof" placement="h" xml:id="S1.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p align="center">X</p><toccaption class="ltx_centering"><tag close=" ">1</tag>Cap <text font="bold">c</text></toccaption><caption class="ltx_centering"><tag close=": ">Figure 1</tag>Cap <text font="bold">c</text></caption></figure>"##,
+  );
+  el(
+    &with,
+    "description",
+    &[],
+    r##"<description xml:id="S1.I2"><item xml:id="S1.I2.ix1"><tags><tag><text font="bold">Term</text></tag><tag role="typerefnum">item <text font="bold">Term</text></tag></tags><para xml:id="S1.I2.ix1.p1"><p>def</p></para></item></description>"##,
+  );
+  el(
+    &with,
+    "td",
+    &[r#"border="r""#],
+    r##"<td align="center" border="r"><text font="bold">入谷</text></td>"##,
+  );
+  el(
+    &with,
+    "text",
+    &[r#"class="ltx_markedasmath""#],
+    r##"<text class="ltx_markedasmath">t <text font="bold">b</text></text>"##,
+  );
+  assert!(!with.contains("T1"), "{with}");
+}
+
+/// `\jfont\cs=<spec>` (luatexja-core.sty:235-239) reads the control sequence, `=`, the font name and `at`/`scaled` like
+/// `\font`, and defines `\cs` as a font switch: the spec printed as text and an `\afterassignment` dangled before. The
+/// parameter commands read their operands and print nothing, `\number\ltjgetparameter{…}` is `0`, `\ltjjachar` is the character
+/// and `\kansuji` the kanji digits.
+#[test]
+fn luatexja_font_and_parameter_commands_print_nothing() {
+  let xml = native_with(
+    "\\documentclass{article}\n\\usepackage{luatexja}\n\
+     \\jfont\\kf=file:FandolSong-Regular.otf:jfm=ujis;script=latn at 10pt\n\
+     \\globaljfont\\gf=HaranoAjiMincho-Regular scaled 1200\n\\tfont\\tf={HaranoAjiMincho:jfm=ujis}\n\
+     \\begin{document}\nA {\\kf 漢字} B \\gf C \\textbf{bold} \\ltjsetparameter{kanjiskip=0pt plus 1pt}D \
+     \\number\\ltjgetparameter{kanjiskip}E\n\\ltjsetkanjiskip 1pt plus 2pt minus 3pt F \\yoko G \\ltjjachar\"3042 H \
+     \\kansuji 2025 I \\ltjdefcharrange{100}{\"3000-\"30FF}J\n\\end{document}\n",
+    LUATEX_NATIVE,
+    0,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "para",
+    &[r#"xml:id="p1""#],
+    r##"<para xml:id="p1"><p>A 漢字 B C <text font="bold">bold</text> D 0E F G あH 二〇二五I J</p></para>"##,
+  );
+}
+
+/// The preamble of a LuaLaTeX note with Japanese text: microtype before fontspec, unicode-math, a preset,
+/// `luatexja-fontspec`, `\newjfontfamily`, an AMS class with its bold title. 0 errors, 0 warnings (the
+/// microtype patch of luatexja never runs), the bold of the title and of `\textbf`, and the CJK text in text and math.
+#[test]
+fn luatexja_note_preamble_converts_clean_and_keeps_bold() {
+  let xml = native_with(
+    "\\documentclass{amsart}\n\\usepackage{amsmath,microtype}\n\\usepackage{fontspec}\n\
+     \\setmainfont[Numbers=OldStyle]{TeX Gyre Pagella}\n\\usepackage{unicode-math}\n\\setmathfont{Asana Math}\n\
+     \\defaultfontfeatures{Scale=MatchLowercase}\n\\usepackage[haranoaji,match]{luatexja-preset}\n\
+     \\usepackage{luatexja-fontspec}\n\\setmainjfont{FandolSong}\n\\newjfontfamily\\kai[Scale=0.9]{FandolKai}\n\
+     \\title{入谷 \\textbf{bold}}\\author{A}\n\\begin{document}\n\\maketitle\n\
+     {\\kai 漢字} \\textbf{b} $\\mathcal{F}^{入谷}$.\n\\end{document}\n",
+    LUATEX_NATIVE,
+    0,
+  );
+  assert!(!xml.contains("Fandol") && !xml.contains("Pagella"), "{xml}");
+  latexml::util::test::assert_element(
+    &xml,
+    "title",
+    &[],
+    r##"<title font="bold"><text font="medium">入谷 </text>bold</title>"##,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "para",
+    &[r#"xml:id="p1""#],
+    r##"<para xml:id="p1"><p>漢字 <text font="bold">b</text> <Math mode="inline" tex="\mathcal{F}^{入谷}" text="F ^ (入 * 谷)" xml:id="p1.m1"><XMath><XMApp><XMTok role="SUPERSCRIPTOP" scriptpos="post1"/><XMTok font="caligraphic" role="UNKNOWN">F</XMTok><XMApp><XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok fontsize="70%" role="UNKNOWN">入</XMTok><XMTok fontsize="70%" role="UNKNOWN">谷</XMTok></XMApp></XMApp></XMath></Math>.</p></para>"##,
+  );
+}
+
+/// `luatexja-preset` takes its options and `\ltjnewpreset`/`\ltjapplypreset` (luatexja-preset.sty:736, :766); the
+/// `luatexja-adjust` and `luatexja-zhfonts` commands read their operands. Nothing of them is printed.
+#[test]
+fn luatexja_preset_adjust_and_zhfonts_read_their_operands() {
+  let xml = native_with(
+    "\\documentclass{article}\n\\usepackage{fontspec}\n\\usepackage[ipaex,bold,deluxe,scale=0.9]{luatexja-preset}\n\
+     \\usepackage{luatexja-adjust}\n\\usepackage[Fandol]{luatexja-zhfonts}\n\
+     \\ltjnewpreset{mine}{mc=FandolSong}\n\\ltjnewpreset*{mine}{mc=FandolSong}\n\
+     \\ltjapplypreset{mine}\n\\begin{document}\n\\ltjenableadjust[priority=true]\\ltjdisableadjust \
+     A {\\kai 漢字} {\\fang 入谷}\\ltjghostjachar B\n\\end{document}\n",
+    LUATEX_NATIVE,
+    0,
+  );
+  latexml::util::test::assert_element(
+    &xml,
+    "para",
+    &[r#"xml:id="p1""#],
+    r##"<para xml:id="p1"><p>A 漢字 入谷B</p></para>"##,
+  );
+}
