@@ -226,6 +226,16 @@ fn maybe_style_wrap(result: NodeData, ostyle: MathStyle, nstyle: Option<MathStyl
   }
 }
 
+/// A stretchy fence token (`\left`, `\right`): the math parser gave it the extent of a `\vphantom` beside it as
+/// `height`/`depth` (`filter_hints`, OXIDIZED_DESIGN_DIVERGENCES #612), a minimum for its size.
+fn is_stretchy_fence(node: &Node) -> bool {
+  node.get_attribute("stretchy").as_deref() == Some("true")
+    && matches!(
+      node.get_attribute("role").as_deref(),
+      Some("OPEN" | "CLOSE" | "MIDDLE" | "VERTBAR")
+    )
+}
+
 /// Wrap `result` in m:mpadded / frame it, when the source node (or its
 /// containing XMDual) carries sizing attributes.
 ///
@@ -241,9 +251,11 @@ fn pmml_maybe_resize(doc: &PostDocument, node: &Node, result: NodeData) -> NodeD
       .get_attribute(name)
       .or_else(|| parent.as_ref().and_then(|p| p.get_attribute(name)))
   };
+  // The height and depth of a stretchy fence are its strut (`pmml_mo` makes a `minsize` of them), not a box to pad.
+  let strut_fence = is_stretchy_fence(node);
   let width = getattr("width");
-  let height = getattr("height");
-  let depth = getattr("depth");
+  let height = getattr("height").filter(|_| !strut_fence);
+  let depth = getattr("depth").filter(|_| !strut_fence);
   let xoff = getattr("xoffset");
   let yoff = getattr("yoffset");
   let role = getattr("role");
@@ -590,6 +602,13 @@ fn pmml(doc: &PostDocument, node: &Node) -> NodeData {
     if let Some(role) = node.get_attribute("role") {
       let attrs = attributes.get_or_insert_with(Default::default);
       attrs.insert("_role".to_string(), role);
+    }
+    // The TeX atom class a token records in `mathclass` (a class-3 `\delimiter`/`\mathchar` whose glyph's role is no
+    // relation's, #611; the operator that opens a math group, Ord, #613): the spacewalk takes it over the role's atom
+    // type.
+    if let Some(class) = node.get_attribute("mathclass") {
+      let attrs = attributes.get_or_insert_with(Default::default);
+      attrs.insert("_atomtype".to_string(), class);
     }
   }
   result
@@ -1537,6 +1556,19 @@ fn pmml_token_inner(doc: &PostDocument, node: &Node, role_override: Option<&str>
         "stretchy".to_string(),
         (if stretchy { "true" } else { "false" }).to_string(),
       );
+    }
+    // A strut beside a stretchy fence (`\left.x\vphantom{\int}\right|`, which the math parser put on the fence as
+    // `height`/`depth`) is a minimum for its size: the fence is as tall as the strut when the row is not.
+    // OXIDIZED_DESIGN_DIVERGENCES #612.
+    if stretchy && is_stretchy_fence(node) && !attrs.contains_key("minsize") {
+      let extent = ["height", "depth"]
+        .iter()
+        .filter_map(|name| node.get_attribute(name))
+        .map(|v| super::get_xm_hint_spacing(&v))
+        .sum::<f64>();
+      if extent > 0.0 {
+        attrs.insert("minsize".to_string(), fmt_em(extent));
+      }
     }
     if is_fence != props.fence {
       attrs.insert(
@@ -2813,6 +2845,21 @@ fn m_atom_type(tag: &str) -> Option<&'static str> {
   }
 }
 
+/// The TeX atom type a source token recorded in `mathclass` (carried as `_atomtype`), if any.
+fn recorded_atom_type(node: &NodeData) -> Option<&'static str> {
+  match get_node_attr(node, "_atomtype")?.as_str() {
+    "Ord" => Some("Ord"),
+    "Op" => Some("Op"),
+    "Bin" => Some("Bin"),
+    "Rel" => Some("Rel"),
+    "Open" => Some("Open"),
+    "Close" => Some("Close"),
+    "Punct" => Some("Punct"),
+    "Inner" => Some("Inner"),
+    _ => None,
+  }
+}
+
 /// Check if a MathML tag is an embellished operator container.
 fn is_embellisher_tag(tag: &str) -> bool {
   matches!(
@@ -3140,8 +3187,12 @@ fn adjust_pair(root: &mut NodeData, prev: &[usize], next: &[usize], invisop: Opt
       get_node_attr_f64(n, "_lspace"),
     )
   };
-  let prev_type = m_atom_type(&iprev_tag).unwrap_or_else(|| role_to_atom_type(&prev_role));
-  let next_type = m_atom_type(&inext_tag).unwrap_or_else(|| role_to_atom_type(&next_role));
+  let prev_type = m_atom_type(&iprev_tag)
+    .or_else(|| recorded_atom_type(node_at(root, &iprev)))
+    .unwrap_or_else(|| role_to_atom_type(&prev_role));
+  let next_type = m_atom_type(&inext_tag)
+    .or_else(|| recorded_atom_type(node_at(root, &inext)))
+    .unwrap_or_else(|| role_to_atom_type(&next_role));
   let tex_code = atompair_spacing(prev_type, next_type);
   let tex_space = TEX_SPACING[tex_code.unsigned_abs() as usize];
   let target = prev_req_right + next_req_left + tex_space;
@@ -3257,6 +3308,7 @@ pub fn clean_internal_attrs(node: &mut NodeData) {
   if let NodeData::Element { attributes, children, .. } = node {
     if let Some(attrs) = attributes {
       attrs.remove("_role");
+      attrs.remove("_atomtype");
       attrs.remove("_lspace");
       attrs.remove("_rspace");
       attrs.remove("_largeop");

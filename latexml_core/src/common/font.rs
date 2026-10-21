@@ -47,6 +47,17 @@ use crate::pin;
 
 pub type Fontmap = Rc<[Option<char>]>;
 
+/// The height plus depth, in em, of a large operator set in display style: the larger cmex10 variant, 2.222em for an
+/// integral and 1.6em for a sum, a product and the n-ary set and logic operators (tex.web §749 `make_op`).
+fn display_large_operator_extent(ch: char) -> Option<f64> {
+  match ch {
+    '\u{222B}' | '\u{222C}' | '\u{222D}' | '\u{222E}' | '\u{222F}' | '\u{2230}' => Some(2.222),
+    '\u{2211}' | '\u{220F}' | '\u{2210}' | '\u{22C0}' | '\u{22C1}' | '\u{22C2}' | '\u{22C3}'
+    | '\u{2A00}' | '\u{2A01}' | '\u{2A02}' | '\u{2A04}' | '\u{2A06}' => Some(1.6),
+    _ => None,
+  }
+}
+
 static DEFFAMILY: &str = "serif";
 static DEFSERIES: &str = "medium";
 static DEFSHAPE: &str = "upright";
@@ -1640,6 +1651,7 @@ impl Font {
     }
     let size = self.get_size().unwrap_or_else(defsize);
     let ismath = self.get_family().map(|fam| fam == "math").unwrap_or(false);
+    let display = self.mathstyle.as_deref() == Some("display");
     let (mut w, mut h, mut d) = (0, 0, 0);
     // Iterate via Peekable — no intermediate Vec<char> allocation,
     // and we get O(1) lookahead for kerning between consecutive chars.
@@ -1672,6 +1684,14 @@ impl Font {
       // Italic correction in math
       if ismath && ci != 0.0 {
         w += (size * ci).trunc() as i64;
+      }
+      // A large operator in display style is the larger variant of cmex10: 1.6em of
+      // height plus depth for a sum and its kin, 2.222em for an integral, centred on the math axis (0.25em).
+      // The table's glyph is the text-style one. OXIDIZED_DESIGN_DIVERGENCES #612.
+      if display && let Some(total) = display_large_operator_extent(ch) {
+        h = max(h, ((total / 2.0 + 0.25) * size * UNITY_F64).trunc() as i64);
+        d = max(d, ((total / 2.0 - 0.25) * size * UNITY_F64).trunc() as i64);
+        continue;
       }
       h = max(h, (ch_sz * size).trunc() as i64);
       d = max(d, (cd * size).trunc() as i64);

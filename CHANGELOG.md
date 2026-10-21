@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+  - **A set-builder bar of class 3 keeps its relation spacing.** `\left\{d \delimiter"326A30C D\right\}` came out `d|D`,
+    the bar with `lspace="0em" rspace="0em"`: the glyph's role (VERTBAR, MIDDLE in a fence) won over the class
+    (Package.pm:2993) and the spacing walk types MIDDLE as Ord. A class-3 `\delimiter` or `\mathchar` now records
+    `mathclass="Rel"`, a new optional `XMath` attribute the spacing walk reads before the role (divergence #611).
+    `\middle|` is unchanged. Guards `math_group_spacing::*` (class 3).
+  - **A `\vphantom` beside a stretchy fence sizes it, and physics' `\evaluated` bar is as tall as its strut.**
+    `\evaluated{\lambda(\alpha)}_{X \wedge X}` is `\left.…\vphantom{\int}\right|` (physics.sty:180-193); the strut was
+    dropped by the math parser and left out of the binding, so the bar was short and the limit hung from its middle.
+    The parser now gives the strut's extent to the fence, the page makes a `minsize` of it, the binding writes the
+    strut, and a display-style `\int`, `\sum`… has TeX's height and depth, 2.222em / 1.6em in all (divergence #612).
+    The strut sizes both fences of its pair.
+    Guards `math_group_spacing::*` (strut, physics).
+  - **A minus that opens a math group is tight.** `D_X\mathsf{-Mod}`, `a{-b}` and `a\mathrm{-b}` were set as the binary
+    minus with a space either side; a group is one Ord atom and its leading operator is unary (tex.web §727). The
+    operator now records `mathclass="Ord"` (divergence #613). `a - b`, `a\mathsf{x} - b`, `x^{-1}` and a group that
+    opens its formula are unchanged. Guards `math_group_spacing::*` (minus).
+
   - **An `\item`'s label is set in the font in force at the `\item`.** The `1.` `2.` of an `enumerate` inside a
     `plain`-style theorem were upright beside italic item text (Perl builds every tag after `neutralizeFont` and
     `\normalfont`, Base_Utility.pool.ltxml:1005, 1041; KNOWN_PERL_ERRORS #667); LaTeX's `\@item` sets `\makelabel{#1}` in

@@ -2166,6 +2166,94 @@ fn punct_followed_by_wide_space(node: &Node) -> bool {
   }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum FenceSide {
+  Open,
+  Middle,
+  Close,
+}
+
+/// A `\left … \right` pair being read by `filter_hints`: where its opening fence is (none for `\left.`), its
+/// `\middle` fences, and the extent of the struts met inside it.
+struct OpenFence {
+  opener:  Option<usize>,
+  middles: Vec<usize>,
+  height:  f64,
+  depth:   f64,
+}
+
+impl OpenFence {
+  fn new(opener: Option<usize>) -> Self {
+    OpenFence {
+      opener,
+      middles: Vec::new(),
+      height: 0.0,
+      depth: 0.0,
+    }
+  }
+
+  /// The pair is closed (by `closer`, none for `\right.`), or the list ended: its struts size every fence of it.
+  fn size_fences(self, kept: &mut [Node], closer: Option<&mut Node>) {
+    if self.height <= 0.0 && self.depth <= 0.0 {
+      return;
+    }
+    for i in self.opener.into_iter().chain(self.middles) {
+      add_strut(&mut kept[i], self.height, self.depth);
+    }
+    if let Some(closer) = closer {
+      add_strut(closer, self.height, self.depth);
+    }
+  }
+}
+
+/// The height and depth (pt) of a `\vphantom` hint, when it has any.
+fn strut_extent(hint: &Node) -> Option<(f64, f64)> {
+  if hint.get_attribute("name").as_deref() != Some("vphantom") {
+    return None;
+  }
+  let extent = |name: &str| {
+    hint
+      .get_attribute(name)
+      .map_or(0.0, |v| get_xmhint_spacing(&v))
+  };
+  let (height, depth) = (extent("height"), extent("depth"));
+  (height > 0.0 || depth > 0.0).then_some((height, depth))
+}
+
+/// Whether `node` is a stretchy fence (`\left`, `\middle`, `\right`) on the given side: an OPEN/MIDDLE/CLOSE, or a bar
+/// with the side that emitted it (`role_side`).
+fn is_stretchy_fence(node: &Node, side: FenceSide) -> bool {
+  if node.get_name() != "XMTok" || node.get_attribute("stretchy").as_deref() != Some("true") {
+    return false;
+  }
+  match (node.get_attribute("role").as_deref(), side) {
+    (Some("OPEN"), FenceSide::Open)
+    | (Some("MIDDLE"), FenceSide::Middle)
+    | (Some("CLOSE"), FenceSide::Close) => true,
+    (Some("VERTBAR"), _) => {
+      node.get_attribute("role_side").as_deref()
+        == Some(match side {
+          FenceSide::Open => "left",
+          FenceSide::Middle => "middle",
+          FenceSide::Close => "right",
+        })
+    },
+    _ => false,
+  }
+}
+
+/// Raise a fence's `height` and `depth` (pt) to at least a strut's.
+fn add_strut(fence: &mut Node, height: f64, depth: f64) {
+  for (name, value) in [("height", height), ("depth", depth)] {
+    let old = fence
+      .get_attribute(name)
+      .map_or(0.0, |v| get_xmhint_spacing(&v));
+    if value > old {
+      let _ = fence.set_attribute(name, &format!("{value:.1}pt"));
+    }
+  }
+}
+
 /// Filter XMHint nodes from a list of child nodes, transferring their spacing
 /// info to adjacent tokens as `lpadding`/`rpadding` attributes (Perl MathParser.pm
 /// `filter_hints` L417-491). XMHints are also unlinked from the XML tree so they won't be
@@ -2184,6 +2272,8 @@ pub fn filter_hints(nodes: Vec<Node>) -> Vec<Node> {
   let mut prev: Option<usize> = None;
   let mut pending_space: f64 = 0.0;
   let mut pending_phantom = false;
+  // The `\left … \right` pairs open at this point, innermost last.
+  let mut open_fences: Vec<OpenFence> = Vec::new();
   // Save hint nodes that contributed to _space, for possible PUNCT reuse
   let mut last_hint_for: Vec<Option<Node>> = Vec::new(); // parallel to prefiltered
   // Perl's `_phantom`, parallel to prefiltered
@@ -2194,6 +2284,25 @@ pub fn filter_hints(nodes: Vec<Node>) -> Vec<Node> {
       continue;
     }
     if node.get_name() == "XMHint" {
+      // A `\left.` or `\right.` is a bare hint, marked by the engine: it opens or closes a pair with no token.
+      match node.get_attribute("_nulldelimiter").as_deref() {
+        Some("left") => open_fences.push(OpenFence::new(None)),
+        Some("right") => {
+          if let Some(fence) = open_fences.pop() {
+            fence.size_fences(&mut prefiltered, None);
+          }
+        },
+        _ => {},
+      }
+      // A `\vphantom` strut (a box of the argument's height and depth, latex.ltx `\finph@nt`) anywhere inside a
+      // `\left … \right` pair sizes the pair: the innermost open one takes its extent, and gives it to all its
+      // fences when it closes. The hint itself is dropped below (OXIDIZED_DESIGN_DIVERGENCES #612).
+      if let Some((height, depth)) = strut_extent(&node)
+        && let Some(fence) = open_fences.last_mut()
+      {
+        fence.height = fence.height.max(height);
+        fence.depth = fence.depth.max(depth);
+      }
       if let Some(width_str) = node.get_attribute("width") {
         let pts = get_xmhint_spacing(&width_str);
         if pts != 0.0 {
@@ -2227,6 +2336,17 @@ pub fn filter_hints(nodes: Vec<Node>) -> Vec<Node> {
       last_hint_for.push(None);
       phantom.push(false);
     } else {
+      if is_stretchy_fence(&node, FenceSide::Open) {
+        open_fences.push(OpenFence::new(Some(prefiltered.len())));
+      } else if is_stretchy_fence(&node, FenceSide::Middle) {
+        if let Some(fence) = open_fences.last_mut() {
+          fence.middles.push(prefiltered.len());
+        }
+      } else if is_stretchy_fence(&node, FenceSide::Close)
+        && let Some(fence) = open_fences.pop()
+      {
+        fence.size_fences(&mut prefiltered, Some(&mut node));
+      }
       let mut ph = false;
       if pending_space != 0.0 {
         let _ = node.set_attribute("lpadding", &format!("{:.1}pt", pending_space));
@@ -2239,6 +2359,11 @@ pub fn filter_hints(nodes: Vec<Node>) -> Vec<Node> {
       last_hint_for.push(None);
       phantom.push(ph);
     }
+  }
+
+  // A pair the list leaves open still sizes the fences it has.
+  for fence in open_fences {
+    fence.size_fences(&mut prefiltered, None);
   }
 
   // Second pass: convert _space to rpadding (or PUNCT XMHint if above threshold)

@@ -12,6 +12,6 @@ fn nomentbl_units_and_notes_reach_the_list() {
     &xml,
     "glossaryentry",
     &[],
-    r##"<glossaryentry fragid="glo.nomenclature.nomencl.1" key="nomencl.1" lists="nomenclature" xml:id="glo.nomenclature.nomencl.1"><glossaryphrase key="nomencl.1" role="label"><Math mode="inline" tex="c" text="c" xml:id="p1.m3a"><XMath><XMTok font="italic" role="UNKNOWN">c</XMTok></XMath></Math></glossaryphrase><glossaryphrase role="definition">Speed of light <text class="ltx_glossary_unit"><Math mode="inline" tex="\mathrm{m}\mathrm{/}\mathrm{s}" text="m / s" xml:id="p1.m4a"><XMath><XMApp><XMTok meaning="divide" role="MULOP">/</XMTok><XMTok role="UNKNOWN">m</XMTok><XMTok role="UNKNOWN">s</XMTok></XMApp></XMath></Math></text> <text class="ltx_glossary_note">constant</text></glossaryphrase></glossaryentry>"##,
+    r##"<glossaryentry fragid="glo.nomenclature.nomencl.1" key="nomencl.1" lists="nomenclature" xml:id="glo.nomenclature.nomencl.1"><glossaryphrase key="nomencl.1" role="label"><Math mode="inline" tex="c" text="c" xml:id="p1.m3a"><XMath><XMTok font="italic" role="UNKNOWN">c</XMTok></XMath></Math></glossaryphrase><glossaryphrase role="definition">Speed of light <text class="ltx_glossary_unit"><Math mode="inline" tex="\mathrm{m}\mathrm{/}\mathrm{s}" text="m / s" xml:id="p1.m4a"><XMath><XMApp><XMTok mathclass="Ord" meaning="divide" role="MULOP">/</XMTok><XMTok role="UNKNOWN">m</XMTok><XMTok role="UNKNOWN">s</XMTok></XMApp></XMath></Math></text> <text class="ltx_glossary_note">constant</text></glossaryphrase></glossaryentry>"##,
   );
 }

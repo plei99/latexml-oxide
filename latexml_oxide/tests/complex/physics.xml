@@ -362,7 +362,7 @@
                         <XMTok role="SUBSCRIPTOP" scriptpos="post1"/>
                         <XMWrap>
                           <XMTok font="italic" role="UNKNOWN" xml:id="S1.Ex5.m1.2">x</XMTok>
-                          <XMTok role="VERTBAR" role_side="right" stretchy="true">|</XMTok>
+                          <XMTok depth="8.6pt" height="13.6pt" role="VERTBAR" role_side="right" stretchy="true">|</XMTok>
                         </XMWrap>
                         <XMTok fontsize="70%" meaning="0" role="NUMBER" xml:id="S1.Ex5.m1.3">0</XMTok>
                       </XMApp>
@@ -382,9 +382,9 @@
                       <XMApp>
                         <XMTok role="SUBSCRIPTOP" scriptpos="post1"/>
                         <XMWrap>
-                          <XMTok role="OPEN" stretchy="true">(</XMTok>
+                          <XMTok depth="8.6pt" height="13.6pt" role="OPEN" stretchy="true">(</XMTok>
                           <XMTok font="italic" role="UNKNOWN" xml:id="S1.Ex5.m1.6">x</XMTok>
-                          <XMTok role="VERTBAR" role_side="right" stretchy="true">|</XMTok>
+                          <XMTok depth="8.6pt" height="13.6pt" role="VERTBAR" role_side="right" stretchy="true">|</XMTok>
                         </XMWrap>
                         <XMTok fontsize="70%" meaning="0" role="NUMBER" xml:id="S1.Ex5.m1.7">0</XMTok>
                       </XMApp>
@@ -404,9 +404,9 @@
                       <XMApp>
                         <XMTok role="SUBSCRIPTOP" scriptpos="post1"/>
                         <XMWrap>
-                          <XMTok role="OPEN" stretchy="true">[</XMTok>
+                          <XMTok depth="8.6pt" height="13.6pt" role="OPEN" stretchy="true">[</XMTok>
                           <XMTok font="italic" role="UNKNOWN" xml:id="S1.Ex5.m1.10">x</XMTok>
-                          <XMTok role="VERTBAR" role_side="right" stretchy="true">|</XMTok>
+                          <XMTok depth="8.6pt" height="13.6pt" role="VERTBAR" role_side="right" stretchy="true">|</XMTok>
                         </XMWrap>
                         <XMTok fontsize="70%" meaning="0" role="NUMBER" xml:id="S1.Ex5.m1.11">0</XMTok>
                       </XMApp>
@@ -426,7 +426,7 @@
                       <XMApp>
                         <XMTok role="SUBSCRIPTOP" scriptpos="post1"/>
                         <XMWrap>
-                          <XMTok role="OPEN" stretchy="true">[</XMTok>
+                          <XMTok depth="8.6pt" height="13.6pt" role="OPEN" stretchy="true">[</XMTok>
                           <XMApp xml:id="S1.Ex5.m1.14">
                             <XMTok role="SUPERSCRIPTOP" scriptpos="mid2"/>
                             <XMApp>
@@ -440,7 +440,7 @@
                             </XMApp>
                             <XMTok font="italic" fontsize="70%" role="UNKNOWN">N</XMTok>
                           </XMApp>
-                          <XMTok role="VERTBAR" role_side="right" stretchy="true">|</XMTok>
+                          <XMTok depth="8.6pt" height="13.6pt" role="VERTBAR" role_side="right" stretchy="true">|</XMTok>
                         </XMWrap>
                         <XMTok fontsize="70%" meaning="0" role="NUMBER" xml:id="S1.Ex5.m1.15">0</XMTok>
                       </XMApp>

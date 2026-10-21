@@ -175,7 +175,7 @@ Some text <break/><Math mode="inline" tex="4\text{\,}\mathrm{m}\text{\,}{\mathrm
             <XMApp xml:id="p5.m1.3">
               <XMTok meaning="times" role="MULOP">⁢</XMTok>
               <XMApp>
-                <XMTok meaning="divide" role="MULOP">/</XMTok>
+                <XMTok mathclass="Ord" meaning="divide" role="MULOP">/</XMTok>
                 <XMTok font="italic" name="pi" role="UNKNOWN">π</XMTok>
                 <XMTok role="UNKNOWN" rpadding="1.7pt">mm</XMTok>
               </XMApp>
