@@ -1609,8 +1609,6 @@ impl MathParser {
             // empty base, and lost its wide spaces.
             let hints = std::mem::take(&mut self.parse_hints);
             self.parse_kludge(&mut node, document, &hints)?;
-            // Kludge (OPEN/CLOSE wrapping) runs post-parse in core_interface.rs
-            // using failed_xmath_ids to find the failed nodes.
           }
           Ok(None)
         },

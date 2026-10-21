@@ -17872,8 +17872,8 @@ U+0302 for an operator named `widehat`; `\hat` keeps `^`, written `<mo>^</mo>` w
 
 ### 600. A script on an empty group that follows negative math space belongs to the atom before the space (Perl: it floats)
 
-**Perl behavior**: `scriptHandler` (`TeX_Math.pool.ltxml:374-421`) drops an empty `{}` before a script and floats the
-script, so it becomes the prescript of whatever atom follows. fixdif's `\partial` and `\d` are
+**Perl behavior**: `scriptHandler` drops an empty `{}` before a script (`TeX_Math.pool.ltxml:381-382`, `IsEmpty` then
+`last`) and floats the script, so it becomes the prescript of whatever atom follows. fixdif's `\partial` and `\d` are
 `\mathinner{\partial}\fd@mu@p`, with `\def\fd@mu@p{\mathchoice{\mskip-\thinmuskip}{\mskip-\thinmuskip}{}{}{}}`
 (fixdif.sty:52, :64, :67, :70-75): a `\mathchoice` of four choices, then an extra `{}`, which TeX makes the empty
 nucleus of a following `_i`, set beside the `\partial` pulled back by the negative glue. In Perl
@@ -17886,12 +17886,16 @@ is a plain atom (not a script, not empty), the empty group is dropped and the sc
 `{}` stays a nucleus of its own, as in TeX (`\Gamma^{\lambda}\!{}_{\mu\nu}` is staggered, `\showlists` keeps
 `\mathord{}` with `_{\mu\nu}`), and the script floats as before; so does a script after an empty group with no such
 space (`{}^{14}_{6}C`). An atom with a limits position (`mid`: `\sum`, `\lim` in display style) is not bound to
-either: `\sum\!{}_{i}a_i` floats, because the script would inherit the position and stand under the operator, where TeX
+either: `\sum\!{}_{i}a` floats, because the script would inherit the position and stand under the operator, where TeX
 sets it beside (`\mathop` unscripted, glue, `\mathord{}` with `_i`). An empty `\mathchoice` branch counts as negative
-space, so `a\mathchoice{}{}{}{}{}_i` binds while `a{}_i` floats. The dropped group is recorded on the script's whatsit (`emptygroup`), and its reversion gives the
-`{}` back, so `tex=` is unchanged. A bound script overlaps its `\partial` by the 0.094em the `\mskip-\thinmuskip` takes
-from the `mpadded` width: TeX's thin space between the `\mathinner` and the following ordinary atom cancels it, which
-the post-processor does not model.
+space, so `a\mathchoice{}{}{}{}{}_i` binds while `a{}_i` floats. Where the atom has no limits position, inline
+`\sum\!{}_{i}a` and `\int\!{}_{i}a` (display too, for `\int`) bind as an `msub`, where Perl floats them. The
+dropped group is recorded on the script's whatsit (`emptygroup`), and its reversion gives the `{}` back, so `tex=` is
+unchanged. A bound fixdif script overlaps its `\partial` by the 0.094em the `\mskip-\thinmuskip` takes from the
+`mpadded` width: TeX's thin space between the `\mathinner` and the following ordinary atom cancels it, which the
+post-processor does not model. A plain negative space, `A\mskip-3mu{}_iB`, binds `i` to `A` but loses the -3mu (there is
+no `mpadded` on `A`: only a `\mathchoice` branch carries one).
 
-**Guard**: `cluster_package_guards::math_layout_parity::fixdif_script_binds_to_its_partial` (the macro as written out, the
-package itself, a staggered tensor index, `X\!{}^{a}y`).
+**Guards**: `cluster_package_guards::math_layout_parity::{fixdif_script_binds_to_its_partial` (the macro as written
+out, `X\!{}^{a}y`, the `\sum`/`\lim` display row), `fixdif_package_script_binds_to_its_partial` (the package itself),
+`script_after_a_script_stays_staggered` (`\Gamma^{\lambda}\!{}_{\mu\nu}`, `T^{a}{}_{b}`)}`.
