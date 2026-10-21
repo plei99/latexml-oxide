@@ -223,9 +223,14 @@ pub(crate) fn load() -> Result<()> {
   // horizontal modes the space after the skip is ignored when glue came before it (`\@bsphack…\@esphack`,
   // latex.ltx:9433-9449). OXIDIZED_DESIGN_DIVERGENCES #603.
   DefConditional!("\\iflx@vspace@vskip", {
-    lookup_string("MODE") != "horizontal" || own_paragraph_ends_in_leaders()
+    (lookup_string("MODE") != "horizontal" && !in_text_environment_body())
+      || own_paragraph_ends_in_leaders()
   });
-  DefMacro!("\\lx@vspace@skip{}", "\\iflx@vspace@vskip\\vskip #1\\relax\\fi");
+  // The dropped length is still read, into a scratch skip: LaTeX evaluates it in the `\vadjust` (`\@vspace@calcify`,
+  // latex.ltx:9411, :9529), so `\vspace{\nosuchlength}` and `\vspace{abc}` are errors there as with the `\vskip`.
+  DefRegister!("\\lx@vspace@scratch", Glue!("0pt"));
+  DefMacro!("\\lx@vspace@skip{}",
+    "\\iflx@vspace@vskip\\vskip #1\\relax\\else\\lx@vspace@scratch=#1\\relax\\fi");
   DefMacro!("\\vspace OptionalMatch:* {}",
     "\\ifhmode\\ifdim\\lastskip>\\z@\\lx@vspace@skip{#2}\\ignorespaces\\else\\lx@vspace@skip{#2}\\fi\\else\\lx@vspace@skip{#2}\\fi",
     protected => true);

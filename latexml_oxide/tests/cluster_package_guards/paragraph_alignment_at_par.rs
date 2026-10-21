@@ -146,7 +146,7 @@ fn boxes_and_environments_still_align_their_last_paragraph() {
   );
 }
 
-/// `\vspace` between two words of one paragraph is a `\vadjust`: one paragraph, as in the PDF.
+/// `\vspace` between two words of one paragraph is a `\vadjust` in LaTeX: one paragraph, as in the PDF.
 #[test]
 fn vspace_in_a_paragraph_does_not_split_it() {
   let xml = xml_of("baz \\vspace{5pt} qux \\vspace*{1ex} quux.\n\n\\vspace{5pt}\n\nnext\n");
@@ -291,7 +291,7 @@ fn vspace_in_the_text_keeps_the_paragraph_whole() {
   }
 }
 
-/// An item's text and a footnote's: `\vspace` before a display inside them does not split the paragraph either.
+/// An item's text: `\vspace` before a display inside it does not split its paragraph either.
 #[test]
 fn vspace_in_an_item_before_a_display_keeps_the_item_whole() {
   let xml = xml_of(
@@ -326,5 +326,89 @@ fn vspace_after_a_grouped_rule_line_closes_its_paragraph() {
     let caption = format!("<caption><tag close=\": \">Figure {n}</tag>{text}</caption>");
     assert_eq!(xml.matches(&panel).count(), 1, "{panel}\n{xml}");
     assert_eq!(xml.matches(&caption).count(), 1, "{caption}\n{xml}");
+  }
+}
+
+/// A footnote's text: `\vspace` before a display inside the note keeps the note's paragraph whole too.
+#[test]
+fn vspace_in_a_footnote_before_a_display_keeps_the_note_whole() {
+  let xml =
+    xml_of("Note\\footnote{Foot one \\vspace{5mm} foot two\n\\[ f \\]\nfoot after.} continues.\n");
+  assert_eq!(xml.matches("<para ").count(), 1, "{xml}");
+  assert_eq!(
+    xml.matches("</tags>Foot one foot two\n").count(),
+    1,
+    "{xml}"
+  );
+  assert_eq!(
+    xml
+      .matches("</equation>foot after.</note> continues.</p>")
+      .count(),
+    1,
+    "{xml}"
+  );
+}
+
+/// A length that does not parse is an error in a paragraph's text as it is in LaTeX (`\@vspace@calcify`, latex.ltx:9411
+/// and :9529, inside the `\vadjust`) and as the `\vskip` made it before the space was dropped: one undefined control
+/// sequence, and a "Missing number" warning for each of the two bad lengths.
+#[test]
+fn vspace_with_a_bad_length_still_reports_it() {
+  let (stderr, _xml) = super::convert(
+    "\\documentclass{article}\n\\begin{document}\nAlpha \\vspace{\\nosuchlength} beta.\n\nGamma \\vspace{abc} delta.\n\\end{document}\n",
+    false,
+  );
+  assert_eq!(super::error_count(&stderr), 1, "{stderr}");
+  assert_eq!(
+    stderr
+      .matches("Error:undefined:\\nosuchlength The token T_CS[\\nosuchlength] is not defined.")
+      .count(),
+    1,
+    "{stderr}"
+  );
+  assert_eq!(
+    super::perfect_kernel_batch46::warning_count(&stderr),
+    2,
+    "{stderr}"
+  );
+  assert_eq!(
+    stderr
+      .matches("Warning:expected:<number> Missing number (Dimension), treated as zero.")
+      .count(),
+    2,
+    "{stderr}"
+  );
+}
+
+/// The same title page inside an environment whose binding has a `#body` and no mode of its own (titling's
+/// `{titlingpage}`, the kernel's `{titlepage}`): digestion is in the default `restricted_horizontal`, where no paragraph
+/// is tracked, and the closing line is still the paragraph that `\end{...}` ends after the group restored the shape.
+#[test]
+fn raggedleft_group_in_a_body_environment_leaves_its_last_line_unaligned() {
+  for (preamble, env, expected) in [
+    ("\\usepackage{titling}\n", "titlingpage", [
+      "<para class=\"ltx_align_right\" xml:id=\"p1\">\n    <p><text fontsize=\"298%\">Title<break cssstyle=\"--ltx-break-space:12.0pt\"/><text fontsize=\"48%\">Lectures by Y</text></text></p>\n  </para>",
+      "<para xml:id=\"p2\">\n    <p><text font=\"sansserif\" fontsize=\"144%\">Some University</text>Next.</p>\n  </para>",
+    ]),
+    ("", "titlepage", [
+      "<p class=\"ltx_align_right\"><text fontsize=\"298%\">Title<break cssstyle=\"--ltx-break-space:12.0pt\"/><text fontsize=\"48%\">Lectures by Y</text></text></p>",
+      "<p><text font=\"sansserif\" fontsize=\"144%\">Some University</text></p>",
+    ]),
+  ] {
+    let (stderr, xml) = super::convert(
+      &format!(
+        "\\documentclass{{article}}\n{preamble}\\newcommand*{{\\titleSWT}}{{\\begingroup\\raggedleft\\vspace*{{\\baselineskip}}{{\\Huge Title}}\\\\[\\baselineskip]{{\\Large Lectures by Y}}\\par\\vfill{{\\Large \\sffamily Some University}}\\vspace*{{\\baselineskip}}\\endgroup}}\n\\begin{{document}}\n\\begin{{{env}}}\\titleSWT\\end{{{env}}}\nNext.\n\\end{{document}}\n"
+      ),
+      false,
+    );
+    assert_eq!(super::error_count(&stderr), 0, "{env}\n{stderr}");
+    assert_eq!(
+      super::perfect_kernel_batch46::warning_count(&stderr),
+      0,
+      "{env}\n{stderr}"
+    );
+    for element in expected {
+      assert_eq!(xml.matches(element).count(), 1, "{env}: {element}\n{xml}");
+    }
   }
 }

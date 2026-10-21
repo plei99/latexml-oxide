@@ -1518,6 +1518,8 @@ pub fn begin_mode_opt(mode: &str, noframe: bool) -> Result<()> {
     // `perfect_kernel_batch54::ifinner_is_the_box_frame_sign`.
     if !noframe {
       assign_frame_value_sym(crate::pin!("INNER_BOX"), bound_mode != "display_math");
+      // A box or math interior inside a text environment's body is no longer that body.
+      assign_frame_value_sym(crate::pin!("lx@env@text@body"), false);
     }
     set_mode_from(bound_mode, &prevbound)?;
     // Perl Stomach.pm lines 527-530: inject \everymath or \everydisplay tokens
@@ -1802,7 +1804,9 @@ pub fn leave_horizontal() -> Result<()> {
       // scan ("Missing number"), and the glue's stray digit then started a
       // paragraph that fired the re-armed `\everypar`, whose `\gr@implitem`
       // never found its catcode-12 `<` (2605.07451: `\grammarShrink` =
-      // `\vspace` between productions). The body is read from a mouth of its
+      // `\vspace` between productions; a `\vspace` in a paragraph's text is dropped now,
+      // OXIDIZED_DESIGN_DIVERGENCES #603, so the repro and its guard use `\vskip 0pt`, which still
+      // gets here). The body is read from a mouth of its
       // own, in no group (its assignments stand), and invoked against the
       // CURRENT box list, so `\@@par`'s repack still sees the paragraph and
       // the vertical-mode `\par` whatsit stays a bare paragraph boundary. The
@@ -2335,13 +2339,22 @@ where FnR: FnOnce(&[Digested]) -> R {
   caller(&stomach.box_list[floor..])
 }
 
+/// Whether digestion is in the body of an environment that declares no mode of its own (`DefEnvironment` without a
+/// `mode`, such as titling's `{titlingpage}` with `#body`): the default `restricted_horizontal`, which holds the
+/// document's own text, in `ltx:para` elements, and tracks no paragraph in progress. A `\mbox`, a cell or a formula
+/// inside it is not that body.
+pub fn in_text_environment_body() -> bool {
+  lookup_string_from_sym(crate::pin!("MODE")) == "restricted_horizontal"
+    && lookup_bool_sym(crate::pin!("lx@env@text@body"))
+}
+
 /// Whether the paragraph being built ends in leaders so far: its last item that prints, past spaces, `\kern`s, `\hskip`s
 /// and `\hfill`s (the `\kern\z@` that closes `\hrulefill`), is a `\leaders` item (`\hrulefill`, `\dotfill`), also as
 /// the last item of a group's list (`{\small\hrulefill}`). `\vspace` after such a line separates it from what follows
 /// (the fixture `50_structure::vspace_closes_leader_para`; arXiv 2302.11635, where the line follows two minipages of
 /// the same paragraph).
 pub fn own_paragraph_ends_in_leaders() -> bool {
-  if lookup_string_from_sym(crate::pin!("MODE")) != "horizontal" {
+  if lookup_string_from_sym(crate::pin!("MODE")) != "horizontal" && !in_text_environment_body() {
     return false;
   }
   with_own_box_list(|items| ends_in_leaders(items) == Some(true))

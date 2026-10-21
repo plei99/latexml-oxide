@@ -1317,17 +1317,48 @@ fn setup_aligning_context(doc: &mut Document) {
     }
   }
 }
-/// Whether the group an `\@add@centering`-style hook closes ends with a paragraph still in progress, recorded as the
-/// whatsit's `paragraph_open` property: the group is a bare `{...}`, `\bgroup` or `\begingroup` (the frame's
-/// initiator) and digestion is in horizontal mode. An environment's group is taken to end its paragraph, as LaTeX's
-/// box environments do with the `\par` before their `\egroup` (a binding that is a vbox or minipage in LaTeX, such as
-/// beamer's `{column}`, is not declared `mode => "internal_vertical"` and would still be in horizontal mode here); a
-/// user `\newenvironment` whose end code has no `\par` is taken to end it too, which TeX does not.
+/// What the digestion of an `\@add@centering`-style hook knows about the paragraph its group leaves open, recorded as
+/// the whatsit's `paragraph_open` and `paragraph_open_if_para` properties.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OpenParagraph {
+  /// The group ends its paragraph (an environment's group, or no paragraph is in progress).
+  No,
+  /// A bare `{...}`, `\bgroup` or `\begingroup` closes in horizontal mode, the paragraph still open.
+  Yes,
+  /// The same group closes in restricted horizontal mode, the mode a constructor environment (`DefEnvironment` without a
+  /// `mode`, whose `#body` is the document's own text: titling's `{titlingpage}`) binds. Its paragraphs are
+  /// `ltx:para` elements, so it is open for a block paragraph, and not for the `ltx:p` of a cell or an `\mbox`.
+  IfPara,
+}
+
+/// Read the hook's [`OpenParagraph`] from its whatsit's properties.
+fn open_paragraph(props: &SymHashMap<Stored>) -> OpenParagraph {
+  if props.get("paragraph_open").is_some() {
+    OpenParagraph::Yes
+  } else if props.get("paragraph_open_if_para").is_some() {
+    OpenParagraph::IfPara
+  } else {
+    OpenParagraph::No
+  }
+}
+
+/// The frame's `groupInitiator` says it is a bare `{...}`, `\bgroup` or `\begingroup`. Every environment's group is
+/// taken to end its paragraph, as LaTeX's `\par` before the `\egroup` of its box environments (a binding that is a vbox
+/// or minipage in LaTeX, such as beamer's `{column}`, is not declared `mode => "internal_vertical"` and would still be
+/// in horizontal mode here); a user `\newenvironment` whose end code has no `\par` is taken to end it too, which TeX
+/// does not.
 fn mark_paragraph_in_progress(whatsit: &mut Whatsit) {
   let plain_group = lookup_token("groupInitiator")
     .is_some_and(|t| matches!(t.to_string().as_str(), "{" | "\\bgroup" | "\\begingroup"));
-  if plain_group && lookup_string("MODE") == "horizontal" {
-    whatsit.set_property("paragraph_open", Stored::Bool(true));
+  if !plain_group {
+    return;
+  }
+  match lookup_string("MODE").as_str() {
+    "horizontal" => whatsit.set_property("paragraph_open", Stored::Bool(true)),
+    "restricted_horizontal" if in_text_environment_body() => {
+      whatsit.set_property("paragraph_open_if_para", Stored::Bool(true))
+    },
+    _ => {},
   }
 }
 
@@ -1342,7 +1373,7 @@ fn apply_aligning_context(
   document: &mut Document,
   align: &str,
   class: &str,
-  paragraph_open: bool,
+  open: OpenParagraph,
 ) -> Result<()> {
   // with_value avoids two Stored envelope clones; Node is Rc-backed so we
   // still pay a Rc::clone inside the closure but skip the enum match work.
@@ -1376,7 +1407,7 @@ fn apply_aligning_context(
     let mut past_previous = previous_opt.is_none(); // if no previous, apply to all
     // The nodes from the insertion point up: the paragraph still open at the group's end is among them.
     let mut open_chain = Vec::new();
-    if paragraph_open {
+    if open != OpenParagraph::No {
       let mut cursor = document.get_element();
       while let Some(n) = cursor {
         cursor = n.get_parent();
@@ -1384,8 +1415,9 @@ fn apply_aligning_context(
       }
     }
     // The aligned element is itself the open paragraph (`\raggedleft` typed inside it): nothing to stamp.
-    let node_is_open_paragraph =
-      open_chain.contains(&node) && document::get_node_qname(&node) == pin!("ltx:p");
+    let node_is_open_paragraph = open == OpenParagraph::Yes
+      && open_chain.contains(&node)
+      && document::get_node_qname(&node) == pin!("ltx:p");
     // Inside a declaration `\\` is `\@centercr`, which ends the paragraph (latex.ltx:15619-15620 `\par`): an open
     // paragraph with a break of its own (a direct child of its `ltx:p`; one inside an inline box ends nothing) had its
     // lines ended inside the group, and is stamped. The text after the last break should not be; LaTeXML has one
@@ -1404,8 +1436,10 @@ fn apply_aligning_context(
         }
         continue;
       }
-      let open = node_is_open_paragraph || open_chain.contains(&child);
-      if open
+      let is_open = node_is_open_paragraph
+        || (open_chain.contains(&child)
+          && (open == OpenParagraph::Yes || document::get_node_qname(&child) == pin!("ltx:para")));
+      if is_open
         && !ended_by_newline(
           document,
           if node_is_open_paragraph {

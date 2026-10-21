@@ -753,9 +753,10 @@ should use the guardian by default.
 
 ## 38. `\vspace` is the faithful DefMacro; a "doesn't fire" mode-gated primitive means suspect the UPSTREAM mode-setter
 
-**Superseded for text in a paragraph by [OXIDIZED_DESIGN #603](OXIDIZED_DESIGN_DIVERGENCES.md):** `\vspace` there is a
-`\vadjust` as in latex.ltx:9522-9532, and keeps the `\vskip` described here in vertical mode, in cells and formulas, and after a
-rule line (a paragraph ending in `\leaders`). The rest is the 2026-08-05 state.
+**Superseded for text in a paragraph by [OXIDIZED_DESIGN #603](OXIDIZED_DESIGN_DIVERGENCES.md):** in a paragraph's text
+`\vspace` emits nothing (the paragraph stays whole, the space is dropped and nothing is queued; a `p{}` cell's text and a
+minipage's drop it too). The `\vskip` described here stays in vertical mode, in restricted horizontal mode (`\mbox`,
+`l`/`c` cells), in math, and after a rule line (a paragraph ending in `\leaders`). The rest is the 2026-08-05 state.
 
 **RESOLVED (2026-08-05).** `\vspace` is the faithful
 `DefMacro!('\\vspace OptionalMatch:* {}', '\\vskip #2\\relax')`
