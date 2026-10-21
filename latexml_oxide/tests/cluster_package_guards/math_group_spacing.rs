@@ -1,10 +1,10 @@
 //! Three places where the spacing and the size of a math formula came out other than TeX sets them
-//! (OXIDIZED_DESIGN_DIVERGENCES #611, #612, #613), each seen in a note's PDF and web page:
+//! (OXIDIZED_DESIGN_DIVERGENCES #611, #612, #613):
 //!
 //! * #611 `\delimiter`/`\mathchar` of class 3 (Rel): `\left\{d\delimiter"326A30C D\right\}`, the set-builder bar,
 //!   is set with `\thickmuskip` either side. The glyph's own role (VERTBAR, re-roled MIDDLE by the fence rule, an Ord
 //!   to the spacing walk, MathML.pm:1151) won over the class (Package.pm:2993), so the bar had no space.
-//! * #612 a `\vphantom` beside a stretchy fence sizes it: `\left.x\vphantom{\int}\right|_{a}`, which physics.sty:181
+//! * #612 a `\vphantom` beside a stretchy fence sizes it: `\left.x\vphantom{\int}\right|_{a}`, which physics.sty:180-193
 //!   sets for `\evaluated{x}_{a}`. The strut was dropped (math_common.pool.ltxml:680 makes an `XMHint`, which
 //!   MathParser.pm:440 `filter_hints` unlinks), so the bar was as short as the row and the limit hung from its middle.
 //! * #613 `D_X\mathsf{-Mod}`: the minus opens a math group, an Ord atom, so it is unary and tight (tex.web §727); it
@@ -17,6 +17,7 @@ use crate::cluster::{convert_log, convert_to_xml};
 
 const PHYSICS: &str = "tests/cluster_regressions/physics_evaluated_strut.tex";
 const STRUT: &str = "tests/cluster_regressions/fence_strut.tex";
+const NULL_PAIRS: &str = "tests/cluster_regressions/fence_strut_null.tex";
 const BAR: &str = "tests/cluster_regressions/relation_class_bar.tex";
 const GROUP: &str = "tests/cluster_regressions/group_leading_binary.tex";
 
@@ -166,6 +167,52 @@ fn a_strut_sizes_both_fences_of_the_pair() {
 }
 
 #[test]
+fn a_strut_belongs_to_its_own_pair_across_null_delimiters() {
+  let page = html(STRUT);
+  // A `\right.` closes the pair: the strut sizes the `(`.
+  assert_math(
+    &page,
+    "S0.Ex5.m1",
+    r#"<math id="S0.Ex5.m1" class="ltx_Math" alttext="\left(x\vphantom{\int}\right." display="block"><mrow><mo minsize="2.220em">(</mo><mi>x</mi><mphantom></mphantom></mrow></math>"#,
+  );
+  // A strut before the first atom, in a pair that opens with `\left.`, reaches the closing bar.
+  assert_math(
+    &page,
+    "S0.Ex6.m1",
+    r#"<math id="S0.Ex6.m1" class="ltx_Math" alttext="\left.\vphantom{\int}\frac{a}{b}\right|_{0}^{1}" display="block"><msubsup><mrow><mfrac><mi>a</mi><mi>b</mi></mfrac><mo minsize="2.220em">|</mo></mrow><mn>0</mn><mn>1</mn></msubsup></math>"#,
+  );
+}
+
+#[test]
+fn a_pair_closed_by_a_null_fence_is_not_sized_by_the_next_pair() {
+  // `\left( a \right.` is a pair of its own: its `(` is not sized by the strut of `\left. b\vphantom{\int}\right]`.
+  // The formula does not parse (an OPEN with no CLOSE), which is the one Warning pinned here.
+  let engine_log = convert_log(NULL_PAIRS);
+  assert_eq!(warning_count(&engine_log), 1, "{engine_log}");
+  assert_eq!(
+    engine_log.matches("Warning:unparsed_math:").count(),
+    1,
+    "{engine_log}"
+  );
+  let (page, post_log) = post_html_logged(&convert_to_xml(NULL_PAIRS));
+  assert_eq!(warning_count(&post_log), 0, "{post_log}");
+  assert_math(
+    &page,
+    "S0.Ex1.m1",
+    r#"<math id="S0.Ex1.m1" class="ltx_math_unparsed" alttext="\left(a\right.+\left.b\vphantom{\int}\right]" display="block"><mrow><mo>(</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo minsize="2.220em">]</mo></mrow></math>"#,
+  );
+}
+
+#[test]
+fn a_strut_sizes_the_middle_fence() {
+  assert_math(
+    &html(STRUT),
+    "S0.Ex7.m1",
+    r#"<math id="S0.Ex7.m1" class="ltx_Math" alttext="\left(x\vphantom{\int}\middle|y\right)" display="block"><mrow><mo minsize="2.220em">(</mo><mi>x</mi><mo lspace="0em" minsize="2.220em" rspace="0em" stretchy="true">|</mo><mi>y</mi><mo minsize="2.220em">)</mo></mrow></math>"#,
+  );
+}
+
+#[test]
 fn physics_evaluated_bar_is_as_tall_as_its_strut() {
   assert_math(
     &html(PHYSICS),
@@ -292,4 +339,19 @@ fn a_script_argument_records_no_class() {
   ] {
     assert_element(&xml, "Math", &[&format!(r#"xml:id="{id}""#)], expected);
   }
+}
+
+#[test]
+fn a_nested_group_or_font_switch_leads_the_group() {
+  let page = html(GROUP);
+  assert_math(
+    &page,
+    "p10.m1",
+    r#"<math id="p10.m1" class="ltx_Math" alttext="a{\mathrm{-}b}" display="inline"><mrow><mi>a</mi><mo lspace="0em" rspace="0em">−</mo><mi>b</mi></mrow></math>"#,
+  );
+  assert_math(
+    &page,
+    "p11.m1",
+    r#"<math id="p11.m1" class="ltx_Math" alttext="a\mathrm{\mathbf{-}}b" display="inline"><mrow><mi>a</mi><mo lspace="0em" rspace="0em">−</mo><mi>b</mi></mrow></math>"#,
+  );
 }

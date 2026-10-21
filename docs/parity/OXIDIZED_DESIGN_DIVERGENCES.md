@@ -18295,8 +18295,8 @@ fence, `lspace="0em" rspace="0em"`). It needs `mathclass="Rel"` on the `DefMath`
 in a fence, so it is left for its own ruling. A class-3 symbol made by `\mathchardef` or `\DeclareMathSymbol` does not
 reach `\mathchar` and is not covered either.
 
-**Why**: a note's set-builder formulas, `\min\left\{d \mid D_X^{\le d}(I)=\mathcal{O}_X\right\}`, written with
-`\delimiter"326A30C`, showed `d|D`, the bar touching both sides, where the PDF has the spaced bar.
+**Why**: a set-builder bar written `\delimiter"326A30C` (`\left\{d\delimiter"326A30C D\right\}`, from a macro for the
+separator) showed `d|D`, the bar touching both sides, where TeX sets `d | D`.
 
 **Guards**: `math_group_spacing::a_class_3_delimiter_records_its_class`,
 `::a_set_builder_bar_of_class_3_has_relation_spacing`, `::a_middle_bar_keeps_its_tight_spacing`,
@@ -18306,15 +18306,18 @@ reach `\mathchar` and is not covered either.
 ### 612. A `\vphantom` beside a stretchy fence sizes the pair; a display-style large operator has TeX's height and depth (Perl: the strut is dropped, the operator is text-sized)
 **Perl**: `\vphantom{x}` in math is an `XMHint` with the argument's `height` and `depth`
 (math_common.pool.ltxml:680-687); `filter_hints` unlinks every hint before the parse (MathParser.pm:440-490) and keeps
-only its width, as padding. `\left.\lambda(\alpha)\vphantom{\int}\right|_X`, which physics.sty:181-192 sets for
+only its width, as padding. `\left.\lambda(\alpha)\vphantom{\int}\right|_X`, which physics.sty:180-193 sets for
 `\evaluated{\lambda(\alpha)}_X` (`\left.#2\vphantom{\int}\right\rvert`), became a bar as high as the row, and the
 limit hung from its middle. The physics binding (`physics.sty.ltxml:170-195`) never wrote the strut. And the box of
 `\displaystyle\int` was the text-style glyph, 6.94pt + 1.94pt where TeX has 13.61pt + 8.61pt.
 
-**Rust**: three parts. (1) `filter_hints` (`latexml_math_parser/src/util.rs`) keeps the stretchy fences open in its list;
-a `\vphantom` gives its extent to the innermost, and when that closes both fences carry it, as the `height`/`depth` the
-`XProps` of a stretchy token now keep (on any other node they are dropped as before). A strut before a `\right` whose
-`\left.` is a null delimiter reaches the closing fence only. (2) `pmml_mo` (`latexml_post/src/mathml/presentation.rs`) makes
+**Rust**: three parts. (1) `filter_hints` (`latexml_math_parser/src/util.rs`) keeps the `\left … \right` pairs open in
+its list, innermost last. The engine marks a `\left.` or `\right.` hint with the internal attribute `_nulldelimiter`
+(`left`/`right`; the output drops it), so a null fence opens or closes a pair as a token does. A `\vphantom` anywhere
+inside a pair gives its extent to the innermost open one, and when it closes (or the list ends) its opening fence, its
+`\middle` fences and its closing fence all carry it, as the `height`/`depth` the `XProps` of a stretchy token now keep
+(on any other node they are dropped as before): `\left( a \right. + \left. b\vphantom{\int}\right]` sizes the `]` only.
+(2) `pmml_mo` (`latexml_post/src/mathml/presentation.rs`) makes
 a `minsize` of their sum on a stretchy fence (MathML Core: the operator is at least that when the row is smaller; TeX
 sizes a delimiter from `\delimiterfactor` and `\delimitershortfall`, §762, so this is the strut's own extent, not
 TeX's rounding), and `pmml_maybe_resize` no longer wraps such a fence in an `mpadded`. (3) The physics binding writes
@@ -18329,13 +18332,14 @@ keep their old size (TeX 8.06pt/3.06pt for `\int`, here 6.94pt/1.94pt), and so d
 `\smallint` shares U+222B and gets the display size in display style; `minsize` is the extent of the row's stretch, so
 the limit hangs from the foot of the bar only approximately.
 
-**Why**: a note's `\evaluated{\lambda(\alpha)}_{X \wedge X}` showed a bar the height of `\lambda(\alpha)` with the subscript
-beside its middle; the PDF and the page built with tex4ht have the tall bar with the limit below it.
+**Why**: `\[\evaluated{\lambda(\alpha)}_{X \wedge X}\]` showed a bar the height of `\lambda(\alpha)` with the subscript
+beside its middle; TeX sets the bar as tall as the integral strut, with the limit below it.
 
 **Guards**: `math_group_spacing::a_vphantom_gives_the_closing_fence_its_extent`,
 `::a_display_integral_strut_makes_the_bar_as_tall_as_the_integral`, `::a_fence_without_a_strut_has_no_minimum`,
 `::a_strut_is_the_height_of_its_argument`, `::a_strut_beside_a_bar_that_is_no_fence_is_dropped`,
-`::a_strut_sizes_both_fences_of_the_pair`, `::physics_evaluated_bar_is_as_tall_as_its_strut`,
+`::a_strut_sizes_both_fences_of_the_pair`, `::a_strut_belongs_to_its_own_pair_across_null_delimiters`,
+`::a_strut_sizes_the_middle_fence`, `::physics_evaluated_bar_is_as_tall_as_its_strut`,
 `::physics_evaluated_with_a_delimited_argument_sizes_both_fences`.
 
 ### 613. A binary operator that opens a math group is an ordinary atom (Perl: the group is flat, so it is the binary operator of the formula)
@@ -18358,16 +18362,16 @@ change: `complex/si.xml` and `parse/product_chains.xml` (`a{\color{red}\cdot}b`)
 (three expected `Math` elements) and `nomencl_nomentbl::nomentbl_units_and_notes_reach_the_list`, each with a
 `mathclass="Ord"` on the `/`.
 
-**Residual**: only a leading operator is handled; a trailing one (`{a+}b`) and one after an opening fence inside the
-group are not, and an unbraced `\mathbin\mathrm{-}` (TeX: Bin) is marked Ord. `\mathbb`, `\mathfrak`, `\boldsymbol`,
+**Residual**: only a leading operator is handled (through nested groups and font switches, `a{\mathrm{-}b}`); a
+trailing one (`{a+}b`) and one after an opening fence inside the group are not, and an unbraced `\mathbin\mathrm{-}` (TeX: Bin) is marked Ord. `\mathbb`, `\mathfrak`, `\boldsymbol`,
 `\bm` and `\operatorname` groups are not marked. A second `mathclass` source (`\mid`, divergence #611) would make the
 same walk right for more.
 
-**Why**: a note's category names `D_X\mathsf{-Mod}` and `U(\mathfrak g)\mathsf{-Mod}` (34 formulas) had a space either
-side of the minus where the PDF has none.
+**Why**: a category name such as `D_X\mathsf{-Mod}` had a space either side of the minus, where TeX sets `D_X−Mod`
+tight.
 
 **Guards**: `math_group_spacing::a_group_leading_minus_records_the_ordinary_class`,
 `::a_minus_opening_a_font_group_is_tight`, `::a_minus_opening_a_brace_group_is_tight`,
 `::a_minus_opening_a_mathrm_group_is_tight`, `::an_ordinary_binary_minus_keeps_its_spacing`,
 `::a_group_that_opens_its_formula_is_unchanged`, `::a_negative_exponent_is_unchanged`,
-`::a_script_argument_records_no_class`.
+`::a_script_argument_records_no_class`, `::a_nested_group_or_font_switch_leads_the_group`.

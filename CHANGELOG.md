@@ -8,7 +8,7 @@
     `mathclass="Rel"`, a new optional `XMath` attribute the spacing walk reads before the role (divergence #611).
     `\middle|` is unchanged. Guards `math_group_spacing::*` (class 3).
   - **A `\vphantom` beside a stretchy fence sizes it, and physics' `\evaluated` bar is as tall as its strut.**
-    `\evaluated{\lambda(\alpha)}_{X \wedge X}` is `\left.…\vphantom{\int}\right|` (physics.sty:181); the strut was
+    `\evaluated{\lambda(\alpha)}_{X \wedge X}` is `\left.…\vphantom{\int}\right|` (physics.sty:180-193); the strut was
     dropped by the math parser and left out of the binding, so the bar was short and the limit hung from its middle.
     The parser now gives the strut's extent to the fence, the page makes a `minsize` of it, the binding writes the
     strut, and a display-style `\int`, `\sum`… has TeX's height and depth, 2.222em / 1.6em in all (divergence #612).

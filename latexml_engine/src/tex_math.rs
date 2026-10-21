@@ -60,7 +60,7 @@ pub fn mark_group_leading_binary(group: &[Digested], in_script_argument: bool) {
     return;
   }
   // The role first (it rarely fits), then what precedes the group.
-  if let Some(first) = group.iter().find(|b| !b.is_skippable())
+  if let Some(first) = leading_atom(group)
     && matches!(
       first.get_property_string("role").as_str(),
       "ADDOP" | "MULOP" | "BINOP"
@@ -68,6 +68,39 @@ pub fn mark_group_leading_binary(group: &[Digested], in_script_argument: bool) {
     && with_box_list(|outer| outer.iter().any(|b| !b.is_skippable()))
   {
     first.clone().set_property("mathclass", "Ord");
+  }
+}
+
+/// The first atom of a group, looking into a group or a font switch that opens it (`{\mathrm{-}b}`,
+/// `\mathrm{\mathbf{-}}`): their own first atom opens the group too.
+fn leading_atom(group: &[Digested]) -> Option<Digested> {
+  let first = group.iter().find(|b| !b.is_skippable())?;
+  match first.data() {
+    DigestedData::List(list) => leading_atom(&list.borrow().boxes),
+    DigestedData::Whatsit(whatsit) => {
+      let whatsit = whatsit.borrow();
+      let font_switch = whatsit.get_definition().get_cs().with_cs_name(|name| {
+        matches!(
+          name,
+          "\\mathrm"
+            | "\\mathit"
+            | "\\mathbf"
+            | "\\mathsf"
+            | "\\mathtt"
+            | "\\mathcal"
+            | "\\mathscr"
+            | "\\mathnormal"
+        )
+      });
+      match whatsit.get_arg(1) {
+        Some(arg) if font_switch => match arg.data() {
+          DigestedData::List(list) => leading_atom(&list.borrow().boxes),
+          _ => leading_atom(std::slice::from_ref(arg)),
+        },
+        _ => Some(first.clone()),
+      }
+    },
+    _ => Some(first.clone()),
   }
 }
 
@@ -1357,7 +1390,7 @@ LoadDefinitions!({
   // `perfect_kernel_batch56::let_at_left_left_does_not_loop`.
   DefConstructor!("\\left DelimiterToken",
     "?#char(?#inmath(<ltx:XMTok role='#role' name='#name' ?#meaning(meaning='#meaning') stretchy='#stretchy' ?#role_side(role_side='#role_side')>#char</ltx:XMTok>)(#char))\
-      (?#hint(?#inmath(<ltx:XMHint/>)())(#1))",
+      (?#hint(?#inmath(<ltx:XMHint _nulldelimiter='#nulldelimiter'/>)())(#1))",
     after_digest => sub[whatsit] {
       decorate_delimiter(whatsit, DelimiterSide::Left)?;
       unread(Tokens::new(vec![T_CS!("\\lx@hidden@bgroup"), T_CS!("\\lx@math@left@group")]));
@@ -1418,7 +1451,7 @@ LoadDefinitions!({
   // `\@left`/`\@right` undefined. Guard: `perfect_kernel_batch56::let_at_left_left_does_not_loop`.
   DefConstructor!("\\lx@delim@left DelimiterToken",
     "?#char(?#inmath(<ltx:XMTok role='#role' name='#name' ?#meaning(meaning='#meaning') stretchy='#stretchy' ?#role_side(role_side='#role_side')>#char</ltx:XMTok>)(#char))\
-      (?#hint(?#inmath(<ltx:XMHint/>)())(#1))",
+      (?#hint(?#inmath(<ltx:XMHint _nulldelimiter='#nulldelimiter'/>)())(#1))",
     after_digest => sub[whatsit] {
       decorate_delimiter(whatsit, DelimiterSide::Left)?;
       Ok(Vec::new())
@@ -1428,7 +1461,7 @@ LoadDefinitions!({
   // `\right`'s delimiter once `\right` has scanned it and closed its group.
   DefConstructor!("\\lx@delim@right@scanned ScannedDelimiter",
     "?#char(?#inmath(<ltx:XMTok role='#role' name='#name' ?#meaning(meaning='#meaning') stretchy='#stretchy' ?#role_side(role_side='#role_side')>#char</ltx:XMTok>)(#char))\
-      (?#hint(?#inmath(<ltx:XMHint/>)())(#1))",
+      (?#hint(?#inmath(<ltx:XMHint _nulldelimiter='#nulldelimiter'/>)())(#1))",
     after_digest => sub[whatsit] {
       decorate_delimiter(whatsit, DelimiterSide::Right)?;
       Ok(Vec::new())
@@ -1437,7 +1470,7 @@ LoadDefinitions!({
     alias => "\\right");
   DefConstructor!("\\lx@delim@right DelimiterToken",
     "?#char(?#inmath(<ltx:XMTok role='#role' name='#name' ?#meaning(meaning='#meaning') stretchy='#stretchy' ?#role_side(role_side='#role_side')>#char</ltx:XMTok>)(#char))\
-      (?#hint(?#inmath(<ltx:XMHint/>)())(#1))",
+      (?#hint(?#inmath(<ltx:XMHint _nulldelimiter='#nulldelimiter'/>)())(#1))",
     after_digest => sub[whatsit] {
       decorate_delimiter(whatsit, DelimiterSide::Right)?;
       Ok(Vec::new())
@@ -2359,6 +2392,13 @@ pub fn decorate_delimiter(whatsit: &mut Whatsit, side: DelimiterSide) -> Result<
     .unwrap_or_default();
   if delim == "." {
     whatsit.set_property("hint", true);
+    // Which end of a `\left … \right` pair this null delimiter is: the constructor's hint carries it as the internal
+    // attribute `_nulldelimiter`, which the math parser reads (`filter_hints`) and the output drops, to pair a strut
+    // with the null fence (OXIDIZED_DESIGN_DIVERGENCES #612).
+    whatsit.set_property("nulldelimiter", match side {
+      DelimiterSide::Left => "left",
+      DelimiterSide::Right => "right",
+    });
   } else if let Some(entry) = DELIMITER_MAP.get(delim.as_str()) {
     let role = match side {
       DelimiterSide::Left => entry.left_role,

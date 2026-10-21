@@ -116,7 +116,7 @@ vertical bars unambiguously across the kerned-stack idiom
 whose \attr{role} does not say it: the spacing of the presentation follows it.
 Recorded for a class-3 (Rel) \texttt{\mathchar} or \texttt{\delimiter} whose glyph has a
 role of its own, such as the set-builder bar \texttt{\delimiter"326A30C} (Rel), and for
-the operator that opens a math group, such as the minus of \texttt{D_X\mathsf{-Mod}} (Ord).</a:documentation>
+the operator that opens a math group, such as a leading minus in the argument of \texttt{\mathsf} (Ord).</a:documentation>
         <choice>
           <value>Ord</value>
           <value>Op</value>
