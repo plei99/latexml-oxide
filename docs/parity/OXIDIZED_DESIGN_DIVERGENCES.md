@@ -18034,6 +18034,75 @@ The entries' per-field markup (`ltx:bibentry`'s
 
 **Guards**: `cluster_package_guards::biblatex_standard_layout::*`.
 
+### 602. A ragged or centred group shapes the paragraphs it finishes, not the one still open at its end (Perl: every paragraph the group added)
+
+TeX breaks a paragraph into lines at its `\par` (tex.web §1096 `end_graf`, §877 `line_break`) with the
+`\leftskip`/`\rightskip`/`\parfillskip` in force then, which latex.ltx sets in `\centering`, `\raggedright` and
+`\raggedleft` (:15626-15640). A group that ends in the middle of a paragraph restores them before that `\par`, so
+the paragraph takes the enclosing shape: a title page `\begingroup\raggedleft … Title\par \vfill {\Large Some
+University}\endgroup` followed by a blank line has the title right-aligned and the last line flush left.
+
+Perl's `\@add@centering`/`\@add@raggedright`/`\@add@raggedleft` (latex_constructs.pool.ltxml:1226-1259,
+`applyAligningContext`) run when the group closes and stamp every element the group added after
+`\raggedleft` — the open paragraph too — so the last line was `<para class="ltx_align_right">`.
+
+Rust records at digestion whether a bare `{...}`, `\bgroup` or `\begingroup` closes in horizontal mode
+(`mark_paragraph_in_progress`, latex_constructs/mod.rs; the frame's `groupInitiator`). Every environment's group is
+taken to end its paragraph, as LaTeX's `\par` before the `\egroup` of its box environments (`{figure}`, `{minipage}`,
+`{quote}`, a list, a theorem, beamer's `{column}`): those keep stamping everything. When a plain group closes with the
+paragraph open, `apply_aligning_context` skips the child that holds the insertion point (and all children when the
+aligned element is itself the open `ltx:p`). The paragraphs finished inside the group are stamped as before.
+Inside a declaration `\\` is `\@centercr`, which ends the paragraph with `\par` (latex.ltx:15619-15626), so an open
+paragraph with an `ltx:break` of its own (a direct child of its `ltx:p`) is stamped whole (`{\centering A\\ B}` aligns B too, where TeX leaves B to the
+paragraph after the group; LaTeXML has one `ltx:p`, and `\newline` makes the same break). Not modelled: a declaration
+typed inside a paragraph that ends within the group (`{A \centering text\par}`) aligns nothing, as before (the
+paragraph is not a child added after the declaration); a user `\newenvironment` whose end code has no `\par` ends its
+paragraph, which TeX's does not.
+
+**Guards**: `cluster_package_guards::paragraph_alignment_at_par::*`. Golden: `perfect_kernel_batch64x::pos_has_no_jhep_journal_macros`
+sets `\begingroup\raggedright …\endgroup` and a paragraph that ends at `\end{document}`.
+
+### 603. `\vspace` inside a paragraph keeps the paragraph whole and drops its vertical space (Perl: `\vskip`, which ends it)
+
+latex.ltx:9522-9532 `\@vspace` (and :9533-9550 `\@vspacer` for `\vspace*`) takes a plain `\vskip` only under
+`\ifvmode`; in horizontal mode the skip is `\vadjust{…}`, so the paragraph goes on and the space follows its line.
+Perl and the Rust port defined `\vspace` as `\vskip #2\relax` (latex_constructs.pool.ltxml:4643), and a `\vskip` in
+horizontal mode ends the paragraph (tex.web §1094 `head_for_vmode`): `baz \vspace{5pt} qux` became two `ltx:para`, a
+`\vspace` in a minipage or `\parbox` split its inner paragraph, and a `\vspace*` at the end of a `\raggedleft` group
+closed the open paragraph inside the group, which made #602's alignment unreachable.
+
+Rust (sect12.rs) expands `\vspace` to `\lx@vspace@skip{<length>}`, which is `\vskip` only under `\iflx@vspace@vskip`, so:
+
+- **In a paragraph's own text (plain horizontal mode) nothing is emitted: the paragraph stays whole and the vertical
+  space is dropped.** This is a representation choice: HTML cannot show a gap inside a paragraph without splitting it
+  (the first attempt queued a `\vadjust` and released it at the next `\par`, which split the outer paragraph at a display,
+  a list or a footnote whenever the queue was released from inside a box). Not modelled: the space TeX sets after the
+  line.
+- **The `\vskip` stays** in vertical mode (as `\ifvmode` has it), in restricted horizontal mode and in math (an `\mbox`,
+  an `\hbox`, a formula: `$a\vspace{1mm}b$` keeps `a\vskip 2.84526ptb` in its `tex`, as before), and after a paragraph
+  whose last printing item is a `\leaders` (`stomach::own_paragraph_ends_in_leaders`: past spaces, `\kern`s, `\hskip`s and
+  `\hfill`s, the `\kern\z@` that closes `\hrulefill`, and into the last item of a group, `{\small\hrulefill}`), though TeX
+  continues the paragraph there (`\hrulefill` starts with `\leavevmode`, and `\hrulefill\vspace*{4pt} Second` is one
+  paragraph). The rule is a line of its own and the float panels after it must not join its `ltx:p`, which may
+  already hold minipages (a captioned minipage in a `<p>` is schema-invalid; #97, WISDOM #38). A leader in a font or
+  colour group that the list does not show as a group item is not recognised.
+- **In both horizontal modes the space after the skip is ignored when glue came before it**
+  (`\ifdim\lastskip>\z@ … \ignorespaces`, as `\@bsphack…\@esphack`, latex.ltx:9433-9449): `baz \vspace{5pt} qux` and
+  `\mbox{in \vspace{5mm} box}` read "baz qux", "in box" (a double space before).
+
+The macro is protected, as `\DeclareRobustCommand` (:9521); `\bigskip`, `\medskip` and `\smallskip` (`\vspace\…amount`) follow.
+The `\vspace*` rule that LaTeX adds in vertical mode is still not modelled.
+
+arXiv 2302.11635 (IEEEtran `figure*`, a rule line after two minipages of one paragraph) converts to the same HTML as
+before this entry (10 figures, 9 panels, `fig1`, the third figure's minipage a panel of its own). Golden:
+`82_moderncv::cs_cv` (`\title{\vbox{A,\newline \vspace{1mm} B}}`) keeps `A` and `B` in one `ltx:p`, as the vbox's one
+paragraph.
+
+**Guards**: `cluster_package_guards::paragraph_alignment_at_par::{vspace_in_a_paragraph_does_not_split_it,
+vspace_in_the_text_keeps_the_paragraph_whole, vspace_in_an_item_before_a_display_keeps_the_item_whole,
+vspace_in_a_row_or_a_formula_leaves_the_paragraph_whole, vspace_after_a_rule_line_closes_the_paragraph_of_the_minipages,
+vspace_after_a_grouped_rule_line_closes_its_paragraph}`; `50_structure::vspace_closes_leader_para`.
+
 ### 604. An `\item`'s label is set in the font in force at the `\item` (Perl: the label is always upright)
 
 **Perl behavior** (KNOWN_PERL_ERRORS #667): every `ltx:tag` is built by `\lx@tag@intags`, whose `beforeDigest` is
@@ -18064,6 +18133,24 @@ wrapper). Two side effects, both closer to LaTeX: a list in a `\small` caption n
 item in an italic theorem no longer has `<text font="upright">` on its tag.
 
 **Guard**: `cluster_package_guards::item_label_font::*`.
+
+### 605. The label of a figure or table caption in the AMS classes is in small capitals (Perl: upright, ltx-amsart.css)
+
+amsart.cls:1386-1390 `\@makecaption` prints the label (`#1`, `Figure 1`) under `\@captionheadfont`, defined `\scshape`
+at :1354 (amsproc.cls:1290/:1325, amsbook.cls:1250/:1285), and the title after it in `\@captionfont\upshape`.
+LaTeXML builds the label from `\fnum@font@<type>` (Base_Utility.pool.ltxml:1041-1044, `\lx@fnum@@`), which is `\@empty` in
+the kernel binding; Perl's amsart leaves it so and `ltx-amsart.css` (`.ltx_figure .ltx_tag, .ltx_table .ltx_tag`)
+supplies the small capitals, so a page that does not load that sheet shows the label upright. The AMS class bindings
+(`ams_support_sty::amsart_caption_head_font`, called from ams_core_cls.rs and amsbook_cls.rs) define
+`\@captionheadfont` and set `\fnum@font@figure` and `\fnum@font@table` to `\fnum@font@float\@captionheadfont`, so the
+label is `<text font="smallcaps">Figure 1</text>` (class `ltx_font_smallcaps`), after a caption package's size
+(`\fnum@font@float`: subcaption's binding makes it `\small`; real caption-ams-smf.sto keeps `\@captionfont`). Other
+classes are untouched, and the stylesheet's rule stays (the same effect twice). acmart, which loads amsart and sets its
+own label fonts through caption (acmart.cls:878-906), is reset to `\fnum@font@float` (`acmart_cls.rs`); its
+`labelfont={bf}` is not modelled. Not modelled: `\captionsetup{labelfont=…}` on an AMS class still gets the small
+capitals (caption_sty.rs ignores `labelfont`).
+
+**Guards**: `cluster_package_guards::ams_caption_label_smallcaps::*`.
 
 ### 606. A large operator in a script records the script style, and a script is wrapped to its base's style (Perl: `text`, so the script is put back to full size)
 

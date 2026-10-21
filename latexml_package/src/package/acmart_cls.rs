@@ -62,6 +62,9 @@ LoadDefinitions!({
   // default is the left (DIVERGENCES #336, KPE #306; 2605.02222, 2605.24417).
   Digest!("\\PassOptionsToClass{reqno}{amsart}")?;
   load_class_with_options("amsart", Tokens!())?;
+  // acmart.cls:878-906 loads caption and sets the label fonts (`labelfont={bf}`, `{sf, small}`) in its place of amsart's
+  // `\@makecaption`, whose small capitals (`ams_support_sty::amsart_caption_head_font`) it does not keep.
+  RawTeX!(r"\def\fnum@font@figure{\fnum@font@float}\def\fnum@font@table{\fnum@font@float}");
 
   // Beyond-Perl fidelity (OXIDIZED_DESIGN "acmart establishes T1 font
   // encoding"): real acmart.cls loads libertine + `\RequirePackage[T1]{fontenc}`

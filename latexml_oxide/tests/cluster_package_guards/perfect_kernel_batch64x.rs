@@ -1106,7 +1106,7 @@ fn pos_has_no_jhep_journal_macros() {
     &xml,
     "para",
     &["xml:id=\"p1\""],
-    r#"<para class="ltx_align_left" xml:id="p1"><p xml:id="p1.1"><ref href="https://doi.org/10.1086/163513"><emph font="italic" xml:id="p1.1.1">ApJ</emph> <text font="bold" xml:id="p1.1.2">297</text> (1985) 166</ref>.</p></para>"#,
+    r#"<para xml:id="p1"><p xml:id="p1.1"><ref href="https://doi.org/10.1086/163513"><emph font="italic" xml:id="p1.1.1">ApJ</emph> <text font="bold" xml:id="p1.1.2">297</text> (1985) 166</ref>.</p></para>"#,
   );
   // 2602.22473's shape (a PoS-hep paper): its own `\newcommand{\am}` stands, where JHEP's `\am{}{}{}` swallowed
   // `\mgr`, `M` and `^` into "Ann. Math." inside the formula.

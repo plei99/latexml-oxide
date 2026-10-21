@@ -211,7 +211,24 @@ pub(crate) fn load() -> Result<()> {
   // `<ltx:para>` stayed open and `<rule>` landed inside it).
   // ntheorem_test, plus the simpler `bigskip_test`, both confirm the
   // Perl-faithful expansion produces the expected sibling layout.
-  DefMacro!("\\vspace OptionalMatch:* {}", "\\vskip #2\\relax");
+  //
+  // In a paragraph (horizontal mode) `\vspace` does not end it: latex.ltx:9522-9532 `\@vspace` puts the skip in a
+  // `\vadjust` there, and only `\ifvmode` takes a plain `\vskip`. `\vskip` itself would end the paragraph (tex.web
+  // §1094), splitting `text \vspace{1ex} more` into two `ltx:para`, and would close the trailing paragraph of a
+  // `\raggedleft` group inside the group. HTML cannot show a gap inside a paragraph without splitting it, so the
+  // vertical space is DROPPED there and nothing is queued: the skip is kept (the `\vskip`) in vertical mode, in
+  // restricted horizontal mode and math (a `\mbox`, a formula: the `tex` of `$a\vspace{1mm}b$` keeps it), and after a
+  // paragraph that ends in leaders (`\hrulefill\vspace*{4pt}` between float rows: TeX continues the paragraph there,
+  // but the float panels after the rule line must not join its `ltx:p`, #97, WISDOM #38, arXiv 2302.11635). In both
+  // horizontal modes the space after the skip is ignored when glue came before it (`\@bsphack…\@esphack`,
+  // latex.ltx:9433-9449). OXIDIZED_DESIGN_DIVERGENCES #603.
+  DefConditional!("\\iflx@vspace@vskip", {
+    lookup_string("MODE") != "horizontal" || own_paragraph_ends_in_leaders()
+  });
+  DefMacro!("\\lx@vspace@skip{}", "\\iflx@vspace@vskip\\vskip #1\\relax\\fi");
+  DefMacro!("\\vspace OptionalMatch:* {}",
+    "\\ifhmode\\ifdim\\lastskip>\\z@\\lx@vspace@skip{#2}\\ignorespaces\\else\\lx@vspace@skip{#2}\\fi\\else\\lx@vspace@skip{#2}\\fi",
+    protected => true);
   def_primitive_noop("\\addvspace {}")?;
   def_primitive_noop("\\addpenalty {}")?;
   def_primitive_noop("\\@endparenv")?;

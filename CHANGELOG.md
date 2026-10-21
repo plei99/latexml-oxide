@@ -40,6 +40,18 @@
     around the base alone (`{\scriptstyle\sum}_i`) wraps the base only, the limits keeping the context's size
     (divergence #606). Guards `script_largeop::*`.
 
+  - **fix: a group's `\raggedleft`/`\raggedright`/`\centering` aligns the paragraphs it finishes, not the one still
+    open at its end; `\vspace` inside a paragraph keeps the paragraph whole.** A title page
+    `\begingroup\raggedleft … \par {\Large University}\vspace*{\baselineskip}\endgroup` ended with the last line in
+    `<para class="ltx_align_right">`; TeX sets that paragraph with the shape in force at its `\par`, after the group
+    (flush left). An environment or box (figure, minipage, `\parbox`, quote, ...) and a paragraph with a `\\` of its own
+    in the group align as before. `\vspace` in a paragraph's text is a `\vadjust` in latex.ltx:9522-9532 and no longer
+    ends the paragraph (its vertical space is dropped); it keeps its `\vskip` in vertical mode, in restricted
+    horizontal mode and math, and after a line of leaders. Beyond Perl: OXIDIZED_DESIGN_DIVERGENCES #602 and #603;
+    guards `paragraph_alignment_at_par::*`.
+  - **fix: amsart, amsproc and amsbook set the label of a figure or table caption in small capitals**
+    (`\@makecaption` under `\@captionheadfont`, amsart.cls:1354/:1389), where the markup was upright and left the
+    small capitals to a stylesheet. OXIDIZED_DESIGN_DIVERGENCES #605; guards `ams_caption_label_smallcaps::*`.
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
     (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,
