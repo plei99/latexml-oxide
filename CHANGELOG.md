@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+  - **spectralsequences class dots have their declared size.** `classes={draw,circle,inner sep=0pt,
+    minimum size=0.35em}` (spectralsequences.sty:332) reached the node as TikZ's default `inner sep`, so a
+    dot was radius 4.71pt where TeX draws 1.75pt. The package stores the keys of an option list by swapping
+    `\pgfkeys@case@one` and `\pgfkeys@case@two@extern` for the length of the list (sseqkeys.code.tex:260-261,
+    307-325), which the native pgfkeys loop never read; the loop now stands aside while either differs from
+    the raw file's definition. Guards `spectralsequences_raw::class_dot_has_its_declared_size` and
+    `::redefined_case_one_step_is_called_by_the_key_loop`.
+
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
     (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,
