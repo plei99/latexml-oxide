@@ -17993,44 +17993,46 @@ paragraph, which TeX's does not.
 **Guards**: `cluster_package_guards::paragraph_alignment_at_par::*`. Golden: `perfect_kernel_batch64x::pos_has_no_jhep_journal_macros`
 sets `\begingroup\raggedright …\endgroup` and a paragraph that ends at `\end{document}`.
 
-### 603. `\vspace` inside a paragraph is a `\vadjust` and does not end it (Perl: `\vskip`); two cases keep the `\vskip`
+### 603. `\vspace` inside a paragraph keeps the paragraph whole and drops its vertical space (Perl: `\vskip`, which ends it)
 
 latex.ltx:9522-9532 `\@vspace` (and :9533-9550 `\@vspacer` for `\vspace*`) takes a plain `\vskip` only under
 `\ifvmode`; in horizontal mode the skip is `\vadjust{…}`, so the paragraph goes on and the space follows its line.
 Perl and the Rust port defined `\vspace` as `\vskip #2\relax` (latex_constructs.pool.ltxml:4643), and a `\vskip` in
-horizontal mode ends the paragraph (tex.web §1094 `head_for_vmode`): `baz \vspace{5pt} qux` became two `ltx:para`, and
-a `\vspace*` at the end of a `\raggedleft` group closed the open paragraph inside the group, which made #602's
-alignment unreachable. Rust defines `\vspace` as `\iflx@vspace@vskip\vskip #2\relax\else<\vadjust branch>\fi`
-(sect12.rs, protected as `\DeclareRobustCommand`, :9521); `\bigskip`, `\medskip` and `\smallskip`
-(`\vspace\…amount`) follow. The `\vadjust` branch is `\vadjust{\vskip #2\relax}`, followed by `\ignorespaces` when
-glue came before (`\@bsphack…\@esphack`, :9433-9449: `baz \vspace{5pt} qux` reads "baz qux"). The `\vadjust` material
-is the engine's (tex_paragraph.rs: queued to the paragraph's end, where the vertical space has no markup). The
-`\vspace*` rule that LaTeX adds in vertical mode is still not modelled.
+horizontal mode ends the paragraph (tex.web §1094 `head_for_vmode`): `baz \vspace{5pt} qux` became two `ltx:para`, a
+`\vspace` in a minipage or `\parbox` split its inner paragraph, and a `\vspace*` at the end of a `\raggedleft` group
+closed the open paragraph inside the group, which made #602's alignment unreachable.
 
-`\iflx@vspace@vskip` is true, and the `\vskip` stays, in two cases (and in vertical mode, where `\ifvmode`'s branch is
-the same):
+Rust (sect12.rs) expands `\vspace` to `\lx@vspace@skip{<length>}`, which is `\vskip` only under `\iflx@vspace@vskip`, so:
 
-- **Not a paragraph's own text: restricted horizontal mode and math** (a table cell, a formula). TeX sets the
-  material after the row or the line (§799), but the engine has one adjust queue, which a display's `\par`
-  (`INTERNAL_PAR`) releases: `We have \begin{align} a&=b \\ \vspace{2mm} c&=d \end{align} and therefore
-  \begin{equation}…\end{equation} which…` split into two `ltx:para` before the equation. The `\vskip` there is what
-  Perl and the earlier port produced, in the paragraph and in the `tex` attribute (`$a\vspace{1mm}b$` keeps
-  `a\vskip 2.84526ptb`). Not modelled: the skip is not set after the row, as TeX does.
-- **A paragraph whose last printing item is a `\leaders`** (`stomach::own_paragraph_ends_in_leaders`: past spaces, `\kern`
-  and `\hskip`, the `\kern\z@` that closes `\hrulefill`), though TeX continues the paragraph there (`\hrulefill` starts
-  with `\leavevmode`, and `\hrulefill\vspace*{4pt} Second` is one paragraph with the space after its line). The rule is a
-  line of its own and the float panels after it must not join its `ltx:p`, which may already hold minipages (a
-  captioned minipage in a `<p>` is schema-invalid; #97, WISDOM #38). arXiv 2302.11635 (IEEEtran `figure*`, a rule line
-  after two minipages of one paragraph) converts to the same output as before this entry: 10 figures, 9 panels,
-  `fig1`, the third figure's minipage a panel of its own. Guards `50_structure::vspace_closes_leader_para` (the rule
-  line first) and `…::vspace_after_a_rule_line_closes_the_paragraph_of_the_minipages` (the witness's shape). A leader
-  inside a font or colour group is not recognised.
+- **In a paragraph's own text (plain horizontal mode) nothing is emitted: the paragraph stays whole and the vertical
+  space is dropped.** This is a representation choice: HTML cannot show a gap inside a paragraph without splitting it
+  (the first attempt queued a `\vadjust` and released it at the next `\par`, which split the outer paragraph at a display,
+  a list or a footnote whenever the queue was released from inside a box). Not modelled: the space TeX sets after the
+  line.
+- **The `\vskip` stays** in vertical mode (as `\ifvmode` has it), in restricted horizontal mode and in math (an `\mbox`,
+  an `\hbox`, a formula: `$a\vspace{1mm}b$` keeps `a\vskip 2.84526ptb` in its `tex`, as before), and after a paragraph
+  whose last printing item is a `\leaders` (`stomach::own_paragraph_ends_in_leaders`: past spaces, `\kern`s, `\hskip`s and
+  `\hfill`s, the `\kern\z@` that closes `\hrulefill`, and into the last item of a group, `{\small\hrulefill}`), though TeX
+  continues the paragraph there (`\hrulefill` starts with `\leavevmode`, and `\hrulefill\vspace*{4pt} Second` is one
+  paragraph). The rule is a line of its own and the float panels after it must not join its `ltx:p`, which may
+  already hold minipages (a captioned minipage in a `<p>` is schema-invalid; #97, WISDOM #38). A leader in a font or
+  colour group that the list does not show as a group item is not recognised.
+- **In both horizontal modes the space after the skip is ignored when glue came before it**
+  (`\ifdim\lastskip>\z@ … \ignorespaces`, as `\@bsphack…\@esphack`, latex.ltx:9433-9449): `baz \vspace{5pt} qux` and
+  `\mbox{in \vspace{5mm} box}` read "baz qux", "in box" (a double space before).
 
-Golden: `82_moderncv::cs_cv` (`\title{\vbox{A,\newline \vspace{1mm} B}}`) now keeps `A` and `B` in one `ltx:p`, as the
-vbox's one paragraph.
+The macro is protected, as `\DeclareRobustCommand` (:9521); `\bigskip`, `\medskip` and `\smallskip` (`\vspace\…amount`) follow.
+The `\vspace*` rule that LaTeX adds in vertical mode is still not modelled.
+
+arXiv 2302.11635 (IEEEtran `figure*`, a rule line after two minipages of one paragraph) converts to the same HTML as
+before this entry (10 figures, 9 panels, `fig1`, the third figure's minipage a panel of its own). Golden:
+`82_moderncv::cs_cv` (`\title{\vbox{A,\newline \vspace{1mm} B}}`) keeps `A` and `B` in one `ltx:p`, as the vbox's one
+paragraph.
 
 **Guards**: `cluster_package_guards::paragraph_alignment_at_par::{vspace_in_a_paragraph_does_not_split_it,
-vspace_in_a_row_or_a_formula_leaves_the_paragraph_whole, vspace_after_a_rule_line_closes_the_paragraph_of_the_minipages}`.
+vspace_in_the_text_keeps_the_paragraph_whole, vspace_in_an_item_before_a_display_keeps_the_item_whole,
+vspace_in_a_row_or_a_formula_leaves_the_paragraph_whole, vspace_after_a_rule_line_closes_the_paragraph_of_the_minipages,
+vspace_after_a_grouped_rule_line_closes_its_paragraph}`; `50_structure::vspace_closes_leader_para`.
 
 ### 605. The label of a figure or table caption in the AMS classes is in small capitals (Perl: upright, ltx-amsart.css)
 

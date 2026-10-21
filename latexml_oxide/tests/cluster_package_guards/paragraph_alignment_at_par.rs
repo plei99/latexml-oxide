@@ -160,8 +160,8 @@ fn vspace_in_a_paragraph_does_not_split_it() {
   );
 }
 
-/// `\vspace` in an alignment row or a formula inside a paragraph: TeX sets its `\vadjust` material after the row or the
-/// line, and the paragraph around the display goes on. Two paragraphs here would split before the equation.
+/// `\vspace` in an alignment row or a formula inside a paragraph keeps the paragraph around the display whole, and
+/// keeps its `\vskip` in the `tex` of the formula.
 #[test]
 fn vspace_in_a_row_or_a_formula_leaves_the_paragraph_whole() {
   let (stderr, xml) = super::convert(
@@ -229,6 +229,101 @@ fn vspace_after_a_rule_line_closes_the_paragraph_of_the_minipages() {
     let caption = format!(
       "<caption class=\"ltx_centering\"><tag close=\": \">Figure {n}</tag>{text}</caption>"
     );
+    assert_eq!(xml.matches(&panel).count(), 1, "{panel}\n{xml}");
+    assert_eq!(xml.matches(&caption).count(), 1, "{caption}\n{xml}");
+  }
+}
+
+/// The `xml:id` of every `<para>` in the body, in order.
+fn para_ids(xml: &str) -> Vec<&str> {
+  paras(xml)
+    .iter()
+    .map(|p| {
+      p.split("xml:id=\"")
+        .nth(1)
+        .and_then(|r| r.split('"').next())
+        .unwrap()
+    })
+    .collect()
+}
+
+/// `\vspace` in the text of a paragraph, in a box inside it, or before a display or a list, keeps the paragraph
+/// whole, as TeX does (a `\vadjust`, whose vertical space HTML cannot show inside a paragraph, so it is dropped). The
+/// space before it is the one that stays: "in box", not "in  box".
+#[test]
+fn vspace_in_the_text_keeps_the_paragraph_whole() {
+  for (tex, expected) in [
+    (
+      "Mini \\begin{minipage}{0.4\\textwidth}Inner one \\vspace{5mm} inner two\\end{minipage} end\n\\[ y \\]\nafter display.\n",
+      vec!["<p>Inner one inner two</p>", "<p>after display.</p>"],
+    ),
+    (
+      "Lead \\parbox{3cm}{Par one \\vspace{2mm} par two} end\n\\[ y \\]\nafter display.\n",
+      vec!["<p>Par one par two</p>", "<p>after display.</p>"],
+    ),
+    (
+      "Lead \\begin{tabular}{p{3cm}} a \\vspace{5mm} b\\\\ c\\end{tabular} mid\n\\[ y \\]\nafter.\n",
+      vec!["<p>a b</p>", "<p>after.</p>"],
+    ),
+    (
+      "Lead \\vspace{5mm} middle\n\\[ y \\]\nafter display.\n",
+      vec!["<p>Lead middle</p>", "<p>after display.</p>"],
+    ),
+    (
+      "Lead \\vspace{5mm} middle\n\\begin{itemize}\\item one\\end{itemize}\nafter list.\n",
+      vec!["<p>Lead middle</p>", "<p>one</p>", "<p>after list.</p>"],
+    ),
+    (
+      "Box \\mbox{in \\vspace{5mm} box} end\n\\[ y \\]\nafter display.\n",
+      vec!["<p>Box in box end</p>", "<p>after display.</p>"],
+    ),
+  ] {
+    let xml = xml_of(tex);
+    let ids = para_ids(&xml);
+    assert_eq!(
+      ids.iter().filter(|id| id.starts_with('p')).count(),
+      1,
+      "{tex}\n{xml}"
+    );
+    for element in expected {
+      assert_eq!(xml.matches(element).count(), 1, "{element} in {tex}\n{xml}");
+    }
+  }
+}
+
+/// An item's text and a footnote's: `\vspace` before a display inside them does not split the paragraph either.
+#[test]
+fn vspace_in_an_item_before_a_display_keeps_the_item_whole() {
+  let xml = xml_of(
+    "\\begin{itemize}\n\\item Item one \\vspace{4mm} item two\n\\[ z \\]\nafter item display.\n\\item Second item\n\\end{itemize}\n",
+  );
+  assert_eq!(xml.matches("<para ").count(), 3, "{xml}");
+  assert_eq!(
+    xml.matches("<para xml:id=\"S0.I1.i1.p1\">").count(),
+    1,
+    "{xml}"
+  );
+  assert_eq!(xml.matches("<p>Item one item two</p>").count(), 1, "{xml}");
+  assert_eq!(
+    xml.matches("<p>after item display.</p>").count(),
+    1,
+    "{xml}"
+  );
+}
+
+/// A rule line in a group (`{\small\hrulefill}`) between two captioned minipages is still a rule line: the
+/// `\vspace*` after it ends its paragraph, and each minipage stays a panel of its own with its caption.
+#[test]
+fn vspace_after_a_grouped_rule_line_closes_its_paragraph() {
+  let xml = xml_of(
+    "\\begin{figure}\n\\begin{minipage}{0.4\\textwidth}A\\caption{One}\\end{minipage}\n{\\small\\hrulefill}\\vspace*{4pt}\n\\begin{minipage}{0.4\\textwidth}B\\caption{Two}\\end{minipage}\n\\end{figure}\n",
+  );
+  assert_eq!(xml.matches("<figure ").count(), 3, "{xml}");
+  for (n, text) in [(1, "One"), (2, "Two")] {
+    let panel = format!(
+      "<figure class=\"ltx_figure_panel ltx_minipage\" inlist=\"lof\" vattach=\"middle\" width=\"138.0pt\" xml:id=\"S0.F{n}\">"
+    );
+    let caption = format!("<caption><tag close=\": \">Figure {n}</tag>{text}</caption>");
     assert_eq!(xml.matches(&panel).count(), 1, "{panel}\n{xml}");
     assert_eq!(xml.matches(&caption).count(), 1, "{caption}\n{xml}");
   }

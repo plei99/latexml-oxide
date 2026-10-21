@@ -2336,34 +2336,47 @@ where FnR: FnOnce(&[Digested]) -> R {
 }
 
 /// Whether the paragraph being built ends in leaders so far: its last item that prints, past spaces, `\kern`s, `\hskip`s
-/// and `\hfill`s (the `\kern\z@` that closes `\hrulefill`), is a `\leaders` item (`\hrulefill`, `\dotfill`). `\vspace`
-/// after such a line separates it from what follows (the fixture `50_structure::vspace_closes_leader_para`; arXiv
-/// 2302.11635, where the line follows two minipages of the same paragraph).
+/// and `\hfill`s (the `\kern\z@` that closes `\hrulefill`), is a `\leaders` item (`\hrulefill`, `\dotfill`), also as
+/// the last item of a group's list (`{\small\hrulefill}`). `\vspace` after such a line separates it from what follows
+/// (the fixture `50_structure::vspace_closes_leader_para`; arXiv 2302.11635, where the line follows two minipages of
+/// the same paragraph).
 pub fn own_paragraph_ends_in_leaders() -> bool {
   if lookup_string_from_sym(crate::pin!("MODE")) != "horizontal" {
     return false;
   }
-  with_own_box_list(|items| {
-    for item in items
-      .iter()
-      .rev()
-      .filter(|item| !is_list_tail_transparent(item))
-    {
-      match item.data() {
-        DigestedData::Whatsit(w) => match w.try_borrow() {
-          Ok(w) => match w.get_definition().get_cs_name().as_ref() {
-            "\\leaders" => return true,
-            "\\kern" | "\\hskip" | "\\hfill" => {},
-            _ => return false,
-          },
-          Err(_) => return false,
+  with_own_box_list(|items| ends_in_leaders(items) == Some(true))
+}
+
+/// `Some(true)` when the last printing item of `items` is a `\leaders`, `Some(false)` when it is something else, `None`
+/// when nothing in them prints (the caller looks at what is before).
+fn ends_in_leaders(items: &[Digested]) -> Option<bool> {
+  for item in items
+    .iter()
+    .rev()
+    .filter(|item| !is_list_tail_transparent(item))
+  {
+    match item.data() {
+      DigestedData::Whatsit(w) => match w.try_borrow() {
+        Ok(w) => match w.get_definition().get_cs_name().as_ref() {
+          "\\leaders" => return Some(true),
+          "\\kern" | "\\hskip" | "\\hfill" => {},
+          _ => return Some(false),
         },
-        DigestedData::TBox(_) if item.to_string().trim().is_empty() => {},
-        _ => return false,
-      }
+        Err(_) => return Some(false),
+      },
+      DigestedData::List(list) => match list.try_borrow() {
+        Ok(list) => {
+          if let Some(found) = ends_in_leaders(&list.boxes) {
+            return Some(found);
+          }
+        },
+        Err(_) => return Some(false),
+      },
+      DigestedData::TBox(_) if item.to_string().trim().is_empty() => {},
+      _ => return Some(false),
     }
-    false
-  })
+  }
+  None
 }
 
 /// `\lastbox` at the start of a paragraph begun by a letter or `\leavevmode` takes its indent box (tex.web §1080),
