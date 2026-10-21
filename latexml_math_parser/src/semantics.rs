@@ -8792,6 +8792,24 @@ pub fn apply_invisible_times(
   )))
 }
 
+/// A script that ends in a bare multiplicative operator, `L_{g*}`, `L^{g\ast}`, `f_{x\cdot}`: Perl's
+/// `Subscript : aSubscript (PUNCT(?) aSubscript {[$item[1]->[0] || InvisibleComma(), $item[2]]})(s?)`
+/// (MathGrammar:85-92) reads the expression and the operator as two items of one script, joined by
+/// the invisible comma it supplies for a missing separator, and builds `NewList` of them (the
+/// pushforward `g_*` with a space, `L_{g *}\xi`, was unparsed here: RUST-ONLY).
+pub fn script_trailing_operator_list(
+  _rule_id: i32,
+  mut args: Vec<Option<XM>>,
+  _: &[ValidationPragmatics],
+  ctxt: ActionContext,
+) -> Result<Option<XM>, Box<dyn Error>> {
+  unp!(args => body, op);
+  new_list(
+    vec![body.unwrap(), invisible_comma().into(), op.unwrap()],
+    ctxt,
+  )
+}
+
 pub fn compound_operator_2(
   _rule_id: i32,
   mut args: Vec<Option<XM>>,

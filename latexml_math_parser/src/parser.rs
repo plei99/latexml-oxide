@@ -1435,6 +1435,18 @@ impl MathParser {
     Ok(())
   }
 
+  /// Is `arg` a script argument of at least two items that ends in a bare `MULOP`/`BINOP` (`g*`, `x\cdot`)?
+  fn ends_in_bare_script_operator(&self, arg: &Node, document: &Document) -> bool {
+    let kids = element_nodes(arg);
+    kids.len() > 1
+      && kids.last().is_some_and(|last| {
+        let role = realize_xmnode(last, document)
+          .get_attribute("role")
+          .unwrap_or_default();
+        role == "MULOP" || role == "BINOP"
+      })
+  }
+
   // Recursively parse a node with some internal structure
   // by first parsing any structured children, then it's content.
   fn parse_rec(
@@ -1459,6 +1471,22 @@ impl MathParser {
 
     if rule == "kludge" {
       self.parse_kludge(&mut node, document, &[])?;
+      Ok(None)
+    } else if tag == pin!("ltx:XMArg")
+      && (rule == "Subscript" || rule == "Superscript")
+      && node.get_parent().is_some_and(|parent| {
+        matches!(
+          parent.get_attribute("role").as_deref(),
+          Some("POSTSUBSCRIPT" | "POSTSUPERSCRIPT")
+        )
+      })
+      && self.ends_in_bare_script_operator(&node, document)
+    {
+      // Perl's `Subscript`/`Superscript` rules take a script of several items (`g *`: MathGrammar:85-92),
+      // which our one start rule does not (the enclosing formula's grammar reads it flat, as
+      // `script_with_trailing_operator`): it is left to that parse, as it would be to the kludge, and
+      // is no failure of its own. Only the argument of a post script, the one script that grammar
+      // reads (the constructor-built `\lx@subscript` XMApps, no grammar's, are not skipped).
       Ok(None)
     } else {
       match self.parse_single(&mut node, document, &rule)? {

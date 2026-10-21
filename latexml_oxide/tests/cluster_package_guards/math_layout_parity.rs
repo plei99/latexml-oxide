@@ -105,6 +105,42 @@ fn widehat_stretches_with_u0302() {
   assert_element(&html, "math", &["id=\"S0.Ex1.m1\""], &r##"<math id="S0.Ex1.m1" class="ltx_Math" alttext="\widehat{\bigoplus}\ \widehat{\mathfrak{gl}(1)}" display="block"><mrow><mover accent="true"><mo movablelimits="false">⨁</mo><mo>@U0302@</mo></mover><mo lspace="0.667em">⁢</mo><mover accent="true"><mrow><mi>𝔤</mi><mo>⁢</mo><mi>𝔩</mi><mo>⁢</mo><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></mrow><mo>@U0302@</mo></mover></mrow></math>"##.replace("@U0302@", "\u{0302}"));
 }
 
+/// Perl's `Subscript` is `aSubscript (PUNCT(?) aSubscript)(s?)` (MathGrammar:85-92): `g*` in `L_{g*}`
+/// is two items of one script, joined by an invisible comma, and the formula parses. Ours had no
+/// rule for an expression closed by a bare `*`, `\ast`, `\cdot` or `\times`, so every pushforward
+/// `f_*`-with-a-letter was left unparsed (`L_{g *}\xi` after a `\qquad`), and that fallback had lost the
+/// `\qquad` as well. The `lspace="0.222em"` on the invisible comma is Perl's own `adjust_spacing` of its
+/// `XMTok`, kept for parity; TeX sets no space there.
+#[test]
+fn script_ending_in_a_star_parses() {
+  let (stderr, html) = convert_html(
+    "\\documentclass{article}\n\\usepackage{amsmath,amssymb,mathtools}\n\\begin{document}\n\
+     \\[ L \\colon G \\times \\mathfrak{g} \\xrightarrow{\\sim} TG \\qquad (g, \\xi) \\mapsto L_{g *} \\xi. \\]\n\
+     $L_{g\\ast}\\xi$ $f^{g\\cdot}$\n\\end{document}\n",
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert!(!html.contains("ltx_math_unparsed"), "{html}");
+  assert_element(
+    &html,
+    "math",
+    &["id=\"S0.Ex1.m1\""],
+    r##"<math id="S0.Ex1.m1" class="ltx_Math" alttext="L\colon G\times\mathfrak{g}\xrightarrow{\sim}TG\qquad(g,\xi)\mapsto L_{g*}\xi." display="block"><mrow><mrow><mrow><mi>L</mi><mo lspace="0.278em" rspace="0.278em">:</mo><mrow><mrow><mi>G</mi><mo lspace="0.222em" rspace="0.222em">×</mo><mi>𝔤</mi></mrow><mover accent="true"><mo>→</mo><mo mathsize="0.700em">∼</mo></mover><mrow><mi>T</mi><mo>⁢</mo><mi>G</mi></mrow></mrow></mrow><mspace style="width:2em;" width="2em"></mspace><mrow><mrow><mo stretchy="false">(</mo><mi>g</mi><mo>,</mo><mi>ξ</mi><mo stretchy="false">)</mo></mrow><mo stretchy="false">↦</mo><mrow><msub><mi>L</mi><mrow><mi>g</mi><mo lspace="0.222em">⁣</mo><mo>∗</mo></mrow></msub><mo>⁢</mo><mi>ξ</mi></mrow></mrow></mrow><mo lspace="0em">.</mo></mrow></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"p1.m1\""],
+    r##"<math id="p1.m1" class="ltx_Math" alttext="L_{g\ast}\xi" display="inline"><mrow><msub><mi>L</mi><mrow><mi>g</mi><mo lspace="0.222em">⁣</mo><mo>∗</mo></mrow></msub><mo>⁢</mo><mi>ξ</mi></mrow></math>"##,
+  );
+  assert_element(
+    &html,
+    "math",
+    &["id=\"p1.m2\""],
+    r##"<math id="p1.m2" class="ltx_Math" alttext="f^{g\cdot}" display="inline"><msup><mi>f</mi><mrow><mi>g</mi><mo lspace="0.222em">⁣</mo><mo>⋅</mo></mrow></msup></math>"##,
+  );
+}
+
 /// Perl runs its kludge on every failed parse (MathParser.pm:322, :374), and it keeps the wide
 /// spaces `filter_hints` made into punctuation. Ours ran it only for formulae with fences and read
 /// the hints once, unlinking them, so a formula left unparsed with no parenthesis kept its scripts as
