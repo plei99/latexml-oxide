@@ -2657,8 +2657,20 @@ LoadDefinitions!({
   // prefix). The group is transparent for the declaration-style values.
   DefMacro!(
     r"\lx@fnum@@{}",
-    r"{\normalfont\@ifundefined{fnum@font@#1}{}{\csname fnum@font@#1\endcsname}{\@ifundefined{fnum@#1}{\lx@@fnum@@{#1}}{\csname fnum@#1\endcsname{}}}}"
+    r"{\normalfont\lx@itemlabel@font\@ifundefined{fnum@font@#1}{}{\csname fnum@font@#1\endcsname}{\@ifundefined{fnum@#1}{\lx@@fnum@@{#1}}{\csname fnum@#1\endcsname{}}}}"
   );
+
+  // `\lx@itemlabel@font` (right after `\normalfont`) puts back the font the `\item` was typeset in: LaTeX sets
+  // `\makelabel{\labelenumi}` in the list's current font (latex.ltx `\@item`), so an enumerate inside a plain-style
+  // theorem numbers in italic. It acts only while `ref_step_item_counter` holds that font, so no other tag changes.
+  // Beyond Perl: Perl's `\lx@tag@intags` neutralizes the font and `\lx@fnum@@` normalizes it (Base_Utility.pool.ltxml:
+  // 1004, 1041). OXIDIZED_DESIGN_DIVERGENCES #604.
+  DefPrimitive!("\\lx@itemlabel@font", {
+    if let Some(Stored::Font(font)) = lookup_value("itemlabel_font") {
+      sync_nfss_font_codes(&font);
+      assign_value("font", Stored::Font(font), Some(Scope::Local));
+    }
+  });
 
   // Really seems like <type>name should take precedence over \lx@name@<type>,
   // since users might define it.

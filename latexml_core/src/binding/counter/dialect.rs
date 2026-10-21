@@ -1002,7 +1002,22 @@ pub fn reset_counter(ctr: &Token) -> Result<()> {
 }
 
 /// Create id, and tags for an itemize type \item
+///
+/// The `\item`'s label is typeset in the font in force at the `\item`, as LaTeX's `\@item` does
+/// (`\makelabel{\labelenumi}` in the list's current font): that font is held under `itemlabel_font` while the tags
+/// are digested, for `\lx@itemlabel@font` (base_utilities.rs, `\lx@fnum@@`) to put back after the tag's
+/// `neutralize_font` and `\normalfont`. Beyond Perl: OXIDIZED_DESIGN_DIVERGENCES #604.
 pub fn ref_step_item_counter(tag_opt: Option<&Tokens>) -> Result<HashMap<Stored>> {
+  match lookup_font() {
+    Some(font) => assign_value("itemlabel_font", Stored::Font(font), Some(Scope::Local)),
+    None => assign_value("itemlabel_font", Stored::None, Some(Scope::Local)),
+  }
+  let result = ref_step_item_counter_in_font(tag_opt);
+  assign_value("itemlabel_font", Stored::None, Some(Scope::Local));
+  result
+}
+
+fn ref_step_item_counter_in_font(tag_opt: Option<&Tokens>) -> Result<HashMap<Stored>> {
   let counter = lookup_string("itemcounter");
   let n = lookup_int("itemization_items");
   assign_value("itemization_items", n + 1, None);

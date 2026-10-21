@@ -17964,3 +17964,23 @@ The entries' per-field markup (`ltx:bibentry`'s
   once at load as biblatex.def:2184-2203 does. The label's collation (`sorting=anyt`) and `extraalpha` are #582's.
 
 **Guards**: `cluster_package_guards::biblatex_standard_layout::*`.
+
+### 604. An `\item`'s label is set in the font in force at the `\item` (Perl: the label is always upright)
+
+**Perl behavior**: every `ltx:tag` is built by `\lx@tag@intags`, whose `beforeDigest` is `neutralizeFont()`
+(Base_Utility.pool.ltxml:1005), and the displayed one is `\lx@fnum@@`, which opens with `\normalfont`
+(Base_Utility.pool.ltxml:1041). The label of an `\item` is therefore upright and the size of the text whatever surrounds
+the list: an `enumerate` inside a `plain`-style theorem (the body is `\itshape`) gives
+`<tag>1.</tag>` beside a `<para>` whose text is `<text font="italic">`. **LaTeX behavior**: `\@item` typesets
+`\makelabel{\labelenumi}` in the list's current font, so the `1.` `2.` of that theorem, and a `\small` list's, are italic
+and small (`\descriptionlabel`, `\labelitemii` and enumitem's `font=` set their own on top). **Rust behavior**:
+`ref_step_item_counter` (latexml_core `binding/counter/dialect.rs`) holds the font in force at the `\item` under
+`itemlabel_font` while the item's tags are digested, and `\lx@fnum@@` puts it back, with `\lx@itemlabel@font`
+(base_utilities.rs), right after its `\normalfont` and before the `fnum@font@<counter>` that enumitem's `font=` defines:
+`font=\bfseries` in an italic theorem is bold italic, as in LaTeX. The displayed tag is the only one that follows the
+context: the `refnum` and `typerefnum` tags, which a `\ref` copies into running text, keep the neutral font. A
+description label stays bold and upright (`\normalfont\bfseries` is its own); an itemize bullet in an italic context is
+`<text font="italic">•</text>`, the same glyph (the golden `tests/theorem/ntheorem.xml` has three, which Perl's reference lacks). In an
+upright context nothing changes (no `<text>` wrapper).
+
+**Guard**: `cluster_package_guards::item_label_font::*`.

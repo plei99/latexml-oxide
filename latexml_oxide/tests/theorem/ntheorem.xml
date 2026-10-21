@@ -1106,7 +1106,7 @@ the last one gets the endmark:</p>
         <itemize xml:id="S1.I1">
           <item xml:id="S1.I1.i1">
             <tags>
-              <tag>•</tag>
+              <tag><text font="italic">•</text></tag>
               <tag role="typerefnum">1st item</tag>
             </tags>
             <para xml:id="S1.I1.i1.p1">
@@ -1115,7 +1115,7 @@ the last one gets the endmark:</p>
           </item>
           <item xml:id="S1.I1.i2">
             <tags>
-              <tag>•</tag>
+              <tag><text font="italic">•</text></tag>
               <tag role="typerefnum">2nd item</tag>
             </tags>
             <para xml:id="S1.I1.i2.p1">
@@ -1124,7 +1124,7 @@ the last one gets the endmark:</p>
           </item>
           <item xml:id="S1.I1.i3">
             <tags>
-              <tag>•</tag>
+              <tag><text font="italic">•</text></tag>
               <tag role="typerefnum">3rd item</tag>
             </tags>
             <para xml:id="S1.I1.i3.p1">
