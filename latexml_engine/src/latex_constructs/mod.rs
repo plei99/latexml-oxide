@@ -1326,7 +1326,7 @@ enum OpenParagraph {
   /// A bare `{...}`, `\bgroup` or `\begingroup` closes in horizontal mode, the paragraph still open.
   Yes,
   /// The same group closes in restricted horizontal mode, the mode a constructor environment (`DefEnvironment` without a
-  /// `mode`, whose `#body` is the document's own text: titling's `{titlingpage}`) binds. Its paragraphs are
+  /// `mode`, whose `#body` is the document's own text: titling's `{titlingpage}`, a synthetic case for the guards) binds. Its paragraphs are
   /// `ltx:para` elements, so it is open for a block paragraph, and not for the `ltx:p` of a cell or an `\mbox`.
   IfPara,
 }

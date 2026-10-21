@@ -2340,7 +2340,7 @@ where FnR: FnOnce(&[Digested]) -> R {
 }
 
 /// Whether digestion is in the body of an environment that declares no mode of its own (`DefEnvironment` without a
-/// `mode`, such as titling's `{titlingpage}` with `#body`): the default `restricted_horizontal`, which holds the
+/// `mode`, such as titling's `{titlingpage}` with `#body`, which the guards use as a synthetic case): the default `restricted_horizontal`, which holds the
 /// document's own text, in `ltx:para` elements, and tracks no paragraph in progress. A `\mbox`, a cell or a formula
 /// inside it is not that body.
 pub fn in_text_environment_body() -> bool {

@@ -93,7 +93,14 @@ LoadDefinitions!({
   // typed alternate-title-page content (institution, abstract,
   // dedication, etc.) reaches the XML (content-preserving). The
   // previous empty replacement silently dropped the entire page.
-  DefEnvironment!("{titlingpage}", "#body");
+  // titling.sty:193-196: the end code runs `\newpage`, which ends the paragraph the body left open, so the text after
+  // `\end{titlingpage}` is a paragraph of its own (the mode-less environment's body is `restricted_horizontal`, where
+  // nothing else ends it).
+  DefEnvironment!("{titlingpage}", "#body",
+    before_digest_end => {
+      // not when a plain `\endgroup` closed the environment's group: the end code never ran
+      if environment_ended_by_group() { vec![] } else { vec![digest(Tokens!(T_CS!("\\par")))?] }
+    });
 
   def_macro_noop("\\killtitle")?;
   def_macro_noop("\\keepthetitle")?;
