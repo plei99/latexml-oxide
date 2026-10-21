@@ -357,7 +357,7 @@ TL manuals) and the per-batch arXiv A/B; the cortex reruns of sandboxes 2605/260
     `\pgfmathsetlength`'s leftover tokens run outside pgf's group; perf levers L1 and L6 landed (59q) and G4 is
     met since s136 (pgf-interference-en ~170 s alone); further levers are optional margin
     (`~/data/pk_agents/main/agent_reports/2026-10-03_g4_pgf_interference_levers.md`).
-  - Out of scope (recorded): luatexja `\fontencoding{T1}` prints "T1" (`\luadef` predicate no-ops); biblatex-ext's last
+  - Out of scope (recorded): `luatexja-otf` (`\UTF`, `\CID`), `luatexja-ruby` (`\ruby`) and `luatexja-ajmacros` have no binding under native mode (raw, their text comes from `\directlua` and vanishes; DIVERGENCES #614; under native mode the other luatexja packages are stand-ins, so luatexja's NFSS patch, including its `\fontencoding{T1}` printing "T1", does not load there; with raw styles it still does); biblatex-ext's last
     error, a bibliography inside a tcolorbox (user 2026-10-02); cms-notes-intro (lualatex-unclean).
 - **Recall-tail residuals, sweep #130 (rc131; LANDED 57cl-57cm.2 verbatim in the archive)** — golden mismatches are
   curated in `tools/perfect_kernel/golden_reference.tsv` (dinbrief, geradwp, JACoW A4/Letter; `candidate-mismatch` is a

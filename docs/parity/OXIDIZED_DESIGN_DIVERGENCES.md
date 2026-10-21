@@ -18375,3 +18375,49 @@ tight.
 `::a_minus_opening_a_mathrm_group_is_tight`, `::an_ordinary_binary_minus_keeps_its_spacing`,
 `::a_group_that_opens_its_formula_is_unchanged`, `::a_negative_exponent_is_unchanged`,
 `::a_script_argument_records_no_class`, `::a_nested_group_or_font_switch_leads_the_group`.
+
+### 614. `luatexja`, `luatexja-fontspec` and the LuaTeX-ja add-ons are native stand-ins that read their operands and print nothing (Perl: none)
+
+**Perl behavior**: no `luatexja*.sty.ltxml`. Without `--includestyles` every one of these packages is skipped
+(`Warning:missing_file`), so `\setmainjfont{FandolSong}` is `Error:undefined:\setmainjfont` and the font name prints as
+page text. With `--includestyles` the raw `luatexja.sty` loads `luatexja-core`, `luatexja-compat` and `lltjfont.sty`
+(luatexja.sty:55), a patch of NFSS itself that redefines `\fontencoding` (lltjfont.sty:573), `\fontseries` (:813),
+`\fontshape` (:822) and `\usefont` (:863) over kanji/roman font variants.
+**Rust behavior**: under the native protocol none of them is raw-loaded. Raw, the NFSS patch made `\textbf`, `\textit`, `\textsl`, `\scshape`,
+`\maketitle`'s bold title, `\caption{…\textbf{c}}`, `\item[\textbf{b}]` and description terms lose their font with no
+error, `{\fontencoding{T1}\selectfont x}` and `\usefont` printed their operand, and `\jfont\cs=<spec>`
+(luatexja-core.sty:235-239, read with `\directlua`) printed the spec as text. CJK text needs nothing from the package
+(the engine is Unicode) and a font choice has no effect on the XML, so each user command is bound with the signature of its
+definition and no output (`latexml_contrib/src/luatexja_sty.rs`, whose header lists them):
+- `luatexja`: `\ltjsetparameter`/`\ltjglobalsetparameter` (end in `\ignorespaces`), `\ltjgetparameter{key}` (and the second
+  operand of the array parameters), which expands to `\z@` as the persona's stand-in does (jlreq.cls:551-554,
+  :1240; the Lua side holds the values: `0` under `\number`, `\the` and `\ifnum`, a zero skip in an assignment, a register
+  that reads on when bare), `\jfont`/`\tfont`/`\globaljfont`/`\globaltfont` (the control sequence, `=`,
+  the file name and `at`/`scaled` as `\font` reads them; `\cs` becomes a protected empty font switch),
+  `\ltjdefcharrange`, `\ltjsetkanjiskip`, `\ltjjachar`, `\ltjgetwd`, `\inhibitglue`, `\yoko`/`\tate`, `\kansuji` (the kanji
+  digits), the kanji font commands and `\Declare…Kanji…` declarations of lltjdefs.sty/lltjfont.sty, and `\mcdefault` and
+  its siblings. `\euc`, `\jis`, `\sjis` and `\kuten` (luatexja-compat.sty, tables) are not provided; `\ucs` is `\char`.
+- `luatexja-fontspec` (`luatexja_fontspec_sty.rs`): requires `l3keys2e`, `luatexja` and `fontspec` as the file does
+  (luatexja-fontspec.sty:7, :30), reads the package keys `match`, `scale`, `pass` (:19-27; others go to fontspec) and the
+  commands of luatexja-fontspec-29e.sty:367-507: `\jfontspec`, `\set{main,sans,mono}jfont` (`O{} m O{}`), the eight
+  family/face definers (`m O{} m O{}`; `\cs` a protected `\selectfont`), `\defaultjfontfeatures` (`t+ o m`) and
+  `\addjfontfeatures`/`\addjfontfeature` (`m`).
+- `luatexja-preset` (`luatexja_preset_sty.rs`): every option is read; `luatexja-fontspec` is required unless `nfssonly`
+  (luatexja-preset.sty:641, :76); `\ltjnewpreset` (starred or not) reads `{name}{keys}` and `\ltjapplypreset{keys}` ends in
+  `\normalfont` (:736, :766). The presets themselves (their font names) have no effect.
+- `luatexja-adjust` (`luatexja_adjust_sty.rs`): `\ltjenableadjust[keys]`, `\ltjdisableadjust` and the ghost characters.
+- `luatexja-zhfonts` (`luatexja_zhfonts_sty.rs`): requires `luatexja-fontspec`; each font-set option defines the faces `\kai`
+  and `\fang`.
+Where raw TeX Live packages are read (`--includestyles`, the `rawstyles` protocol: `raw_tex_styles_enabled`) each binding loads
+the genuine file as before, because `jlreq.cls` and the classes built on luatexja use its internals (`\Cht`,
+`\ltj@setpar@global`, the `ltj` keys that `luatexja-adjust` defines); the font loss above stays on that path (not ruled on).
+Not bound: `luatexja-otf` (`\UTF`, `\CID`), `luatexja-ruby` (`\ruby`) and `luatexja-ajmacros` (its macros are `\CID`
+glyphs), whose text comes from `\directlua`; raw, they would load without error and drop it silently, so they stay
+`Warning:missing_file`. Because `luatexja` is not raw-loaded, LuaTeX-ja's package patches (`lltjp-*`, microtype's among
+them) never run.
+
+**Guards**: `native_notes_bindings::luatexja_fontspec_reads_the_font_name_and_keeps_the_cjk_text`,
+`::luatexja_fontspec_keeps_the_fonts_of_the_document` (the same conversion with and without the package, and the whole
+bold/italic/small-caps/caption/description/`td` elements), `::luatexja_font_and_parameter_commands_print_nothing`,
+`::luatexja_fontspec_commands_read_their_arguments`, `::luatexja_note_preamble_converts_clean_and_keeps_bold`,
+`::luatexja_preset_adjust_and_zhfonts_read_their_operands`.
