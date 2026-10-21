@@ -18065,6 +18065,70 @@ item in an italic theorem no longer has `<text font="upright">` on its tag.
 
 **Guard**: `cluster_package_guards::item_label_font::*`.
 
+### 606. A large operator in a script records the script style, and a script is wrapped to its base's style (Perl: `text`, so the script is put back to full size)
+
+**Perl behavior** (KNOWN_PERL_ERRORS #668): `doVariablesizeOp` (TeX_Math.pool.ltxml:353) is `display` in display style and
+`text` in every other, so a `\sum`, `\int`, `\bigcup`, ... in a script (`e^{\sum x_iB_i}`,
+`\frac{y^d}{z^{\sum D_i\cdot d}}`) is `<XMTok mathstyle="text" fontsize="70%">`: a text-style token in a script.
+`pmml_internal` and `pmml_bigop` (MathML.pm:240-268, :413-427, :848-857) answer with the `%stylemap` entry
+`script → text`, `<m:mstyle scriptlevel="-1">` around the operator and everything under the same script, which puts the
+exponent back at the size of the line (Perl's HTML, run on `\[ e^{\sum x_iB_i} \]`: the `∑` and its operands at full size
+in the superscript position). The port added `maxsize`/`minsize` of 0.7em on the operator and a `mathsize` on each
+operand to undo the `-1` again, so the page was neither the size of the PDF nor of Perl's. The `\mathchar` route
+(Package.pm:2997-3001) records the same `display`-or-`text`.
+**Rust behavior**: the operator takes the style of the font in force: `script` and `scriptscript` in scripts, `display` in
+display style and `text` otherwise (`Font::variablesize_op_mathstyle`, `latexml_core/src/common/font.rs`), at the three
+places that record it: a `DefMath` with a variable-size operator (the token and the constructor's whatsit,
+`binding/def/dialect.rs`) and a `\mathchar` of class "1 (`common/mathchar.rs`, `definition/register.rs`). `script → script`
+is no transition, so the post stage emits no `m:mstyle` and no compensating sizes:
+`<m:msup><m:mi>e</m:mi><m:mrow><m:mo>∑</m:mo>…`, a plain `m:mo` at the script level the browser's `scriptlevel` gives it
+(MathML Core: `largeop` applies in display style only). `\smallint`, whose `mathstyle` is the fixed `text` in Perl too
+(math_common.pool.ltxml:127-128: `DefMath` at :127, `mathstyle => 'text'` at :128), keeps it.
+
+Two things Perl does that the fix needs, both made as Perl does them:
+
+- `\over` and its relatives step what they hold to the next style by `adjustMathStyle_internal`
+  (TeX_Math.pool.ltxml:1051-1060), which sets a recorded `mathstyle` from the box's FONT style through
+  `%mathstyle_adjust_map`. The port stepped the recorded value, and not at all for a `Tbox`
+  (`latexml_engine/src/tex_math.rs`, `adjust_mathstyle_internal*`): `${\sum a\over b}$` is now `script` and
+  `$x^{\sum a\over b}$` `scriptscript`, as in Perl.
+- (beyond Perl) a script whose base is in another style than its context is wrapped by `pmml_script`
+  (MathML.pm:883-887) with `displaystyle` only, and its limits are sized from the context. `latexml_post`'s
+  `pmml_script_full` now wraps with the whole `%stylemap` entry (`scriptlevel` included) and lays the limits out under
+  the base's style, so `$\scriptstyle\sum_i a_i$` is `<m:mstyle scriptlevel="+1"><m:msub><m:mo>∑</m:mo><m:mi>i</m:mi>…` and
+  `\scriptscriptstyle\int_0^1` `scriptlevel="+2"`.
+
+**Guards**: `cluster_package_guards::script_largeop::{a_sum_in_a_script_records_the_script_style,
+a_sum_in_an_exponent_is_script_size_without_compensation,
+a_sum_in_a_script_of_a_fraction_is_script_size_without_compensation,
+a_mathchar_operator_in_a_script_records_the_script_style, over_moves_a_large_operator_to_the_next_style,
+a_scriptstyle_sum_with_a_limit_is_wrapped_to_script_level}`.
+
+### 607. A centred stackengine stack in a formula is held in a line of its own, and has the width of its content (Perl: a bare child of `m:mtext`)
+
+**Perl behavior**: stackengine has no Perl binding; the port's `\Centerstack` (OXIDIZED_DESIGN #588(b)) in a formula is an
+`ltx:XMText` holding an `ltx:inline-block vattach="middle"`, which reaches the page as
+`<mtext><span class="ltx_inline-block ltx_align_middle">…` (`LaTeXML-misc-xhtml.xsl`, `ltx:inline-block`, byte for byte
+Perl's). A child of an `mtext` is a block-level box of the math layout whatever its `display` (computed `block`, checked in
+Chromium), so `.ltx_align_middle { vertical-align:middle }` (LaTeXML.css) finds no line to act on: Chromium puts the last
+line of the box on the baseline and Firefox the first, and a stretchy fence around it (`\left\{ … \right\}`) grows to one
+side only, with an empty half. TeX centres `\Centerstack` on the axis. `\parbox` and `minipage` in a formula are not
+this: they arrive as `<mtext class="ltx_parbox">` / `"ltx_minipage"`, which LaTeXML.css makes an `inline-block` itself
+(:416, :716), and their geometry is as it was; `\shortstack` has no `vattach` and is a `vbox` whose last line is on the
+baseline in TeX, so it is not centred either.
+**Rust behavior**: `LaTeXML-misc-xhtml.xsl` holds an `inline-block` whose `vattach` is `middle` and whose parent is a
+class-less `m:mtext` in a `<span class="ltx_mtext_line">`; the span is the block of the math layout, and the box is aligned
+in its line, centred on the baseline plus half the x-height (near the axis), with compact fences (checked in Chromium 1243
+through playwright, and Firefox). Chromium sizes the `mtext` without the box's text (math element 198px for 253px of
+content), which drew a following `.` over the box; LaTeXML.css gives the box the width of its content:
+`.ltx_mtext_line > .ltx_inline-block:not([style*="width"]) { width:max-content; }` (math element 260px, the `.` right after
+the `}`). A page that does not load LaTeXML.css (a site with its own stylesheet) needs this rule as well; `.ltx_align_middle` is the
+existing rule and `ltx_mtext_line` has no other. `top` and `bottom` boxes and boxes outside a formula are untouched.
+
+**Guards**: `cluster_package_guards::mtext_block_alignment::{a_centered_stack_in_a_formula_is_aligned_in_a_line_of_its_own,
+the_wrapped_box_has_the_width_of_its_content, a_top_parbox_in_a_formula_is_not_wrapped,
+a_shortstack_in_a_formula_is_not_wrapped, a_centered_stack_in_text_is_not_wrapped}`.
+
 ### 610. `\overline{x}` and `\underline{x}` are as wide as `x`, with TeX's rule clearance (Perl: the width of the macron glyph)
 **Perl**: `defmath_cons` (Package.pm:1869-1873) gives every DefMath that takes arguments the sizer
 `computeStringSize($presentation)`, the size of its operator glyph alone. `\lx@math@overline{}`

@@ -5866,7 +5866,7 @@
                       <XMTok role="SUPERSCRIPTOP" scriptpos="post2"/>
                       <XMApp>
                         <XMTok role="SUBSCRIPTOP" scriptpos="post2"/>
-                        <XMTok fontsize="70%" mathstyle="text" meaning="integral" name="int" role="INTOP">∫</XMTok>
+                        <XMTok fontsize="70%" mathstyle="script" meaning="integral" name="int" role="INTOP">∫</XMTok>
                         <XMTok fontsize="50%" meaning="0" role="NUMBER">0</XMTok>
                       </XMApp>
                       <XMTok fontsize="50%" meaning="infinity" name="infty" role="ID">∞</XMTok>

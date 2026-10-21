@@ -648,17 +648,17 @@
               </XMDual>
               <XMHint name="qquad" role="PUNCT" width="20pt"/>
               <XMDual role="ADDOP" xml:id="S0.Ex13.m1.3">
-                <XMTok mathstyle="text" meaning="intersection-plus" name="bignplus" role="ADDOP"/>
+                <XMTok mathstyle="script" meaning="intersection-plus" name="bignplus" role="ADDOP"/>
                 <XMWrap rule="kludge">
-                  <XMTok fontsize="70%" mathstyle="text" meaning="intersection" name="bigcap" role="SUMOP" scriptpos="post">⋂</XMTok>
+                  <XMTok fontsize="70%" mathstyle="script" meaning="intersection" name="bigcap" role="SUMOP" scriptpos="post">⋂</XMTok>
                   <XMTok fontsize="70%" meaning="plus" role="ADDOP" width="0pt" xoffset="-1.3em" yoffset="0.2ex">+</XMTok>
                 </XMWrap>
               </XMDual>
               <XMHint name="qquad" role="PUNCT" width="20pt"/>
               <XMDual role="ADDOP" xml:id="S0.Ex13.m1.4">
-                <XMTok mathstyle="text" meaning="intersection-plus" name="bignplus" role="ADDOP"/>
+                <XMTok mathstyle="scriptscript" meaning="intersection-plus" name="bignplus" role="ADDOP"/>
                 <XMWrap rule="kludge">
-                  <XMTok fontsize="50%" mathstyle="text" meaning="intersection" name="bigcap" role="SUMOP" scriptpos="post">⋂</XMTok>
+                  <XMTok fontsize="50%" mathstyle="scriptscript" meaning="intersection" name="bigcap" role="SUMOP" scriptpos="post">⋂</XMTok>
                   <XMTok fontsize="50%" meaning="plus" role="ADDOP" width="0pt" xoffset="-1.3em" yoffset="0.2ex">+</XMTok>
                 </XMWrap>
               </XMDual>

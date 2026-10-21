@@ -18,8 +18,9 @@
     xmlns:ltx   = "http://dlmf.nist.gov/LaTeXML"
     xmlns:func  = "http://exslt.org/functions"
     xmlns:f     = "http://dlmf.nist.gov/LaTeXML/functions"
+    xmlns:m     = "http://www.w3.org/1998/Math/MathML"
     extension-element-prefixes="func f"
-    exclude-result-prefixes = "ltx func f">
+    exclude-result-prefixes = "ltx func f m">
 
   <!-- ======================================================================
        Various things that aren't clearly inline or blocks, or can be both:
@@ -65,24 +66,41 @@
           </xsl:element>
         </xsl:element>
       </xsl:when>
-      <xsl:otherwise>
+      <!-- (latexml-oxide, OXIDIZED_DESIGN #607) A direct child of an m:mtext is a block-level box of the
+           math layout, whatever its display, so the vertical-align that its vattach class gives it
+           (ltx_align_middle) has no line to act on: Chrome puts the last line of a stackengine stack on
+           the baseline and Firefox the first, and the stretchy fence around it grows to one side only.
+           A wrapper whose line the box is aligned in centres it, as TeX centres \Centerstack on the axis.
+           Only a class-less m:mtext: \parbox and minipage reach here as m:mtext.ltx_parbox/ltx_minipage,
+           which LaTeXML.css makes an inline-block itself, and keep their geometry. -->
+      <xsl:when test="parent::m:mtext[not(@class)] and @vattach = 'middle'">
         <xsl:element name="span" namespace="{$html_ns}">
-          <xsl:variable name="innercontext" select="'inline'"/><!-- override -->
-          <xsl:call-template name="add_id"/>
-          <xsl:call-template name="add_attributes"/>
-          <xsl:apply-templates select="." mode="begin">
-            <xsl:with-param name="context" select="$innercontext"/>
-          </xsl:apply-templates>
-          <xsl:apply-templates>
-            <xsl:with-param name="context" select="$innercontext"/>
-          </xsl:apply-templates>
-          <xsl:apply-templates select="." mode="end">
-            <xsl:with-param name="context" select="$innercontext"/>
-          </xsl:apply-templates>
-          <xsl:text>&#x0A;</xsl:text>
+          <xsl:attribute name="class">ltx_mtext_line</xsl:attribute>
+          <xsl:call-template name="inline-block-span"/>
         </xsl:element>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:call-template name="inline-block-span"/>
       </xsl:otherwise>
     </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name="inline-block-span">
+    <xsl:element name="span" namespace="{$html_ns}">
+      <xsl:variable name="innercontext" select="'inline'"/><!-- override -->
+      <xsl:call-template name="add_id"/>
+      <xsl:call-template name="add_attributes"/>
+      <xsl:apply-templates select="." mode="begin">
+        <xsl:with-param name="context" select="$innercontext"/>
+      </xsl:apply-templates>
+      <xsl:apply-templates>
+        <xsl:with-param name="context" select="$innercontext"/>
+      </xsl:apply-templates>
+      <xsl:apply-templates select="." mode="end">
+        <xsl:with-param name="context" select="$innercontext"/>
+      </xsl:apply-templates>
+      <xsl:text>&#x0A;</xsl:text>
+    </xsl:element>
   </xsl:template>
 
   <xsl:template match="ltx:verbatim">

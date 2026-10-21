@@ -13177,3 +13177,22 @@ beside `<text font="italic">First.</text>`: `\lx@tag@intags` is `beforeDigest =>
 or colour. A bullet is upright in LaTeX (`\labelitemi` is `\labelitemfont \textbullet`, `\labelitemfont` is `\normalfont`,
 article.cls:355-359), which Perl's bare `\textbullet` (latex_constructs.pool.ltxml:1530) would turn italic if the tags kept
 the font. Fixed in Rust, for the item's displayed tag only: OXIDIZED_DESIGN_DIVERGENCES #604.
+
+## 668. A large operator in a script is set at the size of the line
+
+```latex
+\documentclass{article}
+\begin{document}
+$e^{\sum x_iB_i}$
+\end{document}
+```
+
+→ pdfLaTeX: `∑` and its operands in script size, in the superscript position. Perl (latexml + latexmlpost
+`--format=html5`): `<msup><mi>e</mi><mstyle scriptlevel="-1"><mrow><mo>∑</mo><mrow>…`, the whole exponent at the
+size of the line. `doVariablesizeOp` (TeX_Math.pool.ltxml:353-354) is `display` in display style and `text` in
+every other, so a `\sum`, `\int`, ... in a script is `<XMTok mathstyle="text">`; MathML.pm:240-268 (`%stylemap`,
+used at :413-427 and :848-857) answers a `script → text` transition with `scriptlevel="-1"`. The same recording is
+made for a `\mathchar` of class "1 (Package.pm:2997-3001). Rust: fixed, OXIDIZED_DESIGN_DIVERGENCES #606; the
+port had also added `maxsize`/`minsize` and per-token `mathsize` on top of the `-1`. A further Perl gap in the same place, fixed with it as a
+beyond-Perl step: `pmml_script` (MathML.pm:883-887) wraps a base in another style than its context with `displaystyle`
+only, so `$\scriptstyle\sum_i a_i$` stays at the size of the line.

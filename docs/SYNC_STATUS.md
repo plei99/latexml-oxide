@@ -117,6 +117,11 @@ TL manuals) and the per-batch arXiv A/B; the cortex reruns of sandboxes 2605/260
   too large). The raw loop honours the swap, so `LATEXML_PGFKEYS_NATIVE=0` was already
   right. Guards `cluster_package_guards::spectralsequences_raw::class_dot_has_its_declared_size` and
   `::redefined_case_one_step_is_called_by_the_key_loop`.
+- **`\over` stepped a large operator's recorded `mathstyle`, not its font's** (`latexml_engine/src/tex_math.rs`,
+  `adjust_mathstyle_internal*`; Perl `adjustMathStyle_internal`, TeX_Math.pool.ltxml:1051-1060, sets the recorded property from
+  `%mathstyle_adjust_map{$outer}{font style}`, and for every box with one, a `Tbox` included): `${\sum a\over b}$` is
+  `script` and `$x^{\sum a\over b}$` `scriptscript`, as in Perl (the port gave `text` and `script`). Guard
+  `script_largeop::over_moves_a_large_operator_to_the_next_style` (OXIDIZED_DESIGN_DIVERGENCES #606).
 - **A picture in a formula is Perl's `ltx:picture` in its `m:mtext`, and its math labels are `ltx:Math > m:math`**
   (`latexml_post/src/mathml/mod.rs`, the `ltx:picture` arm of `pmml_text_aux` and `nested_ltx_math_to_inline_mathml`).
   MathML.pm:1061-1063 gives `convertXMTextContent($doc, 1, $node)` the picture node (Post.pm:456 iterates its argument

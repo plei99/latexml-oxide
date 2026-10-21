@@ -23,6 +23,21 @@
     argument's width, 5θ taller above (`\overline`) or below (`\underline`) as `make_over`/`make_under` build it
     (divergence #610). Guards `overline_box_size::overline_and_underline_boxes_take_the_width_of_their_argument`
     and `::tikzcd_node_of_an_overlined_formula_is_as_wide_as_the_formula`.
+  - **A centred stackengine stack in a formula is centred in the page.** `\left\{ \Centerstack{…}
+    \right\}` is a block of the math layout in an `mtext`, so its `vertical-align:middle` did nothing:
+    Chromium set its last line on the baseline and Firefox its first, and the braces had an empty half. The
+    stylesheet holds the stack in a line of a `span.ltx_mtext_line` and LaTeXML.css gives it the width of its
+    content (divergence #607). `\parbox`, `minipage`, `\shortstack` and `top`/`bottom` boxes are unchanged.
+    Guards `mtext_block_alignment::*`.
+
+  - **A large operator in a script is script size.** `e^{\sum x_iB_i}` and `z^{\sum D_i\cdot d}` in a
+    fraction put a `\sum`, `\int`, ... in a script into `<mstyle scriptlevel="-1">`, the operator and its
+    operands back at the size of the line (Perl's `doVariablesizeOp` records `text` for every style but display,
+    MathML.pm:240-268 answers with the `script → text` entry, and the port compensated with `maxsize` and
+    per-token `mathsize`; KNOWN_PERL_ERRORS #668). The operator now records the style it stands in, also through
+    `\mathchar` and `\over` (which stepped the recorded style, not the font's), and a script on a base in a smaller
+    style than its context (`\scriptstyle\sum_i a_i`) is wrapped with a `scriptlevel` (divergence #606). Guards
+    `script_largeop::*`.
 
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`

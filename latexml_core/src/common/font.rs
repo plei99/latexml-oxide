@@ -1034,6 +1034,21 @@ impl Font {
   pub fn get_encoding(&self) -> Option<&Cow<'_, str>> { self.encoding.as_ref() }
   pub fn get_language(&self) -> Option<&Cow<'_, str>> { self.language.as_ref() }
   pub fn get_mathstyle(&self) -> Option<&Cow<'_, str>> { self.mathstyle.as_ref() }
+
+  /// The `mathstyle` of a variable-size operator (`\sum`, `\int`, a `need_mathstyle` math char) set in
+  /// this font. Perl's `doVariablesizeOp` (TeX_Math.pool.ltxml:353) and Package.pm:2997-3001 give
+  /// `display` in display style and `text` in every other, which says a large operator in a script
+  /// (`e^{\sum x_i}`) is a text-size one: the presentation stage then puts the script back to full
+  /// size (`<mstyle scriptlevel="-1">`, MathML.pm:240-268). TeX sets it in the script style, so a
+  /// script keeps its own style here (OXIDIZED_DESIGN #606).
+  pub fn variablesize_op_mathstyle(&self) -> &'static str {
+    match self.mathstyle.as_deref() {
+      Some("display") => "display",
+      Some("script") => "script",
+      Some("scriptscript") => "scriptscript",
+      _ => "text",
+    }
+  }
   pub fn get_flags(&self) -> Option<u8> { self.flags }
 
   // NOTE: In math, NORMALLY, setting any one of

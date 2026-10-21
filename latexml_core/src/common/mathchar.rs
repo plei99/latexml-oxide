@@ -43,7 +43,14 @@ impl MathCharProps {
       self.scriptpos = Some(if in_display { "mid" } else { "post" }.to_string());
     }
     if self.need_mathstyle {
-      self.mathstyle = Some(if in_display { "display" } else { "text" }.to_string());
+      self.mathstyle = Some(
+        if in_display {
+          "display"
+        } else {
+          state::lookup_font().map_or("text", |f| f.variablesize_op_mathstyle())
+        }
+        .to_string(),
+      );
     }
   }
 
