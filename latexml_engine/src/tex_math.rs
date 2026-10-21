@@ -2949,11 +2949,10 @@ fn adjust_mathstyle_internal(outerstyle: &str, tbox: &mut Tbox) {
 /// [`adjust_mathstyle_internal`] for a Whatsit, returning the new style if it had a recorded `mathstyle`
 /// property (Perl returns it only then, and the caller recurses under `$outerstyle` otherwise).
 fn adjust_mathstyle_internal_whatsit(outerstyle: &str, whatsit: &mut Whatsit) -> Option<String> {
-  let Some(Stored::Font(font)) = whatsit.properties.get("font") else {
-    return None;
-  };
-  let (font, newstyle) = adjusted_font(outerstyle, font);
-  whatsit.properties.insert("font", Stored::Font(font));
+  // Perl `$box->getFont`: a font directive property resolves against the whatsit.
+  let font = whatsit.get_font().ok().flatten()?;
+  let (font, newstyle) = adjusted_font(outerstyle, &font);
+  whatsit.set_font(font);
   if whatsit.properties.contains_key("mathstyle") {
     whatsit
       .properties

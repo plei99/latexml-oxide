@@ -18,6 +18,8 @@ const EXPONENT: &str = "tests/cluster_regressions/script_largeop_exponent.tex";
 const IN_A_FRACTION: &str = "tests/cluster_regressions/script_largeop_fraction.tex";
 const MATHCHAR: &str = "tests/cluster_regressions/script_largeop_mathchar.tex";
 const OVER: &str = "tests/cluster_regressions/script_largeop_over.tex";
+const GROUPED: &str = "tests/cluster_regressions/script_largeop_grouped.tex";
+const DISPLAY: &str = "tests/cluster_regressions/script_largeop_display.tex";
 const SCRIPTSTYLE: &str = "tests/cluster_regressions/script_largeop_scriptstyle.tex";
 
 /// The core XML, the engine's warnings pinned (none expected; errors are asserted zero by `convert_to_xml`).
@@ -105,5 +107,57 @@ fn a_scriptstyle_sum_with_a_limit_is_wrapped_to_script_level() {
     "mstyle",
     &[],
     r#"<mstyle scriptlevel="+1"><msub><mo>∑</mo><mi>i</mi></msub></mstyle>"#,
+  );
+}
+
+/// A style set in a group around the base alone (`{\scriptstyle\sum}_i`, `\mathop{\scriptstyle\sum}\limits_{i=1}^n`)
+/// does not reach the scripts: the XML records them at the context's script step (70%), so they are laid out as Perl
+/// does, under the context, with the base alone wrapped. Laid out under the base's style they were stepped to
+/// scriptscript and given `mathsize="1.400em"` inside the wrap (limits larger than the operator in Chromium: 15.7px
+/// against 11.2px).
+#[test]
+fn a_grouped_scriptstyle_sum_wraps_the_base_alone() {
+  let html = html(GROUPED);
+  assert_element(
+    &html,
+    "msub",
+    &[],
+    r#"<msub><mstyle scriptlevel="+1"><mo>∑</mo></mstyle><mi>i</mi></msub>"#,
+  );
+  assert_element(
+    &html,
+    "munderover",
+    &[],
+    r#"<munderover><mstyle scriptlevel="+1"><mo movablelimits="false">∑</mo></mstyle><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>"#,
+  );
+}
+
+/// In display style `\over` moves the operators of the numerator and the denominator to text style (the recorded
+/// `text` is the font's style stepped, `%mathstyle_adjust_map{display}{display}`, as in Perl).
+#[test]
+fn over_in_display_style_records_text() {
+  let xml = xml(DISPLAY);
+  assert_element(
+    &xml,
+    "XMTok",
+    &[r#"meaning="sum""#],
+    r#"<XMTok mathstyle="text" meaning="sum" role="SUMOP" scriptpos="mid">∑</XMTok>"#,
+  );
+  assert_element(
+    &xml,
+    "XMTok",
+    &[r#"meaning="integral""#],
+    r#"<XMTok mathstyle="text" meaning="integral" name="int" role="INTOP">∫</XMTok>"#,
+  );
+}
+
+/// `\displaystyle` over a text-style context is the `displaystyle` of the stylemap and no scriptlevel.
+#[test]
+fn a_displaystyle_sum_stays_displaystyle_without_a_scriptlevel() {
+  assert_element(
+    &html(DISPLAY),
+    "mstyle",
+    &[],
+    r#"<mstyle displaystyle="true"><munder><mo movablelimits="false">∑</mo><mi>i</mi></munder></mstyle>"#,
   );
 }

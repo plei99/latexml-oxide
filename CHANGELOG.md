@@ -36,8 +36,9 @@
     MathML.pm:240-268 answers with the `script → text` entry, and the port compensated with `maxsize` and
     per-token `mathsize`; KNOWN_PERL_ERRORS #668). The operator now records the style it stands in, also through
     `\mathchar` and `\over` (which stepped the recorded style, not the font's), and a script on a base in a smaller
-    style than its context (`\scriptstyle\sum_i a_i`) is wrapped with a `scriptlevel` (divergence #606). Guards
-    `script_largeop::*`.
+    style than its context (`\scriptstyle\sum_i a_i`) is wrapped with a `scriptlevel`; a style set in a group
+    around the base alone (`{\scriptstyle\sum}_i`) wraps the base only, the limits keeping the context's size
+    (divergence #606). Guards `script_largeop::*`.
 
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
