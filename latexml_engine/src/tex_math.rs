@@ -6,9 +6,71 @@ use latexml_core::common::{font::standard_metrics::STDMETRICS, mathchar::decode_
 
 use crate::{prelude::*, tex_character, tex_fonts::font_state_key};
 
-/// Perl's mergeLimits (TeX_Math.pool.ltxml): walks backward through the
-/// digest list, extracts any existing script level from the previous
-/// `scriptpos` value, and sets `scriptpos` to `pos` + level.
+/// A math character of class 3 (Rel) is set between `\thickmuskip` (5mu) on either side (the `math_spacing` table of
+/// tex.web §764), but the role `unicode_math_properties` gives its glyph wins over the class (Package.pm:2993-2996
+/// `decodeMathChar`): `|` is VERTBAR, which the fence rule re-roles MIDDLE, an Ord to the spacing walk (MathML.pm:1151
+/// `$role_atomtype`). So `\left\{d\delimiter"326A30C D\right\}` (a set-builder bar) came out as `d|D`. A Rel-class
+/// character whose role is no relation's records the class in `mathclass`, which the spacing walk takes over the
+/// role's atom type. A `\delimiter` that is itself a `\left`, `\middle` or `\big` delimiter is a fence, not a
+/// relation, and is left alone (the `\middle` bar is tight in TeX). OXIDIZED_DESIGN_DIVERGENCES #611.
+fn set_relation_class(whatsit: &mut Whatsit, mathcode: u16, role: Option<&str>) {
+  if mathcode / (16 * 256) == 3
+    && !matches!(
+      role,
+      Some("RELOP" | "METARELOP" | "MODIFIEROP" | "MODIFIER" | "ARROW")
+    )
+    && !digesting_delimiter()
+  {
+    whatsit.set_property("mathclass", "Rel");
+  }
+}
+
+thread_local! {
+  /// Set while `script_handler` digests the argument of a `^` or `_`: the group it reads is the script's nucleus.
+  static SCRIPT_ARGUMENT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Marks the span of `script_handler` in which the next group is a script's argument; the previous mark is back on
+/// every way out.
+struct ScriptArgument(bool);
+impl ScriptArgument {
+  fn enter() -> Self { ScriptArgument(SCRIPT_ARGUMENT.with(|f| f.replace(true))) }
+}
+impl Drop for ScriptArgument {
+  fn drop(&mut self) { SCRIPT_ARGUMENT.with(|f| f.set(self.0)); }
+}
+
+/// Whether the group being opened is the argument of a script (`x^{-1}`), and the mark is spent: a group inside
+/// it is not.
+pub fn take_script_argument() -> bool { SCRIPT_ARGUMENT.with(|f| f.replace(false)) }
+
+/// Whether a font command being digested is the argument of a script (`x^\mathrm{-1}`).
+pub fn in_script_argument() -> bool { SCRIPT_ARGUMENT.with(std::cell::Cell::get) }
+
+/// A binary operator that opens a math group is an ordinary atom (tex.web §727, `mlist_to_hlist`'s first pass: a
+/// `bin_noad` that is first in its list becomes an `ord_noad`), and the group is one Ord atom beside what precedes it:
+/// in `D_X\mathsf{-Mod}` the minus has no space either side. The digested group is flat in the formula, as Perl leaves
+/// it (TeX_Box.pool.ltxml:30-37 `T_BEGIN`, a Math List), so the minus took the binary spacing of `D_X - Mod`. The
+/// leading operator of a group that follows an atom of its formula records `mathclass="Ord"`, which the spacing walk
+/// takes over its role's atom type. A group that opens its formula (`$\mathsf{-1}$`) has no atom before it and is
+/// unary already, and so is the argument of a script (`x^{-1}`), which `in_script_argument` says: digested with the
+/// base still in the list, it follows nothing. OXIDIZED_DESIGN_DIVERGENCES #613.
+pub fn mark_group_leading_binary(group: &[Digested], in_script_argument: bool) {
+  if in_script_argument {
+    return;
+  }
+  // The role first (it rarely fits), then what precedes the group.
+  if let Some(first) = group.iter().find(|b| !b.is_skippable())
+    && matches!(
+      first.get_property_string("role").as_str(),
+      "ADDOP" | "MULOP" | "BINOP"
+    )
+    && with_box_list(|outer| outer.iter().any(|b| !b.is_skippable()))
+  {
+    first.clone().set_property("mathclass", "Ord");
+  }
+}
+
 fn merge_limits(pos: &str) {
   // is_script is now defined in this file (moved from tex_scripts.rs)
   // Compute script level before borrowing the box list mutably,
@@ -287,6 +349,7 @@ fn script_handler(cc: Catcode) -> Result<Vec<Digested>> {
     // `}`) marks it below.
     let ends_before = ends_inside_groups();
     let mut stuff = Vec::new();
+    let _script_argument = ScriptArgument::enter();
     while let Some(tok) = read_x_token(Some(false), false, None)? {
       stuff = invoke_token(&tok)?;
       if !stuff.is_empty() {
@@ -1026,7 +1089,7 @@ LoadDefinitions!({
   DefConstructor!("\\mathchar Number",
     "?#glyph(<ltx:XMTok role='#role' ?#meaning(meaning='#meaning') ?#name(name='#name')\
      ?#scriptpos(scriptpos='#scriptpos') ?#mathstyle(mathstyle='#mathstyle')\
-     ?#stretchy(stretchy='#stretchy')>#glyph</ltx:XMTok>)",
+     ?#stretchy(stretchy='#stretchy') ?#mathclass(mathclass='#mathclass')>#glyph</ltx:XMTok>)",
     sizer       => "#1",
     after_digest => sub[whatsit] {
       let n = whatsit.get_arg(1).unwrap().value_of();
@@ -1053,18 +1116,20 @@ LoadDefinitions!({
       if let Some(ref stretchy) = props.stretchy {
         whatsit.set_property("stretchy", stretchy.clone());
       }
+      set_relation_class(whatsit, n as u16, props.role.as_deref());
       Ok(Vec::new())
     }
   );
 
   DefConstructor!("\\delimiter Number",
   "?#glyph(?#isMath(<ltx:XMTok role='#role' ?#name(name='#name')\
-   ?#stretchy(stretchy='#stretchy')>#glyph</ltx:XMTok>)(#glyph))",
+   ?#stretchy(stretchy='#stretchy') ?#mathclass(mathclass='#mathclass')>#glyph</ltx:XMTok>)(#glyph))",
   sizer       => "#glyph",
   after_digest => sub[whatsit] {
     let mut n = whatsit.get_arg(1).unwrap().value_of();
     n >>= 12;    // Ignore 3 rightmost digits and treat as \mathchar
     let props = decode_math_char(n as u16, None)?;
+    set_relation_class(whatsit, n as u16, props.role.as_deref());
     if let Some(glyph) = props.glyph {
       whatsit.set_property("glyph", glyph);
       whatsit.set_property("font", lookup_font().unwrap().specialize(&glyph.to_string()));

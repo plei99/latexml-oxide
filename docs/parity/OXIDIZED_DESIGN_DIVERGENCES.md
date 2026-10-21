@@ -18272,3 +18272,102 @@ border; a node `\overline{C\setminus C_i}` was 0.5em wide (`--ltx-fo-width:0.5em
 label. Now 2.68em x 0.88em + 0.15em.
 
 **Guards**: `cluster_package_guards::overline_box_size::*`.
+
+### 611. A `\delimiter` or `\mathchar` of class 3 keeps its relation spacing (Perl: the glyph's role replaces the class)
+**Perl**: `decodeMathChar` (Package.pm:2992-2994) takes the role from `unicode_math_properties($glyph)` and the class
+only when the glyph has none, so `\delimiter"326A30C` (class 3, family 2, `|`, the set-builder bar of
+`\left\{d \delimiter"326A30C D\right\}`) is a VERTBAR. The fence rule re-roles a bar inside a fence MIDDLE
+(MathGrammar `suchThatOp`, `MorphVertbar`), and the spacing walk types MIDDLE as Ord (MathML.pm:1151
+`$role_atomtype`): `<mo lspace="0em" rspace="0em">|</mo>`, `d|D`. TeX sets a Rel atom between `\thickmuskip` (the
+`math_spacing` table, tex.web §764), `d | D`.
+
+**Rust**: `\mathchar` and `\delimiter` (`tex_math.rs`, `set_relation_class`) record `mathclass="Rel"` on the `XMTok` when
+the class is 3 and the role is no relation's (RELOP, METARELOP, MODIFIEROP, MODIFIER, ARROW), except for a `\delimiter`
+read as a `\left`, `\middle` or `\big` delimiter (`digesting_delimiter`), which is a fence. `mathclass` is a new
+optional attribute of the `XMath` elements (`LaTeXML-math.rnc`/`.rng`/`LaTeXML.model`, a TeX atom class: Ord, Op, Bin,
+Rel, Open, Close, Punct, Inner), kept by the math parser's `XProps` and read by the MathML spacing walk
+(`presentation.rs`, `recorded_atom_type`) in place of the role's atom type. The role is unchanged, so the parse is
+the same (`conditional-set`); only the spacing is. `\middle|` (no space in TeX) and `\mid` (`DefMath`, role VERTBAR) are
+untouched.
+
+**Residual**: `\left\{x \mid y\right\}` has the same defect (`\mid` is Rel in TeX; its VERTBAR role becomes MIDDLE in the
+fence, `lspace="0em" rspace="0em"`). It needs `mathclass="Rel"` on the `DefMath` and changes the XML of every `\mid`
+in a fence, so it is left for its own ruling. A class-3 symbol made by `\mathchardef` or `\DeclareMathSymbol` does not
+reach `\mathchar` and is not covered either.
+
+**Why**: a note's set-builder formulas, `\min\left\{d \mid D_X^{\le d}(I)=\mathcal{O}_X\right\}`, written with
+`\delimiter"326A30C`, showed `d|D`, the bar touching both sides, where the PDF has the spaced bar.
+
+**Guards**: `math_group_spacing::a_class_3_delimiter_records_its_class`,
+`::a_set_builder_bar_of_class_3_has_relation_spacing`, `::a_middle_bar_keeps_its_tight_spacing`,
+`::a_class_3_mathchar_outside_a_fence_is_unchanged`, `::a_class_0_delimiter_bar_is_still_an_ordinary_atom`,
+`::a_class_3_delimiter_after_middle_is_a_fence_not_a_relation`.
+
+### 612. A `\vphantom` beside a stretchy fence sizes the pair; a display-style large operator has TeX's height and depth (Perl: the strut is dropped, the operator is text-sized)
+**Perl**: `\vphantom{x}` in math is an `XMHint` with the argument's `height` and `depth`
+(math_common.pool.ltxml:680-687); `filter_hints` unlinks every hint before the parse (MathParser.pm:440-490) and keeps
+only its width, as padding. `\left.\lambda(\alpha)\vphantom{\int}\right|_X`, which physics.sty:181-192 sets for
+`\evaluated{\lambda(\alpha)}_X` (`\left.#2\vphantom{\int}\right\rvert`), became a bar as high as the row, and the
+limit hung from its middle. The physics binding (`physics.sty.ltxml:170-195`) never wrote the strut. And the box of
+`\displaystyle\int` was the text-style glyph, 6.94pt + 1.94pt where TeX has 13.61pt + 8.61pt.
+
+**Rust**: three parts. (1) `filter_hints` (`latexml_math_parser/src/util.rs`) keeps the stretchy fences open in its list;
+a `\vphantom` gives its extent to the innermost, and when that closes both fences carry it, as the `height`/`depth` the
+`XProps` of a stretchy token now keep (on any other node they are dropped as before). A strut before a `\right` whose
+`\left.` is a null delimiter reaches the closing fence only. (2) `pmml_mo` (`latexml_post/src/mathml/presentation.rs`) makes
+a `minsize` of their sum on a stretchy fence (MathML Core: the operator is at least that when the row is smaller; TeX
+sizes a delimiter from `\delimiterfactor` and `\delimitershortfall`, §762, so this is the strut's own extent, not
+TeX's rounding), and `pmml_maybe_resize` no longer wraps such a fence in an `mpadded`. (3) The physics binding writes
+`\vphantom{\int}` before the closing fence of a stretchy `\evaluated`, as the package does, and
+`Font::compute_string_size` gives a large operator in display style TeX's height and depth: 2.222em of height plus
+depth for an integral, 1.6em for a sum, product and the n-ary operators, centred on the axis (13.61pt/8.61pt and
+10.5pt/5.5pt at 10pt, as `\setbox0\hbox{$\displaystyle\int$}` gives in TeX 2026; tex.web §749). Text-style operators
+keep their old size (TeX 8.06pt/3.06pt for `\int`, here 6.94pt/1.94pt), and so does the width.
+
+**Residual**: `\phantom`, `\mathstrut`, `\rule` and `\smash` are not struts here; the binding takes `\evaluated*` as
+"no stretch" (the Perl binding's reading), where the package's star is a smash with the same `\vphantom{\int}`;
+`\smallint` shares U+222B and gets the display size in display style; `minsize` is the extent of the row's stretch, so
+the limit hangs from the foot of the bar only approximately.
+
+**Why**: a note's `\evaluated{\lambda(\alpha)}_{X \wedge X}` showed a bar the height of `\lambda(\alpha)` with the subscript
+beside its middle; the PDF and the page built with tex4ht have the tall bar with the limit below it.
+
+**Guards**: `math_group_spacing::a_vphantom_gives_the_closing_fence_its_extent`,
+`::a_display_integral_strut_makes_the_bar_as_tall_as_the_integral`, `::a_fence_without_a_strut_has_no_minimum`,
+`::a_strut_is_the_height_of_its_argument`, `::a_strut_beside_a_bar_that_is_no_fence_is_dropped`,
+`::a_strut_sizes_both_fences_of_the_pair`, `::physics_evaluated_bar_is_as_tall_as_its_strut`,
+`::physics_evaluated_with_a_delimited_argument_sizes_both_fences`.
+
+### 613. A binary operator that opens a math group is an ordinary atom (Perl: the group is flat, so it is the binary operator of the formula)
+**Perl**: a math `{…}` digests to a `List` (TeX_Box.pool.ltxml:30-37) that the math parser flattens: `D_X\mathsf{-Mod}`
+is `D_X - Mod`, the infix minus with a medium space either side (`<mo>−</mo>`), as is `a{-b}`. In TeX the group is one
+Ord atom, and a `bin_noad` that is first in its list becomes an `ord_noad` (tex.web §727, `mlist_to_hlist`'s first
+pass), so the minus is unary and the result is the tight `D_X−Mod`.
+
+**Rust**: the leading `ADDOP`/`MULOP`/`BINOP` token of a group that follows something in its formula records
+`mathclass="Ord"` (`tex_math.rs`, `mark_group_leading_binary`; called by the math `{` primitive, `tex_box.rs`, and by
+`\mathrm`, `\mathit`, `\mathbf`, `\mathsf`, `\mathtt`, `\mathcal`, `\mathscr` and `\mathnormal`, `sect07.rs`). The
+spacing walk takes that class over the role's, so the minus gets `lspace="0em" rspace="0em"`. The role is unchanged
+and so is the parse (`D_X - Mod` is still a subtraction in the content tree); only the presentation spacing is. A group
+that opens its formula (`$\mathsf{-1}$`) has no atom before it and is untouched; nor is the argument of a script
+(`x^{-1}`, `x^\mathrm{-1}`, `x_i^{-1}`), which `script_handler` reads while the base is still in the list
+(`take_script_argument`, `in_script_argument`), and `a - b` and `a\mathsf{x} - b` have no group. A group opened by a
+character that is Ord in TeX but typed MULOP here (siunitx's `\mathrm{/}`, `\pi\mathrm{/}\mathrm{m}`) records Ord as
+well, which is TeX's class for it: the quotient of `\si{\pi\per\milli\meter}` is tight, as in the PDF. XML goldens that
+change: `complex/si.xml` and `parse/product_chains.xml` (`a{\color{red}\cdot}b`), and the guards `package_leads_56`
+(three expected `Math` elements) and `nomencl_nomentbl::nomentbl_units_and_notes_reach_the_list`, each with a
+`mathclass="Ord"` on the `/`.
+
+**Residual**: only a leading operator is handled; a trailing one (`{a+}b`) and one after an opening fence inside the
+group are not, and an unbraced `\mathbin\mathrm{-}` (TeX: Bin) is marked Ord. `\mathbb`, `\mathfrak`, `\boldsymbol`,
+`\bm` and `\operatorname` groups are not marked. A second `mathclass` source (`\mid`, divergence #611) would make the
+same walk right for more.
+
+**Why**: a note's category names `D_X\mathsf{-Mod}` and `U(\mathfrak g)\mathsf{-Mod}` (34 formulas) had a space either
+side of the minus where the PDF has none.
+
+**Guards**: `math_group_spacing::a_group_leading_minus_records_the_ordinary_class`,
+`::a_minus_opening_a_font_group_is_tight`, `::a_minus_opening_a_brace_group_is_tight`,
+`::a_minus_opening_a_mathrm_group_is_tight`, `::an_ordinary_binary_minus_keeps_its_spacing`,
+`::a_group_that_opens_its_formula_is_unchanged`, `::a_negative_exponent_is_unchanged`,
+`::a_script_argument_records_no_class`.

@@ -473,11 +473,20 @@ LoadDefinitions!({
       i_symbol(&[("meaning", Tokenize!("evaluated-at"))], None), content_args);
     let open_tks = open.map(|t| Tokenize!(phys_delim_tex(t))).unwrap_or_else(|| Tokenize!("."));
     let close_tks = close.map(|_| Tokenize!("|")).unwrap_or_else(|| Tokenize!("|"));
+    // physics.sty:181-197 sets the fenced argument `\left…#2\vphantom{\int}\right\rvert`: the strut makes the bar as
+    // tall as an integral sign, so the limit set below it hangs from its foot. Perl's binding leaves it out
+    // (OXIDIZED_DESIGN_DIVERGENCES #612). Only a fence that stretches has it.
+    let strut = if !no_stretch && size_tok.is_none() {
+      vec![T_CS!("\\vphantom"), T_BEGIN!(), T_CS!("\\int"), T_END!()]
+    } else {
+      Vec::new()
+    };
     let mut pres = Vec::new();
     pres.extend(
       i_wrap(None, Tokens::new([
         phys_open(no_stretch, &size_tok, open_tks).unlist(),
         vec![i_arg("1")],
+        strut,
         phys_close(no_stretch, &size_tok, close_tks).unlist(),
       ].concat())).unlist()
     );

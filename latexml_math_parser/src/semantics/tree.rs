@@ -65,6 +65,11 @@ pub struct XProps {
   /// lpadding/rpadding from alignment spacing
   pub lpadding:          Option<Cow<'static, str>>,
   pub rpadding:          Option<Cow<'static, str>>,
+  /// the TeX atom class a token recorded when its `role` does not say it (`\delimiter"326A30C`)
+  pub mathclass:         Option<Cow<'static, str>>,
+  /// the extent of a `\vphantom` strut beside a stretchy fence, which sizes it
+  pub height:            Option<Cow<'static, str>>,
+  pub depth:             Option<Cow<'static, str>>,
 }
 /// Custom PartialEq: ignores `xmkey`, `id`, `idref`, and `scriptpos` which are
 /// bookkeeping/layout fields. Structurally identical parse trees that differ only
@@ -91,6 +96,9 @@ impl PartialEq for XProps {
       && self.decl_id == other.decl_id
       && self.lpadding == other.lpadding
       && self.rpadding == other.rpadding
+      && self.mathclass == other.mathclass
+      && self.height == other.height
+      && self.depth == other.depth
   }
 }
 impl Eq for XProps {}
@@ -156,6 +164,15 @@ impl XProps {
     }
     if let Some(rp) = self.rpadding.take() {
       attrs.insert(String::from("rpadding"), rp.into_owned());
+    }
+    if let Some(mc) = self.mathclass.take() {
+      attrs.insert(String::from("mathclass"), mc.into_owned());
+    }
+    if let Some(h) = self.height.take() {
+      attrs.insert(String::from("height"), h.into_owned());
+    }
+    if let Some(d) = self.depth.take() {
+      attrs.insert(String::from("depth"), d.into_owned());
     }
     let attrs_opt = if attrs.is_empty() { None } else { Some(attrs) };
     (
@@ -2435,6 +2452,18 @@ impl From<&Node> for XProps {
     let decl_id = attrs.remove("decl_id").map(Cow::Owned);
     let lpadding = attrs.remove("lpadding").map(Cow::Owned);
     let rpadding = attrs.remove("rpadding").map(Cow::Owned);
+    let mathclass = attrs.remove("mathclass").map(Cow::Owned);
+    // The `height` and `depth` of a stretchy fence are its strut (`filter_hints`); on any other node they were dropped
+    // here before and stay so.
+    let strut_fence = stretchy.as_deref() == Some("true");
+    let height = attrs
+      .remove("height")
+      .map(Cow::Owned)
+      .filter(|_| strut_fence);
+    let depth = attrs
+      .remove("depth")
+      .map(Cow::Owned)
+      .filter(|_| strut_fence);
     XProps {
       content,
       role,
@@ -2451,6 +2480,9 @@ impl From<&Node> for XProps {
       decl_id,
       lpadding,
       rpadding,
+      mathclass,
+      height,
+      depth,
       ..Default::default()
     }
   }

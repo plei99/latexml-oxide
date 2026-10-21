@@ -111,6 +111,25 @@ vertical bars unambiguously across the kerned-stack idiom
       </attribute>
     </optional>
     <optional>
+      <attribute name="mathclass">
+        <a:documentation>The \TeX\ math atom class (Ord, Op, Bin, Rel, Open, Close, Punct, Inner) of a token
+whose \attr{role} does not say it: the spacing of the presentation follows it.
+Recorded for a class-3 (Rel) \texttt{\mathchar} or \texttt{\delimiter} whose glyph has a
+role of its own, such as the set-builder bar \texttt{\delimiter"326A30C} (Rel), and for
+the operator that opens a math group, such as the minus of \texttt{D_X\mathsf{-Mod}} (Ord).</a:documentation>
+        <choice>
+          <value>Ord</value>
+          <value>Op</value>
+          <value>Bin</value>
+          <value>Rel</value>
+          <value>Open</value>
+          <value>Close</value>
+          <value>Punct</value>
+          <value>Inner</value>
+        </choice>
+      </attribute>
+    </optional>
+    <optional>
       <attribute name="enclose">
         <a:documentation>an enclose style to enclose the object
 with legitimate values being those of MathML's menclose notations;</a:documentation>

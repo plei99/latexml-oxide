@@ -2218,7 +2218,7 @@
             <XMApp>
               <XMTok meaning="times" role="MULOP">⁢</XMTok>
               <XMApp>
-                <XMTok color="#FF0000" name="cdot" role="MULOP">⋅</XMTok>
+                <XMTok color="#FF0000" mathclass="Ord" name="cdot" role="MULOP">⋅</XMTok>
                 <XMTok font="italic" role="UNKNOWN">a</XMTok>
                 <XMTok font="italic" role="UNKNOWN">b</XMTok>
                 <XMTok font="italic" role="UNKNOWN">c</XMTok>

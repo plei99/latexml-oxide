@@ -5,6 +5,20 @@
 
 use super::*;
 
+/// `\mathrm{-x}`, `\mathsf{-Mod}`: the font switch's argument is a math group, whose leading binary operator is an
+/// ordinary atom ([`crate::tex_math::mark_group_leading_binary`], OXIDIZED_DESIGN_DIVERGENCES #613).
+fn mark_font_group_leading_binary(whatsit: &Whatsit) {
+  let script_argument = crate::tex_math::in_script_argument();
+  if let Some(arg) = whatsit.get_arg(1) {
+    match arg.data() {
+      DigestedData::List(list) => {
+        crate::tex_math::mark_group_leading_binary(&list.borrow().boxes, script_argument);
+      },
+      _ => crate::tex_math::mark_group_leading_binary(std::slice::from_ref(arg), script_argument),
+    }
+  }
+}
+
 #[rustfmt::skip]
 pub(crate) fn load() -> Result<()> {
   // ======================================================================
@@ -575,28 +589,36 @@ pub(crate) fn load() -> Result<()> {
 
   DefConstructor!("\\mathrm{}", "#1", bounded => true, require_math => true,
     locked => true,
-    font => {family => "serif", series => "medium", shape => "upright"});
+    font => {family => "serif", series => "medium", shape => "upright"},
+    after_digest => sub[whatsit] { mark_font_group_leading_binary(whatsit); });
   DefConstructor!("\\mathit{}", "#1", bounded => true, require_math => true,
     locked => true,
-    font => {shape => "italic", family => "serif", series => "medium"});
+    font => {shape => "italic", family => "serif", series => "medium"},
+    after_digest => sub[whatsit] { mark_font_group_leading_binary(whatsit); });
   DefConstructor!("\\mathbf{}", "#1", bounded => true, require_math => true,
     locked => true,
-    font => {series => "bold", family => "serif", shape => "upright"});
+    font => {series => "bold", family => "serif", shape => "upright"},
+    after_digest => sub[whatsit] { mark_font_group_leading_binary(whatsit); });
   DefConstructor!("\\mathsf{}", "#1", bounded => true, require_math => true,
     locked => true,
-    font => {family => "sansserif", series => "medium", shape => "upright"});
+    font => {family => "sansserif", series => "medium", shape => "upright"},
+    after_digest => sub[whatsit] { mark_font_group_leading_binary(whatsit); });
   DefConstructor!("\\mathtt{}", "#1", bounded => true, require_math => true,
     locked => true,
-    font => {family => "typewriter", series => "medium", shape => "upright"});
+    font => {family => "typewriter", series => "medium", shape => "upright"},
+    after_digest => sub[whatsit] { mark_font_group_leading_binary(whatsit); });
   DefConstructor!("\\mathcal{}", "#1", bounded => true, require_math => true,
     locked => true,
-    font => {family => "caligraphic", series => "medium", shape => "upright"});
+    font => {family => "caligraphic", series => "medium", shape => "upright"},
+    after_digest => sub[whatsit] { mark_font_group_leading_binary(whatsit); });
   DefConstructor!("\\mathscr{}", "#1", bounded => true, require_math => true,
     locked => true,
-    font => {family => "script", series => "medium", shape => "upright"});
+    font => {family => "script", series => "medium", shape => "upright"},
+    after_digest => sub[whatsit] { mark_font_group_leading_binary(whatsit); });
   DefConstructor!("\\mathnormal{}", "#1", bounded => true, require_math => true,
     locked => true,
-    font => {family => "math", shape => "italic", series => "medium"});
+    font => {family => "math", shape => "italic", series => "medium"},
+    after_digest => sub[whatsit] { mark_font_group_leading_binary(whatsit); });
 
   DefMacro!("\\fontsubfuzz", ".4pt");
   def_macro_noop("\\oldstylenums")?;

@@ -566,6 +566,7 @@ LoadDefinitions!({
       let bound = lookup_string_from_sym(pin!("BOUND_MODE"));
       mode == "horizontal" && bound.ends_with("vertical")
     };
+    let script_argument = crate::tex_math::take_script_argument();
     bgroup();
     let open = Tbox::new(
       pin!(""),
@@ -599,6 +600,9 @@ LoadDefinitions!({
     }
     let mut boxes = vec![Digested::from(open)];
     boxes.extend(body);
+    if matches!(mode, Some(TexMode::Math)) {
+      crate::tex_math::mark_group_leading_binary(&boxes, script_argument);
+    }
     let mut font = None;
     for abox in boxes.iter().rev() {
       if let Some(boxfont) = abox.get_font()? {

@@ -156,7 +156,7 @@ fn siunitx_mixed_unit_input_is_literal() {
     &xml,
     "Math",
     &[r#"xml:id="p1.m1""#],
-    r#"<Math mode="inline" tex="\mathrm{W}\mathrm{/}\mathrm{(}{\mathrm{m}}^{2}\mathrm{K}\mathrm{)}" text="W / (m ^ 2 * K)" xml:id="p1.m1"><XMath><XMApp><XMTok meaning="divide" role="MULOP">/</XMTok><XMTok role="UNKNOWN">W</XMTok><XMDual><XMRef idref="p1.m1.1"/><XMWrap><XMTok role="OPEN" stretchy="false">(</XMTok><XMApp xml:id="p1.m1.1"><XMTok meaning="times" role="MULOP">⁢</XMTok><XMApp><XMTok role="SUPERSCRIPTOP" scriptpos="post1"/><XMTok role="UNKNOWN">m</XMTok><XMTok fontsize="70%" meaning="2" role="NUMBER">2</XMTok></XMApp><XMTok role="UNKNOWN">K</XMTok></XMApp><XMTok role="CLOSE" stretchy="false">)</XMTok></XMWrap></XMDual></XMApp></XMath></Math>"#,
+    r#"<Math mode="inline" tex="\mathrm{W}\mathrm{/}\mathrm{(}{\mathrm{m}}^{2}\mathrm{K}\mathrm{)}" text="W / (m ^ 2 * K)" xml:id="p1.m1"><XMath><XMApp><XMTok mathclass="Ord" meaning="divide" role="MULOP">/</XMTok><XMTok role="UNKNOWN">W</XMTok><XMDual><XMRef idref="p1.m1.1"/><XMWrap><XMTok role="OPEN" stretchy="false">(</XMTok><XMApp xml:id="p1.m1.1"><XMTok meaning="times" role="MULOP">⁢</XMTok><XMApp><XMTok role="SUPERSCRIPTOP" scriptpos="post1"/><XMTok role="UNKNOWN">m</XMTok><XMTok fontsize="70%" meaning="2" role="NUMBER">2</XMTok></XMApp><XMTok role="UNKNOWN">K</XMTok></XMApp><XMTok role="CLOSE" stretchy="false">)</XMTok></XMWrap></XMDual></XMApp></XMath></Math>"#,
   );
   latexml::util::test::assert_element(
     &xml,
@@ -173,7 +173,7 @@ fn siunitx_mixed_unit_input_is_literal() {
   for (id, expected) in [
     (
       "p1.m4",
-      r#"<Math mode="inline" tex="1\text{\,}\mathrm{m}\mathrm{eV}\mathrm{/}{c^{2}}" text="1 * (meV / c ^ 2)" xml:id="p1.m4"><XMath><XMApp><XMText meaning="times" role="MULOP" xml:id="p1.m4.1"> </XMText><XMTok meaning="1" role="NUMBER">1</XMTok><XMApp xml:id="p1.m4.3"><XMTok meaning="divide" role="MULOP">/</XMTok><XMTok role="UNKNOWN">meV</XMTok><XMApp><XMTok role="SUPERSCRIPTOP" scriptpos="post2"/><XMTok font="italic" role="UNKNOWN">c</XMTok><XMTok fontsize="70%" meaning="2" role="NUMBER">2</XMTok></XMApp></XMApp></XMApp></XMath></Math>"#,
+      r#"<Math mode="inline" tex="1\text{\,}\mathrm{m}\mathrm{eV}\mathrm{/}{c^{2}}" text="1 * (meV / c ^ 2)" xml:id="p1.m4"><XMath><XMApp><XMText meaning="times" role="MULOP" xml:id="p1.m4.1"> </XMText><XMTok meaning="1" role="NUMBER">1</XMTok><XMApp xml:id="p1.m4.3"><XMTok mathclass="Ord" meaning="divide" role="MULOP">/</XMTok><XMTok role="UNKNOWN">meV</XMTok><XMApp><XMTok role="SUPERSCRIPTOP" scriptpos="post2"/><XMTok font="italic" role="UNKNOWN">c</XMTok><XMTok fontsize="70%" meaning="2" role="NUMBER">2</XMTok></XMApp></XMApp></XMApp></XMath></Math>"#,
     ),
     (
       "p1.m5",
@@ -185,7 +185,7 @@ fn siunitx_mixed_unit_input_is_literal() {
     ),
     (
       "p1.m7",
-      r#"<Math mode="inline" tex="{\mathrm{m}}^{3}\mathrm{/}\mathrm{(}\mathrm{s}\mathrm{)}" text="m ^ 3 / s" xml:id="p1.m7"><XMath><XMApp><XMTok meaning="divide" role="MULOP">/</XMTok><XMApp><XMTok role="SUPERSCRIPTOP" scriptpos="post1"/><XMTok role="UNKNOWN">m</XMTok><XMTok fontsize="70%" meaning="3" role="NUMBER">3</XMTok></XMApp><XMDual><XMRef idref="p1.m7.1"/><XMWrap><XMTok role="OPEN" stretchy="false">(</XMTok><XMTok role="UNKNOWN" xml:id="p1.m7.1">s</XMTok><XMTok role="CLOSE" stretchy="false">)</XMTok></XMWrap></XMDual></XMApp></XMath></Math>"#,
+      r#"<Math mode="inline" tex="{\mathrm{m}}^{3}\mathrm{/}\mathrm{(}\mathrm{s}\mathrm{)}" text="m ^ 3 / s" xml:id="p1.m7"><XMath><XMApp><XMTok mathclass="Ord" meaning="divide" role="MULOP">/</XMTok><XMApp><XMTok role="SUPERSCRIPTOP" scriptpos="post1"/><XMTok role="UNKNOWN">m</XMTok><XMTok fontsize="70%" meaning="3" role="NUMBER">3</XMTok></XMApp><XMDual><XMRef idref="p1.m7.1"/><XMWrap><XMTok role="OPEN" stretchy="false">(</XMTok><XMTok role="UNKNOWN" xml:id="p1.m7.1">s</XMTok><XMTok role="CLOSE" stretchy="false">)</XMTok></XMWrap></XMDual></XMApp></XMath></Math>"#,
     ),
   ] {
     latexml::util::test::assert_element(&xml, "Math", &[&format!(r#"xml:id="{id}""#)], expected);
