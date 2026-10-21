@@ -380,19 +380,21 @@ fn vspace_with_a_bad_length_still_reports_it() {
   );
 }
 
-/// The same title page inside an environment whose binding has a `#body` and no mode of its own (titling's
-/// `{titlingpage}`, the kernel's `{titlepage}`): digestion is in the default `restricted_horizontal`, where no paragraph
+/// The same title page (a synthetic one) inside an environment whose binding has a `#body` and no mode of its own
+/// (titling's `{titlingpage}`, the kernel's `{titlepage}`): digestion is in the default `restricted_horizontal`, where no paragraph
 /// is tracked, and the closing line is still the paragraph that `\end{...}` ends after the group restored the shape.
 #[test]
 fn raggedleft_group_in_a_body_environment_leaves_its_last_line_unaligned() {
   for (preamble, env, expected) in [
     ("\\usepackage{titling}\n", "titlingpage", [
       "<para class=\"ltx_align_right\" xml:id=\"p1\">\n    <p><text fontsize=\"298%\">Title<break cssstyle=\"--ltx-break-space:12.0pt\"/><text fontsize=\"48%\">Lectures by Y</text></text></p>\n  </para>",
-      "<para xml:id=\"p2\">\n    <p><text font=\"sansserif\" fontsize=\"144%\">Some University</text>Next.</p>\n  </para>",
+      "<para xml:id=\"p2\">\n    <p><text font=\"sansserif\" fontsize=\"144%\">Some University</text></p>\n  </para>",
+      "<para xml:id=\"p3\">\n    <p>Next.</p>\n  </para>",
     ]),
     ("", "titlepage", [
       "<p class=\"ltx_align_right\"><text fontsize=\"298%\">Title<break cssstyle=\"--ltx-break-space:12.0pt\"/><text fontsize=\"48%\">Lectures by Y</text></text></p>",
       "<p><text font=\"sansserif\" fontsize=\"144%\">Some University</text></p>",
+      "<para xml:id=\"p1\">\n    <p>Next.</p>\n  </para>",
     ]),
   ] {
     let (stderr, xml) = super::convert(
@@ -409,6 +411,50 @@ fn raggedleft_group_in_a_body_environment_leaves_its_last_line_unaligned() {
     );
     for element in expected {
       assert_eq!(xml.matches(element).count(), 1, "{env}: {element}\n{xml}");
+    }
+  }
+}
+
+/// A mode-less `#body` environment whose TeX end code ends the paragraph (`\newpage` in titling's `{titlingpage}`,
+/// `\clearpage` in lscape's `{landscape}`; titling.sty:193-196): the text after `\end{...}` is a paragraph of its own,
+/// as it is after an explicit `\par` before the `\end`, and also when the body ends in `\vspace`.
+#[test]
+fn body_environment_end_code_ends_the_paragraph() {
+  for (preamble, body, env) in [
+    ("\\usepackage{titling}\n", "Some University", "titlingpage"),
+    (
+      "\\usepackage{titling}\n",
+      "Some University\\par",
+      "titlingpage",
+    ),
+    ("\\usepackage{lscape}\n", "Some University", "landscape"),
+    (
+      "\\usepackage{lscape}\n",
+      "Some University\\vspace{1cm}",
+      "landscape",
+    ),
+  ] {
+    let (stderr, xml) = super::convert(
+      &format!(
+        "\\documentclass{{article}}\n{preamble}\\begin{{document}}\n\\begin{{{env}}}{body}\\end{{{env}}}\nNext.\n\\end{{document}}\n"
+      ),
+      false,
+    );
+    assert_eq!(super::error_count(&stderr), 0, "{env} {body}\n{stderr}");
+    assert_eq!(
+      super::perfect_kernel_batch46::warning_count(&stderr),
+      0,
+      "{env} {body}\n{stderr}"
+    );
+    for element in [
+      "<para xml:id=\"p1\">\n    <p>Some University</p>\n  </para>",
+      "<para xml:id=\"p2\">\n    <p>Next.</p>\n  </para>",
+    ] {
+      assert_eq!(
+        xml.matches(element).count(),
+        1,
+        "{env} {body}: {element}\n{xml}"
+      );
     }
   }
 }

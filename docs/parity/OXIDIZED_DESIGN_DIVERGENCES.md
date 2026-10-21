@@ -18025,6 +18025,13 @@ Rust (sect12.rs) expands `\vspace` to `\lx@vspace@skip{<length>}`, which is `\vs
 - **The body of an environment with no mode of its own** (`stomach::in_text_environment_body`) counts as a paragraph's
   text, though its mode is `restricted_horizontal`: `\vspace` drops its space there too (the `\vskip` would close the
   `ltx:para` the title page's last line is in).
+  The flag also holds after a `\par` inside the body (TeX is in vertical mode there, and the `\vskip` would be set):
+  harmless, as the `\par` has closed the `ltx:para` already and the `\vskip` emitted nothing visible; it is not set inside a
+  box (`INNER_BOX`), so `\mbox{\begin{turn}{90}…\end{turn}}` keeps its `\vskip`. Such environments are given the paragraph
+  end their TeX end code has: `{titlingpage}` (`\newpage`, titling.sty:193-196) and `{landscape}` (`\clearpage`)
+  digest a `\par` before their `\end`. Residual: another no-mode environment that LaTeX ends with a `\par` or
+  `\newpage`, and whose body ends in a `\vspace`, merges with the text after it unless its binding ends the paragraph
+  (`Wide text\vspace{1cm}\end{landscape}` + `Next.` read "Wide textNext." before the `{landscape}` fix).
 - **In both horizontal modes the space after the skip is ignored when glue came before it**
   (`\ifdim\lastskip>\z@ … \ignorespaces`, as `\@bsphack…\@esphack`, latex.ltx:9433-9449): `baz \vspace{5pt} qux` and
   `\mbox{in \vspace{5mm} box}` read "baz qux", "in box" (a double space before).

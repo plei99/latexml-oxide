@@ -755,8 +755,9 @@ should use the guardian by default.
 
 **Superseded for text in a paragraph by [OXIDIZED_DESIGN #603](OXIDIZED_DESIGN_DIVERGENCES.md):** in a paragraph's text
 `\vspace` emits nothing (the paragraph stays whole, the space is dropped and nothing is queued; a `p{}` cell's text and a
-minipage's drop it too). The `\vskip` described here stays in vertical mode, in restricted horizontal mode (`\mbox`,
-`l`/`c` cells), in math, and after a rule line (a paragraph ending in `\leaders`). The rest is the 2026-08-05 state.
+minipage's drop it too, as does the body of an environment with no mode of its own, outside a box). The `\vskip`
+described here stays in vertical mode, in restricted horizontal mode (`\mbox`, `l`/`c` cells), in math, and after a rule
+line (a paragraph ending in `\leaders`). The rest is the 2026-08-05 state.
 
 **RESOLVED (2026-08-05).** `\vspace` is the faithful
 `DefMacro!('\\vspace OptionalMatch:* {}', '\\vskip #2\\relax')`
