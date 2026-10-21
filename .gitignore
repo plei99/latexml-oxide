@@ -119,3 +119,12 @@ latexml_oxide/tests/browser/node_modules/
 latexml_oxide/tests/browser/package-lock.json
 scratchpad/
 latexml.log
+
+# Local native-binding inventory and arXiv package-usage research: the scripts and their outputs.
+/docs/parity/native_binding_inventory_*/
+/docs/parity/arxiv_math_package_usage_*/
+/docs/parity/NATIVE_BINDING_AUDIT_*.md
+/docs/parity/NATIVE_BINDING_USAGE_MATH_*.md
+/tools/arxiv_package_usage.py
+/tools/native_binding_inventory.py
+/tools/test_arxiv_package_usage.py
