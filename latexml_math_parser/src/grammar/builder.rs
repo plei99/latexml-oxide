@@ -1068,12 +1068,19 @@ pub fn init_grammar() -> Result<(MarpaGrammar, Actions, TreeBuilder)> {
       // it uses formula_list_apply (different semantics from list_apply in statements).
       // IMPORTANT: Do NOT add `expression` — it's a strict subset of `statements`,
       // and having both creates 2^N ambiguity (2x per script argument).
+      // An expression closed by a bare `*`-like operator is two script items (Perl `Subscript`/
+      // `Superscript` : `aSubscript (PUNCT(?) aSubscript)(s?)`, MathGrammar:85-92): `L_{g*}`.
+      script_trailing_operator = mulop | binop;
+      script_with_trailing_operator = statements script_trailing_operator
+        => script_trailing_operator_list;
       postsubarg = start_postsubscript statements end_postsubscript => faux_wrap
         | start_postsubscript formula_list end_postsubscript => faux_wrap
-        | start_postsubscript script_op end_postsubscript => faux_wrap;
+        | start_postsubscript script_op end_postsubscript => faux_wrap
+        | start_postsubscript script_with_trailing_operator end_postsubscript => faux_wrap;
       postsuperarg = start_postsuperscript statements end_postsuperscript => faux_wrap
         | start_postsuperscript formula_list end_postsuperscript => faux_wrap
-        | start_postsuperscript script_op end_postsuperscript => faux_wrap;
+        | start_postsuperscript script_op end_postsuperscript => faux_wrap
+        | start_postsuperscript script_with_trailing_operator end_postsuperscript => faux_wrap;
       // An integral's differential `d` takes a post-scripted variable as it takes a bare one (`diffop_apply`,
       // above), Perl's `diffd ATOM_OR_ID addScripts[$item[2]]` (MathGrammar:643-647): `\int f\,dx_1`
       // differential-d@(x₁), `\int f\,dt'`, `\int f\,d\hat{x}_1`, `\int dx_1\cdots dx_n` (57cj.20, SYNC (16); were

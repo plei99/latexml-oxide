@@ -2064,9 +2064,21 @@ pub(crate) fn load() -> Result<()> {
   // `\strutbox` work, and reads `#3` through `\@defaultunits`). A preamble
   // `\normalsize` also sets the nominal size (`\lx@nominal@fontsize`,
   // latex_constructs_rust_only.rs).
+  //
+  // In math the trailing `\selectfont` is only the size update (`\size@update`): the math font in
+  // force is not chosen by `\selectfont` (latex.ltx `\@nomath`; the class bindings' native size
+  // switches skip it in math alike, dialect.rs), whereas the text font's family, series and shape
+  // it merges turned every math letter upright in a raw class's `\scriptsize` — memoir's
+  // `\DeclareRobustCommand{\scriptsize}{\@setfontsize…}` (mem10.clo:70) in `\substack`'s
+  // `style=\scriptsize` (a `\substack` under a limit or sum in a memoir document). Perl's
+  // `\@setfontsize` is `\let\@currsize#1` alone and has no such effect (OXIDIZED_DESIGN_DIVERGENCES
+  // #288). A raw `\fontsize…\selectfont` or `\usefont` in math still merges the text shape
+  // (docs/SYNC_STATUS.md M1). Guard
+  // `cluster_package_guards::math_layout_parity::{raw_size_switch_keeps_math_italic,
+  // memoir_substack_keeps_math_italic}`.
   DefMacro!(
     "\\@setfontsize{}{}{}",
-    "\\ifx\\protect\\@typeset@protect\\let\\@currsize#1\\fontsize{#2}{#3}\\lx@nominal@fontsize{#1}\\selectfont\\fi"
+    "\\ifx\\protect\\@typeset@protect\\let\\@currsize#1\\fontsize{#2}{#3}\\lx@nominal@fontsize{#1}\\ifmmode\\size@update\\else\\selectfont\\fi\\fi"
   );
   // OXIDIZED_DESIGN #165: real LaTeX guarantees `\@currsize` is defined once
   // `\begin{document}` has run `\normalsize` (whose class definition routes

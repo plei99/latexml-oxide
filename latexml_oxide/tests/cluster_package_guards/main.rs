@@ -70,6 +70,7 @@ mod luatex_babel_api;
 mod luatex_direction_scan;
 mod luatex_profile;
 mod makeindex_allocates_indexfile;
+mod math_layout_parity;
 mod math_prime_meaning_superscript;
 mod memoir_fork_chapters;
 mod memoir_fork_layout;

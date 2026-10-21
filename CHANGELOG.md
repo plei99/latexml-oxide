@@ -70,6 +70,57 @@
     `class="eprint"` in the `.bib` reader's XML (it shared `ltx:bib-links` with `archive`),
     so the alphabetic list can print it as `JSTOR: …` or `eprint: …`; DIVERGENCES #601. Guards
     `biblatex_standard_layout::*`.
+  - **A raw class's size command no longer turns math letters upright.** `\@setfontsize` ended in
+    `\selectfont`, which merges the text font's family, series and shape; run in math (memoir's
+    `\DeclareRobustCommand{\scriptsize}{\@setfontsize…}`, mem10.clo:70, as `\substack`'s
+    `style=\scriptsize`) it made every letter of the stacked subscript `mathvariant="normal"`. In math
+    it now runs only the size update, as the class bindings' own size switches do. A raw
+    `\fontsize…\selectfont` or `\usefont` in math still merges the text shape (SYNC_STATUS M1).
+    Guards `math_layout_parity::{raw_size_switch_keeps_math_italic, memoir_substack_keeps_math_italic}`
+    (OXIDIZED_DESIGN_DIVERGENCES #288).
+
+  - **`\varinjlim`, `\varprojlim`, `\varliminf` and `\varlimsup` take display limits below or
+    above.** amsopn.sty defines them with `\nmlimits@` (`\displaylimits`); Perl gives them no
+    `scriptpos` and so always sets the limit beside the operator. In display style they are now an
+    `munder`/`mover`; inline they stay beside it. The `nonamelimits` option is not honoured. The
+    parser's script attachment now reads the `scriptpos` of an `XMDual` base, its own and then its
+    content branch's, as Perl's `NewScript` does. Guard
+    `math_layout_parity::varlim_operators_take_display_limits_below` (all four, display and inline;
+    OXIDIZED_DESIGN_DIVERGENCES #598).
+
+  - **`\widehat` stretches over its base.** The math fonts have wide-hat variants for U+0302, not for
+    the ASCII `^` Perl presents it with, so `\widehat{\bigoplus}` and `\widehat{\mathfrak{gl}(1)}` showed
+    a small caret at the base's left edge. `\widehat` is now `<mo>U+0302</mo>` over its base; `\hat` and
+    `\widetilde` are unchanged. Guard `math_layout_parity::widehat_stretches_with_u0302`
+    (OXIDIZED_DESIGN_DIVERGENCES #599).
+
+  - **A script on an empty group after negative math space belongs to the atom before it.** fixdif's
+    `\partial` and `\d` end in a `\mathchoice` of four choices (`\mskip-\thinmuskip` in the first two)
+    followed by an extra `{}`; `\partial_i` floated its index onto the next atom as a prescript
+    (`\partial_i\partial_{\bar j}K`), and `\partial_{z^i}.` stayed unparsed. The script now takes the
+    `\partial` as its base, and its `tex=` still has the `{}`. A script after an empty group with no such
+    space, after another script (`\Gamma^{\lambda}\!{}_{\mu\nu}`, staggered in TeX), or after an operator with
+    limits (`\sum\!{}_{i}`), floats as before.
+    Guards `math_layout_parity::{fixdif_script_binds_to_its_partial,
+    fixdif_package_script_binds_to_its_partial, script_after_a_script_stays_staggered}`
+    (OXIDIZED_DESIGN_DIVERGENCES #600).
+
+  - **A post script that ends in a bare multiplicative operator parses.** Perl's `Subscript` rule reads
+    `g *` in `L_{g *}` as two items joined by an invisible comma; the grammar had no such rule, so the
+    whole formula was unparsed. The rule takes any `MULOP` or `BINOP` the script ends in (`*`, `\ast`,
+    `\cdot`, `\times`, …); a trailing `+` or `-` already parsed. Only a post script's argument is covered:
+    the arguments of the constructor-built scripts and of limits (`\sum_{g*}`) still are not. Guard
+    `math_layout_parity::script_ending_in_a_star_parses`.
+
+  - **An unparsed formula keeps its scripts and its `\qquad`.** Perl kludges every failed parse and
+    keeps the wide spaces (`\quad` and up) as `XMHint role="PUNCT"`; ours kludged only formulae with
+    fences and had unlinked the hints, so an unparsed `XMath` without parentheses presented its scripts
+    over an empty `mrow` and lost its `\qquad`. The kludge now runs where an `XMath` fails, as Perl's does, so
+    before an enclosing formula copies it (`\text{and $c_i\qquad=\to b$}` in a parsed formula); Perl also kludges a
+    failed `XMArg` and `XMWrap`, which ours still does not. Goldens `ams/mathtools` (the
+    `\qquad` before `\text{Maxwell's equations}`, which Perl's golden has) and `complex/physics` (three
+    `\quad`s) gain their `XMHint`. Guard
+    `math_layout_parity::unparsed_formula_keeps_its_scripts_and_wide_spaces`.
 
   - **`localrawstyles` keeps loading only the document's own packages raw.** latexml.sty's
     `localrawstyles` sets `INCLUDE_STYLES` to the string `searchpaths`; the raw-definitions

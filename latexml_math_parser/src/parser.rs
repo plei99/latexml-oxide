@@ -514,6 +514,12 @@ pub struct MathParser {
   maybe_functions:           SymHashMap<usize>,
   /// XMath nodes that failed to parse (stored as hashable IDs for post-parse class marking)
   pub failed_xmath_ids:      Vec<usize>,
+  /// The wide spaces (`\quad` and up) `filter_hints` stood for with a virtual PUNCT hint in the last
+  /// `parse_single`, each keyed by the token it follows (`to_hashable`), for `parse_kludge` should that
+  /// formula fail. Perl's `filter_hints` leaves the original hints in the tree, so the kludge's own
+  /// `filter_hints` finds them again (MathParser.pm:532); ours unlinks them as it reads them, so the
+  /// kludge would find none.
+  parse_hints:               Vec<(usize, Node)>,
   /// Grammar tree count from the last successful parse (for \ltx@count@parses)
   pub last_parsetrees_count: usize,
   /// Hashes of the distinct formula token streams that have already emitted an `ambiguous_math` /
@@ -609,6 +615,7 @@ impl Default for MathParser {
       unknowns: SymHashMap::default(),
       maybe_functions: SymHashMap::default(),
       failed_xmath_ids: Vec::new(),
+      parse_hints: Vec::new(),
       punctuation: false,
       // lostnodes: HashMap::default(),
       // idrefs: Vec::new(),
@@ -950,9 +957,11 @@ impl MathParser {
         let has_array_with_tok = !has_direct_open
           && child_elems.iter().any(|ch| ch.get_name() == "XMArray")
           && child_elems.iter().any(|ch| ch.get_name() == "XMTok");
-        if has_direct_open || has_array_with_tok {
+        // (a failed `XMath` was kludged where it failed, in `parse_rec`)
+        let failed = self.failed_xmath_ids.contains(&xmath.to_hashable());
+        if (has_direct_open || has_array_with_tok) && !failed {
           let mut xm = xmath;
-          self.parse_kludge(&mut xm, document)?;
+          self.parse_kludge(&mut xm, document, &[])?;
         }
       }
 
@@ -1223,6 +1232,7 @@ impl MathParser {
     self.unknowns = SymHashMap::default();
     self.maybe_functions = SymHashMap::default();
     self.failed_xmath_ids = Vec::new();
+    self.parse_hints = Vec::new();
   }
   // our %EXCLUDED_PRETTYNAME_ATTRIBUTES = (fontsize => 1, opacity => 1);
 
@@ -1425,6 +1435,18 @@ impl MathParser {
     Ok(())
   }
 
+  /// Is `arg` a script argument of at least two items that ends in a bare `MULOP`/`BINOP` (`g*`, `x\cdot`)?
+  fn ends_in_bare_script_operator(&self, arg: &Node, document: &Document) -> bool {
+    let kids = element_nodes(arg);
+    kids.len() > 1
+      && kids.last().is_some_and(|last| {
+        let role = realize_xmnode(last, document)
+          .get_attribute("role")
+          .unwrap_or_default();
+        role == "MULOP" || role == "BINOP"
+      })
+  }
+
   // Recursively parse a node with some internal structure
   // by first parsing any structured children, then it's content.
   fn parse_rec(
@@ -1448,7 +1470,23 @@ impl MathParser {
     };
 
     if rule == "kludge" {
-      self.parse_kludge(&mut node, document)?;
+      self.parse_kludge(&mut node, document, &[])?;
+      Ok(None)
+    } else if tag == pin!("ltx:XMArg")
+      && (rule == "Subscript" || rule == "Superscript")
+      && node.get_parent().is_some_and(|parent| {
+        matches!(
+          parent.get_attribute("role").as_deref(),
+          Some("POSTSUBSCRIPT" | "POSTSUPERSCRIPT")
+        )
+      })
+      && self.ends_in_bare_script_operator(&node, document)
+    {
+      // Perl's `Subscript`/`Superscript` rules take a script of several items (`g *`: MathGrammar:85-92),
+      // which our one start rule does not (the enclosing formula's grammar reads it flat, as
+      // `script_with_trailing_operator`): it is left to that parse, as it would be to the kludge, and
+      // is no failure of its own. Only the argument of a post script, the one script that grammar
+      // reads (the constructor-built `\lx@subscript` XMApps, no grammar's, are not skipped).
       Ok(None)
     } else {
       match self.parse_single(&mut node, document, &rule)? {
@@ -1564,8 +1602,13 @@ impl MathParser {
           self.unparsed = true;
           if tag == pin!("ltx:XMath") {
             self.failed_xmath_ids.push(node.to_hashable());
-            // Kludge (OPEN/CLOSE wrapping) runs post-parse in core_interface.rs
-            // using failed_xmath_ids to find the failed nodes.
+            // Perl `parse_rec` kludges every failed parse where it fails (MathParser.pm:374; an `XMArg` or
+            // `XMWrap` too, which ours does not), not only a formula with fences, and before an enclosing
+            // formula's parse copies this one: the kludge also attaches a script to the token before it, so a
+            // formula left unparsed kept `POSTSUBSCRIPT` markers as siblings, presented as `msub` of an
+            // empty base, and lost its wide spaces.
+            let hints = std::mem::take(&mut self.parse_hints);
+            self.parse_kludge(&mut node, document, &hints)?;
           }
           Ok(None)
         },
@@ -1819,9 +1862,23 @@ impl MathParser {
   //     unless they're attached to something plausible.
   /// Perl: parse_kludge (MathParser.pm L530-566)
   /// Stack-based matching of OPEN/CLOSE delimiter pairs + script attachment.
-  fn parse_kludge(&self, mathnode: &mut Node, document: &mut Document) -> Result<()> {
+  fn parse_kludge(
+    &self,
+    mathnode: &mut Node,
+    document: &mut Document,
+    hints: &[(usize, Node)],
+  ) -> Result<()> {
     use crate::data::get_grammatical_role;
-    let children: Vec<Node> = filter_hints(mathnode.get_child_nodes());
+    let mut children: Vec<Node> = Vec::new();
+    for child in filter_hints(mathnode.get_child_nodes()) {
+      let after = hints.iter().find_map(|(token, hint)| {
+        // (a hint belongs to a token that is still a child of this formula)
+        (*token == child.to_hashable() && child.get_parent().as_ref() == Some(&*mathnode))
+          .then(|| hint.clone())
+      });
+      children.push(child);
+      children.extend(after);
+    }
     if children.is_empty() {
       return Ok(());
     }
@@ -1981,6 +2038,14 @@ impl MathParser {
   ) -> Result<Option<Node>> {
     let mut idx = 0;
     let mut content_nodes = filter_hints(mathnode.get_child_nodes());
+    self.parse_hints.clear();
+    for pair in content_nodes.windows(2) {
+      if pair[1].get_name() == "XMHint" {
+        self
+          .parse_hints
+          .push((pair[0].to_hashable(), pair[1].clone()));
+      }
+    }
     let expectation_operators = expectation_operators(&content_nodes, document);
 
     // Extract trailing PUNCT/PERIOD nodes if rule ends with ',' (Perl: $rule =~ s/,$// )

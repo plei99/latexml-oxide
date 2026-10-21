@@ -110,6 +110,55 @@ fn script_has_space_content(d: &Digested) -> bool {
   }
 }
 
+/// Is `d` a math space of negative width (`\mskip-3mu`, `\mkern-3mu`, `\!`) — or a `\mathchoice` whose choice for
+/// its own math style is one, or nothing (fixdif's `\fd@mu@p`)?
+fn has_negative_math_space(d: &Digested) -> bool {
+  use latexml_core::digested::DigestedData;
+  if let DigestedData::List(list) = d.data() {
+    // (every box a space, and one of them negative: `{\mskip-3mu x}` is no space)
+    let list = list.borrow();
+    return !list.boxes.is_empty()
+      && list.boxes.iter().all(script_has_space_content)
+      && list.boxes.iter().any(has_negative_math_space);
+  }
+  if let DigestedData::Whatsit(w) = d.data() {
+    let w = w.borrow();
+    if w.get_definition().get_cs_name().ends_with("mathchoice") {
+      let index = match w
+        .get_property("mathstyle")
+        .map(|s| s.to_string())
+        .as_deref()
+      {
+        Some("display") => 1,
+        Some("text") => 2,
+        Some("script") => 3,
+        _ => 4,
+      };
+      // (an empty choice, fixdif's script and scriptscript styles, leaves the group against the atom as well)
+      return w.get_arg(index).is_some_and(|chosen| {
+        chosen.is_empty().unwrap_or(false) || has_negative_math_space(chosen)
+      });
+    }
+  }
+  d.get_property_bool("isSpace")
+    && match d.get_property("width").as_deref() {
+      Some(Stored::MuGlue(glue)) => glue.skip < 0,
+      Some(Stored::Glue(glue)) => glue.skip < 0,
+      Some(Stored::Dimension(dimension)) => dimension.value_of() < 0,
+      _ => false,
+    }
+}
+
+/// Does `atom` leave its scripts beside it (no `mid` `scriptpos`: not `\sum`, `\lim`, … in display style)? A
+/// script bound across `\!{}` to such an operator would inherit the position and stand under it, where TeX
+/// sets the empty nucleus's script beside the operator.
+fn carries_no_limits_position(atom: &Digested) -> bool {
+  atom
+    .get_property("scriptpos")
+    .map(|position| position.to_string())
+    .is_none_or(|position| position.is_empty() || position.starts_with("post"))
+}
+
 fn script_handler(cc: Catcode) -> Result<Vec<Digested>> {
   let font = lookup_font().unwrap();
   if font.get_mathstyle().is_some() {
@@ -124,6 +173,8 @@ fn script_handler(cc: Catcode) -> Result<Vec<Digested>> {
     let mut prevscript = None;
     let mut prevspace = false;
     let mut base = None;
+    // the empty group `A\mskip-3mu{}_i` dropped: the script's reversion gives it back
+    let mut dropped_empty_group = false;
     while let Some(prev) = { pop_box_list() } {
       if prev.get_property_bool("isSpace") || prev.get_property_bool("isEmpty") {
         prevspace = true;
@@ -148,6 +199,42 @@ fn script_handler(cc: Catcode) -> Result<Vec<Digested>> {
           prevspace = true;
           putback.push_front(prev);
           continue;
+        }
+        // An empty group pulled back against the atom before it by negative math space, `A\mskip-3mu{}_i`,
+        // is the script's nucleus in TeX, which sets it beside `A` (fixdif's `\partial` and `\d`: a
+        // `\mathchoice` of four choices, `\mskip-\thinmuskip` in the first two, and an extra `{}` after it,
+        // fixdif.sty:52, :67, :75). Perl floats the script there: it is the prescript of whatever atom
+        // follows (`\partial_i\partial_{\bar j}K` has `i` before the second `\partial`;
+        // OXIDIZED_DESIGN_DIVERGENCES #600). The script is the atom's before the space, the empty group
+        // dropped, only when that is a plain atom: after a script, `\Gamma^{\lambda}\!{}_{\mu\nu}`, TeX keeps the
+        // `{}` a nucleus of its own and the two scripts are staggered, so it floats as before.
+        if let Some(before) = pop_box_list() {
+          if has_negative_math_space(&before) {
+            match pop_box_list() {
+              Some(atom)
+                if is_script(&atom).is_none()
+                  && !atom.get_property_bool("isSpace")
+                  && !atom.is_empty()?
+                  && carries_no_limits_position(&atom) =>
+              {
+                base = Some(atom.clone());
+                dropped_empty_group = true;
+                putback.push_front(before);
+                putback.push_front(atom);
+                cs = if cc == Catcode::SUPER {
+                  "\\lx@post@superscript"
+                } else {
+                  "\\lx@post@subscript"
+                };
+                break;
+              },
+              other => {
+                extend_box_list(other.into_iter().chain([before]).collect::<VecDeque<_>>());
+                break;
+              },
+            }
+          }
+          extend_box_list(VecDeque::from([before]));
         }
         break;
       } else if let Some(prevop) = is_script(&prev) {
@@ -232,6 +319,9 @@ fn script_handler(cc: Catcode) -> Result<Vec<Digested>> {
       };
       if let Some(pvs) = prevscript {
         properties.insert("prevscript", pvs.into());
+      }
+      if dropped_empty_group {
+        properties.insert("emptygroup", Stored::Bool(true));
       }
       // The document ended inside the script (a `^{` left open, 2007.11971; the `$` that should
       // close it deferred by `end_math_or_defer`): as a constructor's whatsit (`stomach::UNENDED`,
@@ -1919,9 +2009,11 @@ LoadDefinitions!({
     "<ltx:XMApp role='POSTSUPERSCRIPT' scriptpos='?#scriptpos(#scriptpos)(#scriptlevel)'>\
     <ltx:XMArg rule='Superscript'>#1</ltx:XMArg>\
     </ltx:XMApp>",
-    reversion => sub[_whatsit,args] {
+    reversion => sub[whatsit,args] {
       unref!(args=>arg);
-      Ok(Tokens!(T_SUPER!(), revert_script(arg)?)) },
+      // `{}` first when the script's empty-group nucleus was dropped (fixdif's `\partial_i`)
+      let group = if whatsit.get_property_bool("emptygroup") { vec![T_BEGIN!(), T_END!()] } else { Vec::new() };
+      Ok(Tokens::new(group.into_iter().chain([T_SUPER!()]).chain(revert_script(arg)?).collect())) },
     sizer => sub[w] {
       script_sizer(w.get_arg(1).unwrap(), w.get_property("base").as_deref(),
         w.get_property("prevscript").as_deref(), "SUPERSCRIPT", "") }
@@ -1931,9 +2023,11 @@ LoadDefinitions!({
     "<ltx:XMApp role='POSTSUBSCRIPT' scriptpos='?#scriptpos(#scriptpos)(#scriptlevel)'>\
     <ltx:XMArg rule='Subscript'>#1</ltx:XMArg>\
     </ltx:XMApp>",
-    reversion => sub[_whatsit,args] {
+    reversion => sub[whatsit,args] {
       unref!(args=>arg);
-      Ok(Tokens!(T_SUB!(), revert_script(arg)?)) },
+      // `{}` first when the script's empty-group nucleus was dropped (fixdif's `\partial_i`)
+      let group = if whatsit.get_property_bool("emptygroup") { vec![T_BEGIN!(), T_END!()] } else { Vec::new() };
+      Ok(Tokens::new(group.into_iter().chain([T_SUB!()]).chain(revert_script(arg)?).collect())) },
     sizer => sub[w] {
       script_sizer(w.get_arg(1).unwrap(), w.get_property("base").as_deref(),
         w.get_property("prevscript").as_deref(), "SUBSCRIPT", "") }

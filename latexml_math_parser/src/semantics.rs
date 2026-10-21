@@ -7563,13 +7563,39 @@ fn extract_base_scriptpos(
     // look up the XML node to get scriptpos
     Some(XM::Lexeme(lex, _)) => {
       if let Ok(node) = lookup_lex_node(lex, ctxt.nodes) {
-        let sp = node.get_attribute("scriptpos").unwrap_or_default();
+        let mut sp = node.get_attribute("scriptpos").unwrap_or_default();
+        // Perl MathParser.pm:1596-1614 NewScript: a base that is an XMDual also offers its "inner"
+        // (content) branch, the first child element, whose `scriptpos` counts when the dual has
+        // none of its own — `\varprojlim`, `\varinjlim` (amsopn.sty.ltxml:44-47) are such duals
+        // around an `\underleftarrow{\operatorname{lim}}` presentation.
+        if sp.is_empty()
+          && node.get_name() == "XMDual"
+          && let Some(inner) = node.get_child_elements().first()
+        {
+          sp = inner.get_attribute("scriptpos").unwrap_or_default();
+        }
         if !sp.is_empty() {
           let (bx, bl) = parse_scriptpos(&sp);
           return (bx, bl, false, 0);
         }
       }
       ("post", 0, false, 0)
+    },
+    // A dual the parser has already built: its own `scriptpos` first, then its content branch, Perl's
+    // "inner" base (`@bsp`: the base's, then the inner base's, MathParser.pm:1611-1614).
+    Some(XM::Dual(content, _, dual_props, _)) => {
+      if let Some(sp) = dual_props.scriptpos.as_deref().filter(|sp| !sp.is_empty()) {
+        let (bx, bl) = parse_scriptpos(sp);
+        return (bx, bl, false, 0);
+      }
+      match &**content {
+        XM::Token(props, _) => {
+          let (bx, bl) = parse_scriptpos(props.scriptpos.as_deref().unwrap_or("post"));
+          (bx, bl, false, 0)
+        },
+        inner @ XM::Lexeme(..) => extract_base_scriptpos(&Some(inner.clone()), ctxt),
+        _ => ("post", 0, false, 0),
+      }
     },
     Some(XM::Token(props, _)) => {
       let sp = props.scriptpos.as_deref().unwrap_or("post");
@@ -8764,6 +8790,24 @@ pub fn apply_invisible_times(
     XProps::default(),
     Meta::default(),
   )))
+}
+
+/// A script that ends in a bare multiplicative operator, `L_{g*}`, `L^{g\ast}`, `f_{x\cdot}`: Perl's
+/// `Subscript : aSubscript (PUNCT(?) aSubscript {[$item[1]->[0] || InvisibleComma(), $item[2]]})(s?)`
+/// (MathGrammar:85-92) reads the expression and the operator as two items of one script, joined by
+/// the invisible comma it supplies for a missing separator, and builds `NewList` of them (the
+/// pushforward `g_*` with a space, `L_{g *}\xi`, was unparsed here: RUST-ONLY).
+pub fn script_trailing_operator_list(
+  _rule_id: i32,
+  mut args: Vec<Option<XM>>,
+  _: &[ValidationPragmatics],
+  ctxt: ActionContext,
+) -> Result<Option<XM>, Box<dyn Error>> {
+  unp!(args => body, op);
+  new_list(
+    vec![body.unwrap(), invisible_comma().into(), op.unwrap()],
+    ctxt,
+  )
 }
 
 pub fn compound_operator_2(

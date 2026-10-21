@@ -6634,6 +6634,7 @@ Then a switch of tag forms.</p>
               </XMRow>
             </XMArray>
             <XMTok role="CLOSE" stretchy="true">}</XMTok>
+            <XMHint name="qquad" role="PUNCT" width="20pt"/>
             <XMText>Maxwell’s equations</XMText>
           </XMath>
         </Math>

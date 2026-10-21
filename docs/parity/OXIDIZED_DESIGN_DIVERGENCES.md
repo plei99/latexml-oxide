@@ -9488,6 +9488,12 @@ at 10 pt instead of 10.95 pt and warns "Bad type area settings!" (765 KOMA-Scrip
   kernel's deferral does. The update disarms itself before its `\hbox`, not after, so it cannot
   re-enter.
 - `\@setfontsize` runs `\fontsize{#2}{#3}\selectfont` inside its `\@typeset@protect` guard.
+  In math it runs `\fontsize{#2}{#3}\size@update` instead: the math font in force is not chosen by
+  `\selectfont` (the class bindings' size switches skip it in math, dialect.rs), and the text font's upright
+  shape it merged turned every letter of a raw class's `\scriptsize` upright, memoir's
+  (`\DeclareRobustCommand{\scriptsize}{\@setfontsize…}`, mem10.clo:70) in `\substack`'s `style=\scriptsize`
+  (a `\substack` under a limit or sum in a memoir document). Guards
+  `cluster_package_guards::math_layout_parity::{raw_size_switch_keeps_math_italic, memoir_substack_keeps_math_italic}`.
 - The class bindings' size switches (`font => {size => …}`) record `\f@size` through the font merge
   (content.rs `merge_font_ref`, #309) and end in `\selectfont` (dialect.rs).
 - A preamble `\@setfontsize\normalsize…` sets `NOMINAL_FONT_SIZE`, as a0poster's binding does, so an
@@ -17880,6 +17886,69 @@ follows it (a name test outranks `svg:*`); the blank between inline items of a l
 blank-only nodes between the `svg` elements (`svg:g`, `svg:path`) are still stripped.
 
 **Guard**: `cluster_package_guards::foreignobject_label_markup::the_space_between_words_and_math_in_a_label_stays`.
+
+### 598. `\varinjlim`, `\varprojlim`, `\varliminf` and `\varlimsup` put their limits below or above in display style (Perl: always beside)
+
+**Perl behavior**: `amsopn.sty.ltxml:40-47` defines the four with `DefMath` and no `scriptpos`, so a subscript is a
+`post` script: `\varprojlim_r` is an `msub` of the operator, `r` at its lower right, in display style too.
+**Rust behavior**: amsopn.sty:98-108 defines each as `\mathop{…}\nmlimits@` with `\let\nmlimits@\displaylimits`
+(:109): the limits go under in display style and stay beside inline. `amsopn_sty.rs` gives all four
+`dynamic_scriptpos` (Perl's `doScriptpos`, `mid` in display and `post` otherwise, as `\injlim` and `\projlim` have in
+Perl, amsopn.sty.ltxml:33-38), so `\varprojlim_r` and `\varinjlim_{n\to\infty}` are an `munder` in display style.
+The `nonamelimits` option (:111, `\let\nmlimits@\nolimits`) is not honoured: the operators always follow
+`\displaylimits`.
+The operator is a wrapped `DefMath` (an `XMDual` whose content branch carries the `scriptpos`), and the Rust parser's
+`NewScript` did not look into one: it read the base's `scriptpos` from the `XMDual` node itself and so never saw
+`mid`. `extract_base_scriptpos` now reads the dual's own `scriptpos` and then its inner (content) branch, as Perl's
+`NewScript` does (MathParser.pm:1602-1614, `@bsp`); that part is parity.
+
+**Guard**: `cluster_package_guards::math_layout_parity::varlim_operators_take_display_limits_below` (all four operators,
+display and inline).
+
+### 599. `\widehat` is presented with U+0302, which the math fonts stretch (Perl: the ASCII `^`)
+
+**Perl behavior**: `math_common.pool.ltxml:528` defines `\widehat` as `UTF(0x5E)` with `operator_role => OVERACCENT`
+and no `stretchy`, so `Post/MathML.pm` writes `<m:mover accent="true"><base/><m:mo>^</m:mo></m:mover>`, which MathML 3's
+operator dictionary stretched to the base.
+**Rust behavior**: MathML Core has no such rule for U+005E, and a browser stretches what the math font has a horizontal
+construction for. Probed in Chromium with STIX Two Math, Latin Modern Math, Fira Math and Noto Sans Math, over `AB`,
+`\bigoplus` and a letter: U+005E, and U+02C6 with `stretchy="true"`, stay a small mark over the base's left edge
+(the attribute asks, the font has nothing to answer with), while U+0302 COMBINING CIRCUMFLEX ACCENT spans the base,
+the fonts hanging the wide-hat variants on it. `pmml_accent_operator` (`latexml_post/src/mathml/presentation.rs`) writes
+U+0302 for an operator named `widehat`; `\hat` keeps `^`, written `<mo>^</mo>` with no `stretchy`. `\widetilde` keeps
+`~`: U+0303 does not stretch in those fonts either, and no encoding of it was found that does.
+
+**Guard**: `cluster_package_guards::math_layout_parity::widehat_stretches_with_u0302`.
+
+### 600. A script on an empty group that follows negative math space belongs to the atom before the space (Perl: it floats)
+
+**Perl behavior**: `scriptHandler` drops an empty `{}` before a script (`TeX_Math.pool.ltxml:381-382`, `IsEmpty` then
+`last`) and floats the script, so it becomes the prescript of whatever atom follows. fixdif's `\partial` and `\d` are
+`\mathinner{\partial}\fd@mu@p`, with `\def\fd@mu@p{\mathchoice{\mskip-\thinmuskip}{\mskip-\thinmuskip}{}{}{}}`
+(fixdif.sty:52, :64, :67, :70-75): a `\mathchoice` of four choices, then an extra `{}`, which TeX makes the empty
+nucleus of a following `_i`, set beside the `\partial` pulled back by the negative glue. In Perl
+`\partial_i\partial_{\bar j}K` is `\partial`, then `i` as a prescript (`pre1`) of the second `\partial`, then `\bar j` as a
+prescript of `K`; `\partial_{z^i}.` stays unparsed. The script's reversion (`tex=`) keeps the `{}`.
+**Rust behavior**: `script_handler` (`tex_math.rs`) looks one box further when it meets the empty group: if that box is
+a negative math space (`\mskip`, `\mkern`, `\!`, or a `\mathchoice` whose choice for its style is one or is empty, as
+fixdif's is in script styles: `\frac{\partial^2 f}{…}` inline) and the box before the space
+is a plain atom (not a script, not empty), the empty group is dropped and the script is that atom's. After a script the
+`{}` stays a nucleus of its own, as in TeX (`\Gamma^{\lambda}\!{}_{\mu\nu}` is staggered, `\showlists` keeps
+`\mathord{}` with `_{\mu\nu}`), and the script floats as before; so does a script after an empty group with no such
+space (`{}^{14}_{6}C`). An atom with a limits position (`mid`: `\sum`, `\lim` in display style) is not bound to
+either: `\sum\!{}_{i}a` floats, because the script would inherit the position and stand under the operator, where TeX
+sets it beside (`\mathop` unscripted, glue, `\mathord{}` with `_i`). An empty `\mathchoice` branch counts as negative
+space, so `a\mathchoice{}{}{}{}{}_i` binds while `a{}_i` floats. Where the atom has no limits position, inline
+`\sum\!{}_{i}a` and `\int\!{}_{i}a` (display too, for `\int`) bind as an `msub`, where Perl floats them. The
+dropped group is recorded on the script's whatsit (`emptygroup`), and its reversion gives the `{}` back, so `tex=` is
+unchanged. A bound fixdif script overlaps its `\partial` by the 0.094em the `\mskip-\thinmuskip` takes from the
+`mpadded` width: TeX's thin space between the `\mathinner` and the following ordinary atom cancels it, which the
+post-processor does not model. A plain negative space, `A\mskip-3mu{}_iB`, binds `i` to `A` but loses the -3mu (there is
+no `mpadded` on `A`: only a `\mathchoice` branch carries one).
+
+**Guards**: `cluster_package_guards::math_layout_parity::{fixdif_script_binds_to_its_partial` (the macro as written
+out, `X\!{}^{a}y`, the `\sum`/`\lim` display row), `fixdif_package_script_binds_to_its_partial` (the package itself),
+`script_after_a_script_stays_staggered` (`\Gamma^{\lambda}\!{}_{\mu\nu}`, `T^{a}{}_{b}`)}`.
 
 ### 601. A biblatex bibliography in an `alphabetic` style is laid out as biblatex prints it, its citations and heading as biblatex chooses them (Perl: LaTeXML's `%FMT_SPEC` layout, comma between citations, the class's heading)
 
