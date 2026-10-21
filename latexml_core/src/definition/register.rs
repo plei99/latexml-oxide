@@ -688,7 +688,11 @@ impl Definition for Register {
           "need_mathstyle" => {
             // Resolve to actual mathstyle value based on display context
             if !props.contains_key("mathstyle") {
-              let val = if in_display { "display" } else { "text" };
+              let val = if in_display {
+                "display"
+              } else {
+                state::lookup_font().map_or("text", |f| f.variablesize_op_mathstyle())
+              };
               props.insert("mathstyle", Stored::String(arena::pin_static(val)));
             }
           },

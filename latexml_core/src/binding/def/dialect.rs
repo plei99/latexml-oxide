@@ -954,10 +954,7 @@ pub fn def_math_primitive(
         let state_font = lookup_font().unwrap();
         // Dynamic mathstyle: doVariablesizeOp — "display" in display, "text" otherwise
         let mathstyle_override: Option<&'static str> = if variablesize_op {
-          let is_display = state_font
-            .get_mathstyle()
-            .is_some_and(|s| s.as_ref() == "display");
-          Some(if is_display { "display" } else { "text" })
+          Some(state_font.variablesize_op_mathstyle())
         } else {
           None
         };
@@ -2193,10 +2190,7 @@ fn transfer_common_constructor_options(
   if options.variablesize_op {
     after_digest_closures.push(after_digest_simple!(_args, {
       let state_font = lookup_font().unwrap();
-      let is_display = state_font
-        .get_mathstyle()
-        .is_some_and(|s| s.as_ref() == "display");
-      let mathstyle = if is_display { "display" } else { "text" };
+      let mathstyle = state_font.variablesize_op_mathstyle();
       _args.set_property("mathstyle", Stored::from(mathstyle.to_string()));
     }));
   }

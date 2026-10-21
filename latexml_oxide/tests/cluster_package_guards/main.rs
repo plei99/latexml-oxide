@@ -103,6 +103,7 @@ mod quote_block_bridges;
 mod raw_classoptionslist_recorded;
 mod raw_provides_version_survives;
 mod rawclasses_binding_precedence_and_no_omnibus;
+mod script_largeop;
 mod shipout_parskip;
 mod silence_keeps_diagnostics;
 mod spectralsequences_raw;

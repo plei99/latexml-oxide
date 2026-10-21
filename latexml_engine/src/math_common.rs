@@ -500,7 +500,8 @@ LoadDefinitions!({
   //----------------------------------------------------------------------
   // Table 3.8. Variable-sized Symbols (from math_common.pool.ltxml)
   // Perl: scriptpos => \&doScriptpos  — "mid" in display, "post" in inline
-  //       mathstyle => \&doVariablesizeOp — "display" in display, "text" in inline
+  //       mathstyle => \&doVariablesizeOp — "display" in display, "text" in inline; here the
+  //       script and scriptscript styles stay themselves (`variablesize_op_mathstyle`, #606)
   // NOTE: \int and \oint have NO scriptpos (only mathstyle)
   //       \smallint has scriptpos but STATIC mathstyle => 'text'
   //----------------------------------------------------------------------

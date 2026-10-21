@@ -17964,3 +17964,42 @@ The entries' per-field markup (`ltx:bibentry`'s
   once at load as biblatex.def:2184-2203 does. The label's collation (`sorting=anyt`) and `extraalpha` are #582's.
 
 **Guards**: `cluster_package_guards::biblatex_standard_layout::*`.
+
+### 606. A large operator in a script records the script style, and a script is wrapped to its base's style (Perl: `text`, so the script is put back to full size)
+
+**Perl behavior** (KNOWN_PERL_ERRORS #668): `doVariablesizeOp` (TeX_Math.pool.ltxml:353) is `display` in display style and
+`text` in every other, so a `\sum`, `\int`, `\bigcup`, ... in a script (`e^{\sum x_iB_i}`,
+`\frac{y^d}{z^{\sum D_i\cdot d}}`) is `<XMTok mathstyle="text" fontsize="70%">`: a text-style token in a script.
+`pmml_internal` and `pmml_bigop` (MathML.pm:240-268, :413-427, :848-857) answer with the `%stylemap` entry
+`script → text`, `<m:mstyle scriptlevel="-1">` around the operator and everything under the same script, which puts the
+exponent back at the size of the line (Perl's HTML, run on `\[ e^{\sum x_iB_i} \]`: the `∑` and its operands at full size
+in the superscript position). The port added `maxsize`/`minsize` of 0.7em on the operator and a `mathsize` on each
+operand to undo the `-1` again, so the page was neither the size of the PDF nor of Perl's. The `\mathchar` route
+(Package.pm:2997-3001) records the same `display`-or-`text`.
+**Rust behavior**: the operator takes the style of the font in force: `script` and `scriptscript` in scripts, `display` in
+display style and `text` otherwise (`Font::variablesize_op_mathstyle`, `latexml_core/src/common/font.rs`), at the three
+places that record it: a `DefMath` with a variable-size operator (the token and the constructor's whatsit,
+`binding/def/dialect.rs`) and a `\mathchar` of class "1 (`common/mathchar.rs`, `definition/register.rs`). `script → script`
+is no transition, so the post stage emits no `m:mstyle` and no compensating sizes:
+`<m:msup><m:mi>e</m:mi><m:mrow><m:mo>∑</m:mo>…`, a plain `m:mo` at the script level the browser's `scriptlevel` gives it
+(MathML Core: `largeop` applies in display style only). `\smallint`, whose `mathstyle` is the fixed `text` in Perl too
+(math_common.pool.ltxml:127-128: `DefMath` at :127, `mathstyle => 'text'` at :128), keeps it.
+
+Two things Perl does that the fix needs, both made as Perl does them:
+
+- `\over` and its relatives step what they hold to the next style by `adjustMathStyle_internal`
+  (TeX_Math.pool.ltxml:1051-1060), which sets a recorded `mathstyle` from the box's FONT style through
+  `%mathstyle_adjust_map`. The port stepped the recorded value, and not at all for a `Tbox`
+  (`latexml_engine/src/tex_math.rs`, `adjust_mathstyle_internal*`): `${\sum a\over b}$` is now `script` and
+  `$x^{\sum a\over b}$` `scriptscript`, as in Perl.
+- (beyond Perl) a script whose base is in another style than its context is wrapped by `pmml_script`
+  (MathML.pm:883-887) with `displaystyle` only, and its limits are sized from the context. `latexml_post`'s
+  `pmml_script_full` now wraps with the whole `%stylemap` entry (`scriptlevel` included) and lays the limits out under
+  the base's style, so `$\scriptstyle\sum_i a_i$` is `<m:mstyle scriptlevel="+1"><m:msub><m:mo>∑</m:mo><m:mi>i</m:mi>…` and
+  `\scriptscriptstyle\int_0^1` `scriptlevel="+2"`.
+
+**Guards**: `cluster_package_guards::script_largeop::{a_sum_in_a_script_records_the_script_style,
+a_sum_in_an_exponent_is_script_size_without_compensation,
+a_sum_in_a_script_of_a_fraction_is_script_size_without_compensation,
+a_mathchar_operator_in_a_script_records_the_script_style, over_moves_a_large_operator_to_the_next_style,
+a_scriptstyle_sum_with_a_limit_is_wrapped_to_script_level}`.

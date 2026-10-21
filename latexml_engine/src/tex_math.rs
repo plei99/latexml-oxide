@@ -2790,49 +2790,43 @@ fn mathstyle_adjust(outerstyle: &str, origstyle: &str) -> &'static str {
   }
 }
 
-/// Adjust a TBox's font mathstyle using Font::merge to trigger size recalculation
+/// The font's mathstyle moved to the style `mathstyle_adjust` gives for `outerstyle`, as `Font::merge`
+/// does it (so the size follows the STYLE_SIZE mapping).
+fn adjusted_font(outerstyle: &str, font: &Rc<Font>) -> (Rc<Font>, &'static str) {
+  let origstyle = font.mathstyle.as_deref().unwrap_or("display");
+  let newstyle = mathstyle_adjust(outerstyle, origstyle);
+  if newstyle == origstyle {
+    return (font.clone(), newstyle);
+  }
+  let merge_font = Font {
+    mathstyle: Some(Cow::Borrowed(newstyle)),
+    ..Font::default()
+  };
+  (Rc::new(font.merge(merge_font)), newstyle)
+}
+
+/// Perl `adjustMathStyle_internal` (TeX_Math.pool.ltxml:1051-1060) for a Tbox: the font steps to the new
+/// style, and a recorded `mathstyle` property takes the NEW style as computed from the FONT's (not from the
+/// recorded value, which a large operator records as `text` or `display` regardless of its font).
 fn adjust_mathstyle_internal(outerstyle: &str, tbox: &mut Tbox) {
-  let origstyle_owned = tbox
-    .font
-    .mathstyle
-    .as_deref()
-    .unwrap_or("display")
-    .to_string();
-  let newstyle = mathstyle_adjust(outerstyle, &origstyle_owned);
-  if newstyle != origstyle_owned {
-    // Use Font::merge to trigger size recalculation via STYLE_SIZE mapping
-    let merge_font = Font {
-      mathstyle: Some(Cow::Borrowed(newstyle)),
-      ..Font::default()
-    };
-    let merged = tbox.font.merge(merge_font);
-    tbox.font = Rc::new(merged);
+  let (font, newstyle) = adjusted_font(outerstyle, &tbox.font);
+  tbox.font = font;
+  if tbox.properties.contains_key("mathstyle") {
+    tbox
+      .properties
+      .insert("mathstyle", Stored::String(pin(newstyle)));
   }
 }
 
-/// Adjust a Whatsit's font mathstyle, returning the new style if it had a mathstyle property
+/// [`adjust_mathstyle_internal`] for a Whatsit, returning the new style if it had a recorded `mathstyle`
+/// property (Perl returns it only then, and the caller recurses under `$outerstyle` otherwise).
 fn adjust_mathstyle_internal_whatsit(outerstyle: &str, whatsit: &mut Whatsit) -> Option<String> {
-  if let Some(Stored::Font(font)) = whatsit.properties.get("font") {
-    let origstyle = font.mathstyle.as_deref().unwrap_or("display").to_string();
-    let newstyle = mathstyle_adjust(outerstyle, &origstyle);
-    if newstyle != origstyle {
-      let merge_font = Font {
-        mathstyle: Some(Cow::Borrowed(newstyle)),
-        ..Font::default()
-      };
-      let merged = font.merge(merge_font);
-      whatsit
-        .properties
-        .insert("font", Stored::Font(Rc::new(merged)));
-    }
-  }
-  // If whatsit has a recorded mathstyle property, adjust it too
-  if let Some(Stored::String(ms)) = whatsit.properties.get("mathstyle") {
-    // mathstyle_adjust takes &str and returns &'static str, so we can
-    // compute the adjusted style inside arena::with without allocating
-    // an owned String for the interned mathstyle. The &'static str
-    // escapes the closure cleanly.
-    let newstyle: &'static str = with(*ms, |ms_str| mathstyle_adjust(outerstyle, ms_str));
+  let Some(Stored::Font(font)) = whatsit.properties.get("font") else {
+    return None;
+  };
+  let (font, newstyle) = adjusted_font(outerstyle, font);
+  whatsit.properties.insert("font", Stored::Font(font));
+  if whatsit.properties.contains_key("mathstyle") {
     whatsit
       .properties
       .insert("mathstyle", Stored::String(pin(newstyle)));

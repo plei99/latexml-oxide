@@ -2005,25 +2005,24 @@ fn pmml_script_full(doc: &PostDocument, op: &Node, base: &Node, script: &Node) -
     CURRENT_STYLE.with(|s| s.set(b));
   }
   let base_mml = pmml(doc, &inner_base);
-  CURRENT_STYLE.with(|s| s.set(ostyle));
-
+  // The scripts are laid out under the base's style too: their sizes are relative to it, and the m:mstyle
+  // below (a scriptlevel as well as a displaystyle) moves the browser to it for the whole layout.
+  // (latexml-oxide, OXIDIZED_DESIGN #606: Perl wraps with `displaystyle` only, MathML.pm:883-887, so a base in
+  // a smaller style than its context, `\scriptstyle\sum_i a_i`, stayed at the size of the line.)
   // Apply mid scripts (under/over)
   let base_mml = apply_mid_scripts(doc, base_mml, &mid_scripts, emb_right.as_ref());
 
   // Apply pre/post scripts
   let layout = apply_multi_scripts(doc, base_mml, &pre_scripts, &post_scripts);
+  CURRENT_STYLE.with(|s| s.set(ostyle));
   match bstyle {
     Some(b) if b != ostyle => NodeData::Element {
       tag:        "m:mstyle".to_string(),
-      attributes: Some(HashMap::from_iter([(
-        "displaystyle".to_string(),
-        (if b == MathStyle::Display {
-          "true"
-        } else {
-          "false"
-        })
-        .to_string(),
-      )])),
+      attributes: Some(HashMap::from_iter(
+        stylemap_attrs(ostyle, b, true)
+          .iter()
+          .map(|(k, v)| (k.to_string(), v.to_string())),
+      )),
       children:   vec![layout],
     },
     _ => layout,

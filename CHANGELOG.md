@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+  - **A large operator in a script is script size.** `e^{\sum x_iB_i}` and `z^{\sum D_i\cdot d}` in a
+    fraction put a `\sum`, `\int`, ... in a script into `<mstyle scriptlevel="-1">`, the operator and its
+    operands back at the size of the line (Perl's `doVariablesizeOp` records `text` for every style but display,
+    MathML.pm:240-268 answers with the `script → text` entry, and the port compensated with `maxsize` and
+    per-token `mathsize`; KNOWN_PERL_ERRORS #668). The operator now records the style it stands in, also through
+    `\mathchar` and `\over` (which stepped the recorded style, not the font's), and a script on a base in a smaller
+    style than its context (`\scriptstyle\sum_i a_i`) is wrapped with a `scriptlevel` (divergence #606). Guards
+    `script_largeop::*`.
+
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
     (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,
