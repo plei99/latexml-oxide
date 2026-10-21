@@ -109,6 +109,14 @@ TL manuals) and the per-batch arXiv A/B; the cortex reruns of sandboxes 2605/260
 ## Secondary residuals & unranked active items
 
 ### Rust error fixes (recent)
+- **The native pgfkeys loop stands aside while `\pgfkeys@case@one` or `\pgfkeys@case@two@extern` is redefined**
+  (`latexml_package/src/package/pgfkeys_code_tex.rs`, `raw_loop_needed`). spectralsequences stores the keys of an option
+  list instead of running them by swapping those two steps in (sseqkeys.code.tex:259-260, restored at 270-271, defined at 314-336); the native loop never
+  read them, so `classes={draw,circle,inner sep=0pt,minimum size=0.35em}` (spectralsequences.sty:332) was applied at once
+  and lost, and a class dot kept TikZ's default `inner sep=.3333em` (radius 4.71pt, TeX draws 1.75pt: dots three times
+  too large). The raw loop honours the swap, so `LATEXML_PGFKEYS_NATIVE=0` was already
+  right. Guards `cluster_package_guards::spectralsequences_raw::class_dot_has_its_declared_size` and
+  `::redefined_case_one_step_is_called_by_the_key_loop`.
 - **A picture in a formula is Perl's `ltx:picture` in its `m:mtext`, and its math labels are `ltx:Math > m:math`**
   (`latexml_post/src/mathml/mod.rs`, the `ltx:picture` arm of `pmml_text_aux` and `nested_ltx_math_to_inline_mathml`).
   MathML.pm:1061-1063 gives `convertXMTextContent($doc, 1, $node)` the picture node (Post.pm:456 iterates its argument

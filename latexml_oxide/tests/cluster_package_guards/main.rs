@@ -92,6 +92,7 @@ mod node_box_append;
 mod noexpand_input_ends;
 mod nul_byte_input;
 mod openright_kernel_contract;
+mod overline_box_size;
 mod package_leads_56;
 mod pgfkeys_sentinels;
 mod physics_qty_unparsed_argument;

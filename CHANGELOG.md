@@ -10,6 +10,19 @@
     copies, do not, a description label keeps its bold upright, enumitem's `font=` adds to the context's and a footnote in
     a label is set as one in the text. Bullets stay upright, as in LaTeX: the kernel's `\labelitemi`..`iv` start with
     `\labelitemfont` (`\normalfont`, article.cls:355-359). Guards `item_label_font::*`.
+  - **spectralsequences class dots have their declared size.** `classes={draw,circle,inner sep=0pt,
+    minimum size=0.35em}` (spectralsequences.sty:332) reached the node as TikZ's default `inner sep`, so a
+    dot was radius 4.71pt where TeX draws 1.75pt. The package stores the keys of an option list by swapping
+    `\pgfkeys@case@one` and `\pgfkeys@case@two@extern` for the length of the list (sseqkeys.code.tex:259-260,
+    restored at 270-271, defined at 314-336), which the native pgfkeys loop never read; the loop now stands aside while either differs from
+    the raw file's definition. Guards `spectralsequences_raw::class_dot_has_its_declared_size` and
+    `::redefined_case_one_step_is_called_by_the_key_loop`.
+
+  - **`\overline{x}` and `\underline{x}` are as wide as `x`.** The box of `\overline{C\setminus C_i}` was the
+    5pt macron, so a TikZ-cd node holding it was 0.5em wide and the arrows ran through its label; it is now the
+    argument's width, 5θ taller above (`\overline`) or below (`\underline`) as `make_over`/`make_under` build it
+    (divergence #610). Guards `overline_box_size::overline_and_underline_boxes_take_the_width_of_their_argument`
+    and `::tikzcd_node_of_an_overlined_formula_is_as_wide_as_the_formula`.
 
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`

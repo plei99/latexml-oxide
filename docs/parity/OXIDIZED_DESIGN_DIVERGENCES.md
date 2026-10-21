@@ -18064,3 +18064,33 @@ wrapper). Two side effects, both closer to LaTeX: a list in a `\small` caption n
 item in an italic theorem no longer has `<text font="upright">` on its tag.
 
 **Guard**: `cluster_package_guards::item_label_font::*`.
+
+### 610. `\overline{x}` and `\underline{x}` are as wide as `x`, with TeX's rule clearance (Perl: the width of the macron glyph)
+**Perl**: `defmath_cons` (Package.pm:1869-1873) gives every DefMath that takes arguments the sizer
+`computeStringSize($presentation)`, the size of its operator glyph alone. `\lx@math@overline{}`
+(TeX_Math.pool.ltxml:954) is such a DefMath with the presentation U+00AF, so `\hbox{$\overline{C}$}` measures
+5pt x 5.68pt (TeX: 7.86pt x 8.83pt) and `\overline{C\setminus C_i}` as one macron.
+
+**Rust**: `\lx@math@overline` and `\lx@math@underline` (`tex_math.rs`, `rule_accent_size`) are sized by their argument:
+its width, its height and depth, and 5θ above the box for `\overline` and below it for `\underline`. tex.web §734
+(`make_over`) builds `\overline` as `overbar(clean_box, 3θ, θ)`, a kern, a rule and a kern above the box; §735
+(`make_under`) is a kern, a rule and a `vpack` below it, 5θ in total. θ is TeX's `\fontdimen8` of family 3: 0.4pt at
+every size without amsmath (`omxcmex.fd` is `sfixed*cmex10`), and with amsmath the script size uses cmex7, θ = 0.34pt.
+Here θ is approximated as 0.04 of the current font's em, as #584 draws the rule, so it scales with the size: `$x^{\overline{C}}$` has
+height 10.00665pt (TeX 10.41216pt) and `\Large$\overline{C}$` 12.71992pt (TeX 11.83989pt).
+`\hbox{$\overline{C}$}` is 7.86249pt x 8.83328pt + 0pt here, 7.86249pt x 8.8332pt + 0pt in TeX 2026; `\underline{C}`
+has depth 1.99997pt (TeX 1.9999pt). `\phantom{\overline{xx}}` now has a left padding of 11.4pt (TeX 11.43pt; it was 5.0pt),
+and `\settowidth` of `$\overline{xyz}$` gives 16.06717pt, as TeX does (it was 5.00002pt).
+
+The accent's argument is measured as an argument, not as a box: `\hbox{$\overline{C\setminus C_i}$}` is 27.78334pt x
+9.4999pt + 2.5pt in TeX 2026 and 26.83pt x 8.83pt + 1.5pt here, because `C\setminus C_i` measures 26.83pt as an
+argument (31.28pt alone in a box; TeX 27.78pt both ways) and the height of `\setminus` falls short of TeX's 7.5pt.
+
+The other DefMath accents (`\overrightarrow`, `\overbrace`, `\widehat`, ...) keep Perl's operator-glyph
+size: TeX's width for them is at least the argument's, so they are still too narrow.
+
+**Why**: a TikZ-cd node holds its label as a `foreignObject` of the measured size, and the arrows run to the node's
+border; a node `\overline{C\setminus C_i}` was 0.5em wide (`--ltx-fo-width:0.5em`) so the arrows ended inside the
+label. Now 2.68em x 0.88em + 0.15em.
+
+**Guards**: `cluster_package_guards::overline_box_size::*`.
