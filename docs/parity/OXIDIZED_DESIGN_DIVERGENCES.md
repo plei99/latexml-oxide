@@ -18375,3 +18375,75 @@ tight.
 `::a_minus_opening_a_mathrm_group_is_tight`, `::an_ordinary_binary_minus_keeps_its_spacing`,
 `::a_group_that_opens_its_formula_is_unchanged`, `::a_negative_exponent_is_unchanged`,
 `::a_script_argument_records_no_class`, `::a_nested_group_or_font_switch_leads_the_group`.
+
+### 615. A TikZ fading is an `svg:mask` of its box (Perl: `\pgfsys@fadingfrombox` and `\pgfsys@usefading` are no-ops)
+**Perl**: `pgfsys-latexml.def.ltxml:811-824` defines `\pgfsys@fadingfrombox` and `\pgfsys@usefading` as
+`# NOT IMPLEMENTED` constructors with an empty template, so `path fading=`, `scope fading=` and `\pgfsetfading`
+changed nothing: a white rectangle faded from opaque to transparent (`\tikzfading[left color=transparent!0,
+right color=transparent!100]`, `\fill[white, path fading=fade right, …]`) was an opaque white rectangle hiding what lay
+under it.
+
+**Rust**: `\pgfsys@fadingfrombox{name}{box}` keeps the digested box under its name, expanded as the pdf driver's
+`\csname pgfsmasktrans@#1\endcsname` expands it (pgfsys-pdftex.def:272-282; pgf passes `\tikz@smuggle` and
+`\tikz@path@fading` unexpanded, pgfcoretransparency.code.tex:108-136). `\pgfsys@usefading{name}{a}{b}{c}{d}{e}{f}`
+(through the protocol, so it keeps the order of the paths it masks; pgfsys-pdftex.def:284-296) emits `svg:defs >
+svg:mask` holding the box, an `svg:g` carrying `transform="matrix(a b c d e f) translate(-w/2 -(h-d)/2)"` (the cm of the
+use, and the box centred on the origin, as `\pgfsmasktrans@` does) and the box's content, white as
+`\pgfdeclarefading` typesets it (:109); then it opens an `svg:g mask="url(#pgffade<n>)"` that the scope in force closes
+as it closes an opacity group; `collapse_svg_group` (`tex_box.rs`) does not merge a lone child's `transform` into a
+group that carries a `mask`, as Perl's rule (TeX_Box.pool.ltxml:250) spares a `clip-path` group, because a mask is
+evaluated in the user space of the group that refers to it. The mask is `maskUnits="userSpaceOnUse"` over a region far larger than any picture,
+so the group's bounding box never clips it (a horizontal line has none). An SVG luminance mask is the soft mask
+`/S /Luminosity` of the pdf drivers: white is opaque. One mask per use (the use's cm is in it), each with its own id;
+the gradient ids inside a fading's box repeat per copy and are made unique by `Document::record_svg_ids`. A second
+fading in one scope replaces the first, as the soft mask of the PDF graphics state does — nested masks would
+intersect: the group of the earlier mask and the groups the scope opened after it are closed, those after it
+reopened (`unit_tests_by_silviu`, "Transparency": the second half of a path faded by the first fading's extent).
+An undefined name is an `Error:undefined:fading`, as pgf's `\pgferror{Undefined fading '#1'}` (:286), and the path is
+unmasked. The fading library's (`east`, `west`, `north`, `south`, `circle with fuzzy edge N percent`, `fuzzy ring`)
+and `\tikzfading` / `tikzfadingfrompicture` go through the same two macros.
+
+`\pgfsys@endscope` is now guarded by `\ifpgfpicture` as the opening is (`\lxSVG@begingroup`): `\pgfdeclarefading` brackets
+its box in a scope outside any picture, and the unguarded protocol literal came back through `\pgfsys@invoke` as a
+`\space` (pgfsysprotocol.code.tex:32-35) in the box (3.3pt of width the pdf drivers' `\pdfliteral` has not) and a `\lxSVG@closescope` that closed
+whatever `svg:g` was open.
+
+**Residual**: a fading of text (`\pgfdeclarefading{…}{\color{white}Ti\emph{k}Z}`) holds its text in a `foreignObject`
+in the mask, valid and in the document; Chromium does not paint a `foreignObject` in a mask, so the faded path is
+hidden entirely there (the PDF shows it through the letters; before, the path was drawn opaque). A fading replaces
+the one in force only within its own scope: `\path[scope fading=A] …; \fill[path fading=B] …` puts the path's scope
+inside A's group, so the picture shows A and B intersected where the PDF's inner `gs` replaces A. The colours a picture
+draws with inside a fading's box are those in force where it was typeset: `\tikzfading`'s picture is typeset before
+`\pgfdeclarefading` applies white (tikzlibraryfadings.code.tex:35-48), so a default-coloured `\fill` there is black and
+transparent, as in the PDF; a `\tikz` inside `\pgfdeclarefading` inherits white.
+
+**Why**: `path fading` is how TikZ figures soften an overlay (a white veil over a part of a picture, a vignette): without
+the mask the veil hides the figure.
+
+**Guards**: `pgf_fadings::a_path_fading_is_a_mask_of_the_fading_picture`,
+`::the_faded_path_is_drawn_in_a_group_that_refers_to_the_mask`, `::a_fading_ends_with_its_scope`,
+`::a_library_fading_masks_the_path`, `::every_use_of_a_fading_has_its_own_mask_and_ids`,
+`::an_undefined_fading_is_an_error_and_masks_nothing`, `::a_second_fading_replaces_the_first_in_its_scope`,
+`::a_text_fading_keeps_its_text_in_the_mask`, `::a_transformed_scope_does_not_move_the_mask_of_its_group`. Checked in Chromium against the PDF of each source: the rectangle fades left
+to right with the PDF's pixel values (229 at the left edge of the blue region to 204 at its fully visible part).
+
+### 616. A shading is as large as it was declared (Perl: the pixel size is read as points, 1.38 times too large)
+**Perl**: `\lxSVG@sh@defstripes` defines `\lxSVG@pos` as `\pgfpoint{$x}{$y}` with `$x`, `$y` the shading's
+`pxValue`s (pgfsys-latexml.def.ltxml:672-694, :696-719); `\pgfpoint` reads them as points. The rectangle drawn is `$x`
+pixels wide while the register that sizes the box and the picture's bounding box is `$x` pt, 1.38 times as much
+(100 dpi): `\pgfuseshading` in text made a picture 192px wide round a 139px rectangle, and a node holding one placed
+the shading 27px away from its centre (`\lxSVG@sh@insert`'s "Something odd with scales; these SHOULD be pixels!" —
+:721-729 — takes `ptValue` to match). A fading made of `\tikzfading[left color=…, right color=…]` is exactly such a
+node (`\node at (50bp,50bp) [rotate=90] {\pgfuseshading{…}}`, tikzlibraryfadings.code.tex:35-48), so its mask was
+off its picture.
+
+**Rust**: `\lxSVG@pos` is the shading's size in points (`\pgfpoint{<x>pt}{<y>pt}`, from the sp of the register, for the
+radial shading `2 * endpos`), and `\lxSVG@sh@insert` translates by `pxValue`. The rectangle's size, the box and the
+bounding box agree: 100bp is 138.89px everywhere. Goldens: `tikz/unit_tests_by_silviu.xml` (pictures holding shadings
+shrink by 1/1.384 — `217.91 → 157.48`, `114.4 → 82.68`, `192.17 → 138.89`, `595.11 → 541.81`, `210.63 → 157.34` —, a
+node with a shading is no longer shifted by `-26.65 -26.65`, a shading's `translate(-69.44499 -69.44499)` is
+`translate(-69.44 -69.44)`; the Transparency section gains its masks, #615); `tikz/atoms-and-orbitals.xml` is unchanged.
+
+**Why**: the size of a gradient picture is its declared size, and a shading in a node sits at the node's centre.
+
+**Guards**: `pgf_fadings::a_shading_has_the_size_it_was_declared`.

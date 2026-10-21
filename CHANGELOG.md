@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+  - **TikZ path fadings fade.** `\fill[white, path fading=fade right]` (and `scope fading`, `\pgfsetfading`, the `east`,
+    `circle with fuzzy edge 10 percent`… fadings of the library, `\tikzfading`, `tikzfadingfrompicture`) drew an opaque
+    shape: the driver's `\pgfsys@fadingfrombox`/`\pgfsys@usefading` were no-ops (Perl: `# NOT IMPLEMENTED`). The fading's
+    box is now an `svg:mask` placed as the pdf driver places its soft mask, referenced by the faded path's group; a second
+    fading in a scope replaces the first, and an undefined name is an error, as in pgf. `\pgfsys@endscope` outside a
+    picture no longer leaves a space in the box (divergence #615). A shading's size read pixels as points, so a picture of
+    `\pgfuseshading` was 1.38 times too large and a node holding one placed it off its centre: both are exact now
+    (divergence #616; `unit_tests_by_silviu` regenerated). Guards `pgf_fadings::*`.
+
   - **A set-builder bar of class 3 keeps its relation spacing.** `\left\{d \delimiter"326A30C D\right\}` came out `d|D`,
     the bar with `lspace="0em" rspace="0em"`: the glyph's role (VERTBAR, MIDDLE in a fence) won over the class
     (Package.pm:2993) and the spacing walk types MIDDLE as Ord. A class-3 `\delimiter` or `\mathchar` now records

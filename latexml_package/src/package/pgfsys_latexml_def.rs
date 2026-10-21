@@ -1511,8 +1511,12 @@ LoadDefinitions!({
 
   DefMacro!("\\pgfsys@beginscope",
     "\\lxSVG@beginscope\\lxSVG@begingroup{_scopebegin=1}");
+  // Guarded as `\lxSVG@begingroup` guards the opening: outside a picture (`\pgfdeclarefading` brackets its box in
+  // `\pgfsys@beginscope`/`\pgfsys@endscope`, pgfcoretransparency.code.tex:109) nothing was opened, and the
+  // protocol's `\space` (`\pgfsysprotocol@literalbuffered`, pgfsysprotocol.code.tex:32-35) came back as a space in the box,
+  // 3.3pt of width the pdf drivers' `\pdfliteral` does not have (OXIDIZED_DESIGN_DIVERGENCES #615).
   DefMacro!("\\pgfsys@endscope",
-    "\\pgfsysprotocol@literal{\\lxSVG@closescope}\\lxSVG@endscope");
+    "\\ifpgfpicture\\pgfsysprotocol@literal{\\lxSVG@closescope}\\fi\\lxSVG@endscope");
 
   DefConstructor!("\\lxSVG@closescope",
     sub[document, _args, _props] {
@@ -1577,15 +1581,140 @@ LoadDefinitions!({
     "\\lxSVG@stroke@opacity{#1}\\lxSVG@begingroup{stroke-opacity={#1}}");
   DefMacro!("\\pgfsys@fill@opacity{}",
     "\\lxSVG@fill@opacity{#1}\\lxSVG@begingroup{fill-opacity={#1}}");
-  DefMacro!("\\pgfsys@fadingfrombox{}{}", "\\lxSVG@fadingfrombox{#1}{#2}");
-  DefMacro!("\\pgfsys@usefading{}{}{}{}{}{}{}", "\\lxSVG@usefading{#1}{#2}{#3}{#4}{#5}{#6}{#7}");
+  // Fadings (pgfsys.code.tex:878-886; Perl leaves both `# NOT IMPLEMENTED` — pgfsys-latexml.def.ltxml:811-824;
+  // OXIDIZED_DESIGN_DIVERGENCES #615). pgf passes the fading's name unexpanded (`\pgfdeclarefading{\tikz@smuggle}`,
+  // `\pgfsetfading{\tikz@path@fading}`, pgfcoretransparency.code.tex:108-136), and the pdf driver uses it in a
+  // `\csname` (pgfsys-pdftex.def:272-290); the name is expanded here likewise. A fading is only ever in force
+  // inside a picture, so its use rides the protocol, in the order of the paths it masks.
+  DefMacro!("\\pgfsys@fadingfrombox{}{}",
+    "{\\edef\\pgf@marshal{\\noexpand\\lxSVG@fadingfrombox{#1}\\noexpand#2}\\pgf@marshal}");
+  DefMacro!("\\pgfsys@usefading{}{}{}{}{}{}{}",
+    "\\ifpgfpicture\\pgfsysprotocol@literal{\\lxSVG@usefading{#1}{#2}{#3}{#4}{#5}{#6}{#7}}\\fi");
   DefMacro!("\\pgfsys@transparencygroupfrombox{}", "\\lxSVG@transparencygroupfrombox{#1}");
   DefMacro!("\\pgfsys@definemask", "\\lxSVG@definemask");
 
   DefConstructor!("\\lxSVG@stroke@opacity Undigested", "");
   DefConstructor!("\\lxSVG@fill@opacity Undigested", "");
-  DefConstructor!("\\lxSVG@fadingfrombox Undigested{Number}", "");
-  DefConstructor!("\\lxSVG@usefading Undigested Undigested Undigested Undigested Undigested Undigested Undigested", "");
+  // `\pgfsys@fadingfrombox{name}{box}`: remember the box (its contents' luminosity is the fading's opacity) under
+  // the name, globally as the pdf driver's `\xdef` of the xform is.
+  DefConstructor!("\\lxSVG@fadingfrombox Undigested{Number}", "",
+    after_digest => sub[whatsit] {
+      let name = whatsit.get_arg(1).map(|a| a.to_string().trim().to_string()).unwrap_or_default();
+      let boxnum = whatsit.get_arg(2)
+        .map(|a| a.to_string().parse::<i64>().unwrap_or(0))
+        .unwrap_or(0);
+      if let Some(bx @ Stored::Digested(_)) = lookup_value(&format!("box{boxnum}")) {
+        assign_value(&format!("pgf_fading:{name}"), bx, Scope::Global);
+      }
+    }
+  );
+  // `\pgfsys@usefading{name}{a}{b}{c}{d}{e}{f}`: an `svg:mask` of the fading's box, placed as the pdf driver places
+  // its xform (pgfsys-pdftex.def:284-296) — the box centred on the origin (`\pgfsmasktrans`), the cm `a b c d e f`
+  // applied to it — then an `svg:g` carrying `mask`, which the scope in force closes, as it does an opacity group.
+  // The mask's coordinates are those of the referencing group, pgf's own; an `svg:mask` luminance mask is
+  // the soft mask `/S /Luminosity` of the pdf driver. One mask per use, as a pattern's `pgfupat`: a use has its own
+  // cm.
+  DefConstructor!("\\lxSVG@usefading Undigested Undigested Undigested Undigested Undigested Undigested Undigested",
+    sub[document, args, props] {
+      let arg = |i: usize| args.get(i).and_then(|a| a.as_ref()).map(|a| a.to_string().trim().to_string()).unwrap_or_default();
+      let Some(Stored::Digested(thebox)) = props.get("fading_box") else {
+        return Ok(());
+      };
+      let obj = props.get("obj").map(|v| v.to_string()).unwrap_or_default();
+      let shift = |key: &str| match props.get(key) {
+        Some(Stored::Dimension(d)) => dim_to_px(*d),
+        _ => 0.0,
+      };
+      let num = |i: usize| floatformat(arg(i).parse::<f64>().unwrap_or(0.0));
+      let dim_px = |i: usize| Dimension::from_str(&arg(i)).map(dim_to_px).unwrap_or(0.0);
+      ensure_svg_context(document)?;
+      let id = format!("pgffade{obj}");
+      document.open_element("svg:defs", None, None)?;
+      let mask = document.open_element("svg:mask", Some(string_map!(
+        "id" => id.clone(),
+        "maskUnits" => "userSpaceOnUse".to_string(),
+        "x" => "-100000".to_string(),
+        "y" => "-100000".to_string(),
+        "width" => "200000".to_string(),
+        "height" => "200000".to_string()
+      )), None)?;
+      // `\pgfdeclarefading` typesets the picture in white (pgfcoretransparency.code.tex:109).
+      let group = document.open_element("svg:g", Some(string_map!(
+        "transform" => format!("matrix({} {} {} {} {} {}) translate({} {})",
+          num(1), num(2), num(3), num(4), dim_px(5), dim_px(6), shift("shift_x"), shift("shift_y")),
+        "fill" => "#FFFFFF".to_string(),
+        "stroke" => "#FFFFFF".to_string(),
+        "_scopebegin" => "1".to_string()
+      )), None)?;
+      document.absorb(thebox, None)?;
+      document.maybe_close_node(&group)?;
+      document.maybe_close_node(&mask)?;
+      document.close_element("svg:defs")?;
+      // A fading replaces the one in force — the soft mask of the graphics state (`/pgfsmask… gs`) — where the
+      // masks of nested groups intersect. Close the group of the earlier mask of this scope, with the groups the
+      // scope opened inside it (colour, opacity, line settings), and reopen those outside it. pgf installs a
+      // second fading in one scope with `\pgfsetfadingforcurrentpath` for each half of a path
+      // (unit_tests_by_silviu, "Transparency").
+      let mut inside: Vec<Vec<(String, String)>> = Vec::new();
+      let mut cursor = Some(document.get_node().clone());
+      let mut earlier = None;
+      while let Some(node) = cursor {
+        if with(document::get_node_qname(&node), |q| q != "svg:g") || node.has_attribute("_scopebegin") {
+          break;
+        }
+        if node.has_attribute("mask") {
+          earlier = Some(node);
+          break;
+        }
+        inside.push(
+          node
+            .get_properties_ns()
+            .into_iter()
+            .filter(|((_, ns), _)| ns.is_none())
+            .map(|((name, _), value)| (name, value))
+            .collect(),
+        );
+        cursor = node.get_parent();
+      }
+      if let Some(earlier) = earlier {
+        document.maybe_close_node(&earlier)?;
+        for attrs in inside.into_iter().rev() {
+          let mut attrs: rustc_hash::FxHashMap<String, String> = attrs.into_iter().collect();
+          attrs.insert("_autoclose".to_string(), "1".to_string());
+          document.open_element("svg:g", Some(attrs), None)?;
+        }
+      }
+      document.open_element("svg:g", Some(string_map!(
+        "mask" => format!("url(#{id})"),
+        "_autoclose" => "1".to_string()
+      )), None)?;
+    },
+    properties => sub[args] {
+      let name = args.first().and_then(|a| a.as_ref()).map(|a| a.to_string().trim().to_string()).unwrap_or_default();
+      let mut props = stored_map!("obj" => svg_next_object());
+      if let Some(bx @ Stored::Digested(_)) = lookup_value(&format!("pgf_fading:{name}")) {
+        if let Stored::Digested(ref digested) = bx {
+          let get = |v: Option<RegisterValue>| match v {
+            Some(RegisterValue::Dimension(d)) => d.value_of() as f64,
+            _ => 0.0,
+          };
+          let w = get(digested.get_width(None).unwrap_or(None));
+          let h = get(digested.get_height());
+          let d = get(digested.get_depth());
+          // pgfsys-pdftex.def:275-277: the box is centred on the origin.
+          props.insert("shift_x", Stored::Dimension(Dimension::new((-0.5 * w) as i64)));
+          props.insert("shift_y", Stored::Dimension(Dimension::new((-0.5 * h + 0.5 * d) as i64)));
+        }
+        props.insert("fading_box", bx);
+      } else {
+        // pgfsys-pdftex.def:286 `\pgferror{Undefined fading '#1'}`, raised as pgf raises it, when the use is
+        // digested.
+        Error!("undefined", "fading", s!("Undefined fading '{name}'"));
+      }
+      Ok(props)
+    },
+    sizer => 0
+  );
   DefConstructor!("\\lxSVG@transparencygroupfrombox{Number}", "");
   DefConstructor!("\\lxSVG@definemask", "");
 
@@ -1725,8 +1854,10 @@ LoadDefinitions!({
       vd.into_iter().filter_map(|s| if let Stored::Digested(d) = s { Some(d) } else { None }).collect()
     } _ => { vec![] }};
     assign_value("pgf_sh_stops", Stored::VecDequeStored(VecDeque::new()), Scope::Global);
-    let x = dim_to_px(read_dim_register("\\pgf@x"));
-    let y = dim_to_px(read_dim_register("\\pgf@y"));
+    let x_dim = read_dim_register("\\pgf@x");
+    let y_dim = read_dim_register("\\pgf@y");
+    let x = dim_to_px(x_dim);
+    let y = dim_to_px(y_dim);
     let is_vertical = flag == 1;
 
     // Define \@pgfshading<name>! as a primitive
@@ -1766,9 +1897,11 @@ LoadDefinitions!({
       def_constructor(T_CS!("\\lxSVG@sh"), None, Some(sh_replacement),
         ConstructorOptions { sizer: zero_sizer, ..Default::default() });
 
-      // Define \lxSVG@pos macro
+      // Define \lxSVG@pos macro: the shading's size, as the TeX dimension it is
+      // (the pixel number read as points made the box of `\pgfuseshading`
+      // 1.38 times its size — OXIDIZED_DESIGN_DIVERGENCES #616).
       let pos_toks = mouth::tokenize_internal(
-        TeXString::assembled(format!("\\pgfpoint{{{x}}}{{{y}}}")));
+        TeXString::assembled(format!("\\pgfqpoint{{{}sp}}{{{}sp}}", x_dim.value_of(), y_dim.value_of())));
       let _ = def_macro(T_CS!("\\lxSVG@pos"), None, pos_toks, None);
 
       Ok(vec![Digested::default()])
@@ -1850,7 +1983,7 @@ LoadDefinitions!({
 
       // Define \lxSVG@pos macro
       let pos_toks = mouth::tokenize_internal(
-        TeXString::assembled(format!("\\pgfpoint{{{}}}{{{}}}", 2.0 * endpos, 2.0 * endpos)));
+        TeXString::assembled(format!("\\pgfqpoint{{{}sp}}{{{}sp}}", 2 * endpos_dim.value_of(), 2 * endpos_dim.value_of())));
       let _ = def_macro(T_CS!("\\lxSVG@pos"), None, pos_toks, None);
 
       Ok(vec![Digested::default()])
@@ -1868,10 +2001,13 @@ LoadDefinitions!({
   // NOTE: Perl uses ptValue not pxValue here (comment says "Something odd with scales")
   DefConstructor!("\\lxSVG@sh@insert{Dimension}{Dimension}{}",
     sub[document, args, _props] {
+      // Pixels (Perl takes `ptValue` — "Something odd with scales; these SHOULD be pixels!",
+      // pgfsys-latexml.def.ltxml:721-729 — to match the shading size it put in `\lxSVG@pos` as pixels read
+      // as points; `\lxSVG@pos` is now in points, #616).
       let x = args.first().and_then(|a| a.as_ref()).and_then(|a| a.get_dimension())
-        .map(|d| d.value_of() as f64 / 65536.0).unwrap_or(0.0);
+        .map(dim_to_px).unwrap_or(0.0);
       let y = args.get(1).and_then(|a| a.as_ref()).and_then(|a| a.get_dimension())
-        .map(|d| d.value_of() as f64 / 65536.0).unwrap_or(0.0);
+        .map(dim_to_px).unwrap_or(0.0);
       document.open_element("svg:g", Some(string_map!(
         "transform" => format!("translate({} {})", floatformat(x), floatformat(y))
       )), None)?;
