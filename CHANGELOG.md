@@ -9,7 +9,9 @@
     (flush left). An environment or box (figure, minipage, `\parbox`, quote, ...) and a paragraph with a `\\` of its own
     in the group align as before. `\vspace` in a paragraph's text is a `\vadjust` in latex.ltx:9522-9532 and no longer
     ends the paragraph (its vertical space is dropped); it keeps its `\vskip` in vertical mode, in restricted
-    horizontal mode and math, and after a line of leaders. Beyond Perl: OXIDIZED_DESIGN_DIVERGENCES #602 and #603;
+    horizontal mode and math, and after a line of leaders. Beyond Perl: OXIDIZED_DESIGN_DIVERGENCES #602 and #603.
+    An environment with a `#body` and no mode of its own (titling's `{titlingpage}`) is treated like a paragraph's text for
+    both, so a title page set inside it has its last line unaligned too. A bad `\vspace` length is still an error;
     guards `paragraph_alignment_at_par::*`.
   - **fix: amsart, amsproc and amsbook set the label of a figure or table caption in small capitals**
     (`\@makecaption` under `\@captionheadfont`, amsart.cls:1354/:1389), where the markup was upright and left the

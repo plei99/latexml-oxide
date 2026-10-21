@@ -17983,6 +17983,11 @@ taken to end its paragraph, as LaTeX's `\par` before the `\egroup` of its box en
 `{quote}`, a list, a theorem, beamer's `{column}`): those keep stamping everything. When a plain group closes with the
 paragraph open, `apply_aligning_context` skips the child that holds the insertion point (and all children when the
 aligned element is itself the open `ltx:p`). The paragraphs finished inside the group are stamped as before.
+An environment whose binding declares no mode (`DefEnvironment` with a `#body`, such as titling's `{titlingpage}`) digests
+its body in the default `restricted_horizontal` (Package.pm:1902), where no paragraph is tracked: a plain group closing
+there marks its paragraph open only for a block `ltx:para` (`OpenParagraph::IfPara`), not for the `ltx:p` of a cell or an
+`\mbox`, and `stomach::in_text_environment_body` (a frame flag the environment sets and any boxed mode switch inside it
+resets) makes `\vspace` drop its space there as in a paragraph's text (#603).
 Inside a declaration `\\` is `\@centercr`, which ends the paragraph with `\par` (latex.ltx:15619-15626), so an open
 paragraph with an `ltx:break` of its own (a direct child of its `ltx:p`) is stamped whole (`{\centering A\\ B}` aligns B too, where TeX leaves B to the
 paragraph after the group; LaTeXML has one `ltx:p`, and `\newline` makes the same break). Not modelled: a declaration
@@ -18017,11 +18022,15 @@ Rust (sect12.rs) expands `\vspace` to `\lx@vspace@skip{<length>}`, which is `\vs
   paragraph). The rule is a line of its own and the float panels after it must not join its `ltx:p`, which may
   already hold minipages (a captioned minipage in a `<p>` is schema-invalid; #97, WISDOM #38). A leader in a font or
   colour group that the list does not show as a group item is not recognised.
+- **The body of an environment with no mode of its own** (`stomach::in_text_environment_body`) counts as a paragraph's
+  text, though its mode is `restricted_horizontal`: `\vspace` drops its space there too (the `\vskip` would close the
+  `ltx:para` the title page's last line is in).
 - **In both horizontal modes the space after the skip is ignored when glue came before it**
   (`\ifdim\lastskip>\z@ … \ignorespaces`, as `\@bsphack…\@esphack`, latex.ltx:9433-9449): `baz \vspace{5pt} qux` and
   `\mbox{in \vspace{5mm} box}` read "baz qux", "in box" (a double space before).
 
-The macro is protected, as `\DeclareRobustCommand` (:9521); `\bigskip`, `\medskip` and `\smallskip` (`\vspace\…amount`) follow.
+The macro is protected, as `\DeclareRobustCommand` (:9521); `\bigskip`, `\medskip` and `\smallskip` follow it only through the latex.ltx dump (:9551-9553, `\vspace\…amount`);
+under `LATEXML_NODUMP` they are plain's `\vskip\…amount` (plain_base.rs) and still split the paragraph.
 The `\vspace*` rule that LaTeX adds in vertical mode is still not modelled.
 
 arXiv 2302.11635 (IEEEtran `figure*`, a rule line after two minipages of one paragraph) converts to the same HTML as

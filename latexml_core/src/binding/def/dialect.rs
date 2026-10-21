@@ -1478,6 +1478,7 @@ pub fn def_environment(
   // Perl Package.pm:1902: $mode = 'restricted_horizontal' if !$mode || ($mode eq 'text');
   // Environments ALWAYS have a mode — defaults to restricted_horizontal.
   // This means \end{env} always calls endMode(), never egroup().
+  let default_mode = matches!(options.mode.as_deref(), None | Some("text"));
   let mode = match options.mode.as_deref() {
     None | Some("text") => Some("restricted_horizontal".to_string()),
     _ => options.mode,
@@ -1557,6 +1558,12 @@ pub fn def_environment(
     let bmode = mode.clone();
     let mode_closure = before_digest_simple!({
       begin_mode_opt(&bmode, true)?;
+      // The body of an environment that declares no mode of its own is the document's text in the default
+      // `restricted_horizontal` (`stomach::in_text_environment_body`); `begin_mode_opt` resets the flag for the
+      // boxes inside it.
+      if default_mode {
+        assign_frame_value_sym(crate::pin!("lx@env@text@body"), true);
+      }
     });
     before_digest_env.push(mode_closure);
   }
