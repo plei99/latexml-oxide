@@ -3042,7 +3042,7 @@ pub fn read_until(delim: &Tokens) -> Result<Option<Tokens>> {
         {
           // read balanced, and refill ring.
           nbraces += 1;
-          for r_token in ring {
+          for r_token in ring.drain(..) {
             tokens.push(r_token);
           }
           tokens.push(token);
@@ -3055,7 +3055,7 @@ pub fn read_until(delim: &Tokens) -> Result<Option<Tokens>> {
             tokens.append(&mut balanced_arg.unlist());
           }
           tokens.push(close.unwrap_or_else(|| T_END!())); // the group's own close
-          ring = VecDeque::new(); // and retry
+        // the ring is empty: retry
         } else {
           ring.push_back(token);
         }
