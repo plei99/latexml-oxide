@@ -3,7 +3,8 @@
 % engines: rust 97b = no affiliation on either, one document `<note role="institute">Univ A, Town A and Univ B, Town
 %          B</note>` (the contrib svproc binding's own `\institute`); Perl 0 errors: Ann holds "Univ A, Town A", Bob
 %          "Univ B, Town B" (OmniBus's inst_support `\institute`)
-% expect:  0 errors 0 warnings; Ann holds "Univ A, Town A", Bob "Univ B, Town B"; no institute note
+% expect:  0 errors, 1 warning (the class's `\RequirePackage{aliascnt}`, :57: aliascnt.sty:41-43 v1.7 on a 2026-06-01 format:
+%          "The package is obsolete."); Ann holds "Univ A, Town A", Bob "Univ B, Town B"; no institute note
 % status:  RED (97b) -> GREEN (97c)
 \documentclass{svproc}
 \begin{document}

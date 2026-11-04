@@ -59,15 +59,35 @@ fn conversion(tex: &str, files: &[(&str, &str)], streaming: bool) -> (String, St
 /// Converts `tex` eager and `--streaming`, checks each has no Error and no Warning and both give the same XML, and
 /// returns the document from its `<title>` to its end, squashed.
 #[track_caller]
-fn both_ways(tex: &str, files: &[(&str, &str)]) -> String {
+fn both_ways(tex: &str, files: &[(&str, &str)]) -> String { both_ways_warning(tex, files, None) }
+
+/// [`both_ways`], where each conversion may raise exactly one Warning, the one containing `warning`: svproc.cls v1.3's
+/// `\RequirePackage{aliascnt}` (:57) reads TeX Live 2026's aliascnt.sty:41-43, which warns "The package is obsolete.
+/// Check the documentation." on a format dated 2026-06-01 or later, as pdflatex 2026 does.
+#[track_caller]
+fn both_ways_warning(tex: &str, files: &[(&str, &str)], warning: Option<&str>) -> String {
+  let check = |log: &str| {
+    let warnings = usize::from(warning.is_some());
+    assert_eq!(
+      (error_count(log), warning_count(log)),
+      (0, warnings),
+      "{log}"
+    );
+    if let Some(text) = warning {
+      assert_eq!(
+        log
+          .lines()
+          .filter(|l| l.starts_with("Warning:") && l.contains(text))
+          .count(),
+        1,
+        "{log}"
+      );
+    }
+  };
   let (log, eager) = conversion(tex, files, false);
-  assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
+  check(&log);
   let (streamed_log, streamed) = conversion(tex, files, true);
-  assert_eq!(
-    (error_count(&streamed_log), warning_count(&streamed_log)),
-    (0, 0),
-    "{streamed_log}"
-  );
+  check(&streamed_log);
   assert_eq!(eager, streamed);
   let xml = squash(&eager);
   let start = xml.find("<title>").unwrap_or(0);
@@ -147,10 +167,11 @@ fn llncs_institute_hand_numbered_lines_keep_the_institute_shared() {
 fn svproc_institute_is_each_authors() {
   let class = repro!("svproc_copy/svproc.cls");
   assert_eq!(
-    both_ways(repro!("svproc_copy/svproc_institute_per_author.tex"), &[(
-      "svproc.cls",
-      class
-    )]),
+    both_ways_warning(
+      repro!("svproc_copy/svproc_institute_per_author.tex"),
+      &[("svproc.cls", class)],
+      Some("Package aliascnt Warning: The package is obsolete.")
+    ),
     r#"<title>T</title> <creator role="author"> <personname>Ann Able</personname> <contact name="Affiliation: " role="affiliation">Univ A, Town A</contact> </creator> <creator before=" " role="author"> <personname>Bob Baker</personname> <contact name="Affiliation: " role="affiliation">Univ B, Town B</contact> </creator> <para xml:id="p1"> <p xml:id="p1.1">Body.</p> </para>"#
   );
 }

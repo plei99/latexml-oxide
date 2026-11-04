@@ -1,11 +1,11 @@
 % witness: 2605.20695 (html_feedback#6560, aliascnt lemmas under amsart); 2604.22493 (lipics-v2021's aliascnt
 %          siblings, which define their `\*autorefname`s); llncs.cls v2.16+'s `\@spothm` (2202.10090)
-% oracle:  pdflatex (aliascnt v1.5, hyperref): "Theorem 1, Lemma 2, Proposition 3, Corollary 4, Lemma 8, Theorem 9";
+% oracle:  pdflatex (aliascnt v1.7, hyperref): "Theorem 1, Lemma 2, Proposition 3, Corollary 4, Lemma 8, Theorem 9";
 %          "See 8, Theorem 1, 2, Proposition 3, Theorem 4." — hyperref's type is the alias the theorem steps, named
 %          by `\propautorefname` and not at all for a lemma without `\lemmaautorefname`/`\lemmaname`; the plain
 %          `[theorem]` corollary is the counter's "Theorem"; 0 errors
 % engines: rust 67int9 = "Theorem 8, Theorem 1, Theorem 2, Proposition 3, Theorem 4" (the alias's root named)
-% expect:  0 errors, 0 warnings; the oracle's tags and autoref names
+% expect:  0 errors, 1 warning (aliascnt.sty:41-43, v1.7 on a 2026-06-01 format: "The package is obsolete."); the oracle's tags and autoref names
 % status:  RED (67int9) -> GREEN (68g r2)
 % preload: ar5iv.sty
 \documentclass{article}

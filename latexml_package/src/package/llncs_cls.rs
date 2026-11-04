@@ -421,9 +421,9 @@ LoadDefinitions!({
   //   where `#2` is not `theorem` (already reset by the section): under envcountsect a paper's
   //   `\spnewtheorem{conj}[hyp]` over its own `\spnewtheorem{hyp}{Hypothesis}` numbers "Hypothesis 1, Conj 2" in
   //   every section in v2.26 and "Hypothesis 3, Conj 4" in section 2 in v2.20 (OXIDIZED_DESIGN_DIVERGENCES #614).
-  // aliascnt itself is not loaded (`\lx@llncs@newaliascnt` is its `\newaliascnt`, aliascnt.sty v1.5 :40-61, without
+  // aliascnt itself is not loaded (`\lx@llncs@newaliascnt` is its `\newaliascnt`, aliascnt.sty v1.7 :63-82, without
   // the `\@addtoreset` patch, which only maps a `within` alias to its root): `\c@#1`, `\the#1`, `\theH#1` and `\p@#1`
-  // are `#2`'s, `\AC@cnt@#1` and `\cl@#1` record the alias as aliascnt.sty :54-57 does (a paper loading aliascnt
+  // are `#2`'s, `\AC@cnt@#1` and `\cl@#1` record the alias as aliascnt.sty :77-79 does (a paper loading aliascnt
   // itself calls `\aliascntresetthe{lemma}` on it), and `register_counter_alias` records it for the numbering and for
   // hyperref.
   DefPrimitive!("\\lx@llncs@aliascnt@register{}{}", sub[(alias, base)] {

@@ -1,10 +1,10 @@
 % witness: none in the 484-paper llncs sample (the 68g r2 re-review's q1 shape); 2605.20695 for aliascnt itself
-% oracle:  pdflatex with TL 2025 llncs.cls v2.26 + aliascnt.sty v1.5: "Theorem 1. Lemma 2. ClaimX 3. See Theorem 1,
-%          Lemma 2, ClaimX 3."; 0 errors (`\aliascntresetthe{lemma}` finds the class's alias, aliascnt.sty:54-57
+% oracle:  pdflatex with TL 2025 llncs.cls v2.26 + aliascnt.sty v1.7: "Theorem 1. Lemma 2. ClaimX 3. See Theorem 1,
+%          Lemma 2, ClaimX 3."; 0 errors (`\aliascntresetthe{lemma}` finds the class's alias, aliascnt.sty:63-82
 %          `\AC@cnt@lemma`)
 % engines: rust 67int9 / 68g r2 = "Package aliascnt Error: `lemma' is not an alias counter" (the class's alias without
 %          `\AC@cnt@<alias>`)
-% expect:  0 errors, 0 warnings; the oracle's tags and autoref names
+% expect:  0 errors, 1 warning (aliascnt.sty:41-43, v1.7 on a 2026-06-01 format: "The package is obsolete."); the oracle's tags and autoref names
 % status:  RED (68g r2) -> GREEN (68g r3)
 % preload: ar5iv.sty
 \documentclass[envcountsame]{llncs}
