@@ -30,14 +30,15 @@ macro_rules! clean {
 /// document's `\abstractbox` environment set at `\maketitle` is the frontmatter abstract, one after it is set where it
 /// ends (1512.02361, 2602.22909; 2303.07306, 2201.00740); :554/:564 the stores, :687 `\copyrightyear`, :1262
 /// `\bibliofont`, :1213-1241 the contents-line code, whose `\addcontentsline` does not list the section in the
-/// contents twice (2105.14892, 2004.14791, 2503.14638).
+/// contents twice (2105.14892, 2004.14791, 2503.14638). The box's `\item[\scshape…]` labels are set in the `\Small`
+/// (`fontsize="80%"`) in force at the `\item`, as LaTeX's `\@item` sets `\makelabel` (OXIDIZED_DESIGN_DIVERGENCES #983).
 #[test]
 fn amsart_class_internals_are_defined() {
   let xml = clean!("class-bindings/amsart_class_internals.tex");
   assert!(xml.contains(r#"<p xml:id="p1.1">Stores [].</p>"#), "{xml}");
   assert!(
     xml.contains(
-      r#"<abstract inlist="toc" name="Abstract." xml:id="abstract1"> <block vattach="top" xml:id="abstract1.1"> <itemize xml:id="abstract1.1.1"> <item xml:id="S0.I1.ix1"> <tags> <tag><text font="smallcaps" xml:id="S0.I1.ix1.1">Abstract.</text></tag> <tag role="typerefnum">item <text font="smallcaps" xml:id="S0.I1.ix1.2">Abstract.</text></tag> </tags> <para xml:id="S0.I1.ix1.p1"> <p xml:id="S0.I1.ix1.p1.1"><text fontsize="80%" xml:id="S0.I1.ix1.p1.1.1">Before the title.</text></p> </para> </item> </itemize> </block> </abstract>"#
+      r#"<abstract inlist="toc" name="Abstract." xml:id="abstract1"> <block vattach="top" xml:id="abstract1.1"> <itemize xml:id="abstract1.1.1"> <item xml:id="S0.I1.ix1"> <tags> <tag><text font="smallcaps" fontsize="80%" xml:id="S0.I1.ix1.1">Abstract.</text></tag> <tag role="typerefnum">item <text font="smallcaps" xml:id="S0.I1.ix1.2">Abstract.</text></tag> </tags> <para xml:id="S0.I1.ix1.p1"> <p xml:id="S0.I1.ix1.p1.1"><text fontsize="80%" xml:id="S0.I1.ix1.p1.1.1">Before the title.</text></p> </para> </item> </itemize> </block> </abstract>"#
     ),
     "{xml}"
   );
@@ -59,7 +60,7 @@ fn amsart_class_internals_are_defined() {
   );
   assert!(
     xml.contains(
-      r#"<tag><text font="smallcaps" xml:id="S1.I1.ix1.1">Acknowledgements.</text></tag>"#
+      r#"<tag><text font="smallcaps" fontsize="80%" xml:id="S1.I1.ix1.1">Acknowledgements.</text></tag>"#
     ) && xml.contains(
       r#"<p xml:id="S1.I1.ix1.p1.1"><text fontsize="80%" xml:id="S1.I1.ix1.p1.1.1">After the title.</text></p>"#
     ),

@@ -7373,11 +7373,11 @@ impl Document {
   }
 
   fn trim_node_left_whitespace(&self, node: &Node) -> Result<()> {
-    // An empty construction-time marker (`*_Capture_`: the frontmatter position mark, the cover-title marks) is no
-    // content: the trim reaches past it, as it would were the marker not there.
+    // An empty construction-time marker (`*_Capture_`: the frontmatter position mark, the cover-title marks) or a field
+    // mark (the `begin` of a field run) is no content: the trim reaches past it, as it would were the marker not there.
     let mut candidate = node.get_first_child();
     while let Some(ref child) = candidate {
-      if is_empty_capture_mark(child) {
+      if is_empty_capture_mark(child) || is_field_mark(child) {
         candidate = child.get_next_sibling();
       } else {
         break;
@@ -7411,8 +7411,12 @@ impl Document {
         && child.get_name() == "text"
         && child.get_first_child().is_none()
         && child.has_attribute("_noautoclose"))
-        // …and an empty construction-time marker (`trim_node_left_whitespace`)
+        // …and an empty construction-time marker (`trim_node_left_whitespace`), or a field mark: a run of field ink
+        // ends with its `end` mark after the ink's last space (`\StrLeft{\@title}{6}` = "Twice ", whose space is the
+        // title's own token and so part of the run), and the trim goes on to that space as it would were the mark not
+        // there (batchfms1 `field_prov_reprint_order_kept`)
         || is_empty_capture_mark(child)
+        || is_field_mark(child)
       {
         candidate = child.get_prev_sibling();
       } else {
@@ -8777,6 +8781,12 @@ fn namespace_prefixes_in_use<'p>(root: &Node, prefixes: &[&'p str]) -> HashSet<&
     });
   }
   found
+}
+
+/// A field mark ([`FIELD_MARK_TARGET`] processing instruction): scaffolding of the field runs, which never reaches the
+/// output.
+fn is_field_mark(node: &Node) -> bool {
+  node.get_type() == Some(NodeType::PiNode) && node.get_name() == FIELD_MARK_TARGET
 }
 
 /// An empty construction-time marker element (`*_Capture_`: `ltx:_Frontmatter_Capture_`, the cover-title marks), which

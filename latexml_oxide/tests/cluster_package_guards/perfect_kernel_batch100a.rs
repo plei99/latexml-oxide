@@ -54,6 +54,10 @@ fn a_deceased_legend_is_a_note_of_its_carriers() {
 /// under `Ann Able$^{1}$, Bob Baker$^{2}$`) is in doubt: the class's text where it prints, no author's contact (it was
 /// every author's of the run: review rev99b2 F2, probes q4c, q4h). A symbol spelled otherwise on its carrier
 /// (`\textsuperscript{\dag}` under `$^{1,\dagger}$`) is requested by its printed text and stays the carrier's note.
+///
+/// The run-in lines are `{\small\raggedright #1}`, a group with no `\par` of its own: the paragraph ends after it, where
+/// the ragged shape is no longer in force, so it is not `ltx_align_left` (TeX breaks it at its `\par`;
+/// OXIDIZED_DESIGN_DIVERGENCES #981). The in-place repro ends its group with `\par` and keeps the alignment.
 #[test]
 fn a_run_in_or_in_place_line_led_by_an_unrequested_symbol_stays_the_classs() {
   assert_eq!(
@@ -61,7 +65,7 @@ fn a_run_in_or_in_place_line_led_by_an_unrequested_symbol_stays_the_classs() {
       repro!("run_in_line_led_by_an_unrequested_symbol_stays_the_classs"),
       0
     ),
-    r#"<title>A Title</title> <creator role="author"> <personname>Ann Able</personname> <contact name="Affiliation: " role="affiliation"><sup xml:id="id1">1</sup>Univ A, Town</contact> </creator> <creator before=" " role="author"> <personname>Bob Baker</personname> <contact name="Affiliation: " role="affiliation"><sup xml:id="id2">2</sup>Univ B, City</contact> </creator> <para class="ltx_align_left" xml:id="p1"> <p xml:id="p1.1"><sup xml:id="p1.1.1"><text fontsize="90%" xml:id="p1.1.1.1">†</text></sup><text fontsize="90%" xml:id="p1.1.2">Deceased</text></p> </para> <para xml:id="p2"> <p xml:id="p2.1">Text.</p> </para>"#
+    r#"<title>A Title</title> <creator role="author"> <personname>Ann Able</personname> <contact name="Affiliation: " role="affiliation"><sup xml:id="id1">1</sup>Univ A, Town</contact> </creator> <creator before=" " role="author"> <personname>Bob Baker</personname> <contact name="Affiliation: " role="affiliation"><sup xml:id="id2">2</sup>Univ B, City</contact> </creator> <para xml:id="p1"> <p xml:id="p1.1"><sup xml:id="p1.1.1"><text fontsize="90%" xml:id="p1.1.1.1">†</text></sup><text fontsize="90%" xml:id="p1.1.2">Deceased</text></p> </para> <para xml:id="p2"> <p xml:id="p2.1">Text.</p> </para>"#
   );
   assert_eq!(
     converted(
@@ -182,6 +186,9 @@ fn an_asterisk_keys_alike_written_or_printed() {
 /// by its printed text (`is_a_mark` = `prints_a_mark`), not a list of footnote symbols, under which `\bigstar`,
 /// `\natural`, `\flat`, the suits and `\textdagger` were no mark and each line went to every author of the run (review
 /// rev100a S1, probes q/su1, q/tx1).
+///
+/// The lines are the class's run-in `{\small\raggedright #1}`, whose group closes before the paragraph's `\par`: they are
+/// not `ltx_align_left` (OXIDIZED_DESIGN_DIVERGENCES #981).
 #[test]
 fn a_line_led_by_a_printed_symbol_no_name_requests_stays_the_classs() {
   assert_eq!(
@@ -189,7 +196,7 @@ fn a_line_led_by_a_printed_symbol_no_name_requests_stays_the_classs() {
       repro!("run_in_lines_led_by_unrequested_printed_symbols_stay_the_classs"),
       0
     ),
-    r#"<title>A Title</title> <creator role="author"> <personname>Ann Able</personname> <contact name="Affiliation: " role="affiliation"><sup xml:id="id1">♣</sup>Univ A, Town</contact> </creator> <creator before=" " role="author"> <personname>Bob Baker</personname> <contact name="Affiliation: " role="affiliation"><sup xml:id="id2">♡</sup>Univ B, City</contact> </creator> <para class="ltx_align_left" xml:id="p1"> <p xml:id="p1.1"><sup xml:id="p1.1.1"><text fontsize="90%" xml:id="p1.1.1.1">♠</text></sup><text fontsize="90%" xml:id="p1.1.2">Univ C, Village</text></p> </para> <para class="ltx_align_left" xml:id="p2"> <p xml:id="p2.1"><sup xml:id="p2.1.1"><text fontsize="90%" xml:id="p2.1.1.1">†</text></sup><text fontsize="90%" xml:id="p2.1.2">Deceased</text></p> </para> <para xml:id="p3"> <p xml:id="p3.1">Text.</p> </para>"#
+    r#"<title>A Title</title> <creator role="author"> <personname>Ann Able</personname> <contact name="Affiliation: " role="affiliation"><sup xml:id="id1">♣</sup>Univ A, Town</contact> </creator> <creator before=" " role="author"> <personname>Bob Baker</personname> <contact name="Affiliation: " role="affiliation"><sup xml:id="id2">♡</sup>Univ B, City</contact> </creator> <para xml:id="p1"> <p xml:id="p1.1"><sup xml:id="p1.1.1"><text fontsize="90%" xml:id="p1.1.1.1">♠</text></sup><text fontsize="90%" xml:id="p1.1.2">Univ C, Village</text></p> </para> <para xml:id="p2"> <p xml:id="p2.1"><sup xml:id="p2.1.1"><text fontsize="90%" xml:id="p2.1.1.1">†</text></sup><text fontsize="90%" xml:id="p2.1.2">Deceased</text></p> </para> <para xml:id="p3"> <p xml:id="p3.1">Text.</p> </para>"#
   );
 }
 

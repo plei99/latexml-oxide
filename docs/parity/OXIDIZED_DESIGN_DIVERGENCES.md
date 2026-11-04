@@ -31249,7 +31249,10 @@ supplies the small capitals, so a page that does not load that sheet shows the l
 (`ams_support_sty::amsart_caption_head_font`, called from ams_core_cls.rs and amsbook_cls.rs) define
 `\@captionheadfont` and set `\fnum@font@figure` and `\fnum@font@table` to `\fnum@font@float\@captionheadfont`, so the
 label is `<text font="smallcaps">Figure 1</text>` (class `ltx_font_smallcaps`), after a caption package's size
-(`\fnum@font@float`: subcaption's binding makes it `\small`; real caption-ams-smf.sto keeps `\@captionfont`). Other
+(`\fnum@font@float`: a caption package's `font=small` makes it `\small`; subcaption's `\small` is the sub-captions' alone,
+KNOWN_PERL_ERRORS #1021; real caption-ams-smf.sto keeps `\@captionfont`). A longtable caption without the caption package
+prints `\fnum@table` plain in longtable's own `\LT@makecaption` (longtable.sty:475-483), so its format
+(`\lx@longtable@ownformat`, longtable_sty.rs) sets the label in `\fnum@font@float` alone. Other
 classes are untouched, and the stylesheet's rule stays (the same effect twice). acmart, which loads amsart and sets its
 own label fonts through caption (acmart.cls:878-906), is reset to `\fnum@font@float` (`acmart_cls.rs`); its
 `labelfont={bf}` is not modelled. Not modelled: `\captionsetup{labelfont=…}` on an AMS class still gets the small

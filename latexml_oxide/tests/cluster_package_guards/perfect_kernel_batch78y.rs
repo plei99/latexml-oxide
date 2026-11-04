@@ -288,13 +288,16 @@ fn caption_settings_reach_a_listing() {
 
 /// amsart's `\@makecaption` (amsart.cls:1386-1410) makes a newfloat type's caption "Listing 1. Code one."; float.sty's
 /// plain style and longtable keep their own ": " (pdflatex). Red (int65a): "Listing 1: ", "Table 2. Long one.". Repro class-bindings/amsart_newfloat_caption_takes_the_class_format.
+/// The figure's and table's labels are in small capitals, as amsart's `\@makecaption` sets them under `\@captionheadfont`
+/// (OXIDIZED_DESIGN_DIVERGENCES #984); a newfloat type's is not, and neither is longtable's, which prints `\fnum@table`
+/// plain in its own `\LT@makecaption` (longtable.sty:475-483; longtable_sty.rs `\lx@longtable@ownformat`).
 #[test]
 fn amsart_newfloat_caption_takes_the_class_format() {
   assert_captions(
     repro!("amsart_newfloat_caption_takes_the_class_format.tex"),
     &[
-      r#"<caption><tag close=". ">Figure 1</tag>Fig one.</caption>"#,
-      r#"<caption><tag close=". ">Table 1</tag>Tab one.</caption>"#,
+      r#"<caption><tag close=". "><text font="smallcaps" xml:id="S0.F1.3">Figure 1</text></tag>Fig one.</caption>"#,
+      r#"<caption><tag close=". "><text font="smallcaps" xml:id="S0.T1.2">Table 1</text></tag>Tab one.</caption>"#,
       r#"<caption><tag close=". ">Listing 1</tag>Code one.</caption>"#,
       r#"<caption><tag close=": ">Program 1</tag> Prog one.</caption>"#,
       r#"<caption><tag close=": ">Table 2</tag>Long one.</caption>"#,
@@ -304,14 +307,16 @@ fn amsart_newfloat_caption_takes_the_class_format() {
 
 /// Caption under an AMS class takes caption-ams-smf.sto's default separator for every type (caption3.sty:1138): pdflatex
 /// "Program 1. Prog one.", "Table 2. Long one.". Red (int65a): "Listing 1: ", "Program 1: ". Repro class-bindings/amsart_caption_package_formats_every_type.
+/// The figure's and table's labels (longtable's too, which caption formats as a table's: caption.sty:1167) are in the
+/// small capitals of caption-ams-smf.sto's `labelfont` default, `\@captionheadfont` (OXIDIZED_DESIGN_DIVERGENCES #984).
 #[test]
 fn caption_under_an_ams_class_closes_every_type_with_a_period() {
   assert_captions(repro!("amsart_caption_package_formats_every_type.tex"), &[
-    r#"<caption><tag close=". ">Figure 1</tag>Fig one.</caption>"#,
-    r#"<caption><tag close=". ">Table 1</tag>Tab one.</caption>"#,
+    r#"<caption><tag close=". "><text font="smallcaps" xml:id="S0.F1.3">Figure 1</text></tag>Fig one.</caption>"#,
+    r#"<caption><tag close=". "><text font="smallcaps" xml:id="S0.T1.2">Table 1</text></tag>Tab one.</caption>"#,
     r#"<caption><tag close=". ">Listing 1</tag>Code one.</caption>"#,
     r#"<caption><tag close=". ">Program 1</tag>Prog one.</caption>"#,
-    r#"<caption><tag close=". ">Table 2</tag>Long one.</caption>"#,
+    r#"<caption><tag close=". "><text font="smallcaps" xml:id="S0.T2.2">Table 2</text></tag>Long one.</caption>"#,
   ]);
 }
 
