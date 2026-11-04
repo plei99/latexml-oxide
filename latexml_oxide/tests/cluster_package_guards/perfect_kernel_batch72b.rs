@@ -391,7 +391,9 @@ fn bindings_whose_class_has_chapters_define_them() {
 /// `Error:undefined:\chapter`). In the preamble latex.ltx:18618 makes a second one `\@twoclasseserror`; this one is in
 /// the body, where :18621 `\@onlypreamble\documentclass` stops it — pdflatex's one error "Can be used only in
 /// preamble.", which we do not raise yet (SYNC_STATUS row; r3 finding 3), so 0 Errors. The one Warning is memoir's own
-/// misnamed conditional (memoir.cls:5454 `\newif \@iffirstamp`, the first load), as on 72b r3.
+/// misnamed conditional (memoir.cls:5454 `\newif \@iffirstamp`, the first load), as on 72b r3. The chapter carries the
+/// fork's memoir chapter style (`ltx_chapterstyle_default`, `memoir_fork/chapters.rs`) and a bold toctitle (memoir's
+/// `\cftchapterfont` is `\bfseries`, memoir.cls:7436; fork/MEMOIR_ROADMAP.md D5, `\format@toctitle@font@chapter`).
 #[test]
 fn a_second_documentclass_keeps_the_first_class_chapters() {
   let tex = "\\documentclass{memoir}\n\\begin{document}\n\\chapter{One}\nText.\n\\documentclass{memoir}\n\\chapter{Two}\n\
@@ -408,7 +410,7 @@ fn a_second_documentclass_keeps_the_first_class_chapters() {
     &xml,
     "chapter",
     &["xml:id=\"chapter2\""],
-    r#"<chapter inlist="toc" xml:id="chapter2"><tags><tag>Chapter 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Chapter 2</tag></tags><title><tag close=" ">Chapter 2</tag>Two</title><toctitle><tag close=" ">2</tag>Two</toctitle><para xml:id="chapter2.p1"><p xml:id="chapter2.p1.1">More.</p><pagination role="newpage"/></para></chapter>"#,
+    r#"<chapter class="ltx_chapterstyle_default" inlist="toc" xml:id="chapter2"><tags><tag>Chapter 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Chapter 2</tag></tags><title><tag close=" ">Chapter 2</tag>Two</title><toctitle><tag close=" "><text font="bold" xml:id="chapter2.1">2</text></tag><text font="bold" xml:id="chapter2.2">Two</text></toctitle><para xml:id="chapter2.p1"><p xml:id="chapter2.p1.1">More.</p><pagination role="newpage"/></para></chapter>"#,
   );
 }
 

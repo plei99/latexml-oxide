@@ -45,11 +45,13 @@ fn amsproc_caption_labels_are_small_capitals() { assert_smallcaps_labels("amspro
 #[test]
 fn amsbook_caption_labels_are_small_capitals() { assert_smallcaps_labels("amsbook"); }
 
-/// The size a caption package binding sets (subcaption's `\small`, the binding's: real caption-ams-smf.sto keeps
-/// `\@captionfont`) still applies to the label, and the small capitals come with it.
+/// The size a caption package binding sets (`\usepackage[font=small]{caption}`; real caption-ams-smf.sto keeps
+/// `\@captionfont`) still applies to the label, and the small capitals come with it. Not subcaption's `\small`: that is
+/// the sub-captions' alone, the float's own caption keeps the kernel's size (subcaption_sty.rs `\fnum@font@subfigure`,
+/// KNOWN_PERL_ERRORS #1021), so the guard reads the size from caption's `font=small`.
 #[test]
 fn amsart_caption_label_keeps_the_size_the_caption_binding_sets() {
-  let xml = captions("amsart", "\\usepackage{subcaption}\n");
+  let xml = captions("amsart", "\\usepackage[font=small]{caption}\n");
   assert_eq!(
     xml.matches(
       "<caption class=\"ltx_centering\"><tag close=\". \"><text font=\"smallcaps\" fontsize=\"90%\">Figure 1</text></tag><text fontsize=\"90%\">A figure caption</text></caption>"
@@ -72,12 +74,16 @@ fn article_caption_label_is_upright() {
 }
 
 /// acmart loads amsart and sets the label fonts through caption (acmart.cls:878-906), not amsart's `\@makecaption`:
-/// its label is not in small capitals.
+/// its label is not in small capitals. The figure is named "Fig." (acmart.cls:883 `\captionsetup[figure]{name={Fig.}}`, the
+/// class caption format of upstream 78y, perfect_kernel_batch78y); the table keeps "Table".
 #[test]
 fn acmart_caption_label_is_not_small_capitals() {
   let xml = captions("acmart", "");
   assert_eq!(
-    xml.matches("<caption class=\"ltx_centering\"><tag close=\". \">Figure 1</tag>A figure caption</caption>")
+    xml
+      .matches(
+        "<caption class=\"ltx_centering\"><tag close=\". \">Fig. 1</tag>A figure caption</caption>"
+      )
       .count(),
     1,
     "{xml}"

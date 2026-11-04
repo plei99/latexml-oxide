@@ -48,7 +48,8 @@ fn without_copy(tex: &str) -> String {
 /// 2608.12563's shape: `{affiliations}` after `\maketitle`, a braced `\item{…}`, a plain `\item` and an `\item[*]`
 /// e-mail line, then the abstract. The list is the class's — each item tagged by its raised number (the `*` its own
 /// mark), its body slanted —, set as the cover a continued titlepage holds, and the abstract follows it, as pdflatex
-/// prints them; the same without the paper's copy of the class.
+/// prints them; the same without the paper's copy of the class. The `\item[*]` label is slanted, the list's `\slshape`
+/// being in force at the `\item` as `\@item` sets `\makelabel` (OXIDIZED_DESIGN_DIVERGENCES #983).
 #[test]
 fn nature_affiliations_list_is_the_cover_before_the_abstract() {
   let tex = repro!("nature_affiliations_list_before_abstract.tex");
@@ -87,7 +88,8 @@ fn nature_affiliations_list_is_the_cover_before_the_abstract() {
 /// `\small`, the given label set by `\addendumlabel` (bold, its `\hspace{1em}` a space) and a bare `\item` the list's
 /// "Acknowledgements" (not bold: the kernel's `\list` sets its default label without `\makelabel`, as Perl's,
 /// latex_constructs.pool.ltxml:1642-1643, where LaTeX's `\@item` sets it through `\makelabel`; a label's styling is the
-/// CSS theme's, user ruling 2026-10-30).
+/// CSS theme's, user ruling 2026-10-30). The label is set in the font in force at the `\item`, the list's `\small`
+/// (`fontsize="90%"`), as `\@item` sets `\makelabel` in the list's current font (OXIDIZED_DESIGN_DIVERGENCES #983).
 #[test]
 fn nature_addendum_items_carry_the_class_labels() {
   let (log, xml) = convert_with(repro!("nature_addendum_labels.tex"), Some(PRELOAD));
@@ -130,8 +132,8 @@ const TITLEPAGE: &str = r#"<titlepage class="ltx_titlepage_continued" xml:id="id
       </item>
       <item xml:id="S0.I1.ix1">
         <tags>
-          <tag>*</tag>
-          <tag role="autoref">item <text xml:id="S0.I1.ix1.1"/></tag>
+          <tag><text font="slanted" xml:id="S0.I1.ix1.1">*</text></tag>
+          <tag role="autoref">item <text xml:id="S0.I1.ix1.2"/></tag>
           <tag role="typerefnum">item *</tag>
         </tags>
         <para xml:id="S0.I1.ix1.p1">
@@ -145,8 +147,8 @@ const TITLEPAGE: &str = r#"<titlepage class="ltx_titlepage_continued" xml:id="id
 const ADDENDUM: &str = r#"<itemize xml:id="S1.p1.2">
   <item xml:id="S1.I1.i1">
     <tags>
-      <tag>Acknowledgements</tag>
-      <tag role="autoref">item <text xml:id="S1.I1.i1.1"/></tag>
+      <tag><text fontsize="90%" xml:id="S1.I1.i1.1">Acknowledgements</text></tag>
+      <tag role="autoref">item <text xml:id="S1.I1.i1.2"/></tag>
       <tag role="typerefnum">1st item</tag>
     </tags>
     <para xml:id="S1.I1.i1.p1">
@@ -155,7 +157,7 @@ const ADDENDUM: &str = r#"<itemize xml:id="S1.p1.2">
   </item>
   <item xml:id="S1.I1.ix1">
     <tags>
-      <tag><text font="bold" xml:id="S1.I1.ix1.1">Competing Interests</text> </tag>
+      <tag><text font="bold" fontsize="90%" xml:id="S1.I1.ix1.1">Competing Interests<text font="medium" xml:id="S1.I1.ix1.1.1"> </text></text></tag>
       <tag role="autoref">item <text xml:id="S1.I1.ix1.2"/></tag>
       <tag role="typerefnum">item Competing Interests</tag>
     </tags>

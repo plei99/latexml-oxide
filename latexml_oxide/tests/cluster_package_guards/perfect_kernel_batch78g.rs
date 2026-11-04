@@ -215,6 +215,7 @@ fn amsmath_row_label_names_the_display_step() {
 /// for `\ref` and shows none (an empty number cell); with an `\eqno` too it keeps one `ltx:tags` — its "(B)" shown,
 /// `\ref` the step's "43" (`\eqno` leaves `\@currentlabel` alone) — as pdflatex prints them. Red (int47a): "See 2, 2,
 /// 2 and (B)."; (78g r1) d:d with two `ltx:tags`, `\ref` "(B)". Repro unnumbered_display_label_takes_the_step_number.
+/// The display tables are `role="presentation"` (OXIDIZED_DESIGN_DIVERGENCES #969).
 #[test]
 fn unnumbered_display_label_takes_the_step_number() {
   let html = html_of(repro!("unnumbered_display_label_takes_the_step_number.tex"));
@@ -233,7 +234,7 @@ fn unnumbered_display_label_takes_the_step_number() {
   let display = |n: usize, tex: &str, mathml: &str, eqno: &str| {
     format!(
       concat!(
-        r#"<table id="S2.Ex{n}" class="ltx_equation ltx_eqn_table"><tbody><tr class="ltx_equation ltx_eqn_row "#,
+        r#"<table id="S2.Ex{n}" class="ltx_equation ltx_eqn_table" role="presentation"><tbody><tr class="ltx_equation ltx_eqn_row "#,
         r#"ltx_align_baseline"><td class="ltx_eqn_cell ltx_eqn_center_padleft"></td><td class="ltx_eqn_cell "#,
         r#"ltx_align_center"><math id="S2.Ex{n}.m1" class="ltx_Math" alttext="{tex}" display="block" "#,
         r#"intent=":literal"><mrow>{mathml}</mrow></math></td><td class="ltx_eqn_cell ltx_eqn_center_padright"></td>"#,

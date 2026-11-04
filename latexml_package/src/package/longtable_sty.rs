@@ -212,14 +212,17 @@ LoadDefinitions!({
   // `\@makecaption` is (IEEEtran's "TABLE I" over its text, amsart's "Table 1. text": `\lx@makecaption`,
   // latex_constructs_rust_only.rs); caption, when loaded (not its kernel alone), formats it as a table's
   // (caption.sty:1167), and a binding that ports its class's or package's own `\LT@makecaption` as its table format
-  // marks it (`\lx@longtable@classformat`: emulateapj.cls:1303-1313, caption2.sty:338). Guards
+  // marks it (`\lx@longtable@classformat`: emulateapj.cls:1303-1313, caption2.sty:338). Its own format sets the
+  // label in `\fnum@font@float` alone, not in a class's label font for tables (`\fnum@font@table`, which amsart sets to
+  // `\@captionheadfont`, small capitals, for its `\@makecaption`'s tables: ams_support_sty.rs
+  // `amsart_caption_head_font`, OXIDIZED_DESIGN_DIVERGENCES #984): `\LT@makecaption` prints `\fnum@table` plain. Guards
   // `perfect_kernel_batch78y::{ieeetran_listings_caption_takes_the_figure_format,
   // amsart_newfloat_caption_takes_the_class_format, caption_under_an_ams_class_closes_every_type_with_a_period}`.
   DefMacro!("\\lx@longtable@caption@text{}{}",
     r"\lx@longtable@caption@{\lx@format@toctitle@@{table}{\lx@toc@copy@text{#1}{#2}}}{\begingroup\lx@longtable@format\lx@format@caption@@{table}{#2}\endgroup}");
   RawTeX!(r"\def\lx@longtable@format{\@ifundefined{lx@longtable@classformat}{\@ifpackageloaded{caption}%
 {\@ifundefined{lx@caption@kernel@only}{}{\lx@longtable@ownformat}}{\lx@longtable@ownformat}}{}}
-\def\lx@longtable@ownformat{\long\def\format@title@table##1{\lx@tag[][: ]{\lx@fnum@@{table}}##1}}");
+\def\lx@longtable@ownformat{\let\fnum@font@table\fnum@font@float\long\def\format@title@table##1{\lx@tag[][: ]{\lx@fnum@@{table}}##1}}");
   DefPrimitive!("\\lx@longtable@caption@{}{}", sub[(toccap, cap)] {
     // caption's `\LT@makecaption` (caption.sty:1167, :1171): `\caption@LT@settype` — the table
     // type, a pending continuation cleared — and `\caption@prepare@stepcounter` (the table was
