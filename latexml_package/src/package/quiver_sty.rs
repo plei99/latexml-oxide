@@ -1,6 +1,6 @@
 //! quiver.sty (2026/07/27) — the TikZ styles of diagrams exported by the quiver editor.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(a). quiver.sty loads tikz-cd and
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(a). quiver.sty loads tikz-cd and
 //! amssymb, the TikZ libraries calc, decorations.pathmorphing, spath3 and nfold (quiver.sty:21-30),
 //! and defines the styles its exports name: `curve={height=…,pos=…}` (a Bézier `to path` bent by a
 //! height, :32-40), `between={a}{b}` (the arrow kept between two fractions of its length with spath3,

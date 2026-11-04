@@ -1,6 +1,6 @@
 //! titlesec's `\titleformat` label is the title's number, so it is an `ltx:tag` as in a title without
 //! titlesec (`\lx@@compose@title` = `\lx@tag[][ ]{#1}#2`), not bare text of the title (Perl's
-//! titlesec.sty.ltxml:55 inserts `$label` untagged; OXIDIZED_DESIGN_DIVERGENCES #583). The tag holds
+//! titlesec.sty.ltxml:55 inserts `$label` untagged; OXIDIZED_DESIGN_DIVERGENCES #962). The tag holds
 //! the formatted label alone; the separator (`\hspace`: a run of spaces)
 //! stays outside it, an empty label makes no tag, and the format's font stays on the title, so the
 //! HTML heading keeps the `style="font-size:…"` that overrides its class's size, and the tag is an
@@ -338,7 +338,7 @@ fn label_shapes() {
 fn titleformat_star_label_keeps_its_quad_in_the_tag() {
   // `\titleformat*` on a section never given a `\titleformat` takes titlesec's default label,
   // `\@seccntformat{section}` = `\csname thesection\endcsname\quad`: the quad is the label's own, so
-  // it stays in the tag (OXIDIZED_DESIGN_DIVERGENCES #583).
+  // it stays in the tag (OXIDIZED_DESIGN_DIVERGENCES #962).
   let tex = "\\documentclass{article}\n\\usepackage{titlesec}\n\
     \\titleformat*{\\subsection}{\\bfseries}\n\
     \\begin{document}\n\\section{Top}\n\\subsection{Sub}\n\\end{document}\n";

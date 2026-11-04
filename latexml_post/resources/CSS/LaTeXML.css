@@ -58,7 +58,7 @@ a.ltx_LaTeXML_logo { text-decoration: none; }
 .ltx_runin + p:first-child {
     display:inline; }
 
-/* The number of a title formatted by titlesec's \titleformat (OXIDIZED_DESIGN_DIVERGENCES #583):
+/* The number of a title formatted by titlesec's \titleformat (OXIDIZED_DESIGN_DIVERGENCES #962):
    an inline run of the title, in its font. ltx-book.css and ltx-report.css set the tag of a chapter
    or appendix title `display:block; font-size:90%; margin-bottom:0.5em` (the number on a line above
    the title); titlesec's `hang` shape keeps the number on the title's line and its `display` shape
@@ -389,7 +389,7 @@ dl.ltx_description dl.ltx_description dd { margin-left:3em; }
    and sum to >200% width, overflowing the listing (witness 1510.02728). Make each own its
    line so they stack like the pdflatex golden. OXIDIZED_DESIGN #152. */
 .ltx_inline-block.ltx_leaderfill { display:block; }
-/* stackengine's \stackinset (OXIDIZED_DESIGN #588(b)): the inset row over the anchor row, placed
+/* stackengine's \stackinset (OXIDIZED_DESIGN #967(b)): the inset row over the anchor row, placed
    t/c/b and l/c/r on it. */
 .ltx_inline-block.ltx_stackinset { display:inline-grid; }
 .ltx_inline-block.ltx_stackinset > * { grid-area:1 / 1; margin:0; justify-self:center; align-self:center; }
@@ -397,7 +397,7 @@ dl.ltx_description dl.ltx_description dd { margin-left:3em; }
 .ltx_stackinset_b > :first-child { align-self:end; }
 .ltx_stackinset_l > :first-child { justify-self:start; }
 .ltx_stackinset_r > :first-child { justify-self:end; }
-/* A box centred in a formula (OXIDIZED_DESIGN #607): the stylesheet holds a vattach=middle inline-block that
+/* A box centred in a formula (OXIDIZED_DESIGN #986): the stylesheet holds a vattach=middle inline-block that
    is a child of an m:mtext in this line, where its vertical-align applies. Chromium sizes the mtext without
    the box's own text (math 198px for 253px of content), so the next item of the formula, a `.` after a
    \right\}, was drawn over the box; max-content gives the box (and so the mtext) its width. A box with a
@@ -536,7 +536,7 @@ span.ltx_framed       { display:inline-block; text-indent:0; } /* avoid padding/
 .ltx_underline { text-decoration: underline; }
 .ltx_overline  { text-decoration: overline; }
 /* In math, \overline/\underline are drawn by the border in the mrow's own inline style
-   (OXIDIZED_DESIGN_DIVERGENCES #584); the text decoration above would propagate into every
+   (OXIDIZED_DESIGN_DIVERGENCES #963); the text decoration above would propagate into every
    token of the base and draw a second, broken rule. */
 mrow.ltx_underline, mrow.ltx_overline { text-decoration: none; }
 

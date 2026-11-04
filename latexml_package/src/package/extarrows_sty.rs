@@ -1,6 +1,6 @@
 //! extarrows.sty (v1.2.0, 2020/03/12) — extensible arrows with labels above and below.
 //!
-//! No Perl binding exists; this is a native binding (OXIDIZED_DESIGN #588(f)). extarrows.sty
+//! No Perl binding exists; this is a native binding (OXIDIZED_DESIGN #967(f)). extarrows.sty
 //! defines each `\x<arrow>[below]{above}` as `\providecommand{…}[2][]{\ext@arrow 0099\x<arrow>fill@{#1}{#2}}`
 //! (extarrows.sty:31-58): amsmath's `\ext@arrow` stretches a glyph built from `\arrowfill@` pieces
 //! under the label. Here each one is amsmath's `\lx@long@arrow` over a stretchy operator, as

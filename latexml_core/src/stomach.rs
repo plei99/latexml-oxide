@@ -518,7 +518,7 @@ use crate::{
   comment::Comment,
   common::{arena, arena::SymHashMap as HashMap, error::*, font, font::Font},
   definition::{
-    Definition,
+    Definition, ExpansionBody,
     constructor::{Constructor, TexGroup},
     expandable::Expandable,
     register::RegisterValue,
@@ -1139,6 +1139,9 @@ pub fn bgroup() {
 /// undoing whatever bindings appeared there, and also
 /// decrementing the level of boxing.
 pub fn egroup() -> Result<()> {
+  if get_current_token().is_some_and(|t| gullet::is_right_brace(&t)) && close_template_brace() {
+    return Ok(());
+  }
   if is_value_bound("BOUND_MODE", Some(0)) {
     // Diagnostic for cluster investigation (project_explsyntax_midload.md).
     if *TRACE_BOUND_MODE {
@@ -1327,6 +1330,14 @@ pub fn endgroup() -> Result<()> {
       current_frame_message()
     );
   } else if !lookup_bool_sym(crate::pin!("groupNonBoxing")) {
+    // A bare environment whose body is read in a boxing frame of its own — a brace-less `\abstract`'s
+    // capture (`\lx@add@frontmatter@until`, marked by sect05.rs `\lx@abstract@bare@frame`) — ends as any
+    // bare `\X` does (witness 2305.17823).
+    if let Some(closer) = get_current_token()
+      && close_environment_frame(closer, true)?
+    {
+      return Ok(());
+    }
     // or group was opened with \bgroup
     Error!(
       "unexpected",
@@ -1750,24 +1761,70 @@ fn back_input_for_new_graf(token: Token) -> bool {
   true
 }
 
+/// tex.web §1090: the commands that, met in vertical mode, are backed up while `new_graf` (§1091) puts `\everypar`
+/// in front of them, as a character is ([`back_input_for_new_graf`]) — `hskip` (`\hskip`, `\hfil`, `\hfill`, `\hss`,
+/// `\hfilneg`), `un_hbox` (`\unhbox`, `\unhcopy`, and `\leavevmode`, plain's and LaTeX's `\unhbox\voidb@x`), `vrule`,
+/// `char_num`, `accent`, `discretionary` (`\-`), `ex_space` (`\ `), `valign`, `no_boundary`. A hook that opens a box
+/// for the paragraph's material — a Maple session transcript's `\everypar{\setbox0=\hbox\bgroup}`, closed by its
+/// active end of line (`\leavevmode\egroup\box0\par`) — then holds the command too; digested in place, ahead of the
+/// command's own mode switch, it left the box's group under the paragraph's ("Attempt to close a group that switched to
+/// mode horizontal" at every line opening with a space, gr-qc9505014: 100 errors and a Fatal). `\indent`/`\noindent`
+/// (`start_par`) list their indent box first ([`enter_horizontal_listed_indent`]); math shift and the constructors keep
+/// the in-place hook ([`fire_everypar`]), as does the rule a `\leaders` reads. Matched by the definition's own name, so
+/// a `\let` copy is the same command.
+/// Guard `perfect_kernel_batch80a::everypar_box_holds_a_line_opened_by_a_control_space`.
+fn starts_new_graf(cs: &Token) -> bool {
+  lookup_string_from_sym(crate::pin!("MODE")).ends_with("vertical")
+    && cs.with_str(|name| {
+      matches!(
+        name,
+        "\\hskip"
+          | "\\hfil"
+          | "\\hfill"
+          | "\\hss"
+          | "\\hfilneg"
+          | "\\unhbox"
+          | "\\unhcopy"
+          | "\\leavevmode"
+          | "\\vrule"
+          | "\\char"
+          | "\\accent"
+          | "\\discretionary"
+          | "\\-"
+          | "\\ "
+          | "\\valign"
+          | "\\noboundary"
+      )
+    })
+    // the rule `\leaders` reads is a rule specification, not a command (tex.web §1078, §1084: `scan_box` reads it, and
+    // it starts no paragraph); `\leaders` marks it (tex_box.rs)
+    && !lookup_bool("lx@leaders@rule")
+}
+
 /// Switch to horizontal mode without stacking the mode.
 /// Can only switch from vertical|internal_vertical to horizontal.
 /// Perl: sub enterHorizontal.
 /// tex.web `new_graf` (L21117) fires `\everypar` here (`begin_token_list`).
-pub fn enter_horizontal() { enter_horizontal_graf(true) }
+pub fn enter_horizontal() { enter_horizontal_graf(true, true) }
 
 /// [`enter_horizontal`] for `\noindent` and `\indent`: a paragraph whose indent box, if any, is on the list — none for
 /// `\noindent` (tex.web §1091 `new_graf(false)`), `\indent`'s own whatsit — with `\everypar` read after it.
-pub fn enter_horizontal_listed_indent() { enter_horizontal_graf(false) }
+pub fn enter_horizontal_listed_indent() { enter_horizontal_graf(false, true) }
 
-fn enter_horizontal_graf(implicit_indent: bool) {
+/// [`enter_horizontal`] without `\everypar`, as Perl's `enterHorizontal` (Stomach.pm:422-433): the paragraph of a
+/// box LaTeX resets `\everypar` in, a float's caption (`PBoxContents`; latex.ltx `\@floatboxreset` → `\@setminipage`
+/// leaves only `\@minipagefalse` there), where a hook an enclosing list armed — aasms4's `\references`, whose
+/// paragraphs are entries — does not run.
+pub fn enter_horizontal_without_everypar() { enter_horizontal_graf(true, false) }
+
+fn enter_horizontal_graf(implicit_indent: bool, everypar: bool) {
   let mode = lookup_string_from_sym(crate::pin!("MODE"));
   if mode.ends_with("vertical") {
     assign_value_inplace_sym(crate::pin!("MODE"), crate::pin!("horizontal"));
     mark_paragraph_start(implicit_indent);
-    if implicit_indent {
+    if everypar && implicit_indent {
       fire_everypar();
-    } else if let Some(toks) = pending_everypar() {
+    } else if everypar && let Some(toks) = pending_everypar() {
       // `\indent`/`\noindent` (tex.web §1088 `start_par`): `new_graf` lists the indent box, if any, and THEN
       // `begin_token_list(every_par)`, so the hook is the next input, read after the command — its whatsit precedes
       // the hook's material, and `\noindent` finds the paragraph it marks `ltx_noindent` (digested here, the hook's
@@ -1805,7 +1862,7 @@ pub fn leave_horizontal() -> Result<()> {
       // paragraph that fired the re-armed `\everypar`, whose `\gr@implitem`
       // never found its catcode-12 `<` (2605.07451: `\grammarShrink` =
       // `\vspace` between productions; a `\vspace` in a paragraph's text is dropped now,
-      // OXIDIZED_DESIGN_DIVERGENCES #603, so the repro and its guard use `\vskip 0pt`, which still
+      // OXIDIZED_DESIGN_DIVERGENCES #982, so the repro and its guard use `\vskip 0pt`, which still
       // gets here). The body is read from a mouth of its
       // own, in no group (its assignments stand), and invoked against the
       // CURRENT box list, so `\@@par`'s repack still sees the paragraph and
@@ -1982,6 +2039,27 @@ pub fn expire_local_box_list() -> Vec<Digested> {
   std::mem::swap(&mut stomach.box_list, &mut buffer);
   stomach.paragraph_start = start;
   buffer
+}
+
+/// The depth of the box lists suspended by [`new_local_box_list`] and of the boxing stack: a mark for
+/// [`unwind_box_lists_to`].
+pub fn box_lists_mark() -> (usize, usize) {
+  let stomach = stomach!();
+  (stomach.localized_box_list.len(), stomach.boxing.len())
+}
+
+/// Back to the box lists and boxing depth of `mark` ([`box_lists_mark`]), what was digested since discarded: the
+/// lists a failed digestion left suspended (an `Err` leaves each `new_local_box_list` it was in unexpired) for a run
+/// that is undone (sect05.rs `speculative_title_page_run`).
+pub fn unwind_box_lists_to(mark: (usize, usize)) {
+  let mut stomach = stomach_mut!();
+  while stomach.localized_box_list.len() > mark.0
+    && let Some((parent, start)) = stomach.localized_box_list.pop()
+  {
+    stomach.box_list = parent;
+    stomach.paragraph_start = start;
+  }
+  stomach.boxing.truncate(mark.1);
 }
 
 /// Recover the boxes a failed `digest_next_body` left stranded, in document
@@ -2274,15 +2352,16 @@ pub fn pop_box_list() -> Option<Digested> { stomach_mut!().box_list.pop() }
 
 /// Items the list-tail primitives see through, being no node in TeX: a comment, a paragraph's closing `\par`
 /// marker (`\lx@normal@par`) — `\lastbox` after a paragraph takes its line ([`end_graf`]), and `\unskip`,
-/// `\lastskip` and the rest act on what came before the marker — and `\noindent`, which only starts a paragraph
-/// (tex.web §1091).
+/// `\lastskip` and the rest act on what came before the marker —, `\noindent`, which only starts a paragraph
+/// (tex.web §1091), and the boundary marks of a list `\unvbox` spliced (`\lx@splice@begin`, `\lx@splice@end`;
+/// tex_box.rs `vlist_of`): `\lastbox` after `\unvbox` takes the list's last box (§1080, §1110).
 pub fn is_list_tail_transparent(item: &Digested) -> bool {
   match item.data() {
     DigestedData::Comment(_) => true,
     DigestedData::Whatsit(w) => w.try_borrow().is_ok_and(|w| {
       matches!(
         w.get_definition().get_cs_name().as_ref(),
-        "\\lx@normal@par" | "\\noindent"
+        "\\lx@normal@par" | "\\noindent" | "\\lx@splice@begin" | "\\lx@splice@end"
       )
     }),
     _ => false,
@@ -2423,6 +2502,23 @@ where FnR: FnOnce(&[Digested]) -> R {
   let list = &stomach.box_list;
   caller(list)
 }
+/// The box lists being built, innermost first: the current `box_list`, then each outer one suspended on
+/// `localized_box_list` (by `new_local_box_list`), outward. A binding asking what an enclosing construct has digested so
+/// far (sect11.rs `holds_nothing_yet`) reads them from where it is, inside an environment's or a box's own list.
+pub fn with_box_list_levels<R, FnR>(caller: FnR) -> R
+where FnR: FnOnce(&[&[Digested]]) -> R {
+  let stomach = stomach!();
+  let mut levels: Vec<&[Digested]> = Vec::with_capacity(stomach.localized_box_list.len() + 1);
+  levels.push(&stomach.box_list);
+  levels.extend(
+    stomach
+      .localized_box_list
+      .iter()
+      .rev()
+      .map(|(list, _)| list.as_slice()),
+  );
+  caller(&levels)
+}
 pub fn with_box_list_mut<R, FnR>(caller: FnR) -> R
 where FnR: FnOnce(&mut [Digested]) -> R {
   let mut stomach = stomach_mut!();
@@ -2434,6 +2530,133 @@ pub fn with_box_list_mut_vec<R, FnR>(caller: FnR) -> R
 where FnR: FnOnce(&mut Vec<Digested>) -> R {
   let mut stomach = stomach_mut!();
   caller(&mut stomach.box_list)
+}
+
+// **********************************************************************
+// Deferred printing (OXIDIZED_DESIGN_DIVERGENCES #738)
+// **********************************************************************
+
+/// Material TeX writes out raw for a later run to print — an `\index` phrase (latex.ltx:17713-17726 `\@sanitize` and
+/// `\protected@write` to the `.idx`), a `\nomenclature` entry (nomencl.sty:208-219, the `.nlo`) — is typeset only when
+/// the document prints that list (`\printindex`, `\printnomenclature`); without one it is never typeset, and its
+/// errors are never TeX's. `defer_print` keeps the entry's tokens (already expanded as the write expands them) under a
+/// fresh id and returns that id for the anchor (`\lx@deferred@print{id}`, which marks the entry's place);
+/// [`resolve_deferred_prints`] digests them when the list is printed, and the anchor absorbs what was digested.
+/// Witnesses 1112.3972, 2506.02168 (user ruling 2026-10-18).
+pub fn defer_print(list: &str, tokens: Tokens) -> i64 {
+  let id = lookup_int("lx@deferred@print@count") + 1;
+  assign_value(
+    "lx@deferred@print@count",
+    Stored::Int(id),
+    Some(Scope::Global),
+  );
+  let unresolved = lookup_int("lx@deferred@print@unresolved") + 1;
+  assign_value(
+    "lx@deferred@print@unresolved",
+    Stored::Int(unresolved),
+    Some(Scope::Global),
+  );
+  assign_value(
+    &s!("lx@deferred@print@tokens@{id}"),
+    Stored::Tokens(tokens),
+    Some(Scope::Global),
+  );
+  assign_value(
+    &s!("lx@deferred@print@list@{id}"),
+    Stored::String(arena::pin(list)),
+    Some(Scope::Global),
+  );
+  let pending = lookup_int(&s!("lx@deferred@print@pending@{list}")) + 1;
+  assign_value(
+    &s!("lx@deferred@print@pending@{list}"),
+    Stored::Int(pending),
+    Some(Scope::Global),
+  );
+  id
+}
+
+/// Whether the list `list` has been printed: an entry made after that is typeset at once (TeX's `.ind` of the earlier
+/// run holds every entry of the document, the later ones too).
+pub fn deferred_list_is_printed(list: &str) -> bool {
+  lookup_bool(&s!("lx@deferred@print@printed@{list}"))
+}
+
+/// What the deferred entry `id` digested to, once its list was printed (`None` while it is not).
+pub fn deferred_print_content(id: &str) -> Option<Digested> {
+  match lookup_value(&s!("lx@deferred@print@content@{id}")) {
+    Some(Stored::Digested(content)) => Some(content),
+    _ => None,
+  }
+}
+
+/// Print the list `list`: digest every entry deferred for it, in document order, and mark it printed. With `None`, digest
+/// every deferred entry of every list without marking any printed — the streaming yield's fallback (an anchor is built
+/// and spilled with the fragment it is in, before a later `\printindex` could fill it), where the entries are typeset
+/// as Perl typesets them, at once.
+pub fn resolve_deferred_prints(list: Option<&str>) -> Result<()> {
+  if let Some(list) = list {
+    assign_value(
+      &s!("lx@deferred@print@printed@{list}"),
+      Stored::Bool(true),
+      Some(Scope::Global),
+    );
+  }
+  if lookup_int("lx@deferred@print@unresolved") <= 0 {
+    return Ok(());
+  }
+  // A list with nothing pending has nothing to scan for: a `\cite` of a key whose `\bibitem` comes later (70c's
+  // `b@<key>` lists), with a document's unprinted `\index` entries pending, would otherwise rescan them all, once per
+  // cite (40k entries and 5k cites, release build: 20.9 s → 0.99 s).
+  if let Some(list) = list
+    && lookup_int(&s!("lx@deferred@print@pending@{list}")) <= 0
+  {
+    return Ok(());
+  }
+  // The entries below the low-water mark are all resolved: a scan starts at the first one still pending, so the
+  // streaming yields, which resolve every list, scan each entry once; one list's scan stops at its last entry.
+  let count = lookup_int("lx@deferred@print@count");
+  let low = lookup_int("lx@deferred@print@low").max(1);
+  let mut first_pending: Option<i64> = None;
+  let mut scanned_to = count;
+  for id in low..=count {
+    let key = s!("lx@deferred@print@tokens@{id}");
+    let Some(Stored::Tokens(tokens)) = lookup_value(&key) else {
+      continue;
+    };
+    let entry_list = lookup_string(&s!("lx@deferred@print@list@{id}"));
+    if let Some(list) = list
+      && entry_list != list
+    {
+      first_pending.get_or_insert(id);
+      continue;
+    }
+    assign_value(&key, Stored::None, Some(Scope::Global));
+    let unresolved = lookup_int("lx@deferred@print@unresolved") - 1;
+    assign_value(
+      "lx@deferred@print@unresolved",
+      Stored::Int(unresolved),
+      Some(Scope::Global),
+    );
+    let pending_key = s!("lx@deferred@print@pending@{entry_list}");
+    let pending = lookup_int(&pending_key) - 1;
+    assign_value(&pending_key, Stored::Int(pending), Some(Scope::Global));
+    let content = digest(tokens)?;
+    assign_value(
+      &s!("lx@deferred@print@content@{id}"),
+      Stored::Digested(content),
+      Some(Scope::Global),
+    );
+    if list.is_some() && pending <= 0 {
+      scanned_to = id;
+      break;
+    }
+  }
+  assign_value(
+    "lx@deferred@print@low",
+    Stored::Int(first_pending.unwrap_or(scanned_to + 1)),
+    Some(Scope::Global),
+  );
+  Ok(())
 }
 
 // **********************************************************************
@@ -2501,6 +2724,37 @@ pub fn digest<T: Into<Tokens>>(tokens: T) -> Result<Digested> {
     digested_list.mode = Some(mode);
     digested_list.into()
   })
+}
+
+/// Whether the open until-body's own loop reads the next token: no group of the body is open inside it (an
+/// unbalanced `\abstract{` has its `{` open), so its terminal ends it without closing one ([`until_terminal_inside_group`]).
+pub fn until_body_at_own_level() -> bool {
+  match lookup_value("lx@until@depth") {
+    Some(Stored::Number(n)) => stomach!().boxing.len() <= n.0 as usize,
+    _ => false,
+  }
+}
+
+/// The environment begun with `\begin` that the open until-body is read in — LaTeX's `\@currenvir`, whose end
+/// `\@checkend` checks — or `None` when the body is a begin code called as a command: a bare begin code
+/// (`lx@env@bare@end`), or one whose innermost recorded environment is `{document}` (mn2e `\keywords{…}`,
+/// mn2e.cls:993-1003, opens its body in the document's own environment, which LaTeX never checks against it). The
+/// innermost frame that records an environment names it: `\begin`'s `current_environment`, or `lx@until@begun`, which
+/// the kernel's `\begin{abstract}` (no environment frame of its own) leaves in its body's frame.
+pub fn begun_environment() -> Option<String> {
+  if lookup_value("lx@env@bare@end").is_some() || !until_body_at_own_level() {
+    return None;
+  }
+  for frame in 0..=get_frame_depth() {
+    if is_value_bound("lx@until@begun", Some(frame)) {
+      return Some(lookup_string("lx@until@begun"));
+    }
+    if is_value_bound("current_environment", Some(frame)) {
+      let open = lookup_string("current_environment");
+      return (!open.is_empty() && open != "document").then_some(open);
+    }
+  }
+  None
 }
 
 /// Return the digested `List` after reading and digesting a body from the its Gullet.
@@ -2586,6 +2840,50 @@ pub fn abandon_stack_frame() -> Result<()> {
 
 fn abandoned_frame_count() -> u64 { ABANDONED_FRAMES.with(Cell::get) }
 
+/// Runs `digestion` in a group of its own, as a text built ahead of its use and not read from the document: a tag a
+/// reference prints (latexml_engine tags_refnums.rs `\lx@tag@intags@held`), a form cleveref typesets only at a reference
+/// (latexml_package cleveref_sty.rs `\lx@cref@docformat`), whose text need not
+/// close what it opens — the derived `\Cref` format `\MakeUppercase#2\color{blue}…`, whose `\MakeUppercase` takes
+/// `\color` alone (2008.12750, 2604.24399). Whatever the digestion leaves is undone, so the document reads on as it
+/// was: the groups it left open are popped as [`abandon_stack_frame`] pops one, their `\aftergroup` discarded, but not
+/// counted as an abandonment, and the group is closed; the alignment brace count (tex.web's `align_state`, §789) is put
+/// back, as the `{` such a text scanned is not the document's — left counted, a figure's tabular of two captioned
+/// minipages read its next `&` as text and moved the following cell into the row above ("Missing } inserted",
+/// "Extra alignment tab"; guards `perfect_kernel_batch78j::cleveref_format_form_keeps_the_alignment_brace_count`,
+/// `::cleveref_format_form_keeps_an_alignment_row_end`). Returns the digestion's result and the group balance: the
+/// groups it left open, or, negative, how many it closed that it did not open.
+pub fn digest_in_own_group<T>(digestion: impl FnOnce() -> Result<T>) -> Result<(Result<T>, isize)> {
+  let depth = get_frame_depth();
+  let align = mark_align_group_count();
+  bgroup();
+  let value = digestion();
+  let after = get_frame_depth();
+  let balance = after as isize - (depth + 1) as isize;
+  let closed = if after > depth {
+    unwind_stack_frames_to(depth + 1).and_then(|_| egroup())
+  } else {
+    Ok(())
+  };
+  restore_align_group_count(align);
+  closed?;
+  Ok((value, balance))
+}
+
+/// Pops the groups above frame depth `depth` ([`digest_in_own_group`]). Returns how many it popped.
+fn unwind_stack_frames_to(depth: usize) -> Result<usize> {
+  let mut popped = 0;
+  while get_frame_depth() > depth {
+    let before = get_frame_depth();
+    let nonboxing = lookup_bool_sym(crate::pin!("groupNonBoxing"));
+    pop_stack_frame_with(nonboxing, false)?;
+    popped += 1;
+    if get_frame_depth() >= before {
+      break;
+    }
+  }
+  Ok(popped)
+}
+
 thread_local! {
   /// How many times the document ended inside open groups on this thread ([`end_inside_groups`]).
   static ENDS_INSIDE_GROUPS: Cell<u64> = const { Cell::new(0) };
@@ -2613,6 +2911,38 @@ pub fn ends_inside_groups() -> u64 { ENDS_INSIDE_GROUPS.with(Cell::get) }
 /// already been used. The debt is a frame value; at every pop it moves to the frame then innermost
 /// ([`pop_stack_frame`]), so it follows the stack to wherever that closer arrives. OXIDIZED_DESIGN #530.
 pub const OWED_BRACES: &str = "lx@owed@braces";
+/// Bound in an alignment cell's frame while its template's `{` (`$\displaystyle{##}$`) is open — latexml_engine
+/// tex_box.rs `\lx@template@bgroup`/`\lx@template@egroup`; a `}` that would close the frame closes it
+/// ([`close_template_brace`]).
+pub const TEMPLATE_BRACE_OPEN: &str = "lx@template@brace@open";
+
+/// A `}` met at the frame of an alignment cell whose template's `{` is open (`$\displaystyle{##}$`, [`TEMPLATE_BRACE_OPEN`]):
+/// it closes that `{` (tex.web §789, the u-part's brace), the frame stays — `G_t(h)=}\det…` in an eqnarray cell
+/// (2207.06932, 1912.10594). Whether it did.
+pub fn close_template_brace() -> bool {
+  if is_value_bound(TEMPLATE_BRACE_OPEN, Some(0)) && lookup_bool(TEMPLATE_BRACE_OPEN) {
+    assign_value(TEMPLATE_BRACE_OPEN, false, None);
+    true
+  } else {
+    false
+  }
+}
+/// Whether `token`, read by the digestion loop, is a `}` — or a control sequence `\let` to one, `\egroup` — that
+/// closes the template's `{` ([`close_template_brace`]); TeX makes no difference between them (tex.web §1067
+/// `right_brace` is the command, whatever the token), so `$\displaystyle{a\egroup}$` closes the template's `{` and
+/// meets the v-part's `}` at the math shift: "Extra }, or forgotten $", deleted (latexml_engine tex_box.rs
+/// `\lx@template@egroup`). The common case — no mark live — costs one value lookup per control sequence.
+fn closes_template_brace(token: &Token) -> bool {
+  match token.get_catcode() {
+    Catcode::END => close_template_brace(),
+    cc if cc.is_active_or_cs() => {
+      lookup_bool_sym(crate::pin!("lx@template@brace@open"))
+        && gullet::is_right_brace(token)
+        && close_template_brace()
+    },
+    _ => false,
+  }
+}
 /// The `\endgroup` twin of [`OWED_BRACES`].
 pub const OWED_ENDGROUPS: &str = "lx@owed@endgroups";
 
@@ -2721,11 +3051,20 @@ pub const INLINE_FORMULA: &str = "lx@inline@formula";
 /// inserts closes those groups (§1193 + §1064-1065) and then the formula. A formula held by a frame LaTeXML's
 /// machinery opened (a constructor's argument, an environment, an alignment inside it) is not reached, nor is a
 /// formula in an alignment, unmarked (latexml_engine tex_math.rs `\lx@begin@inline@math`).
-pub fn inline_formula_reachable() -> bool {
+pub fn inline_formula_reachable() -> bool { formula_reachable(INLINE_FORMULA) }
+
+/// Marks the frame of a display `$$…$$` opened by `\lx@begin@display@math` outside an alignment (latexml_engine
+/// tex_math.rs, latex_constructs sect07.rs): the display a math shift ends through the groups opened in it (tex.web
+/// §1193 + §1064-1065), as [`INLINE_FORMULA`] marks an inline formula.
+pub const DISPLAY_FORMULA: &str = "lx@display@formula";
+
+/// Whether the innermost mode is a formula whose frame carries `flag` ([`INLINE_FORMULA`], [`DISPLAY_FORMULA`]) and
+/// every group opened inside it is one `off_save` closes on the way (`off_save_closer_at`).
+pub fn formula_reachable(flag: &str) -> bool {
   let depth = get_frame_depth();
   for n in 0..depth {
     if is_value_bound("BOUND_MODE", Some(n)) {
-      return is_value_bound(INLINE_FORMULA, Some(n));
+      return is_value_bound(flag, Some(n));
     }
     if off_save_closer_at(n).is_none() {
       return false;
@@ -2757,6 +3096,342 @@ pub fn insert_dollar_sign(again: Tokens) -> Result<bool> {
   tokens.extend(again.unlist());
   gullet::unread(Tokens::new(tokens));
   Ok(true)
+}
+
+/// How many source lines past a `\par` read in an inline formula [`formula_continues_past_par`] looks at.
+const PAR_LOOKAHEAD_LINES: usize = 40;
+/// How many tokens past such a `\par` it looks at.
+const PAR_LOOKAHEAD_TOKENS: usize = 2000;
+/// How many characters of source text it copies to tokenize (a one-line source holds the whole document on its
+/// current line), so that a `\par` costs at most this much however long the line.
+const PAR_LOOKAHEAD_CHARS: usize = 16_000;
+/// How deep it follows a macro into the macros of its body ([`lookahead_command`]).
+const PAR_LOOKAHEAD_DEPTH: usize = 3;
+/// How many body tokens it examines in all, following macros.
+const PAR_LOOKAHEAD_BODY_TOKENS: usize = 512;
+
+/// The primitives tex.web §1046 makes a non-math mode meet with `insert_dollar_sign` — math-only commands, whatever
+/// LaTeXML defines them as: `\left`/`\middle`/`\right` (`left_right`), the generalized fractions (`above`),
+/// `\mathchar`, `\delimiter`, `\radical`, `\mathaccent`, the math classes (`math_comp`; not `\underline`, which LaTeX
+/// makes good in text), `\mathchoice`, `\vcenter`, `\nonscript`, `\mkern`, `\mskip`, the limit switches and the
+/// styles. A token is matched by its meaning's own name, so `\let\lft\left` is one too.
+const MATH_ONLY_PRIMITIVES: &[&str] = &[
+  "\\left",
+  "\\middle",
+  "\\right",
+  "\\over",
+  "\\atop",
+  "\\above",
+  "\\overwithdelims",
+  "\\atopwithdelims",
+  "\\abovewithdelims",
+  "\\mathchar",
+  "\\delimiter",
+  "\\radical",
+  "\\mathaccent",
+  "\\mathord",
+  "\\mathop",
+  "\\mathbin",
+  "\\mathrel",
+  "\\mathopen",
+  "\\mathclose",
+  "\\mathpunct",
+  "\\mathinner",
+  "\\overline",
+  "\\mathchoice",
+  "\\vcenter",
+  "\\nonscript",
+  "\\mkern",
+  "\\mskip",
+  "\\limits",
+  "\\nolimits",
+  "\\displaylimits",
+  "\\displaystyle",
+  "\\textstyle",
+  "\\scriptstyle",
+  "\\scriptscriptstyle",
+];
+
+/// What the look-ahead past a `\par` stops at undecided, by name or by meaning (`\let\endgraf\par`, a macro whose
+/// body holds one — `\medskip`'s `\vskip`, `\section`'s `\par`): a paragraph's end, or a command inline math cannot
+/// hold (tex.web §1046 `mmode+par_end`, `stop`, `vskip`, `hrule`, `un_vbox`, `valign`; an environment's end or begin;
+/// an alignment's `\cr`), or a formula's opener. And `\catcode`: TeX tokenizes what follows it under the new codes,
+/// so the look-ahead's tokens past it are not the ones TeX reads (`\catcode`\_=12 a_b`; a macro whose body holds one).
+/// A primitive that changes codes in its closure (`\makeatletter`, `\obeylines`) is not seen; only `\catcode` is.
+const PAR_LOOKAHEAD_STOPS: &[&str] = &[
+  "\\par",
+  "\\lx@normal@par",
+  "\\endgraf",
+  "\\end",
+  "\\begin",
+  "\\vskip",
+  "\\vfil",
+  "\\vfill",
+  "\\vss",
+  "\\vfilneg",
+  "\\hrule",
+  "\\unvbox",
+  "\\unvcopy",
+  "\\valign",
+  "\\cr",
+  "\\crcr",
+  "\\(",
+  "\\[",
+  "\\]",
+  "\\catcode",
+];
+
+/// What a control sequence met by the look-ahead past a `\par` tells it ([`lookahead_command`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LookaheadCommand {
+  /// Math-only by its current meaning — what tex.web §1046 meets with `insert_dollar_sign` outside math: a control
+  /// sequence (`\let` to a sub- or superscript mark included) whose definition is LaTeXML's for math only (a DefMath
+  /// symbol; a constructor or primitive that requires math, Perl's `requireMath`) or one of TeX's math-only
+  /// primitives ([`MATH_ONLY_PRIMITIVES`]).
+  MathOnly,
+  /// Neither: typeset in text, its arguments (if any) braced or bracketed groups the look-ahead steps over.
+  Neutral,
+  /// The look-ahead cannot go past it: it ends the paragraph or the formula ([`PAR_LOOKAHEAD_STOPS`], a definition
+  /// that leaves horizontal mode), or it reads what follows in a way the look-ahead cannot follow — a verbatim,
+  /// semi-verbatim or delimited parameter (`\url`, `\ref`, `\def\a#1.{…}`), a macro whose expansion is code
+  /// (`\verb`, whose argument's delimiter is any character), a `$` or `&` in its body, or bounds run out.
+  GiveUp,
+}
+
+/// What the control sequence or active character `token` tells the look-ahead past a `\par`, by its current meaning
+/// ([`LookaheadCommand`]), nothing expanded. A definition's parameters are read from its parameter list: any verbatim,
+/// semi-verbatim or delimited one gives up. A macro whose body is tokens is followed into the control sequences of
+/// that body, `depth` levels deep, for what it stops at or cannot follow (`\lstinline` = `\leavevmode\lx@lstinline`,
+/// whose code reads a verbatim argument; `\medskip` = `\vskip…`); `budget` bounds the body tokens examined.
+fn lookahead_command(token: &Token, depth: usize, budget: &mut usize) -> LookaheadCommand {
+  use LookaheadCommand::*;
+  if token.with_str(|name| PAR_LOOKAHEAD_STOPS.contains(&name)) {
+    return GiveUp;
+  }
+  let defn: Rc<dyn Definition> = match lookup_meaning(token) {
+    None => return Neutral,
+    Some(Stored::Token(t)) => {
+      return match t.get_catcode() {
+        Catcode::SUPER | Catcode::SUB => MathOnly,
+        Catcode::MATH | Catcode::ALIGN => GiveUp,
+        _ => Neutral,
+      };
+    },
+    Some(Stored::MathPrimitive(_)) => return MathOnly,
+    Some(Stored::Constructor(d)) => d,
+    Some(Stored::Primitive(d)) => d,
+    Some(Stored::Expandable(d)) => d,
+    Some(Stored::Conditional(d)) => d,
+    Some(_) => return Neutral,
+  };
+  if defn
+    .get_cs()
+    .with_str(|name| PAR_LOOKAHEAD_STOPS.contains(&name))
+  {
+    return GiveUp;
+  }
+  let mode = defn.declared_mode();
+  if mode.as_ref().is_some_and(|mode| mode.leave_horizontal) {
+    return GiveUp;
+  }
+  if defn.get_parameters().is_some_and(|params| {
+    params.get_parameters().iter().any(|param| {
+      param.semiverbatim.is_some()
+        || arena::with(param.name, |name| {
+          name.contains("erbatim") || name.contains("Until") || name == "Match"
+        })
+    })
+  }) {
+    return GiveUp;
+  }
+  if mode.is_some_and(|mode| mode.require_math)
+    || defn
+      .get_cs()
+      .with_str(|name| MATH_ONLY_PRIMITIVES.contains(&name))
+  {
+    return MathOnly;
+  }
+  match defn.get_expansion() {
+    Some(ExpansionBody::Closure(_)) => GiveUp,
+    Some(ExpansionBody::Tokens(body)) => {
+      if depth >= PAR_LOOKAHEAD_DEPTH {
+        return GiveUp;
+      }
+      for inner in body.unlist_ref() {
+        if *budget == 0 {
+          return GiveUp;
+        }
+        *budget -= 1;
+        match inner.get_catcode() {
+          Catcode::MATH | Catcode::ALIGN => return GiveUp,
+          code if code.is_active_or_cs() && inner != token => {
+            if lookahead_command(inner, depth + 1, budget) == GiveUp {
+              return GiveUp;
+            }
+          },
+          _ => {},
+        }
+      }
+      Neutral
+    },
+    None => Neutral,
+  }
+}
+
+/// Whether the inline formula a `\par` is read in goes on past it: OXIDIZED_DESIGN #553 as narrowed (66w). The
+/// input is looked at, not read ([`gullet::peek_upcoming_tokens`], unexpanded, each token by its current meaning),
+/// as far as the formula's would-be closer — the next `$` or `\)` — within the paragraph after the `\par`. The
+/// formula continues when the material before that closer holds a math-only token (a `_`/`^`, or a command that is
+/// `LookaheadCommand::MathOnly`): the author split the formula with a blank line and the math goes on (hep-th9402135
+/// `$Z_{YM}(\epsilon) =` ⏎⏎ `\int_{\cal A} … D A$`, whose ending put every later `$` of the paragraph out of step,
+/// Fatal TooManyErrors). It does not when no math-only token comes first — that `$` opens the next paragraph's own
+/// formula, and the `\par` ends this one (tex.web §1047, a forgotten `$`) — nor on any doubt: no closer before the
+/// paragraph's end (`PAR_LOOKAHEAD_STOPS`), the bounds (`PAR_LOOKAHEAD_LINES`, `PAR_LOOKAHEAD_TOKENS`,
+/// `PAR_LOOKAHEAD_CHARS`), a closer inside a group, a bracket or a `$$`, a `}` closing a group the look-ahead did not
+/// see open, an `&`, a command it cannot follow (`LookaheadCommand::GiveUp`: `\verb|make_all|`, `\lstinline`, `\url`).
+/// The arguments of a command that is not math-only are not looked into: a `*` right after it, then every `[…]` and
+/// `{…}` group in a row (`\cite[p.~2]{smith_2001}`, `\ref*{eq_1}`, `\includegraphics[width=1cm]{fig_1}`,
+/// `\citep[e.g.][]{a_b}`) — their scripts may be a key's or a file name's, never typeset; any other group is
+/// (`{\cf^{1}/G}$`, `\left[0,1\right)`). The look-ahead starts after the judged `\par`, its leading `\par`s and spaces
+/// skipped — an `\obeylines` line end's active `^^M` among them (hep-ph9809328).
+pub fn formula_continues_past_par() -> bool {
+  if lookup_string_from_sym(crate::pin!("MODE")) != "math" || !inline_formula_reachable() {
+    return false;
+  }
+  let upcoming = gullet::peek_upcoming_tokens(
+    PAR_LOOKAHEAD_LINES,
+    PAR_LOOKAHEAD_CHARS,
+    PAR_LOOKAHEAD_TOKENS,
+  );
+  par_lookahead_verdict(upcoming) == Some(true)
+}
+
+/// Whether `token` is `\par` or means it (`\endgraf`, an active `^^M` under plain's `\obeylines`).
+fn means_par(token: &Token) -> bool {
+  *token == T_CS!("\\par")
+    || matches!(lookup_meaning(token), Some(Stored::Constructor(d))
+      if d.get_cs().with_str(|name| name == "\\lx@normal@par"))
+}
+
+/// Where the look-ahead past a `\par` is relative to a command's arguments.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ArgumentPosition {
+  /// Not after a command.
+  None,
+  /// Right after a control sequence that is not math-only: a `*`, a `[…]` or a `{…}` is its argument.
+  Command,
+  /// Right after such an argument: a `[…]` or a `{…}` is its next one.
+  Argument,
+}
+
+/// [`formula_continues_past_par`]'s decision over the `upcoming` tokens: `Some(math_only_seen)` at the closer,
+/// `None` when undecided.
+fn par_lookahead_verdict(upcoming: impl Iterator<Item = Token>) -> Option<bool> {
+  let mut tokens = upcoming.peekable();
+  let mut math_only = false;
+  let mut depth = 0usize;
+  // The brace depth below which every group is an argument, not looked into (`None`: none open).
+  let mut opaque_from: Option<usize> = None;
+  // The brace depth of an open bracketed argument `[…]`, not looked into.
+  let mut bracket_at: Option<usize> = None;
+  let mut position = ArgumentPosition::None;
+  let mut leading = true;
+  let mut budget = PAR_LOOKAHEAD_BODY_TOKENS;
+  // The commands already classified, so a repeated macro costs its body once.
+  let mut seen: Vec<(Token, LookaheadCommand)> = Vec::new();
+  while let Some(token) = tokens.next() {
+    let code = token.get_catcode();
+    // The `\par`s and spaces of the blank lines themselves (an active `^^M` let to `\par` under `\obeylines`).
+    if leading && (code == Catcode::SPACE || means_par(&token)) {
+      continue;
+    }
+    leading = false;
+    let opaque = opaque_from.is_some() || bracket_at.is_some();
+    let after_command = position != ArgumentPosition::None;
+    match code {
+      Catcode::SPACE | Catcode::COMMENT | Catcode::MARKER => continue,
+      // TeX's alphabetic constant: a `_` or `^` after a `` ` `` is a character code (`\char`_`, `\lccode`^`),
+      // inert. Only those two are stepped over: a quoted `` `$x_1$' `` or `` `\ref{a_b}' `` keeps its `$` or its
+      // command, which decide as they would anywhere else.
+      Catcode::OTHER if token == T_OTHER!("`") => {
+        if tokens
+          .peek()
+          .is_some_and(|next| matches!(next.get_catcode(), Catcode::SUB | Catcode::SUPER))
+        {
+          tokens.next();
+        }
+        position = ArgumentPosition::None;
+        continue;
+      },
+      Catcode::MATH => {
+        let display = tokens
+          .peek()
+          .is_some_and(|next| next.get_catcode() == Catcode::MATH);
+        return (depth == 0 && !opaque && !display).then_some(math_only);
+      },
+      Catcode::ALIGN => return None,
+      Catcode::BEGIN => {
+        if after_command && !opaque {
+          opaque_from = Some(depth);
+        }
+        depth += 1;
+        position = ArgumentPosition::None;
+        continue;
+      },
+      Catcode::END => {
+        depth = depth.checked_sub(1)?;
+        if bracket_at.is_some_and(|at| at > depth) {
+          return None;
+        }
+        position = ArgumentPosition::None;
+        if opaque_from == Some(depth) {
+          opaque_from = None;
+          position = ArgumentPosition::Argument;
+        }
+        continue;
+      },
+      Catcode::OTHER if !opaque && after_command => {
+        if position == ArgumentPosition::Command && token == T_OTHER!("*") {
+          continue;
+        }
+        if token == T_OTHER!("[") {
+          bracket_at = Some(depth);
+          position = ArgumentPosition::None;
+          continue;
+        }
+      },
+      Catcode::OTHER if bracket_at == Some(depth) && token == T_OTHER!("]") => {
+        bracket_at = None;
+        position = ArgumentPosition::Argument;
+        continue;
+      },
+      _ => {},
+    }
+    position = ArgumentPosition::None;
+    if code.is_active_or_cs() {
+      if token == T_CS!("\\)") {
+        return (depth == 0 && !opaque).then_some(math_only);
+      }
+      let command = match seen.iter().find(|(known, _)| *known == token) {
+        Some((_, command)) => *command,
+        None => {
+          let command = lookahead_command(&token, 0, &mut budget);
+          seen.push((token, command));
+          command
+        },
+      };
+      match command {
+        LookaheadCommand::GiveUp => return None,
+        LookaheadCommand::MathOnly => math_only |= !opaque,
+        // A math-only command's groups and brackets are math, looked into (`\left[0,1\right)`, `\in [0,1)`).
+        LookaheadCommand::Neutral if code == Catcode::CS => position = ArgumentPosition::Command,
+        LookaheadCommand::Neutral => {},
+      }
+    } else if !opaque && matches!(code, Catcode::SUPER | Catcode::SUB) {
+      math_only = true;
+    }
+  }
+  None
 }
 
 /// The `}` a `\left`/`\middle`/`\right` delimiter scan put back after "Missing delimiter" (latexml_engine tex_math.rs
@@ -2991,6 +3666,9 @@ pub fn digest_next_body(terminal_opt: Option<Token>) -> Result<Vec<Digested>> {
     if delete_extra_brace(&token)? {
       continue;
     }
+    if closes_template_brace(&token) || align_error(&token)? {
+      continue;
+    }
     // A DefEnvironment's own end (`\end{X}`, the constructor that pops the environment's frame; no TeX-level `\endX`
     // exists to read again) met inside an open `\left` group: §1065 `off_save` at the primitive that mismatches —
     // "Missing \right. inserted", `\right.` read first (`\begin{equation}\left( x \end{equation}`). Before, the end met
@@ -3197,6 +3875,9 @@ pub fn digest_next_body(terminal_opt: Option<Token>) -> Result<Vec<Digested>> {
       FRAGMENT_YIELD_REQUESTED.set(false);
       FRAGMENT_YIELD_COUNT.set(FRAGMENT_YIELD_COUNT.get() + 1);
       note_yield_rss_baseline(LAST_SAMPLED_RSS_KB.get());
+      // A deferred `\index`/`\nomenclature` entry is built with this fragment: typeset now, as Perl does
+      // (`resolve_deferred_prints`; OXIDIZED_DESIGN_DIVERGENCES #738).
+      resolve_deferred_prints(None)?;
       // No EOF trailer (`ran_out` stays true only through the loop's own
       // exhaustion path — we return before reaching it), and no
       // `gullet::flush()`: both are end-of-input actions, and input remains.
@@ -3289,6 +3970,68 @@ fn read_x_token_after_expansion() -> Result<Option<Token>> {
   Ok(next)
 }
 
+/// tex.web §1127 `align_error`: a tab, `\cr` or `\span` that reaches the stomach while the alignment count is not 0
+/// — the cell left a brace unbalanced, so the gullet did not take it for the cell's end (§342) — gets the brace TeX
+/// supposes was omitted: count −1 or −2 (the cell's `}` closed one more group than it opened, `a} &=& b`) inserts a
+/// `{` ("Missing { inserted"), count +1 or +2 (`{a & b}`, `\textbf{a & b}`) a `}` ("Missing } inserted"), and the
+/// column end is read again behind it, now at count 0, so the v-part runs and the cell ends as the template says
+/// (§789). The ledger moves as TeX's does: `align_error` steps the count towards 0 and `ins_error`'s `back_input`
+/// (§325) retracts the inserted brace, which counts again when it is read. A larger count (`abs(align_state)>2`,
+/// "Misplaced &") is left to the cell's reader, as is a count past the v-part's 1000000 (the column's own end).
+/// Before, the column end was taken for the cell's end with no v-part: an eqnarray/amsmath cell left its template's
+/// math open (pdflatex 1 error, ours 17: "Attempt to close a group that switched to mode math"), and a tabular cell's
+/// `{a & b}` lost `a` without a word. Perl has no `align_error` (KNOWN_PERL_ERRORS #923). Whether it fired. Guards
+/// `perfect_kernel_batch70b::{eqnarray_stray_close_brace_inserts_a_left_brace,
+/// tabular_open_brace_at_a_cell_end_inserts_a_right_brace}`.
+pub fn align_error(token: &Token) -> Result<bool> {
+  let count = align_group_count();
+  if count == 0
+    || count.abs() > 2
+    || !has_reading_alignment()
+    || gullet::is_column_end(token).is_none()
+    || !is_tab_mark_command(token)
+  {
+    return Ok(false);
+  }
+  if count < 0 {
+    Error!(
+      "expected",
+      "{",
+      "Missing { inserted",
+      "I've put in what seems to be necessary to fix the current column of the current alignment."
+    );
+    set_align_group_count(count + 1);
+    gullet::unread_one(*token);
+    gullet::unread_one(T_BEGIN!());
+  } else {
+    Error!(
+      "expected",
+      "}",
+      "Missing } inserted",
+      "I've put in what seems to be necessary to fix the current column of the current alignment."
+    );
+    set_align_group_count(count - 1);
+    gullet::unread_one(*token);
+    gullet::unread_one(T_END!());
+  }
+  Ok(true)
+}
+
+/// Whether a column-end token reaches the stomach as the tab-mark command (tex.web's `cur_cmd=tab_mark`): an `&`
+/// character means one unless a binding gave the character another meaning (LaTeXML lets non-active characters have
+/// one): `\@index`'s entry, read as `\@wrindex` writes it under `\@sanitize`, lets `&` to `\&` (sect11.rs; TeX's
+/// `&` is catcode 12 there), and a stray `&` deactivates itself to `\relax`. A control sequence is a column end only
+/// by its meaning already (`gullet::is_column_end`).
+fn is_tab_mark_command(token: &Token) -> bool {
+  token.get_catcode() != Catcode::ALIGN
+    || match lookup_digestable_definition(token) {
+      None | Some(Stored::None) => true,
+      Some(Stored::Constructor(defn)) => defn.cs == *token,
+      Some(Stored::Token(meaning)) => meaning.get_catcode() == Catcode::ALIGN,
+      Some(_) => false,
+    }
+}
+
 /// Invoke a token
 ///
 /// If it is a primitive or constructor, the definition will be invoked,
@@ -3309,6 +4052,9 @@ pub fn invoke_token(input_token: &Token) -> Result<Vec<Digested>> {
   let mut result: Vec<Digested> = Vec::new();
   // INVOKE:
   while let Some(token) = maybe_token.take() {
+    if align_error(&token)? {
+      return Ok(Vec::new());
+    }
     // RAII guard: auto-pops current_token on scope exit (even on early return/panic)
     let _token_guard = local_current_token_guard(token);
     {
@@ -3371,7 +4117,8 @@ pub fn invoke_token(input_token: &Token) -> Result<Vec<Digested>> {
         // A math-active character will (typically) be a macro,
         // but it isn't expanded in the gullet, but later when digesting, in math mode
         // (? I think)
-        let invoked_meaning = meaning.invoke(false)?;
+        let mut invoked_meaning = meaning.invoke(false)?;
+        crate::token::inherit_field_prov(token.prov, &mut invoked_meaning);
         if !invoked_meaning.is_empty() {
           {
             gullet::unread(invoked_meaning);
@@ -3395,6 +4142,11 @@ pub fn invoke_token(input_token: &Token) -> Result<Vec<Digested>> {
         }
         drop(_token_guard); // expire current token via RAII
         continue;
+      },
+      Some(Stored::Constructor(meaning))
+        if starts_new_graf(&meaning.get_cs()) && back_input_for_new_graf(token) =>
+      {
+        // `\hskip`, `\vrule`, `\valign`: `\everypar`, then this token again, in horizontal mode (tex.web §1090).
       },
       Some(Stored::Constructor(meaning)) => {
         // Perl Stomach.pm L187-189: deactivate T_ALIGN to `\relax` LOCAL
@@ -3421,6 +4173,11 @@ pub fn invoke_token(input_token: &Token) -> Result<Vec<Digested>> {
         if !meaning.is_prefix() {
           clear_prefixes(); // Clear prefixes unless we just set one.
         }
+      },
+      Some(Stored::Primitive(meaning))
+        if starts_new_graf(&meaning.get_cs()) && back_input_for_new_graf(token) =>
+      {
+        // `\everypar`, then this token again, in horizontal mode (tex.web §1090).
       },
       Some(Stored::Primitive(meaning)) => {
         // Otherwise, a normal primitive or constructor
@@ -3459,6 +4216,42 @@ pub fn invoke_token(input_token: &Token) -> Result<Vec<Digested>> {
         );
       },
     }
+    // A token of a frontmatter field's stored value (its out-of-band provenance, `Token::prov`): what it digests to
+    // is that field's ink (`Document::absorb`'s field runs, OXIDIZED_DESIGN #715).
+    // What it consumed of the value is covered by them (its arguments; a font switch or `\relax` before it that made
+    // no box), recorded in digestion order (`token::field_ledger_push`, the box's `fieldSerial`), so a whole print is
+    // told from a fragment by every position of the value (`gullet::field_cover_of`). Not once the frontmatter
+    // placement settled the field ink (`token::field_ledger_live`): nothing is marked after it.
+    if token.prov != 0 && crate::token::field_ledger_live() {
+      let cover = if matches!(
+        token.get_catcode(),
+        Catcode::LETTER | Catcode::OTHER | Catcode::SPACE
+      ) {
+        let pos = crate::token::field_prov_pos(token.prov);
+        crate::token::FieldCover {
+          field: crate::token::field_prov_field(token.prov),
+          start: pos,
+          end:   pos + 1,
+        }
+      } else {
+        gullet::field_cover_of(token.prov)
+      };
+      if result.is_empty() {
+        crate::token::field_cover_set_pending(cover);
+      } else {
+        let serial =
+          crate::token::field_ledger_push(crate::token::field_cover_pending_merge(cover));
+        for digested in &result {
+          if !digested.has_property(crate::document::FIELD_PROV_PROPERTY) {
+            digested.try_set_property(crate::document::FIELD_PROV_PROPERTY, i64::from(token.prov));
+            if let Some(serial) = serial {
+              digested.try_set_property(crate::document::FIELD_SERIAL_PROPERTY, i64::from(serial));
+            }
+            crate::token::field_stamp_noted(digested);
+          }
+        }
+      }
+    }
     // _token_guard drops here, auto-expiring current token
     break;
   }
@@ -3474,6 +4267,17 @@ fn invoke_token_undefined(token: &Token) -> Result<Vec<Digested>> {
   // `binding::kernel_autoload`. Same retry shape as the `\ifsomething` arm below.
   if crate::binding::kernel_autoload::try_autoload(token) {
     gullet::unread_one(*token); // Retry, now that the kernel is in state.
+    return Ok(Vec::new());
+  }
+  // An environment the class redefined, whose begin defines this command for its body, but whose definition the
+  // kernel's lock refused (`kernel_autoload::try_refused_environment_definition`).
+  if crate::binding::kernel_autoload::try_refused_environment_definition(token) {
+    gullet::unread_one(*token);
+    return Ok(Vec::new());
+  }
+  // a stand-in named for the undefined name (`kernel_autoload::undefined_fallback`, OXIDIZED_DESIGN #734)
+  if let Some(stand_in) = crate::binding::kernel_autoload::undefined_fallback(token) {
+    gullet::unread_one(stand_in);
     return Ok(Vec::new());
   }
   let cs = token.with_cs_name(|cs| String::from(cs));

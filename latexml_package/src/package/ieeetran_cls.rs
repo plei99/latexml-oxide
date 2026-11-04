@@ -2,14 +2,33 @@
 //! Perl: IEEEtran.cls.ltxml — 458 lines
 use crate::{
   engine::{
-    base_utilities::names_continue,
-    latex_constructs::{FontUnit, symbol_box_size},
+    base_utilities::{names_continue, notes_only_line},
+    latex_constructs::{FontUnit, set_theorem_within_display, symbol_box_size},
   },
+  package::caption_sty,
   prelude::*,
+};
+
+/// This binding's frontmatter conventions (the observer's, OXIDIZED_DESIGN_DIVERGENCES #837), declared at its load
+/// (`declare_frontmatter_conventions`, user ruling 2026-10-28: each binding declares its own):
+/// IEEEtran (and the classes this binding serves, ieeeconf.cls:3592, ieeecolor2.cls:3903 the same
+/// `\def\thefootnote{}`): the title's `\thanks` print no mark, so a note's link is no name's by its place (2001.02600,
+/// 1803.04996, 2504.08644, 2602.13176: a co-author's homepage, a video, data records, four co-authors' ORCIDs given to
+/// the last author). `written`: the observer's writer writes IEEEtran's creators (brief 95b, OD #942: 2202.02533,
+/// 2401.16729, 1303.4266, 2311.14729, 2405.16358; a paper whose reading it cannot apply keeps today's output)
+pub const FRONTMATTER_CONVENTIONS: FmConventions = FmConventions {
+  name: "IEEEtran",
+  binding: "IEEEtran.cls",
+  unmarked_notes: true,
+  cite: "IEEEtran.cls:4756 `\\def\\thefootnote{}`; OD #837 S2a.2 r6 (2001.02600, 1803.04996, 2504.08644, 2602.13176)",
+  written: true,
+  ..FM_KERNEL_CONVENTIONS
 };
 
 #[rustfmt::skip]
 LoadDefinitions!({
+  // (this binding's frontmatter conventions, first: OXIDIZED_DESIGN_DIVERGENCES #837)
+  declare_frontmatter_conventions(&FRONTMATTER_CONVENTIONS);
   // IEEEtran.cls L232-260 declares each class-option flag with
   // `\newif\ifCLASSOPTION<name>`, which creates BOTH the `\ifCLASSOPTION<name>`
   // conditional AND the `\CLASSOPTION<name>true`/`false` setters. IEEEtran
@@ -27,6 +46,11 @@ LoadDefinitions!({
 \newif\ifCLASSOPTIONonecolumn \newif\ifCLASSOPTIONoneside \newif\ifCLASSOPTIONpeerreview
 \newif\ifCLASSOPTIONpeerreviewca \newif\ifCLASSOPTIONromanappendices \newif\ifCLASSOPTIONtechnote
 \newif\ifCLASSOPTIONtransmag \newif\ifCLASSOPTIONtwocolumn \newif\ifCLASSOPTIONtwoside");
+  // IEEEtran.cls:268-270 (V1.6b) the paper-size flags its `a4paper`/`cspaper`/`letterpaper` options set (:296-320),
+  // which a derived class's own `a4paper` handler sets too (ieeeaccess.cls:21-23 `\@IEEEusingAfourpapertrue`, in the
+  // paper's copy read after the ieeeaccess binding: 2007.03025, 2009.04554, 2011.07807, 2209.03883, 2209.12464,
+  // 2609.20467).
+  RawTeX!(r"\newif\if@IEEEusingAfourpaper \newif\if@IEEEusingcspaper");
   // DeclareOption stubs — Perl L18-108
   // IEEEtran.cls:290-293 (`\CLASSOPTIONpt`, read by `\@IEEEabskeysecsize` below; 10pt the default, :374)
   RawTeX!(r"\def\CLASSOPTIONpt{10}");
@@ -34,9 +58,9 @@ LoadDefinitions!({
   DeclareOption!("10pt", r"\def\CLASSOPTIONpt{10}");
   DeclareOption!("11pt", r"\def\CLASSOPTIONpt{11}");
   DeclareOption!("12pt", r"\def\CLASSOPTIONpt{12}");
-  DeclareOption!("letterpaper", {});
-  DeclareOption!("a4paper", {});
-  DeclareOption!("cspaper", {});
+  DeclareOption!("letterpaper", r"\@IEEEusingAfourpaperfalse\@IEEEusingcspaperfalse");
+  DeclareOption!("a4paper", r"\@IEEEusingAfourpapertrue\@IEEEusingcspaperfalse");
+  DeclareOption!("cspaper", r"\@IEEEusingcspapertrue\@IEEEusingAfourpaperfalse");
   DeclareOption!("draft", {});
   DeclareOption!("final", {});
   DeclareOption!("journal", { Let!("\\ifCLASSOPTIONjournal", "\\iftrue"); Let!("\\ifCLASSOPTIONconference", "\\iffalse"); });
@@ -154,7 +178,47 @@ LoadDefinitions!({
   ProcessOptions!();
 
   // Load article as base
-  load_class("article", Vec::new(), Tokens!())?;
+  LoadClass!("article");
+  // The page a float's panels are set in rows against (the panel grid rule, `declare_panel_page`): IEEEtran.cls's
+  // (:1734-1811), as pdflatex gives it — 516pt (43pc) in two 252pt columns (`\columnsep` 1pc); compsoc's 7in + 12bp,
+  // 517.935pt in two of 252.945pt (12bp apart), and with `conference` the paper less 1.5in (`\IEEEsettextwidth{0.75in}
+  // {0.75in}`: 505.89pt on letter paper, in two of 243.911pt 0.25in apart); under a draft option the paper less 2in
+  // (469.755pt on letter, 452.968pt on A4, 460.721pt on cspaper less 1.5in), its columns the mode's `\columnsep` apart —
+  // set in one column under `onecolumn`/`peerreview`, whose `\if@twocolumn` this binding keeps true (below). The class's
+  // `\ProcessOptions` (:376) runs the options in their declaration order. Witnesses 2211.03584, 1604.07648, 1404.3152,
+  // 1809.02562, 2103.06618 (`onecolumn`), 1010.0060 (`conference`, absolute widths against the 252pt column); review
+  // rev78x2 finding 4 (`[conference,compsoc]`, `draftcls` with `a4paper`).
+  {
+    let paper = match last_declared_class_option(&["letterpaper", "a4paper", "cspaper"]) {
+      Some("a4paper") => 597.50787,
+      Some("cspaper") => 569.12625,
+      _ => 614.295,
+    };
+    let draft = matches!(
+      last_declared_class_option(&["draft", "draftcls", "draftclsnofoot", "final"]),
+      Some("draft" | "draftcls" | "draftclsnofoot")
+    );
+    let compsoc = last_declared_class_option(&["comsoc", "compsoc", "transmag"]) == Some("compsoc");
+    let mode = last_declared_class_option(&["journal", "conference", "technote", "peerreview", "peerreviewca"]);
+    let conference = mode == Some("conference");
+    let columnsep = match (compsoc, conference) {
+      (true, true) => 18.0675,
+      (true, false) => 12.045,
+      _ => 12.0,
+    };
+    let text = if draft {
+      paper - 144.54
+    } else if compsoc && conference {
+      paper - 108.405
+    } else if compsoc {
+      517.935
+    } else {
+      516.0
+    };
+    let one_column = last_declared_class_option(&["onecolumn", "twocolumn"]) == Some("onecolumn")
+      || matches!(mode, Some("peerreview" | "peerreviewca"));
+    declare_panel_page((text - columnsep) / 2.0, text, !one_column);
+  }
 
   // `\@ptsize` as the size options set it (IEEEtran.cls:290-293), which article's own setting replaced.
   RawTeX!(r"\ifnum\CLASSOPTIONpt=11 \def\@ptsize{1}\fi\ifnum\CLASSOPTIONpt=12 \def\@ptsize{2}\fi");
@@ -221,7 +285,11 @@ LoadDefinitions!({
   def_macro_noop("\\IEEEdisplaynontitleabstractindextext")?;
   def_macro_noop("\\IEEEdisplaynotcompsoctitleabstractindextext")?;
   def_macro_noop("\\IEEEcompsoctitleabstractindextext")?;
-  Let!("\\IEEEpeerreviewmaketitle", "\\maketitle");
+  // IEEEtran.cls:4920-4932: the repeated title page of the peer-review modes; any other mode defines it `\relax`, so a
+  // call before `\title` (1909.01874's journal paper) makes no title page there, and the title stays the
+  // `\maketitle`'s (Perl IEEEtran.cls.ltxml:135 lets it to `\maketitle` in every mode, which flushed the frontmatter
+  // before the title was given: no `<ltx:title>`; OXIDIZED_DESIGN_DIVERGENCES #950).
+  RawTeX!(r"\ifCLASSOPTIONpeerreview\let\IEEEpeerreviewmaketitle\maketitle\else\def\IEEEpeerreviewmaketitle{\relax}\fi");
   // IEEEtran.cls:6278-6288 lets the conference-mode lock-outs go (`\IEEEmembership` prints again).
   DefMacro!("\\IEEEoverridecommandlockouts", "\\global\\let\\iflx@IEEE@lockouts@overridden\\iftrue");
   RawTeX!(r"\newif\iflx@IEEE@lockouts@overridden");
@@ -301,16 +369,54 @@ LoadDefinitions!({
     };
     Ok(Invocation!(target, vec![Some(body)]))
   }, locked => true);
+  // authblk's `\author` (a document's `\usepackage{authblk}`; the IEEEtaes and IEEEoj stubs load it) replaces the one
+  // above, so its names reach the frontmatter with each grade still `\IEEEmembership`, dropped
+  // (`\lx@IEEE@membership@drop`): every author's printed grade lost (1803.04687, 2202.10869, 2208.04191, 2307.05035,
+  // 2505.19506, 2506.05637; Perl the same, IEEEtran.cls.ltxml:143). Once authblk is loaded, its `\author` reads the
+  // grades of its names as this one does (`name_memberships`, `block_name_memberships`) and then adds the authors as
+  // authblk does — conference mode still swallowing them (`\lx@IEEE@membership`; OXIDIZED_DESIGN_DIVERGENCES #950).
+  DefMacro!("\\lx@IEEE@authblk@author[]{}", sub[(label, body)] {
+    let body = if class_membership()? {
+      if body.to_string().contains("authorblockN") {
+        block_name_memberships(body)
+      } else {
+        Tokens::new(name_memberships(body.unlist()))
+      }
+    } else {
+      body
+    };
+    // (its optional label exactly as written, an empty one too: authblk's `\author[]{…}` is no unlabelled `\author`,
+    // 2005.04149, 2105.12254)
+    let mut call = vec![T_CS!("\\lx@IEEE@AB@author")];
+    if let Some(label) = label {
+      call.push(T_OTHER!("["));
+      call.extend(label.unlist());
+      call.push(T_OTHER!("]"));
+    }
+    call.push(T_BEGIN!());
+    call.extend(body.unlist());
+    call.push(T_END!());
+    Ok(Tokens::new(call))
+  });
+  RawTeX!(r"\AddToHook{package/authblk/after}{\global\let\lx@IEEE@AB@author\author\global\let\author\lx@IEEE@authblk@author}");
 
-  // IEEEkeywords environment (Perl PR #2767: digestion-based capture)
-  DefMacro!("\\IEEEkeywords", "\\lx@begin@keywords[name={\\IEEEkeywordsname:~}]");
+  // IEEEkeywords environment (Perl PR #2767: digestion-based capture). Each block is printed where it stands
+  // (IEEEtran.cls:5286-5292 sets "Index Terms—" and the body in place), so a paper's several blocks are all its keywords
+  // (`accumulate`, as the VTeX `{keyword}` blocks, ims_support_sty.rs): Perl's `\lx@begin@keywords` clears the keywords
+  // before it (Base_Utility.pool.ltxml:626-628), so only the last block was kept (repro
+  // sectioning-frontmatter/ieeekeywords_blocks_are_all_kept; KNOWN_PERL_ERRORS #1020).
+  DefMacro!(
+    "\\IEEEkeywords",
+    "\\lx@add@frontmatter@until{ltx:keywords}[accumulate=true,name={\\IEEEkeywordsname:~}]{\\lx@end@keywords}"
+  );
   DefMacro!("\\endIEEEkeywords", "\\lx@end@keywords");
   // Perl IEEEtran.cls.ltxml L152-153 (pre-PR): explicit env-token aliases.
   // Kept so user `\def\endIEEEkeywords` can't break env routing. Drivers:
   // 2007.13436, 1812.09324.
   // With LaTeX's group, as `\begin`/`\end` give it: a document's own `\IEEEkeywords` setting the class's
-  // `\@IEEEabskeysecsize\bfseries` kept its fonts to the end of the document (2609.12903, 13235, 16206).
-  DefMacro!(T_CS!("\\begin{IEEEkeywords}"), None, "\\begingroup\\IEEEkeywords");
+  // `\@IEEEabskeysecsize\bfseries` kept its fonts to the end of the document (2609.12903, 13235, 16206). And with its
+  // `\@currenvir` (latex.ltx `\begin`), which `\end{document}` checks: one left open is LaTeX's error naming it.
+  DefMacro!(T_CS!("\\begin{IEEEkeywords}"), None, "\\begingroup\\lx@setcurrenvir{IEEEkeywords}\\IEEEkeywords");
   DefMacro!(T_CS!("\\end{IEEEkeywords}"),   None, "\\endIEEEkeywords\\endgroup");
 
   // IEEEtai (IEEE Trans. AI) IEEEImpStatement environment — author
@@ -332,7 +438,10 @@ LoadDefinitions!({
   // (beyond-Perl): "Lei Chen²", matching pdfTeX and preserving the marker.
   DefMacro!("\\IEEEauthorrefmark{}", "\\textsuperscript{#1}");
   def_macro_noop("\\IEEEtriggeratref{}")?;
-  DefMacro!("\\IEEEpubid{}", "\\lx@add@pubnote[role=pubid]{pubid: #1}");
+  // IEEEtran.cls:6153 `\def\IEEEpubid#1{\def\@IEEEpubid{#1}…}`: the publisher's ID line at the first page's foot, the
+  // argument alone — no label, and no "pubid: " before it (Perl's IEEEtran.cls.ltxml:157 content)
+  // (FIDELITY_CHARTER §4, user ruling 2026-10-30; OXIDIZED_DESIGN_DIVERGENCES #921).
+  DefMacro!("\\IEEEpubid{}", "\\lx@add@pubnote[role=pubid,name={}]{#1}");
   def_macro_noop("\\IEEEpubidadjcol")?;
   // \corresp{name} — IEEE Open Journal class IEEEoj.cls L4875 marks
   // a corresponding-author note (later rendered in titlepage). Preserve
@@ -340,187 +449,65 @@ LoadDefinitions!({
   DefMacro!("\\corresp{}",
     "\\lx@add@frontmatter{ltx:note}[role=corresponding]{#1}");
 
-  // Section numbering — default journal mode uses Roman numerals
-  DefMacro!("\\thesection", "\\Roman{section}");
-  DefMacro!("\\thesubsection", "\\mbox{\\thesection-\\Alph{subsection}}");
-  DefMacro!("\\thesubsubsection", "\\thesubsection\\arabic{subsubsection}");
-  DefMacro!("\\theparagraph", "\\thesubsubsection\\alph{paragraph}");
+  // Section numbering (IEEEtran.cls:2545-2556, Perl IEEEtran.cls.ltxml:160-174, after the options): compsoc is all
+  // arabic ("1.1", which its heading forms `\the<level>dis` print, :2570-2581), the other modes Roman ("I-A"). A
+  // Roman-only port numbered compsoc "I.1" (rev78c probe ie_compsoc; 63 of 558 IEEEtran papers use compsoc). Guard
+  // `perfect_kernel_batch78c::ieeetran_headings_print_their_heading_forms`.
+  RawTeX!(r"\ifCLASSOPTIONcompsoc
+\def\thesection{\arabic{section}}
+\def\thesubsection{\thesection.\arabic{subsection}}
+\def\thesubsubsection{\thesubsection.\arabic{subsubsection}}
+\def\theparagraph{\thesubsubsection.\arabic{paragraph}}
+\else
+\def\thesection{\Roman{section}}
+\def\thesubsection{\mbox{\thesection-\Alph{subsection}}}
+\def\thesubsubsection{\thesubsection\arabic{subsubsection}}
+\def\theparagraph{\thesubsubsection\alph{paragraph}}
+\fi");
 
   // Font primitives (Perl L183-186)
   DefPrimitive!("\\ltx@ieeetran@it", None, font => { shape => "italic", family => "serif", series => "medium" }, locked => true);
   DefPrimitive!("\\ltx@ieeetran@sc", None, font => { shape => "smallcaps", family => "serif", series => "medium" }, locked => true);
   DefMacro!("\\format@title@font@section", "\\ltx@ieeetran@sc");
   DefMacro!("\\format@title@font@subsection", "\\ltx@ieeetran@it");
+  // IEEEtran.cls:2607-2609 the names, compsoc conferences' figures "Figure"; :2826-2831 compsoc's tables arabic
+  // ("TABLE 1"), the other modes' Roman ("TABLE I").
   DefMacro!("\\figurename", "Fig.");
   DefMacro!("\\tablename", "TABLE");
-  DefMacro!("\\thetable", "\\Roman{table}");
+  RawTeX!(r"\ifCLASSOPTIONcompsoc\ifCLASSOPTIONconference\def\figurename{Figure}\fi\def\thetable{\arabic{table}}
+\else\def\thetable{\Roman{table}}\fi");
+  // IEEEtran.cls:2731-2797 `\@makecaption`, by mode: a table's label over its text — compsoc conferences "TABLE 1.
+  // text" on one line — and every other caption "Fig. 1. text" (`\lx@makecaption`, latex_constructs_rust_only.rs: a
+  // newfloat type's and a listing's too, "Listing 1. text"; the traditional form's two `\nobreakspace` one space here).
+  // The names and separators only: the class's caption fonts — the table text's `\scshape`, compsoc journals' `\sffamily`
+  // for every caption, the `\footnotesize` — are set under the class caption fonts knob alone (caption_sty.rs
+  // `CLASS_CAPTION_FONTS`, off by default; OXIDIZED_DESIGN_DIVERGENCES #884). Installed unless the document loads
+  // caption, which replaces it ("Fig. 1: text", "TABLE I: text": caption_sty.rs `class_makecaption`); a float.sty type
+  // keeps float.sty's "Program 1: text" (float_sty.rs), as a `\restylefloat`ed table does ("TABLE I: text", 2006.08364),
+  // longtable its "TABLE I: text" (longtable_sty.rs). The `captionsoff` option's caption-less floats are not ported: the
+  // captions are kept. Perl's binding keeps the kernel's ": " for every type (IEEEtran.cls.ltxml; KNOWN_PERL_ERRORS
+  // #1140). Guards `perfect_kernel_batch78y::ieeetran_*`.
+  RawTeX!(r"\def\@IEEEtablestring{table}");
+  let fonts = caption_sty::class_caption_fonts();
+  let (table_font, compsoc_font) =
+    if fonts { (r"\scshape ", r"\def\fnum@font@float{\sffamily}\def\format@title@font@float{\sffamily}%") } else { ("", "") };
+  caption_sty::class_makecaption(&s!(
+    r"\long\def\lx@makecaption##1##2{{\lx@tag[][. ]{{\lx@fnum@@{{##1}}}}##2}}%
+\long\def\format@title@figure##1{{\lx@makecaption{{figure}}{{##1}}}}%
+\ifCLASSOPTIONcompsoc
+  \ifCLASSOPTIONconference
+    \long\def\format@title@table##1{{\lx@tag[][. ]{{\lx@fnum@@{{table}}}}{table_font}##1}}%
+  \else{compsoc_font}
+    \long\def\format@title@table##1{{\lx@tag{{\lx@fnum@@{{table}}}}\\##1}}%
+  \fi
+\else
+  \long\def\format@title@table##1{{\lx@tag{{\lx@fnum@@{{table}}}}\\{table_font}##1}}%
+\fi"
+  ))?;
 
-  // QED symbols (Perl L194-198)
-  // Sized as IEEEtran.cls:5533's `\mbox{\rule[0pt]{1.3ex}{1.3ex}}`: a size-less whatsit alone in an alignment cell
-  // made the cell "empty" (Alignment::normalize, Perl Alignment.pm:458-470) and the QED was dropped — an
-  // `{IEEEeqnarray}` text cell `& \hfill\IEEEQEDhere` (2201.11150, 1903.06134), an eqnarray `\mbox{\IEEEQED}`
-  // (synthetic). The other classes' QEDs alike (`symbol_box_size`; llncs, svjour3/svmult, A&A, mn2e, elsart, amsthm).
-  DefConstructor!("\\IEEEQEDclosed",
-    "?#isMath(<ltx:XMTok role='PUNCT'>\u{220E}</ltx:XMTok>)(\u{220E})",
-    enter_horizontal => true,
-    sizer => sub[whatsit] { Ok(symbol_box_size(whatsit, 1.3, 1.3, FontUnit::Ex)) });
-  Let!("\\IEEEQEDopen", "\\IEEEQEDclosed");
-  Let!("\\IEEEQED", "\\IEEEQEDclosed");
-  // IEEEtran.cls:5543 `\newif\if@IEEEQEDshow \@IEEEQEDshowtrue`, the class's own switch (a document may set it), true
-  // at class load: a bare `\endIEEEproof` prints its QED too.
-  RawTeX!(r"\newif\if@IEEEQEDshow \@IEEEQEDshowtrue");
-
-
-  // IEEEproof (Perl IEEEtran.cls.ltxml:199-222), a constructor pair as amsthm's `\@proof`/`\end@proof`
-  // (amsthm.sty.ltxml:147-175): IEEEtran.cls:5547-5549 makes it two macros, `\IEEEproof` (`\par\noindent…{\itshape
-  // #1: }`, #1 defaulting to `\IEEEproofname`) and `\endIEEEproof` (the QED, `\par`), so its body stays in the mode
-  // around it and a `$$` there is display math (tex.web:21715 `init_math`). Perl's DefEnvironment boxes the body in
-  // restricted horizontal mode, where `$$` is two empty inline formulas (TeX_Math.pool.ltxml:65) and the formula ran
-  // as text: "Script _ can only appear in math mode" (1203.1892, 1402.4543, 0802.1555, 1612.01904). A bare
-  // `\endIEEEproof` (author error) closes a `ltx:proof` only when one is open (`maybe_close_element`), never a mode
-  // frame (2009.01572: a mode-bound IEEEproof's `\endIEEEproof` popped the locked document frame, Fatal), and an
-  // `\end{IEEEproof}` after the element closed reports no "ltx:proof isn't open" (1001.3714, 0801.0061).
-  // The title is the optional argument (IEEEtran.cls:5548), which Perl's fixed "Proof:" dropped; the font is Perl's
-  // bold italic. Perl (L205-221) pushes `\qed` on the QED@stack amsthm shares and digests it at the end unless Perl's
-  // `\IEEEQEDhere` took it; here, as IEEEtran.cls:5543-5556, the end typesets `\IEEEQED` while IEEEtran's own switch
-  // `\if@IEEEQEDshow` is true — set locally by `\@IEEEproof`, cleared globally by `\IEEEQEDoff`/`\IEEEQEDhere`/
-  // `\IEEEQEDhereeqn` — so no switch reaches an amsthm proof's QED nor amsthm's `\qedhere` this one's, and a global
-  // false outlives a nested IEEEproof's local true (repros block-model/ieeeproof_dollardollar_is_display,
-  // block-model/ieeeproof_qed_switches).
-  DefConstructor!("\\IEEEproof OptionalUndigested",
-    "<ltx:proof class='#class'><ltx:title font='#titlefont' _force_font='true' class='#titleclass'>#title</ltx:title>",
-    after_digest => sub[whatsit] {
-      // IEEEtran.cls:5548 `\@IEEEQEDshowtrue`, local to the environment's group.
-      digest(Tokens!(T_CS!("\\@IEEEQEDshowtrue")))?;
-    },
-    properties => sub[args] {
-      let mut title_tokens = vec![T_BEGIN!(), T_CS!("\\bfseries"), T_CS!("\\itshape")];
-      match args.first() {
-        Some(Some(arg)) => title_tokens.extend(arg.revert()?.unlist()),
-        _ => title_tokens.push(T_CS!("\\IEEEproofname")),
-      }
-      title_tokens.push(T_OTHER!(":"));
-      title_tokens.push(T_END!());
-      let title = digest(Tokens::new(title_tokens))?;
-      // The template engine binds the `"font"` prop to the element's font attribute (amsthm_sty.rs `\@proof`).
-      let titlefont = title.get_font().ok().flatten().map(|f| (*f).clone());
-      let mut map = SymHashMap::default();
-      map.insert("title", title.into());
-      if let Some(f) = titlefont {
-        map.insert("font", Stored::Font(Rc::new(f)));
-      }
-      map.insert("titleclass", "ltx_runin".into());
-      Ok(map)
-    });
-  DefConstructor!("\\endIEEEproof", sub[document, _args] {
-    document.maybe_close_element("ltx:proof")?;
-  },
-  // IEEEtran.cls:5549 `\if@IEEEQEDshow … \IEEEQED\fi`: the document's `\IEEEQED`, and nothing an amsthm `\qedhere`
-  // could take (2001.04812).
-  before_digest => {
-    if x_equals(&T_CS!("\\if@IEEEQEDshow"), &T_CS!("\\iftrue")) {
-      return Ok(vec![digest(Tokens!(T_CS!("\\IEEEQED")))?]);
-    }
-    Ok(vec![])
-  });
-  // IEEEtran.cls:5556 `\IEEEQEDoff` = `\global\@IEEEQEDshowfalse`: no QED at the end of this IEEEproof (synthetic, no
-  // live witness found). :5554 `\IEEEQEDhere` the same and the QED where it stands (2201.01339, at the end of an
-  // itemize item, `\hfill \IEEEQEDhere`; 2201.11150, IEEEeqnarray cells; 1410.7694); :5551-5552 `\IEEEQEDhereeqn` the
-  // same with the QED as the display's equation number (1903.06134, 2201.03502). Perl's `\IEEEQEDhere`
-  // (IEEEtran.cls.ltxml:193-196) took the top of the QED@stack an amsthm proof shares; Perl has no `\IEEEQEDhereeqn`.
-  RawTeX!(r"\def\IEEEQEDoff{\global\@IEEEQEDshowfalse}");
-  DefMacro!("\\IEEEQEDhere", "\\IEEEQEDoff\\IEEEQED");
-  // The `\eqno` material is the QED and, in a numbered `equation`, LaTeX's own `\eqno\hbox{\@eqnnum}` after it — the
-  // `\let\eqno\relax` makes it ONE tag, "■(1)", and a second `\IEEEQEDhereeqn` adds to it ("■■(1)"). The equation's
-  // number is already its `ltx:tags`, so the QED's material moves into that tags' displayed (role-less) tag, before the
-  // number: one `ltx:tags`, the scan's refnum still the number's (its `refnum` tag comes last), the page "∎(1)"; a
-  // numbered `{IEEEeqnarray}` row's alike. A QED's material is moved as elements only (its element children, or an
-  // `ltx:text` holding them when text nodes are among them — libxml merges, and frees, adjacent text nodes on
-  // insertion), marked `_qed` so a later QED goes after the earlier ones, before the number. A second
-  // `\IEEEQEDhereeqn` inside the first's material is relaxed as `\eqno` is (IEEEtran.cls:5551), adding to its tag.
-  RawTeX!(r"\def\IEEEQEDhereeqn{\IEEEQEDoff\lx@IEEEQED@eqno\let\lx@IEEEQED@eqno\relax\let\eqno\relax\let\leqno\relax\let\veqno\relax\hbox{\IEEEQED}}");
-  // `\eqno` is a display-math command (tex.web §1140): in a `{IEEEeqnarray}` row,
-  // an alignment cell, pdflatex reports "You can't use `\eqno' in math mode" and
-  // typesets the QED beside the number anyway — what we build, so a Warning.
-  DefConstructor!("\\lx@IEEEQED@eqno EqnoTag",
-    "^ <ltx:tags><ltx:tag><ltx:Math><ltx:XMath>#1</ltx:XMath></ltx:Math></ltx:tag></ltx:tags>",
-    before_digest => {
-      if lookup_string("MODE") != "display_math" {
-        Warn!(
-          "unexpected",
-          "\\eqno",
-          "You can't use `\\eqno' in math mode: \\IEEEQEDhereeqn outside a display (IEEEtran.cls:5551-5552); \
-           the QED is set with the row's number"
-        );
-      }
-    },
-    reversion => "",
-    after_construct => sub[document, _whatsit] {
-      let node = document.get_node().clone();
-      let Some(equation) = document
-        .findnodes("ancestor-or-self::ltx:equation[1]", Some(&node))
-        .into_iter()
-        .next()
-      else {
-        return Ok(());
-      };
-      let tags = document.findnodes("ltx:tags", Some(&equation));
-      let Some(mut qed_tags) = tags.last().cloned() else {
-        return Ok(());
-      };
-      let Some(mut qed_tag) = document.findnodes("ltx:tag", Some(&qed_tags)).into_iter().next() else {
-        return Ok(());
-      };
-      // The QED's material as marked elements: its element children, or one `ltx:text` holding them when text nodes are
-      // among them.
-      let children = qed_tag.get_child_nodes();
-      let mut material: Vec<Node> = if children.iter().all(|child| child.get_type() == Some(NodeType::ElementNode)) {
-        children
-      } else {
-        let mut wrapper = document.open_element_at(&mut qed_tag, "ltx:text", None, None)?;
-        for mut child in children {
-          child.unlink_node();
-          if child.get_type() == Some(NodeType::TextNode) {
-            wrapper.append_text(&child.get_content()).ok();
-          } else {
-            wrapper.add_child(&mut child).ok();
-          }
-        }
-        document.close_element_at(&mut wrapper)?;
-        let _ = wrapper.remove_attribute("font");
-        vec![wrapper]
-      };
-      for element in material.iter_mut() {
-        element.set_attribute("_qed", "1").ok();
-      }
-      // The equation's own displayed tag, when it has one before ours.
-      let Some(number_tags) = tags.first().filter(|first| **first != qed_tags) else {
-        return Ok(());
-      };
-      let Some(mut number_tag) = document
-        .findnodes("ltx:tag[not(@role)]", Some(number_tags))
-        .into_iter()
-        .next()
-      else {
-        return Ok(());
-      };
-      let before = number_tag
-        .get_child_nodes()
-        .into_iter()
-        .find(|child| child.get_attribute("_qed").is_none());
-      for element in material.iter_mut() {
-        element.unlink_node();
-        match &before {
-          Some(before) => {
-            before.clone().add_prev_sibling(element).ok();
-          },
-          None => {
-            number_tag.add_child(element).ok();
-          },
-        }
-      }
-      qed_tags.unlink_node();
-    });
+  // The QED symbols and `{IEEEproof}` (Perl IEEEtran.cls.ltxml:194-222), shared with the IEEEtrantools binding, whose
+  // package carries the same code (IEEEtrantools.sty:2726-2747).
+  ieeetrantools_sty::define_ieeeproof()?;
 
   // IEEEbiography (Perl IEEEtran.cls.ltxml L238-247) — two-column
   // tabular-in-float: photo/placeholder on left, bolded author + body
@@ -558,60 +545,77 @@ LoadDefinitions!({
   // IEEEtran's `\appendices` is its own code, not a call of `\appendix`, so it reaches the kernel's through a copy
   // taken here: a document's `\let\appendix\appendices` (2605.23316) then runs once instead of looping.
   Let!("\\lx@IEEE@appendix", "\\appendix");
-  DefMacro!(
-    "\\appendices",
-    "\\lx@IEEE@appendix\\ifCLASSOPTIONromanappendices\\gdef\\thesection{\\Roman{section}}\\fi"
-  );
+  // IEEEtran.cls:5597-5627: a theorem numbered within sections prints the section through
+  // `\@IEEEthmcounterinsection`, `\arabic` (so "Theorem 2.1" where `\thesection` is "II"), "A" after `\appendix`, `\Alph`
+  // after `\appendices` (`A\arabic` under `romanappendices`), :5737/:5768/:5773. Perl's binding prints `\thesection`,
+  // "II.1": KNOWN_PERL_ERRORS #1079. Witness 1911.01952. Guard `perfect_kernel_batch78n::ieeetran_theorem_within_section`.
+  RawTeX!(r"\gdef\@IEEEthmcounterinsection#1{\arabic{#1}}\edef\@IEEEstringsection{section}");
+  set_theorem_within_display("section", Some("\\@IEEEthmcounterinsection"));
+  // IEEEtran V1.5-1.6c's switch for the same choice (V1.6b :4075-4091 `\newif\ifuseRomanappendices`, read by its
+  // `\appendices`), which their documents set (`\useRomanappendicesfalse`; 67x, witnesses cs0504030, 0805.0012,
+  // quant-ph0703150, 0705.3677): false here, as V1.8b numbers `\Alph` without the option (V1.6's default was true).
+  // The heading form `\thesectiondis` follows (:5765-5774; `\renewcommand{\thesubsection}{\thesectiondis-…}` in
+  // 1605.01233, 1702.07429).
+  // `\appendix[<title>]` (:5719-5745) is one appendix: it resets the counters, clears the heading form `\thesectiondis`,
+  // numbers the subsections `\Alph` ("A. Sub") and prints its heading, "Appendix" or "Appendix \\* <title>" through the
+  // kernel's `\section*`, with `\refstepcounter{section}` making `\ref` "A". Here the heading is the appendix (refnum
+  // "A", tag "Appendix", the `\appendixname` alone as the class prints it), its title the optional argument (rev78c2
+  // probe i2, `[Proof]` had been a paragraph and the next subsection "B."/".2"; KNOWN_PERL_ERRORS #1022). The class's
+  // `\section` after it throws its argument away (`\@IEEEdestroythesectionargument`); here the authored title is kept
+  // (OXIDIZED_DESIGN_DIVERGENCES #793): the first unstarred `\section` after an argument-less `\appendix` — past blank
+  // lines, spaces, empty groups (2002.07641's `\appendix{}`) and `\label`s, which then label the appendix — is the
+  // appendix's heading (pdflatex prints "APPENDIX" alone); anything else next (`\section*`, `\subsection`, text, and —
+  // a residual — a non-printing command or a float before the `\section`: 2404.01875, 2007.07179) follows the "Appendix"
+  // heading the class prints
+  // (rev78d probe ie_blank; witnesses 1903.01287, 1103.2068, 2002.03484, 2410.15995, 2401.07123, whose blank line had
+  // made the titled section a second appendix "B"). A later `\section` is another appendix, tagged "Appendix B", "C"
+  // as its refnum (pdflatex drops its title, and a `\ref` to it prints "A"). `\appendices` after `\appendix` numbers
+  // its appendices from "A" again with the kernel's tag (probe ie_appendices: "Appendix A", "Appendix B"). Guard
+  // `perfect_kernel_batch78d::ieeetran_appendix_with_a_title_is_one_appendix`.
+  // Both save the kernel's `\section` once as `\@IEEEappendixsavesection` (:5695-5696 `\@IEEEsaveoriginalsectiononce`),
+  // which documents' own appendix-like commands copied from the class's `\appendix` call, with its
+  // `\@IEEEprocessthesectionargument`/`\@IEEEdestroythesectionargument` (:5701-5713; 1907.08915's `\suppl`).
+  RawTeX!(r"\def\@IEEEsaveoriginalsectiononce{\let\@IEEEappendixsavesection\section
+\let\@IEEEsaveoriginalsectiononce\relax}
+\def\@IEEEprocessthesectionargument#1{\@ifmtarg{#1}{\@IEEEappendixsavesection*{\appendixname\nobreakspace\thesectiondis}%
+\addcontentsline{toc}{section}{\appendixname\nobreakspace\thesection}}{%
+\@IEEEappendixsavesection*{\appendixname\nobreakspace\thesectiondis\\* #1}%
+\addcontentsline{toc}{section}{\appendixname\nobreakspace\thesection: #1}}}
+\def\@IEEEdestroythesectionargument#1{\typeout{** WARNING: Ignoring useless
+\protect\section\space in Appendix (line \the\inputlineno).}}
+\renewcommand{\appendix}[1][]{\@IEEEsaveoriginalsectiononce\par\lx@IEEE@appendix
+\setcounter{subsection}{0}\setcounter{subsubsection}{0}\setcounter{paragraph}{0}%
+\gdef\thesectiondis{}\gdef\thesubsection{\Alph{subsection}}%
+\gdef\fnum@appendix{\ifnum\c@section>\@ne\lx@@fnum@@{appendix}\else\appendixname\fi}%
+\gdef\@IEEEthmcounterinsection##1{A}%
+\gdef\lx@IEEE@appendix@labels{}\@ifmtarg{#1}{\lx@IEEE@appendix@next}{\section{#1}}}
+\def\lx@IEEE@appendix@next{\@ifnextchar\par{\expandafter\lx@IEEE@appendix@next\@gobble}{%
+\@ifnextchar\label{\expandafter\lx@IEEE@appendix@label\@gobble}{%
+\@ifnextchar\bgroup{\lx@IEEE@appendix@group}{%
+\@ifnextchar\section{\expandafter\lx@IEEE@appendix@section\@gobble}{\lx@IEEE@appendix@heading}}}}}
+\def\lx@IEEE@appendix@label#1{\g@addto@macro\lx@IEEE@appendix@labels{\label{#1}}\lx@IEEE@appendix@next}
+\long\def\lx@IEEE@appendix@group#1{\@ifmtarg{#1}{\lx@IEEE@appendix@next}{\lx@IEEE@appendix@heading{#1}}}
+\def\lx@IEEE@appendix@heading{\section{}\lx@IEEE@appendix@labels}
+\def\lx@IEEE@appendix@section{\@ifstar{\lx@IEEE@appendix@heading\section*}{\@ifnextchar[%
+{\lx@IEEE@appendix@titled}{\lx@IEEE@appendix@titled@}}}
+\def\lx@IEEE@appendix@titled[#1]#2{\section[#1]{#2}\lx@IEEE@appendix@labels}
+\def\lx@IEEE@appendix@titled@#1{\section{#1}\lx@IEEE@appendix@labels}
+\newif\ifuseRomanappendices
+\def\appendices{\@IEEEsaveoriginalsectiononce\lx@IEEE@appendix\global\let\fnum@appendix\@undefined\setcounter{section}{0}%
+\ifCLASSOPTIONromanappendices\lx@IEEE@roman@appendices\else\ifuseRomanappendices\lx@IEEE@roman@appendices\else
+\gdef\thesectiondis{\Alph{section}}\@IEEEcompsocconfonly{\gdef\thesectiondis{\Alph{section}.}}%
+\gdef\@IEEEthmcounterinsection##1{\Alph{##1}}\fi\fi}
+\def\lx@IEEE@roman@appendices{\gdef\thesection{\Roman{section}}\gdef\thesectiondis{\Roman{section}}%
+\gdef\@IEEEthmcounterinsection##1{A\arabic{##1}}%
+\@IEEEcompsocconfonly{\gdef\thesectiondis{\Roman{section}.}}}");
 
   // Bibliography style — Perl IEEEtran doesn't touch bibliography
   // beyond the (commented-out) bstctlcite documentation at L442. Stale
   // "AssignMapping not yet ported" note removed; nothing to port here.
 
-  // IED list stubs (Perl L340-347)
-  DefMacro!("\\IEEEsetlabelwidth{}", "\\settowidth{\\labelwidth}{#1}");
-  def_macro_noop("\\IEEEusemathlabelsep")?;
-  def_macro_noop("\\IEEEtriggercmd{}")?;
-  // IEEEtran.cls:2031-2059: the IED lists' label indents are dimens a document sets (`\IEEEilabelindent
-  // \IEEEilabelindentB`, 2609.36487); Perl's empty `\IEEElabelindent` made `\IEEElabelindent\parindent` an
-  // assignment to `\parindent` (KNOWN_PERL_ERRORS #514).
-  RawTeX!(r"\newdimen\IEEEilabelindentA \IEEEilabelindentA\parindent
-\newdimen\IEEEilabelindentB \IEEEilabelindentB 1.3\parindent
-\newdimen\IEEEilabelindent \IEEEilabelindent\IEEEilabelindentA
-\newdimen\IEEEelabelindent \IEEEelabelindent\parindent
-\newdimen\IEEEdlabelindent \IEEEdlabelindent\parindent
-\newdimen\IEEElabelindent \IEEElabelindent\parindent");
-  def_macro_noop("\\IEEEcalcleftmargin{}")?;
-  def_macro_noop("\\IEEEiedlabeljustifyc")?;
-  def_macro_noop("\\IEEEiedlabeljustifyl")?;
-  def_macro_noop("\\IEEEiedlabeljustifyr")?;
-
-  // IEEEitemize/enumerate/description (Perl IEEEtran.cls.ltxml L351-366).
-  // Each env:
-  //   - runs `beginItemize('<kind>', '<counter>')` via properties
-  //     closure — registers the nested list level, resets counters,
-  //     and wires the itemize/enumerate counter-label machinery.
-  //   - digests `\par` on close so trailing text in the last item
-  //     closes its <ltx:item> cleanly instead of leaking whitespace.
-  //   - locks against further redefinition (matches Perl `locked=>1`).
-  // {IEEEdescription} additionally re-`\let`s `\makelabel` to
-  // `\descriptionlabel` at env start (Perl L363), mirroring LaTeX's
-  // core description-env plumbing.
-  DefEnvironment!("{IEEEitemize}[]",
-    "<ltx:itemize xml:id='#id'>#body</ltx:itemize>",
-    properties => sub[_args] { BeginItemize!("itemize", "@item") },
-    locked => true,
-    mode => "internal_vertical");
-  DefEnvironment!("{IEEEenumerate}[]",
-    "<ltx:enumerate xml:id='#id'>#body</ltx:enumerate>",
-    properties => sub[_args] { BeginItemize!("enumerate", "enum") },
-    locked => true,
-    mode => "internal_vertical");
-  DefEnvironment!("{IEEEdescription}[]",
-    "<ltx:description xml:id='#id'>#body</ltx:description>",
-    before_digest => { Let!("\\makelabel", "\\descriptionlabel"); },
-    properties => sub[_args] { BeginItemize!("description", "@desc") },
-    locked => true,
-    mode => "internal_vertical");
+  // The IED lists `{IEEEitemize}`/`{IEEEenumerate}`/`{IEEEdescription}` and their parameters (Perl IEEEtran.cls.ltxml
+  // L340-366), shared with the IEEEtrantools binding (IEEEtrantools.sty:1000-1140).
+  ieeetrantools_sty::define_ied_lists()?;
 
   // Override LaTeX's default IED lists with the IEEE versions defined
   // above. Per Perl L369-380: a `\let` of the bare CSes AND a `\let` on
@@ -619,6 +623,10 @@ LoadDefinitions!({
   // writes `\begin{itemize}` (the LaTeXish form) hits the IEEE variant
   // — without these the standard latex-core itemize wins, bypassing
   // IEEE's locked spec. 12 aliases total.
+  // IEEEtran.cls:2219-2222 (V1.6b on) first saves LaTeX's own lists as `{LaTeXitemize}`/`{LaTeXenumerate}`, beside
+  // the `{LaTeXdescription}` below (67x; witnesses cs0701047, 2312.13891, 1502.01199).
+  RawTeX!(r"\let\LaTeXitemize\itemize \let\endLaTeXitemize\enditemize
+\let\LaTeXenumerate\enumerate \let\endLaTeXenumerate\endenumerate");
   Let!("\\itemize",      "\\IEEEitemize");
   Let!("\\enditemize",   "\\endIEEEitemize");
   Let!("\\enumerate",    "\\IEEEenumerate");
@@ -643,6 +651,10 @@ LoadDefinitions!({
   DefMacro!("\\abstractname", "Abstract");
   DefMacro!("\\IEEEkeywordsname", "Index Terms");
   DefMacro!("\\IEEEproofname", "Proof");
+  // IEEEtran's own `\…name`s are text names a copy may spell otherwise (OXIDIZED_DESIGN_DIVERGENCES #731 rule 14,
+  // `state::declare_copy_text_names`): 1803.07915's IEEEURAI.cls (`\ProvidesClass{IEEEtran}`) heads its keywords
+  // "Keywords", as its PDF.
+  declare_copy_text_names(&["\\IEEEkeywordsname", "\\IEEEproofname"]);
 
   // Legacy aliases (Perl L398-439)
   Let!("\\authorblockA", "\\IEEEauthorblockA");
@@ -659,16 +671,26 @@ LoadDefinitions!({
   //   \keywords … \endkeywords (env form) → \@IEEEkeywords
   // Rust was hardcoding the env-start path, so braced `\keywords{foo}`
   // never reached the one-arg expansion.
-  DefMacro!("\\keywords", sub[_args] {
-    let next = read_token()?;
-    if let Some(t) = next {
-      unread(Tokens!(t));
-      if t.get_catcode() == Catcode::BEGIN {
-        return Ok(Tokens!(T_CS!("\\keywords@onearg")));
+  // IEEEtran.cls (1.8b) defines no `\keywords`: the alias is a convenience, so it is a fallback a
+  // document's own `\newcommand{\keywords}{M-estimators, …}` replaces, as in TeX — Perl locks it
+  // (IEEEtran.cls.ltxml:398-403), which refused the definition, and `\keywords` in
+  // `{IEEEkeywords}` opened a second keywords block whose end met the environment's `\endgroup`
+  // (witnesses 2006.10005, 2008.05854, 2011.04315; KNOWN_PERL_ERRORS #664,
+  // `DefinitionOrigin::Fallback`, `is_definable_latex`).
+  {
+    use latexml_core::definition::origin::{DefinitionOrigin, OriginGuard};
+    let _fallback = OriginGuard::new(DefinitionOrigin::Fallback);
+    DefMacro!("\\keywords", sub[_args] {
+      let next = read_token()?;
+      if let Some(t) = next {
+        unread(Tokens!(t));
+        if t.get_catcode() == Catcode::BEGIN {
+          return Ok(Tokens!(T_CS!("\\keywords@onearg")));
+        }
       }
-    }
-    Ok(Tokens!(T_CS!("\\@IEEEkeywords")))
-  }, locked => true);
+      Ok(Tokens!(T_CS!("\\@IEEEkeywords")))
+    });
+  }
   DefMacro!("\\keywords@onearg{}",
     "\\@IEEEkeywords #1 \\@endIEEEkeywords");
   DefMacro!("\\endkeywords", "\\@endIEEEkeywords");
@@ -720,13 +742,13 @@ LoadDefinitions!({
   }
   // IEEEtran proofs route through amsthm's `\@proof` / `\end@proof`
   // machinery (the magic `\begin{proof}` CS from amsthm_sty.rs:220 —
-  // `\begin{proof}` → `\begin{@proof}`). We re-override `\th@proof`
+  // `\begin{proof}` → `\begin{@proof}`). We re-override its head style (`\lx@amsthm@proof@style`)
   // here so the amsthm header-font is bold-italic (Perl ships
   // `\textbf{\textit{Proof:}}` under IEEEtran, producing
   // font="bold italic"). Keeping amsthm's env path also gives us the
   // QED symbol emission at proof-end for free — it's already wired
   // through amsthm's `\end@proof` before_digest stack-pop.
-  RawTeX!(r"\def\th@proof{\def\thm@headfont{\bfseries\itshape}\def\thm@bodyfont{\normalfont}}");
+  RawTeX!(r"\def\lx@amsthm@proof@style{\def\thm@headfont{\bfseries\itshape}\def\thm@bodyfont{\normalfont}}");
 
   // Biography aliases
   Let!("\\biography", "\\IEEEbiography");
@@ -800,6 +822,254 @@ LoadDefinitions!({
     DefMacro!("\\IEEEeqnarraystrutsize{}{}[]", "");
   }
   def_macro_noop("\\IEEEeqnarraystrutmode")?;
+
+  // 67x: the IEEEtran.cls internals documents call — mostly in their own copies of the class's `\maketitle`,
+  // `\IEEEkeywords` or `\confheader` code — and the names of older and variant versions their papers still use
+  // (run 340 undefined-macro inventory, 692 papers; Perl's binding lacks them all, KNOWN_PERL_ERRORS #710/#711).
+  // IEEEtran.cls (TL 2025, V1.8b) as written:
+  // - :456-462 the compsoc-only executors `\@IEEEcompsoconly`, `\@IEEEnotcompsoconly`, `\@IEEEcompsocconfonly`,
+  //   `\@IEEEcompsocnotconfonly` (an URSI-style `\newmaketitle`; 2202.10460, 2202.12377, 2203.08603, 2204.11491);
+  // - :606-697 `\@IEEEnormalsizeunitybaselineskip`, the size option's unity baselineskip, and :976
+  //   `\CLASSINFOnormalsizeunitybaselineskip`; :639-708 `\sublargesize`, the size between `\normalsize` and `\large`
+  //   (1208.3665, 2103.13318); :4748-4750 `\IEEEtitletopspace`/`\IEEEtitletopspaceextra`; :4969-4978 the title
+  //   spacer's `\@IEEENORMtitlevspace`/`\@IEEEMINtitlevspace`; :5208 `\IEEEquantizedisabletitlecmds` (2601.10876);
+  // - :1074 `\@IEEEtunefonts` and its `\@IEEEsetfontdimens`, which retune the interword spacing (`\fontdimen`s, page
+  //   layout only, so nothing here; 0705.1682, 0705.3677, 0705.1922 in V1.7a);
+  // - :2085-2153 the IED list parameters (`define_ied_lists`, above);
+  // - :2571-2587 the heading forms of the section numbers, `\thesectiondis` … `\theparagraphdis` (1605.01233,
+  //   1702.07429, 1610.00529), which :5397/:5402 `\@seccntformat` prints in the heading ("I.", "A.", "1)", where a
+  //   `\ref` reads "I-A"): the heading tags' `\fnum@<level>` (base_utilities.rs `\lx@fnum@@`; Perl's binding has no
+  //   heading forms, KNOWN_PERL_ERRORS #1022; about 178,000 IEEEtran papers with a `\subsection`). An appendix keeps
+  //   its "Appendix A" (the `appendix` type's own tag), its subsections "A.". Guard
+  //   `perfect_kernel_batch78c::ieeetran_headings_print_their_heading_forms`;
+  // - :4228-4347 the page styles `\ps@headings` (which documents' `\confheader` recipes call; 1805.00151,
+  //   1805.02797, 1811.10132, 1908.05569, 1910.06140), `\ps@IEEEtitlepagestyle`, `\ps@IEEEpeerreviewcoverpagestyle`,
+  //   with their `\@IEEEheaderstyle`/`\@IEEEfooterstyle` and :6127-6150 `\@IEEEpubidpullup`, `\@IEEEpubid`,
+  //   `\if@IEEEusingpubid` (running heads and feet: page furniture, set nowhere here);
+  // - :4448 `\IEEEnoauxwrite{<citations>}` (2006.13598); :4484-4486 `\IEEEbibitemsep` (2007.01482, 2106.14760);
+  // - :4552-4561 the conference author blocks' `\@IEEEauthorblockNstyle`, `\@IEEEauthorblockAstyle`,
+  //   `\@IEEEauthordefaulttextstyle`, `\@IEEEauthorblockconfadjspace` (2507.18515, 1811.01547);
+  // - :5219 `\@IEEEaftertitletext` and :6101 `\@IEEEspecialpapernotice`, what `\IEEEaftertitletext` and
+  //   `\IEEEspecialpapernotice` store for the title: empty, as those two make frontmatter notes here (above);
+  // - :5668-5669 the `\@ifmtarg` the class carries from ifmtarg.sty (1510.02032).
+  RawTeX!(r"\long\def\@IEEEcompsoconly#1{\relax\ifCLASSOPTIONcompsoc\relax#1\relax\fi\relax}
+\long\def\@IEEEnotcompsoconly#1{\relax\ifCLASSOPTIONcompsoc\else\relax#1\relax\fi\relax}
+\long\def\@IEEEcompsocconfonly#1{\relax\ifCLASSOPTIONcompsoc\ifCLASSOPTIONconference\relax#1\relax\fi\fi\relax}
+\long\def\@IEEEcompsocnotconfonly#1{\relax\ifCLASSOPTIONcompsoc\ifCLASSOPTIONconference\else\relax#1\relax\fi\fi\relax}
+\newdimen\@IEEEnormalsizeunitybaselineskip
+\@IEEEnormalsizeunitybaselineskip 12pt
+\def\sublargesize{\@setfontsize{\sublargesize}{11}{13.4pt}}
+\ifnum\CLASSOPTIONpt=9 \@IEEEnormalsizeunitybaselineskip 11.0476pt
+  \def\sublargesize{\@setfontsize{\sublargesize}{10}{12pt}}\fi
+\ifnum\CLASSOPTIONpt=11 \@IEEEnormalsizeunitybaselineskip 13.3846pt
+  \def\sublargesize{\@setfontsize{\sublargesize}{12}{14pt}}\fi
+\ifnum\CLASSOPTIONpt=12 \@IEEEnormalsizeunitybaselineskip 13.92pt
+  \def\sublargesize{\@setfontsize{\sublargesize}{14}{17pt}}\fi
+\newdimen\CLASSINFOnormalsizeunitybaselineskip
+\CLASSINFOnormalsizeunitybaselineskip\@IEEEnormalsizeunitybaselineskip
+\def\@IEEEsetfontdimens{}
+\def\@IEEEtunefonts{}
+\def\IEEEtitletopspace{0.5\baselineskip}
+\def\IEEEtitletopspaceextra{0pt}
+\def\@IEEENORMtitlevspace{2.5\baselineskip}
+\def\@IEEEMINtitlevspace{2\baselineskip}
+\ifCLASSOPTIONconference\def\@IEEENORMtitlevspace{1\baselineskip}\def\@IEEEMINtitlevspace{0.75\baselineskip}\fi
+\ifCLASSOPTIONtechnote\def\@IEEENORMtitlevspace{1\baselineskip}\def\@IEEEMINtitlevspace{0.75\baselineskip}\fi
+\def\IEEEquantizedisabletitlecmds{\long\def\thanks##1{\relax}\relax
+\long\def\IEEEcompsocitemizethanks##1{\relax}\def\newpage{\relax}}
+\ifCLASSOPTIONcompsoc
+  \ifCLASSOPTIONconference
+    \def\thesectiondis{\thesection.}
+    \def\thesubsectiondis{\thesectiondis\arabic{subsection}.}
+    \def\thesubsubsectiondis{\thesubsectiondis\arabic{subsubsection}.}
+    \def\theparagraphdis{\thesubsubsectiondis\arabic{paragraph}.}
+  \else
+    \def\thesectiondis{\thesection}
+    \def\thesubsectiondis{\thesectiondis.\arabic{subsection}}
+    \def\thesubsubsectiondis{\thesubsectiondis.\arabic{subsubsection}}
+    \def\theparagraphdis{\thesubsubsectiondis.\arabic{paragraph}}
+  \fi
+\else
+  \def\thesectiondis{\thesection.}
+  \def\thesubsectiondis{\Alph{subsection}.}
+  \def\thesubsubsectiondis{\arabic{subsubsection})}
+  \def\theparagraphdis{\alph{paragraph})}
+\fi
+\def\fnum@section{\thesectiondis}\def\fnum@subsection{\thesubsectiondis}
+\def\fnum@subsubsection{\thesubsubsectiondis}\def\fnum@paragraph{\theparagraphdis}
+\def\@IEEEheaderstyle{\normalfont\scriptsize}
+\def\@IEEEfooterstyle{\normalfont\scriptsize}
+\ifCLASSOPTIONcompsoc
+  \def\@IEEEheaderstyle{\normalfont\sffamily\scriptsize}
+  \def\@IEEEfooterstyle{\normalfont\sffamily\scriptsize}
+\fi
+\def\@IEEEpubidpullup{1.3\baselineskip}
+\ifCLASSOPTIONtechnote\def\@IEEEpubidpullup{2\baselineskip}\fi
+\ifCLASSOPTIONcompsoc\def\@IEEEpubidpullup{0pt}\fi
+\def\@IEEEpubid{\relax}
+\newif\if@IEEEusingpubid
+\global\@IEEEusingpubidfalse
+\def\ps@headings{%
+\def\@oddhead{\hbox{}\@IEEEheaderstyle\rightmark\hfil\thepage}\relax
+\def\@evenhead{\@IEEEheaderstyle\thepage\hfil\leftmark\hbox{}}\relax
+\let\@oddfoot\@empty
+\let\@evenfoot\@empty
+\ifCLASSOPTIONtechnote
+  \def\@oddhead{\hbox{}\@IEEEheaderstyle\leftmark\hfil\thepage}\relax
+  \def\@evenhead{\@IEEEheaderstyle\thepage\hfil\leftmark\hbox{}}\relax
+\fi
+\ifCLASSOPTIONdraftcls
+  \def\@oddfoot{\@IEEEfooterstyle\@date\hfil DRAFT}\relax
+  \def\@evenfoot{\@IEEEfooterstyle DRAFT\hfil\@date}\relax
+\fi
+\if@twoside\else
+  \def\@oddhead{\hbox{}\@IEEEheaderstyle\leftmark\hfil\thepage}\relax
+  \let\@evenhead\@empty
+  \ifCLASSOPTIONdraftcls
+    \def\@oddfoot{\@IEEEfooterstyle\@date\hfil DRAFT}\relax
+    \let\@evenfoot\@empty
+  \fi
+\fi
+\ifCLASSOPTIONconference
+  \let\@oddhead\@empty
+  \let\@evenhead\@empty
+\fi
+\ifCLASSOPTIONdraftclsnofoot
+  \let\@oddfoot\@empty
+  \let\@evenfoot\@empty
+\fi}
+\def\ps@IEEEtitlepagestyle{%
+\def\@oddhead{\hbox{}\@IEEEheaderstyle\leftmark\hfil\thepage}\relax
+\def\@evenhead{\@IEEEheaderstyle\thepage\hfil\leftmark\hbox{}}\relax
+\let\@oddfoot\@empty
+\let\@evenfoot\@empty
+\ifCLASSOPTIONdraftcls
+  \ifCLASSOPTIONdraftclsnofoot\else
+    \def\@oddfoot{\@IEEEfooterstyle\@date\hfil DRAFT}\relax
+    \def\@evenfoot{\@IEEEfooterstyle DRAFT\hfil\@date}\relax
+  \fi
+\else
+  \if@IEEEusingpubid
+    \ifCLASSOPTIONpeerreview\else
+      \def\@oddfoot{\hbox{}\hss\@IEEEfooterstyle\footnotesize\raisebox{\footskip}[0pt][0pt]{\@IEEEpubid}\hss\hbox{}}\relax
+      \def\@evenfoot{\hbox{}\hss\@IEEEfooterstyle\footnotesize\raisebox{\footskip}[0pt][0pt]{\@IEEEpubid}\hss\hbox{}}\relax
+      \ifCLASSOPTIONcompsoc
+        \def\@oddfoot{\hbox{}\hss\@IEEEfooterstyle\raisebox{0pt}[0pt][0pt]{\@IEEEpubid}\hss\hbox{}}\relax
+        \def\@evenfoot{\hbox{}\hss\@IEEEfooterstyle\raisebox{0pt}[0pt][0pt]{\@IEEEpubid}\hss\hbox{}}\relax
+      \fi
+    \fi
+  \fi
+\fi
+\ifCLASSOPTIONconference
+  \let\@oddhead\@empty
+  \let\@evenhead\@empty
+\fi}
+\def\ps@IEEEpeerreviewcoverpagestyle{%
+\let\@oddhead\@empty
+\let\@evenhead\@empty
+\let\@oddfoot\@empty
+\let\@evenfoot\@empty
+\ifCLASSOPTIONdraftcls
+  \ifCLASSOPTIONdraftclsnofoot\else
+    \def\@oddfoot{\@IEEEfooterstyle\@date\hfil DRAFT}\relax
+    \def\@evenfoot{\@IEEEfooterstyle DRAFT\hfil\@date}\relax
+  \fi
+\else
+  \if@IEEEusingpubid
+    \def\@oddfoot{\hbox{}\hss\@IEEEfooterstyle\footnotesize\raisebox{\footskip}[0pt][0pt]{\@IEEEpubid}\hss\hbox{}}\relax
+    \def\@evenfoot{\hbox{}\hss\@IEEEfooterstyle\footnotesize\raisebox{\footskip}[0pt][0pt]{\@IEEEpubid}\hss\hbox{}}\relax
+    \ifCLASSOPTIONcompsoc
+      \def\@oddfoot{\hbox{}\hss\@IEEEfooterstyle\raisebox{0pt}[0pt][0pt]{\@IEEEpubid}\hss\hbox{}}\relax
+      \def\@evenfoot{\hbox{}\hss\@IEEEfooterstyle\raisebox{0pt}[0pt][0pt]{\@IEEEpubid}\hss\hbox{}}\relax
+    \fi
+  \fi
+\fi}
+\DeclareRobustCommand{\IEEEnoauxwrite}[1]{\relax\if@filesw\@fileswfalse#1\relax\relax\relax\relax\relax\@fileswtrue
+\else#1\relax\relax\relax\relax\relax\fi}
+\def\IEEEbibitemsep{0pt plus .5pt}
+\@IEEEcompsocconfonly{\def\IEEEbibitemsep{0.5\baselineskip plus 0.25\baselineskip minus 0.25\baselineskip}}
+\def\@IEEEauthorblockNstyle{\normalfont\@IEEEcompsocnotconfonly{\sffamily}\sublargesize}
+\def\@IEEEauthorblockAstyle{\normalfont\@IEEEcompsocnotconfonly{\sffamily}\@IEEEcompsocconfonly{\itshape}\normalsize}
+\def\@IEEEauthordefaulttextstyle{\normalfont\@IEEEcompsocnotconfonly{\sffamily}\sublargesize}
+\def\@IEEEauthorblockconfadjspace{-0.25em}
+\@IEEEcompsocconfonly{\def\@IEEEauthorblockconfadjspace{0.75\@IEEEnormalsizeunitybaselineskip}}
+\let\@IEEEaftertitletext=\relax
+\def\@IEEEspecialpapernotice{\relax}
+\begingroup
+\catcode`\Q=3
+\long\gdef\@ifmtarg#1{\@xifmtarg#1QQ\@secondoftwo\@firstoftwo\@nil}
+\long\gdef\@xifmtarg#1#2Q#3#4#5\@nil{#4}
+\endgroup");
+  // :4983-5203 `\IEEEquantizevspace*[<out dimen>]{<object>}[<decl>]{<top baselineskip>}[<offset>][<prevdepth>]
+  // [<lineskiplimit>][<lineskip>]{<unit>}{<nominal space>}{<minimum space>}`, which the class's `\maketitle` (:4772)
+  // and documents' copies of it (2601.10876) set the title with: it sets `<object>` in two measuring boxes and then
+  // once more, followed by the space that brings the text below it to a multiple of `<unit>`, or puts that space in
+  // `<out dimen>` instead. The arguments are read as written; the measuring and the space, page layout, are not
+  // modelled — measuring the title would make its frontmatter twice — so `<object>` is set once, the out dimen 0pt.
+  RawTeX!(r"\newtoks\@IEEEtrantmptoksA
+\newif\if@IEEEquantizevspacestarform
+\newif\if@IEEEquantizevspaceuseoutdimenreg
+\def\IEEEquantizevspace{\begingroup\@ifstar{\@IEEEquantizevspacestarformtrue\@IEEEquantizevspace}{\@IEEEquantizevspacestarformfalse\@IEEEquantizevspace}}
+\def\@IEEEquantizevspace{\@ifnextchar [{\@IEEEquantizevspaceuseoutdimenregtrue\@@IEEEquantizevspace}{\@IEEEquantizevspaceuseoutdimenregfalse\@@IEEEquantizevspace[]}}
+\long\def\@@IEEEquantizevspace[#1]#2{\relax
+\edef\@IEEEquantizeoutdimenreg{#1}\relax
+\@IEEEtrantmptoksA={#2}\relax
+\long\edef\@IEEEquantizeobject{\the\@IEEEtrantmptoksA}\relax
+\@ifnextchar [{\@@@IEEEquantizevspace}{\@@@IEEEquantizevspace[\relax]}}
+\long\def\@@@IEEEquantizevspace[#1]#2{\relax
+\@IEEEtrantmptoksA={#1}\relax
+\long\edef\@IEEEquantizeobjectdecl{\the\@IEEEtrantmptoksA}\relax
+\edef\@IEEEquantizetopbaselineskip{#2}\ivIEEEquantizevspace}
+\def\ivIEEEquantizevspace{\@ifnextchar [{\@vIEEEquantizevspace}{\@vIEEEquantizevspace[0pt]}}
+\def\@vIEEEquantizevspace[#1]{\edef\@IEEEquantizeoffset{#1}\@ifnextchar [{\@viIEEEquantizevspace}{\@viIEEEquantizevspace[\prevdepth]}}
+\def\@viIEEEquantizevspace[#1]{\@ifnextchar [{\@viiIEEEquantizevspace}{\@viiIEEEquantizevspace[\lineskiplimit]}}
+\def\@viiIEEEquantizevspace[#1]{\edef\@IEEEquantizelineskiplimit{#1}\@ifnextchar [{\@viiiIEEEquantizevspace}{\@viiiIEEEquantizevspace[\lineskip]}}
+\def\@viiiIEEEquantizevspace[#1]{\edef\@IEEEquantizelineskip{#1}\@ixIEEEquantizevspace}
+\def\@ixIEEEquantizevspace#1#2#3{\global\let\@IEEEquantizeobjectout\@IEEEquantizeobject\relax\endgroup
+\if@IEEEquantizevspaceuseoutdimenreg\@IEEEquantizeoutdimenreg=\z@\else\@IEEEquantizeobjectout\relax\fi}");
+  // The names the IEEEtran versions before V1.7 had for the same things, and the variant classes papers ship (each
+  // a fallback a document's own definition replaces, as for `\keywords` above):
+  // - V1.5-1.6c `\ifcenterfigcaptions` (V1.6b :1966-1972, true in conference mode; the caption centring is layout;
+  //   cs0501064, 0704.1833, cs0610078, cond-mat0207222, 1807.11264 in ieeeconf.cls), `\ifnocalcleftmargin` (V1.6b
+  //   :1512; 2009.04715), `\@specialpapernotice` (V1.6b :4379, `\IEEEspecialpapernotice`'s store; 1811.05306,
+  //   1811.01547); V1.6b's `\specialpapernotice` is the `\IEEEspecialpapernotice` above.
+  // - V1.7a `\proof` (V1.7a :4690, `\AtBeginDocument{\def\proof{…\IEEEproof}…}`): one a document left undefined
+  //   or `\relax` at `\begin{document}`, where `\begin{proof}` is an error under V1.8b, which defines none, is IEEEproof
+  //   there (2106.12111's `\let\proof\@undefined`; 2208.13860, 2310.09933, 2310.09935, 2509.09277's `\let\proof\relax`
+  //   after amsthm).
+  // - IEEEtran4PSCC.cls :4793-4804 (PSCC's IEEEtran V1.8a; its `\thanks` commented out), `\thanksto{<note>}`, the
+  //   paper's thanks note (funding, sponsorship), set as an unmarked footnote after `\maketitle` has let `\thanks` go:
+  //   the frontmatter's thanks note, as a `\thanks` outside the author block (185 papers; 1601.01675, 1603.05188,
+  //   1710.09738).
+  // - The Turkish SIU template's IEEEtran.cls (2011/11/03 "V1.8 based on V1.7a" :1659-1662, :3745-3790): `{ozet}`,
+  //   the abstract in Turkish under "Özetçe", and `{IEEEanahtar}`, its keywords under "Anahtar Kelimeler" — written
+  //   where they stand, as the paper's English `{abstract}`/`{IEEEkeywords}` are the frontmatter's (21 papers;
+  //   1504.02975, 1807.04577, 1807.04578, 1910.03090); in the two-column form (:3746, :3765), the whole block bold
+  //   (`\bfseries\leavevmode…\textit{\ozetname}---`), the keywords bold italic; the paragraph begins bold, so the
+  //   heading is a text of its own and what follows it is not set inside it.
+  // The begin-document `\let`s run after this load, outside the guard below, so the hook calls a primitive that makes
+  // them as the fallback guess themselves: a document's own `\AtBeginDocument{\newenvironment{proof}…}`, which runs
+  // after the class's hook, replaces them (pdflatex with V1.8b: its own proof; 67x review probe g).
+  DefPrimitive!(T_CS!("\\lx@IEEE@begindocument@proof"), None, {
+    use latexml_core::definition::origin::{DefinitionOrigin, OriginGuard};
+    let _fallback = OriginGuard::new(DefinitionOrigin::Fallback);
+    Let!("\\proof", "\\IEEEproof");
+    Let!("\\endproof", "\\endIEEEproof");
+  });
+  {
+    use latexml_core::definition::origin::{DefinitionOrigin, OriginGuard};
+    let _fallback = OriginGuard::new(DefinitionOrigin::Fallback);
+    RawTeX!(r#"\newif\ifcenterfigcaptions
+\ifCLASSOPTIONconference\centerfigcaptionstrue\else\centerfigcaptionsfalse\fi
+\newif\ifnocalcleftmargin \nocalcleftmarginfalse
+\def\@specialpapernotice{\relax}
+\AtBeginDocument{\@ifundefined{proof}{\lx@IEEE@begindocument@proof}{}}
+\def\thanksto#1{\lx@add@pubnote@thanks{#1}}
+\def\ozetname{\"Ozet\c{c}e }
+\def\IEEEanahtaradi{Anahtar Kelimeler}
+\newenvironment{ozet}{\par\bfseries\noindent\textit{\ozetname}---\ignorespaces}{\par}
+\newenvironment{IEEEanahtar}{\par\bfseries\noindent\textit{\IEEEanahtaradi}---\itshape\ignorespaces}{\par}"#);
+  }
 });
 
 /// Split `tokens` at each TOP-LEVEL (brace-depth 0) occurrence of `delim`.
@@ -1028,6 +1298,7 @@ fn wrap_bare_author_block_text(body: Tokens) -> Tokens {
 /// ([`names_continue`]: `Wenming~Li, \\ Xiaochun~Ye, …`, 2408.01902); grades past the names keep `\IEEEmembership`,
 /// which drops them.
 fn name_memberships(tokens: Vec<Token>) -> Vec<Token> {
+  let tokens = without_stop_after_grade(tokens);
   let spacing = |t: &Token| *t == T_SPACE!() || *t == T_ACTIVE!('~');
   // the end of the line opening at `from`: the next `\\` or `\and` outside groups
   let line_end = |from: usize| {
@@ -1055,6 +1326,12 @@ fn name_memberships(tokens: Vec<Token>) -> Vec<Token> {
       if t == T_CS!("\\and") {
         in_names = true;
         names_start = i + 1;
+      } else if t == T_CS!("\\\\") && in_names && grade_only_line(&tokens[i + 1..line_end(i + 1)]) {
+        // (a line holding only the last name's grade, its notes aside, is that name's: `and~Jussi
+        // Haapola,\\~\IEEEmembership{Member,~IEEE,}\thanks{…}`, 2202.10869 — the break no part of the names, the grade
+        // read as any other, and lost had the line been read as the block's)
+        i += 1;
+        continue;
       } else if t == T_CS!("\\\\") {
         in_names = in_names
           && names_continue(
@@ -1063,7 +1340,40 @@ fn name_memberships(tokens: Vec<Token>) -> Vec<Token> {
           );
       }
     }
-    if in_names && depth == 0 && t == T_CS!("\\IEEEmembership") {
+    // (a note's text is no name line: `\thanks{… \IEEEmembership{…}}` keeps the grade it names, dropped)
+    if [
+      T_CS!("\\thanks"),
+      T_CS!("\\footnote"),
+      T_CS!("\\IEEEcompsocitemizethanks"),
+    ]
+    .contains(&t)
+    {
+      let mut j = i + 1;
+      while j < tokens.len() && tokens[j] == T_SPACE!() {
+        j += 1;
+      }
+      if j < tokens.len() && tokens[j].code == Catcode::BEGIN {
+        let mut level = 0usize;
+        while j < tokens.len() {
+          match tokens[j].code {
+            Catcode::BEGIN => level += 1,
+            Catcode::END => level = level.saturating_sub(1),
+            _ => {},
+          }
+          j += 1;
+          if level == 0 {
+            break;
+          }
+        }
+        out.extend_from_slice(&tokens[i..j]);
+        i = j;
+        continue;
+      }
+    }
+    // (inside a wrapper of the names too: `{{Ann Able},~\IEEEmembership{Senior Member, IEEE}, …}`, 2112.09769;
+    // `\uppercase{K. Liu\authorrefmark{2}, J. Chen\authorrefmark{2}, \IEEEmembership{Senior, IEEE} R.C. de Lamare…}`,
+    // ieeeaccess 2209.12464)
+    if in_names && t == T_CS!("\\IEEEmembership") {
       let mut j = i + 1;
       while j < tokens.len() && tokens[j] == T_SPACE!() {
         j += 1;
@@ -1129,6 +1439,275 @@ fn name_memberships(tokens: Vec<Token>) -> Vec<Token> {
     i += 1;
   }
   out
+}
+
+/// Whether `line` holds one `\IEEEmembership{…}` and else only spacing or authors' notes alone ([`notes_only_line`]:
+/// `\thanks{…}`, `\footnote{…}`): a grade on the line after its name ([`name_memberships`]).
+fn grade_only_line(line: &[Token]) -> bool {
+  let spacing = |t: &Token| *t == T_SPACE!() || *t == T_ACTIVE!('~') || *t == T_CS!("\\par");
+  let mut grades = 0;
+  let mut rest: Vec<Token> = Vec::with_capacity(line.len());
+  let mut depth = 0usize;
+  let mut i = 0;
+  while i < line.len() {
+    let t = line[i];
+    if depth == 0 && t == T_CS!("\\IEEEmembership") {
+      let open = i
+        + 1
+        + line[i + 1..]
+          .iter()
+          .take_while(|t| **t == T_SPACE!())
+          .count();
+      if line.get(open).is_none_or(|t| t.code != Catcode::BEGIN) {
+        return false;
+      }
+      let mut level = 0usize;
+      let Some(close) = line[open..].iter().position(|t| {
+        match t.code {
+          Catcode::BEGIN => level += 1,
+          Catcode::END => level -= 1,
+          _ => {},
+        }
+        level == 0
+      }) else {
+        return false;
+      };
+      grades += 1;
+      i = open + close + 1;
+      continue;
+    }
+    match t.code {
+      Catcode::BEGIN => depth += 1,
+      Catcode::END => depth = depth.saturating_sub(1),
+      _ => {},
+    }
+    rest.push(t);
+    i += 1;
+  }
+  grades == 1 && (rest.iter().all(spacing) || notes_only_line(&rest))
+}
+
+/// `tokens` without the full stop or semicolon that closes them right after a grade: one at the top level that only
+/// what prints no text follows — spaces, `\par`, `\\`, `\vspace{…}` and authors' notes (`\thanks{…}`, `\footnote{…}`)
+/// — and only such material parts from an `\IEEEmembership{…}` before it: `…,\\ and Farshid Alambeigi$^{1}$
+/// \IEEEmembership{Member, IEEE}\thanks{…}.}` (2405.17600), `…, Jiangchuan Liu, \IEEEmembership{Fellow, IEEE}. }` in an
+/// `\IEEEauthorblockN` (2405.10825), `…~\IEEEmembership{Fellow,~IEEE}.` + a blank line, notes and a `\\` (2510.15773),
+/// `…~\IEEEmembership{Fellow,~IEEE}` + a blank line, `\vspace{-10mm}` and notes, then `.` (2112.14209). The stop
+/// closes the block's sentence and is no part of the last author's names or grade: every reading of the names after it
+/// — whether the line after a `\\` continues them ([`names_continue`]), the block's split, a grade rejoining its name —
+/// took the lone "." for a word, so the last line's grades were dropped and its authors became every author's
+/// affiliation (2112.14209, 2409.11755, 2510.15773). A stop after any other text (an affiliation's) stays.
+///
+/// The stop parts the notes after it from the names, and the shared reader reads them by that: the stop goes only where
+/// it is sure no note changes hands, by the reader's own tests of a mark — any mark on the names, `author_mark_position`
+/// on the block with its notes taken out (which sees a `\let` alias of `\textsuperscript`, a mark in a group or an
+/// `\mbox`); a mark on the names that reads as a label, `leads_with_mark` on the names from that mark (`$^{1}$`,
+/// `\IEEEauthorrefmark{2}`, `$^{1,*}$`; not `$^{*}$`, `$^{\dag}$`); a note after the grade led by a label,
+/// `leads_with_mark` (`$^{1}$…`, `\up{1}…`; a symbol, `$^{*}$Corresponding author`, is a note's own mark, no
+/// affiliation's). Three branches. With neither the names nor a note marked, the stop goes and the notes after the
+/// grade move onto a line of their own, after a `\\`, which reads as no names and yields the document's notes
+/// (2510.15773's own `\\`-lines): left after the grade, they would follow the last name and go to its author by
+/// position alone (all six of 2112.14209's, 2409.11755's one covering all five authors, 2605.22853's "The authors are
+/// with"). With a label on the names and a note after the grade led by one, the stop goes and the notes stay, read by
+/// their marks as the base reads them with the stop (2405.17600, whose first marks, `$^{*1}$`, lead with a
+/// symbol; Sarah Go's `$^{1}$` is the label; the 86d r2 re-review's m0-m3, m5). Every other block is left exactly
+/// as the base reads it: marks on the names alone (`Ann Able$^{*}$` over `\thanks{$^{*}$Corresponding author.}`,
+/// the r2 re-review's m4, n4b), on the notes alone, or names
+/// marked only by symbols over a note led by a number (the same block with `\thanks{$^{1}$All authors are with X.}`,
+/// the r3 re-review's a9, a12: read as both-marked, the correspondence note went to the last author and the numbered
+/// note became a creator with no name). There, without the stop, the notes went to the last author (n4b's
+/// correspondence note, whose `*` marks the first: the shared reader ties no such note to a non-last author's mark,
+/// the observer's S2c item). A note after a `\\` that already follows the grade is on such a line. Notes after a grade with no stop
+/// keep their reading, Perl's too (the last author's; KNOWN_PERL_ERRORS #534).
+fn without_stop_after_grade(mut tokens: Vec<Token>) -> Vec<Token> {
+  let notes = [
+    T_CS!("\\thanks"),
+    T_CS!("\\footnote"),
+    T_CS!("\\IEEEcompsocitemizethanks"),
+  ];
+  let spacing = |t: &Token| {
+    *t == T_SPACE!() || *t == T_ACTIVE!('~') || *t == T_CS!("\\par") || *t == T_CS!("\\\\")
+  };
+  // the start of the group ending just before `end` that prints no text there (a `\thanks{…}`, `\footnote{…}`,
+  // `\IEEEcompsocitemizethanks{…}`, `\vspace{…}`, `\vspace*{…}`), at its command
+  let note_before = |tokens: &[Token], end: usize| -> Option<usize> {
+    if end == 0 || tokens[end - 1].code != Catcode::END {
+      return None;
+    }
+    let mut level = 0usize;
+    let open = (0..end).rev().find(|&j| {
+      match tokens[j].code {
+        Catcode::END => level += 1,
+        Catcode::BEGIN => level = level.saturating_sub(1),
+        _ => {},
+      }
+      level == 0
+    })?;
+    let mut before = open;
+    while before > 0 && tokens[before - 1] == T_SPACE!() {
+      before -= 1;
+    }
+    if before > 1 && tokens[before - 1] == T_OTHER!("*") && tokens[before - 2] == T_CS!("\\vspace")
+    {
+      return Some(before - 2);
+    }
+    (before > 0 && (notes.contains(&tokens[before - 1]) || tokens[before - 1] == T_CS!("\\vspace")))
+      .then(|| before - 1)
+  };
+  // back over spaces and notes from `end`
+  let back = |tokens: &[Token], mut end: usize| -> usize {
+    loop {
+      if end > 0 && spacing(&tokens[end - 1]) {
+        end -= 1;
+      } else if let Some(start) = note_before(tokens, end) {
+        end = start;
+      } else {
+        return end;
+      }
+    }
+  };
+  let end = back(&tokens, tokens.len());
+  if end == 0 || ![T_OTHER!("."), T_OTHER!(";")].contains(&tokens[end - 1]) {
+    return tokens;
+  }
+  let stop = end - 1;
+  let grade_end = back(&tokens, stop);
+  // the grade's group, and `\IEEEmembership` before it
+  if grade_end == 0 || tokens[grade_end - 1].code != Catcode::END {
+    return tokens;
+  }
+  let mut level = 0usize;
+  let Some(open) = (0..grade_end).rev().find(|&j| {
+    match tokens[j].code {
+      Catcode::END => level += 1,
+      Catcode::BEGIN => level = level.saturating_sub(1),
+      _ => {},
+    }
+    level == 0
+  }) else {
+    return tokens;
+  };
+  let mut before = open;
+  while before > 0 && tokens[before - 1] == T_SPACE!() {
+    before -= 1;
+  }
+  if before == 0 || tokens[before - 1] != T_CS!("\\IEEEmembership") {
+    return tokens;
+  }
+  // (each note's argument at the top level from `from`, and `tokens` with every note taken out, at any depth)
+  let note_args = |tokens: &[Token], from: usize| -> Vec<Tokens> {
+    let mut out = Vec::new();
+    let mut level = 0usize;
+    let mut i = from;
+    while i < tokens.len() {
+      if level == 0 && notes.contains(&tokens[i]) {
+        let (arg, next) = note_argument(tokens, i + 1);
+        out.push(Tokens::new(arg));
+        i = next;
+        continue;
+      }
+      match tokens[i].code {
+        Catcode::BEGIN => level += 1,
+        Catcode::END => level = level.saturating_sub(1),
+        _ => {},
+      }
+      i += 1;
+    }
+    out
+  };
+  let without_notes = |tokens: &[Token]| -> Tokens {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+      if notes.contains(&tokens[i]) {
+        i = note_argument(tokens, i + 1).1;
+      } else {
+        out.push(tokens[i]);
+        i += 1;
+      }
+    }
+    Tokens::new(out)
+  };
+  // marks by the shared reader's own tests: any mark on the names (`author_mark_position`, which sees a `\let` alias,
+  // a grouped mark, `\mbox{$^{1}$}`); a mark on the names that reads as a label, by the test a note's is read by
+  // (`leads_with_mark` on the names from that mark: `$^{1}$`, `\IEEEauthorrefmark{2}`, `$^{1,*}$`, not `$^{*}$`,
+  // `$^{\dag}$`); and a note leading with a label (`leads_with_mark`)
+  let names = without_notes(&tokens).unlist();
+  let names_any = author_mark_position(&Tokens::new(names.clone())).is_some();
+  let mut names_labelled = false;
+  let mut from = 0;
+  while let Some(at) = author_mark_position(&Tokens::new(names[from..].to_vec())) {
+    let at = from + at - 1;
+    if leads_with_mark(&Tokens::new(names[at..].to_vec())) {
+      names_labelled = true;
+      break;
+    }
+    from = at + 1;
+  }
+  let notes_marked = note_args(&tokens, grade_end).iter().any(leads_with_mark);
+  // (neither the names nor a note marked; or both marked with labels; else the block as the base reads it)
+  let unmarked = !names_any && !notes_marked;
+  if !unmarked && !(names_labelled && notes_marked) {
+    return tokens;
+  }
+  tokens.remove(stop);
+  if unmarked {
+    // a note after the grade before any `\\` (the tail holds only spacing, `\vspace` and notes, at the top level)
+    let mut level = 0usize;
+    for t in &tokens[grade_end..] {
+      if level == 0 && *t == T_CS!("\\\\") {
+        break;
+      }
+      if level == 0 && notes.contains(t) {
+        tokens.insert(grade_end, T_CS!("\\\\"));
+        break;
+      }
+      match t.code {
+        Catcode::BEGIN => level += 1,
+        Catcode::END => level = level.saturating_sub(1),
+        _ => {},
+      }
+    }
+  }
+  tokens
+}
+
+/// The argument of the note whose command ends just before `at` (`\thanks[…]{…}`): its tokens, braces dropped, and
+/// the position after it; past spaces and an optional `[…]`, a group or else one token.
+fn note_argument(tokens: &[Token], mut at: usize) -> (Vec<Token>, usize) {
+  let skip_spaces = |at: &mut usize| {
+    while *at < tokens.len() && tokens[*at] == T_SPACE!() {
+      *at += 1;
+    }
+  };
+  skip_spaces(&mut at);
+  if at < tokens.len() && tokens[at] == T_OTHER!("[") {
+    while at < tokens.len() && tokens[at] != T_OTHER!("]") {
+      at += 1;
+    }
+    at += 1;
+    skip_spaces(&mut at);
+  }
+  if at >= tokens.len() {
+    return (Vec::new(), tokens.len());
+  }
+  if tokens[at].code != Catcode::BEGIN {
+    return (vec![tokens[at]], at + 1);
+  }
+  let mut level = 0usize;
+  for j in at..tokens.len() {
+    match tokens[j].code {
+      Catcode::BEGIN => level += 1,
+      Catcode::END => {
+        level -= 1;
+        if level == 0 {
+          return (tokens[at + 1..j].to_vec(), j + 1);
+        }
+      },
+      _ => {},
+    }
+  }
+  (tokens[at + 1..].to_vec(), tokens.len())
 }
 
 /// An explicit author-block body with the grades of each `\IEEEauthorblockN{…}` name line made its author's

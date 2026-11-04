@@ -10,6 +10,10 @@ LoadDefinitions!({
   // Guards `native_notes_bindings::fourier_orns_print_their_ornaments`, `fourier_orns_under_a_tu_persona`,
   // `futs_text_family_is_not_decoded_as_ornaments`, `fouriernc_requires_fourier_and_its_ornaments`.
   RequirePackage!("fourier-orns", options => vec![s!("noOTF")]);
+  // fourier.sty:77-87 (`sloped`, the default: `otherletters`, FML `futm`) and :104-114 (`upright`: `letters`, `futm`)
+  // `\DeclareMathSymbol{\Gamma}{\mathord}{…}{000}`…: the capital Greek letters upright either way, over a class's
+  // italic ones (llncs.cls:379-389; KNOWN_PERL_ERRORS #1147).
+  declare_capital_greek("", None)?;
   // fourier.sty:300-303: `\math@bb` is the fourier-bb blackboard alphabet, and `\mathbb` becomes
   // it at `\begin{document}`, over amsfonts' and over a preamble
   // `\renewcommand{\mathbb}{\varmathbb}` (2406.06884; fourier has no `\varmathbb`).

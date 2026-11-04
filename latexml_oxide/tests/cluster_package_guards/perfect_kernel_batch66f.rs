@@ -66,7 +66,8 @@ fn unnumbered_appendix_section_in_float() {
 }
 
 /// authblk's `\affil` is robust (authblk.sty:148), so it survives titling's `\protected@xdef\theauthor` inside
-/// `\author` (witness 2605.03796, whose body was lost).
+/// `\author` (witness 2605.03796, whose body was lost). The author's mark requests the affiliation it labels (77n r3:
+/// a marked authblk `\author` is read as an author list, so the mark is answered, not shown).
 #[test]
 fn authblk_affil_in_author_under_titling() {
   let (log, xml) = convert_counted(include_str!(
@@ -75,7 +76,7 @@ fn authblk_affil_in_author_under_titling() {
   assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
   assert_eq!(
     element(&xml, "<creator", "</creator>"),
-    "<creator role=\"author\">\n<personname>Ann Author<sup xml:id=\"id1\">1</sup></personname>\n<contact name=\"Affiliation:\u{a0}\" role=\"affiliation\"><sup xml:id=\"id2\">1</sup>Some University</contact>\n</creator>",
+    "<creator role=\"author\">\n<personname>Ann Author</personname>\n<contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Some University</contact>\n</creator>",
     "{xml}"
   );
   assert!(xml.contains("<p xml:id=\"p1.1\">Body.</p>"), "{xml}");
@@ -252,13 +253,14 @@ fn ieeetran_author_conditional_from_block_argument() {
     "../../../tools/perfect_kernel/repros/class-bindings/ieeetran_author_conditional_from_block_argument.tex"
   ));
   assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
-  // The second, empty affiliation is a residual: the block's `\vspace{-5mm}` and the conditional's tail stay in
-  // the `\author` argument after the block and are read as a further (empty) block line; pdflatex prints nothing.
+  // (the block's `\vspace{-5mm}` and the conditional's tail after the block read as a further block line make an
+  // empty contact, dropped as no contact — 83b; pdflatex prints nothing. IEEEtran written since 95b, OD #942: the
+  // entry's printed address its only carrier's e-mail, brief 95c's take-out)
   assert_eq!(
     element(&xml, "<creator", "</creator>"),
     "<creator role=\"author\">\n<personname>A. Author</personname>\n\
-     <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ <break/>\nE-mail: a@b.c</contact>\n\
-     <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\"/>\n</creator>",
+     <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ</contact>\n\
+     <contact name=\"E-mail: \" role=\"email\">a@b.c</contact>\n</creator>",
     "{xml}"
   );
   assert!(!xml.contains("x@y.z"), "{xml}");

@@ -11,7 +11,7 @@
 %   leaked into the glue scan, and the glue's stray digit fired \everypar's \gr@implitem.
 %   tex.web §1094 head_for_vmode runs the whole \par first.
 % note:    the witness's own \grammarShrink is a \vspace, which in a paragraph's text is now dropped
-%   (OXIDIZED_DESIGN_DIVERGENCES #603), so it no longer reaches leave_horizontal; the repro says
+%   (OXIDIZED_DESIGN_DIVERGENCES #982), so it no longer reaches leave_horizontal; the repro says
 %   \vskip 0pt, which does, and the guard converts the \vspace form as a second case.
 \documentclass{article}
 \usepackage[nounderscore]{syntax}

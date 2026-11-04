@@ -43,6 +43,10 @@ Two traps when reading a test run:
   `mutool` or `pdftocairo` is on PATH, so a green local run does not by itself prove
   that branch ran. CI installs poppler/mupdf.
 
+Conversion decisions (what to keep, how to number, who owns a frontmatter item, when a copy may override a
+binding) follow [`docs/parity/FIDELITY_CHARTER.md`](docs/parity/FIDELITY_CHARTER.md) — the user's rulings as standing
+rules; ask only where it conflicts or is silent.
+
 Durable parity rules (the dump/format boundary):
 
 1. **Strict `LoadFormat` mutual exclusivity** (Perl
@@ -139,7 +143,7 @@ only). **Subagents are narrow and bounded** (user directives 2026-10-01, 2026-10
 2026-10-12): one question or one mechanism, a fixed deliverable, then stop. Analysis
 agents are read-only. The only writers are `payload-writer` agents, whose fix rounds
 run targeted checks only; the main checkout's tree, integration, the bundle-level full
-suite + A/B, and every push stay in the main session. At most 4 subagents run at once. Definitions are discovered at session start; a new one needs a
+suite + A/B, and every push stay in the main session. At most 2 subagents run at once (user directive 2026-10-22). Definitions are discovered at session start; a new one needs a
 restart. Brief read-only agents with the main checkout, not a worktree: `LaTeXML/`
 (the Perl oracle) is gitignored and absent from every worktree, so a worktree agent
 greps nothing and reports "no gaps" — a payload writer reads the oracle from the main

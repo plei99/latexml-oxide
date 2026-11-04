@@ -706,7 +706,7 @@ fn bbl_keeps_bibers_alphabetic_labels_and_order() {
     r##"<p class="ltx_p">See <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib4" title="Seminumerical Algorithms" class="ltx_ref">Knu84b</a>]</cite> and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib1" title="On Many Authors" class="ltx_ref">Ada+01</a>]</cite> and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib3" title="Fundamental Algorithms" class="ltx_ref">Knu84a</a>]</cite> and <cite class="ltx_cite ltx_citemacro_cite">[<a href="#bib.bib2" title="Flow Diagrams" class="ltx_ref">Böh66</a>]</cite>.</p>"##,
   );
   // The entries are standard.bbx's (alphabetic.bbx adds only the label): one paragraph each, `maxnames=3` cutting the
-  // four authors of the article to "Alice Adams et al."; no "Cited by:" block (DIVERGENCES #601).
+  // four authors of the article to "Alice Adams et al."; no "Cited by:" block (DIVERGENCES #980).
   for (id, bibitem) in [
     (
       "bib.bib1",

@@ -936,6 +936,12 @@ pub const GUARD_JOBNAME: &str = "t";
 /// (the CLI's own default is 60 s).
 pub const GUARD_TIMEOUT_SECS: u64 = 180;
 
+/// The HTML page of `tex` through [`crate::api::convert_to_html_with`], without the bundled CSS/JS. With no
+/// destination those files would otherwise be copied into the test's working directory, the crate root.
+pub fn convert_to_html_page(tex: &str) -> Result<String, String> {
+  crate::api::convert_to_html_with(tex, &crate::api::HtmlOptions { default_resources: false })
+}
+
 /// Convert `tex` in-process (`convert_in_process`) — the package and contrib bindings, `preload` when given, comments
 /// off, XML. Returns (log, XML).
 pub fn convert_with(tex: &str, preload: Option<&str>) -> (String, String) {
@@ -1011,6 +1017,29 @@ pub fn convert_files_with(
   (run.log, run.xml)
 }
 
+/// [`convert_files_with`], also returning the conversion's verdict as [`convert_with_status`] does: (log, XML, status
+/// line, status code).
+pub fn convert_files_with_status(
+  tex: &str,
+  files: &[(&str, &str)],
+  preload: Option<&str>,
+) -> (String, String, String, usize) {
+  let files: Vec<(&str, &[u8])> = files
+    .iter()
+    .map(|(name, content)| (*name, content.as_bytes()))
+    .collect();
+  let run = convert_in_process(
+    tex.as_bytes(),
+    &files,
+    preload,
+    None,
+    GUARD_TIMEOUT_SECS,
+    || {},
+    |_, _| (),
+  );
+  (run.log, run.xml, run.status, run.status_code)
+}
+
 /// [`convert_files_with`] for sources that are not UTF-8 text — a legacy-encoded document or `.bib`, written byte for
 /// byte — also running `inspect` on the XML and the source directory in the conversion's thread, while its state and
 /// that directory live (the post stage's recursive `.bib` session digests in the document's own state, bib_session.rs,
@@ -1029,6 +1058,32 @@ pub fn convert_bytes_files_then<R: Send + 'static>(
     GUARD_TIMEOUT_SECS,
     || {},
     inspect,
+  );
+  (run.log, run.xml, run.inspected)
+}
+
+/// [`convert_with_setup_then`] after writing `files` (`(name, content)`) beside the document: `setup` runs in the
+/// conversion's thread before it (a thread-local override), `inspect` on the XML after it, in the same thread. Returns
+/// (log, XML, `inspect`'s result).
+pub fn convert_files_with_setup_then<R: Send + 'static>(
+  tex: &str,
+  files: &[(&str, &str)],
+  preload: Option<&str>,
+  setup: impl FnOnce() + Send + 'static,
+  inspect: impl FnOnce(&str) -> R + Send + 'static,
+) -> (String, String, R) {
+  let files: Vec<(&str, &[u8])> = files
+    .iter()
+    .map(|(name, content)| (*name, content.as_bytes()))
+    .collect();
+  let run = convert_in_process(
+    tex.as_bytes(),
+    &files,
+    preload,
+    None,
+    GUARD_TIMEOUT_SECS,
+    setup,
+    move |xml, _| inspect(xml),
   );
   (run.log, run.xml, run.inspected)
 }
@@ -1103,6 +1158,7 @@ fn convert_in_process<R: Send + 'static>(
   let source = source.to_string_lossy().into_owned();
   let source_dir = workdir.path().to_path_buf();
   let preload = preload.map(String::from);
+  let fixtures: Vec<String> = files.iter().map(|(name, _)| (*name).to_string()).collect();
   std::thread::Builder::new()
     .stack_size(256 * 1024 * 1024)
     .spawn(move || {
@@ -1140,6 +1196,7 @@ fn convert_in_process<R: Send + 'static>(
       let inspected = inspect(&xml, &source_dir);
       latexml_core::stomach::set_timeout(0);
       latexml_core::reset_thread_engine();
+      assert_fixtures_not_shadowed(&fixtures, &resp.log);
       InProcessRun {
         log: resp.log,
         xml,
@@ -1152,6 +1209,39 @@ fn convert_in_process<R: Send + 'static>(
     .join()
     // the worker's own panic (an `inspect` assertion) as the test's, message intact
     .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+}
+
+/// Fails the guard when the conversion took a binding in place of one of its fixture packages or classes and never
+/// read the fixture: Perl's FindFile_fallback (Package.pm:2186-2189 and the suffix lists after it;
+/// `binding::content::find_file_fallback`) reads `myproof.sty`, `foo_v2.sty` or `bar-arxiv.cls` as a version of
+/// `proof.sty`, `foo.sty`, `bar.cls`, and a binding of that name wins over the file beside the source
+/// (`Info:fallback:<name> Interpreted as versioned package, falling back to …`), so the guard tests something else
+/// (`perfect_kernel_batch67s::package_redefined_proof_keeps_the_binding` once did). A binding that follows the copy
+/// it answers for reads the fixture (its path in the log: `(Processing definitions …/JINST_mod.cls`, `Loading
+/// dependencies for …/icml2026.sty`), which is the fallback under test, not a shadowed fixture.
+fn assert_fixtures_not_shadowed(fixtures: &[String], log: &str) {
+  for fixture in fixtures {
+    let base = fixture.rsplit('/').next().unwrap_or(fixture);
+    let Some(stem) = base
+      .strip_suffix(".sty")
+      .or_else(|| base.strip_suffix(".cls"))
+    else {
+      continue;
+    };
+    let fell_back = log.lines().any(|line| {
+      line
+        .split("Info:fallback:")
+        .nth(1)
+        .and_then(|rest| rest.split_whitespace().next())
+        .is_some_and(|name| name == stem || name == base)
+    });
+    let read = log.contains(&format!("/{base}"));
+    assert!(
+      !fell_back || read,
+      "fixture {fixture} is shadowed by a binding through the versioned-name fallback (Package.pm \
+       FindFile_fallback) and never read: rename it so the conversion reads it\n{log}"
+    );
+  }
 }
 
 /// Count of lines carrying a `Warning:<category>:` diagnostic anywhere in the line (WISDOM 85: a diagnostic can

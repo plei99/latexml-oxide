@@ -1,6 +1,22 @@
 use crate::prelude::*;
 
+/// This binding's frontmatter conventions (the observer's, OXIDIZED_DESIGN_DIVERGENCES #837), declared at its load
+/// (`declare_frontmatter_conventions`, user ruling 2026-10-28: each binding declares its own):
+/// report: its title page (`titlepage`, its default) prints the notes in the body's arabic numbers; without one
+/// (`notitlepage`) the kernel declares the title hook (`declare_fnsymbol_title_block`), which wins
+pub const FRONTMATTER_CONVENTIONS: FmConventions = FmConventions {
+  name: "report",
+  binding: "report.cls",
+  title_marks: FmTitleMarks::Body,
+  // (the kernel family's reading of its `\author`, written: OD #925 — each declaration states its own `written`)
+  written: true,
+  cite: "report.cls:211 (OD #851, `declare_fnsymbol_title_block`)",
+  ..FM_KERNEL_CONVENTIONS
+};
+
 LoadDefinitions!({
+  // (this binding's frontmatter conventions, first: OXIDIZED_DESIGN_DIVERGENCES #837)
+  declare_frontmatter_conventions(&FRONTMATTER_CONVENTIONS);
   LoadPool!("LaTeX");
   //**********************************************************************
   // Option handling
@@ -39,7 +55,8 @@ LoadDefinitions!({
     });
   });
   DeclareOption!("leqno", sub { AssignMapping!("DOCUMENT_CLASSES", "ltx_leqno" => true); });
-  DeclareOption!("fleqn", sub { AssignMapping!("DOCUMENT_CLASSES", "ltx_fleqn" => true); });
+  // `\input{fleqn.clo}` (fleqn_sty.rs `fleqn_clo`).
+  DeclareOption!("fleqn", sub { fleqn_sty::fleqn_clo()?; });
 
   // Kernel contract (report.cls L52/L98-99/L117): `\newif\if@openright`,
   // default FALSE (\ExecuteOptions{...,openany}). Same cluster + precedent
@@ -53,6 +70,11 @@ LoadDefinitions!({
   DeclareOption!("oneside", r"\@twosidefalse\@mparswitchfalse");
   DeclareOption!("twoside", r"\@twosidetrue\@mparswitchtrue");
   ProcessOptions!();
+  // The page a float's panels are set in rows against (the panel grid rule, `declare_panel_page`): report.cls's in two
+  // columns, as its size file sets it for the paper and size options (`standard_class_twocolumn_page`: 229.5pt
+  // columns of a 469pt text on letter paper, 221/452pt on A4), when report is the document's class (review rev79c2
+  // finding 1: a `figure*` stated 2 columns where the PDF gives 2.044). One column is the registers' page.
+  declare_standard_class_page("report");
   // report.cls L318-327: \@endpart, called by \@part/\@spart — raw classes built on
   // this class invoke it directly (toptesi.sty L448; witness toptesi-example
   // L265 \part). The two-sided blank verso is page furniture: it counts a page,
@@ -71,6 +93,9 @@ LoadDefinitions!({
   // This makes the authors appear on 1 line;
   // for derived classes with multiple lines, map this to undef and add ltx_authors_multiline
   AddToMacro!("\\lx@maketitle@body", "\\ltx@authors@oneline");
+  // report.cls's title block: `\@fnsymbol` marks only under `notitlepage` (`titlepage` is the default), the footnote
+  // counter reset after it, when report is the document's class.
+  engine::latex_constructs::declare_fnsymbol_title_block("report", Some(true))?;
 
   DefMacro!("\\@ptsize", "0"); // should depend on options...
   DefMacro!("\\@pnumwidth", "1.55em");
@@ -156,7 +181,22 @@ LoadDefinitions!({
   DefMacro!("\\theenumiii", "\\roman{enumiii}");
   DefMacro!("\\theenumiv", "\\Alph{enumiv}");
 
+  // The class's names (report.cls:712-722), in its own load as the real class has them, with the values LaTeXML's
+  // kernel predefines (Perl assigns only report.cls.ltxml:100 `\bibname` here, the rest in
+  // latex_constructs.pool.ltxml:719-722, "these actually should be in article/report/book"): a stand-in's copy that
+  // `\LoadClass`es report finds them defined, so its `\newcommand` of one is LaTeX's "already defined"
+  // (`state::ClassLoadFrame`, OXIDIZED_DESIGN_DIVERGENCES #732).
+  DefMacro!("\\contentsname", "Contents");
+  DefMacro!("\\listfigurename", "List of Figures");
+  DefMacro!("\\listtablename", "List of Tables");
   DefMacro!("\\bibname", "Bibliography");
+  DefMacro!("\\indexname", "Index");
+  DefMacro!("\\figurename", "Figure");
+  DefMacro!("\\tablename", "Table");
+  DefMacro!("\\partname", "Part");
+  DefMacro!("\\chaptername", "Chapter");
+  DefMacro!("\\appendixname", "Appendix");
+  DefMacro!("\\abstractname", "Abstract");
 
   AssignMapping!("BACKMATTER_ELEMENT", "ltx:bibliography" => "ltx:chapter");
 

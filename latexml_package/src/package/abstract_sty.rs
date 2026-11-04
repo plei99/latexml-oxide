@@ -1,6 +1,6 @@
 //! abstract.sty (v1.2a, 2009/06/08) — configurable abstracts.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(y). The package redefines the
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(y). The package redefines the
 //! `abstract` environment (abstract.sty:139-185) to typeset its heading (`\abstractname` in
 //! `\abstractnamefont`, placed by `\absnamepos`, `\abstitleskip` below it, or run in with
 //! `\abslabeldelim` under `runin`) above a list of the text in `\abstracttextfont`, indented by

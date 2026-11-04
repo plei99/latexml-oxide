@@ -18,7 +18,7 @@ use rustc_hash::FxHashMap as HashMap;
 
 use crate::{
   BoxOps, Digested, DigestedData, Result,
-  binding::content::{fontmap_family_key_sym, fontmap_key_syms, load_font_map, preload_font_map},
+  binding::content::{fontmap_family_key_syms, fontmap_key_syms, load_font_map, preload_font_map},
   common::{
     arena::{self, SymHashMap, SymStr},
     color::{self, Color},
@@ -573,6 +573,16 @@ pub fn decode_fontname(name: &str, at_opt: Option<f64>, scaled_opt: Option<f64>)
   }
 }
 
+/// The math class of a glyph `\DeclareMathSymbol`'d from the math italic symbol font (`letters`), which decides the
+/// shape a capital Greek letter takes (`Font::specialize_letters`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LettersClass {
+  /// `\mathalpha`, class 7 (variable family): follows a math alphabet in force, else italic, as a Latin letter.
+  Variable,
+  /// `\mathord`, class 0: the math italic whatever the alphabet, as a lowercase Greek letter.
+  Fixed,
+}
+
 /// A data structure containing Font information, but also related textual properties (such as
 /// color)
 ///
@@ -1051,7 +1061,7 @@ impl Font {
   /// `display` in display style and `text` in every other, which says a large operator in a script
   /// (`e^{\sum x_i}`) is a text-size one: the presentation stage then puts the script back to full
   /// size (`<mstyle scriptlevel="-1">`, MathML.pm:240-268). TeX sets it in the script style, so a
-  /// script keeps its own style here (OXIDIZED_DESIGN #606).
+  /// script keeps its own style here (OXIDIZED_DESIGN #985).
   pub fn variablesize_op_mathstyle(&self) -> &'static str {
     match self.mathstyle.as_deref() {
       Some("display") => "display",
@@ -1096,6 +1106,14 @@ impl Font {
       series = Some(Cow::Borrowed("bold"));
       force_series = Some(true);
     }
+    // `forcebold` false is the normal math version (`\unboldmath`, `\mathversion{normal}`, latex.ltx:14092-14095,
+    // :10545): the series medium again, no longer forced. Perl's merge ignores it (Font.pm:934-935, KNOWN_PERL_ERRORS
+    // #687), so the bold version stayed to the end of the group (witness 1803.08052, Buras's
+    // `\boldmath\section{…}\unboldmath`). Guard `perfect_kernel_batch78a::unboldmath_restores_the_normal_math_version`.
+    let unbold = other.forcebold == Some(false);
+    if unbold {
+      series = Some(Cow::Borrowed("medium"));
+    }
 
     // Build flags from force options
     let mut flags: u8 = 0;
@@ -1116,7 +1134,7 @@ impl Font {
     } else {
       other.family.clone()
     };
-    let series = if series.is_none() || (oflags & FLAG_FORCE_SERIES != 0) {
+    let series = if !unbold && (series.is_none() || (oflags & FLAG_FORCE_SERIES != 0)) {
       self.series.clone()
     } else {
       series
@@ -1140,6 +1158,9 @@ impl Font {
     let language = other.language.clone().or_else(|| self.language.clone());
     let mut mathstyle = other.mathstyle.clone().or_else(|| self.mathstyle.clone());
     flags |= self.flags.unwrap_or(0);
+    if unbold {
+      flags &= !FLAG_FORCE_SERIES;
+    }
 
     // Dynamic adjustment directives
     if let Some(scale) = other.scale
@@ -1248,6 +1269,44 @@ impl Font {
     if text.is_empty() {
       return new; // ?
     }
+    let (deffamily, defseries, defshape) = self.specialize_defaults();
+    if LATIN_LETTER_RE.is_match(text) {
+      // Latin Letter
+      new.specialize_as_latin_letter();
+    } else if GREEK_LETTER_RE.is_match(text) {
+      // Single Greek character?
+      if UPPER_LETTER_RE.is_match(text) {
+        // Uppercase
+        if new.family.is_none() || (new.family.as_ref().unwrap() == "math") {
+          new.family = Some(deffamily);
+          if new.shape.is_some() && (new.shape != Some(DEFSHAPE.into())) {
+            new.shape = Some(defshape); // if ANY shape, must be default
+          }
+        }
+      } else {
+        // Lowercase
+        new.specialize_as_lowercase_greek(self, deffamily, defseries);
+      }
+    } else if DIGIT_LETTER_RE.is_match(text) {
+      // Digit
+      if new.family.is_none() || (new.family.as_ref().unwrap() == "math") {
+        new.family = Some(deffamily);
+        new.shape = Some(defshape); // defaults, always.
+      }
+    } else {
+      // Other Symbol
+      new.family = Some(deffamily);
+      new.shape = Some(defshape); // defaults, always.
+      if new.series.is_some() && (new.series.as_ref().unwrap() != DEFSERIES) {
+        new.series = Some(defseries);
+      } // defaults, always.
+    }
+    new
+  }
+
+  /// Perl `specialize`'s `$deffamily`, `$defseries`, `$defshape`: the font's own value where its `force*` flag
+  /// holds it, else the default.
+  fn specialize_defaults(&self) -> (Cow<'static, str>, Cow<'static, str>, Cow<'static, str>) {
     let deffamily = if self.forcefamily.unwrap_or(false) {
       self.family.clone().unwrap_or_else(|| DEFFAMILY.into())
     } else {
@@ -1263,47 +1322,59 @@ impl Font {
     } else {
       DEFSHAPE.into()
     };
-    if LATIN_LETTER_RE.is_match(text) {
-      // Latin Letter
-      if new.shape.is_none() && new.family.is_none() {
-        new.shape = Some("italic".into());
-      }
-    } else if GREEK_LETTER_RE.is_match(text) {
-      // Single Greek character?
-      if UPPER_LETTER_RE.is_match(text) {
-        // Uppercase
-        if new.family.is_none() || (new.family.as_ref().unwrap() == "math") {
-          new.family = Some(deffamily);
-          if new.shape.is_some() && (new.shape != Some(DEFSHAPE.into())) {
-            new.shape = Some(defshape); // if ANY shape, must be default
-          }
-        }
-      } else {
-        // Lowercase
-        if new.family.is_none() || (new.family.as_deref() != Some(DEFFAMILY)) {
-          new.family = Some(deffamily);
-        }
-        // Perl: $shape = 'italic' if !$shape || !($flags & $FLAG_FORCE_SHAPE);
-        if new.shape.is_none() || !self.forceshape.unwrap_or(false) {
-          new.shape = Some("italic".into());
-        }
-        if new.series.is_some() && (new.series != Some(DEFSERIES.into())) {
-          new.series = Some(defseries);
-        }
-      }
-    } else if DIGIT_LETTER_RE.is_match(text) {
-      // Digit
-      if new.family.is_none() || (new.family.as_ref().unwrap() == "math") {
-        new.family = Some(deffamily);
-        new.shape = Some(defshape); // defaults, always.
-      }
-    } else {
-      // Other Symbol
-      new.family = Some(deffamily);
-      new.shape = Some(defshape); // defaults, always.
-      if new.series.is_some() && (new.series.as_ref().unwrap() != DEFSERIES) {
-        new.series = Some(defseries);
-      } // defaults, always.
+    (deffamily, defseries, defshape)
+  }
+
+  /// Perl `specialize`'s Latin-letter rule: italic unless a shape or a family (a math alphabet) is in force.
+  fn specialize_as_latin_letter(&mut self) {
+    if self.shape.is_none() && self.family.is_none() {
+      self.shape = Some("italic".into());
+    }
+  }
+
+  /// Perl `specialize`'s lowercase-Greek rule: the default family, italic unless a forced shape holds, the default
+  /// series unless a forced one holds. `orig` is the font before specialization (its `force*` flags).
+  fn specialize_as_lowercase_greek(
+    &mut self,
+    orig: &Font,
+    deffamily: Cow<'static, str>,
+    defseries: Cow<'static, str>,
+  ) {
+    if self.family.is_none() || (self.family.as_deref() != Some(DEFFAMILY)) {
+      self.family = Some(deffamily);
+    }
+    // Perl: $shape = 'italic' if !$shape || !($flags & $FLAG_FORCE_SHAPE);
+    if self.shape.is_none() || !orig.forceshape.unwrap_or(false) {
+      self.shape = Some("italic".into());
+    }
+    if self.series.is_some() && (self.series != Some(DEFSERIES.into())) {
+      self.series = Some(defseries);
+    }
+  }
+
+  /// `specialize` for a glyph `\DeclareMathSymbol`'d from the math italic symbol font, `letters` (OML `cmm/m/it`,
+  /// fontmath.ltx:60): a capital Greek letter takes the rule of the fontmath.ltx glyphs of the same class, which
+  /// Perl's `specialize` encodes — a `\mathalpha` (class 7, variable family) one the Latin letters' (fontmath.ltx:87-138
+  /// `\DeclareMathSymbol{a}{\mathalpha}{letters}{`a}`): italic unless a math alphabet is in force (`\mathrm`,
+  /// `\mathbf` upright; `\boldmath`, `\boldsymbol`, `\bm` bold italic), as TeX's class 7 takes `\fam` (tex.web
+  /// §1151); a `\mathord` (class 0) one the lowercase Greek letters' (fontmath.ltx:175-203 `\DeclareMathSymbol{\alpha}
+  /// {\mathord}{letters}{"0B}`): italic whatever the alphabet. The capitals follow an alphabet to the same letter
+  /// because OT1, the alphabets' encoding, holds them at OML's slots "00-"0A; lowercase Greek has no OT1 slot (an
+  /// alphabet prints a ligature there), so every other glyph keeps `specialize`'s own rule. llncs.cls:379-389,
+  /// svmult.cls:971-981, svjour3.cls:147-157, fixmath.sty:27-37, amsmath.sty:384-395 (`\varGamma`, class 0).
+  /// Witnesses 2606.09074 (llncs), 2101.03721 (svjour3), 0812.2480 (svmult), 1002.2350 (fixmath), 2508.05134 (newpxmath
+  /// `slantedGreek`), 1701.03426 and 2407.01655 (amsmath `\var…`).
+  pub fn specialize_letters(&self, text: &str, class: LettersClass) -> Self {
+    if !(GREEK_LETTER_RE.is_match(text) && UPPER_LETTER_RE.is_match(text)) {
+      return self.specialize(text);
+    }
+    let mut new = self.clone();
+    match class {
+      LettersClass::Variable => new.specialize_as_latin_letter(),
+      LettersClass::Fixed => {
+        let (deffamily, defseries, _) = self.specialize_defaults();
+        new.specialize_as_lowercase_greek(self, deffamily, defseries);
+      },
     }
     new
   }
@@ -1687,7 +1758,7 @@ impl Font {
       }
       // A large operator in display style is the larger variant of cmex10: 1.6em of
       // height plus depth for a sum and its kin, 2.222em for an integral, centred on the math axis (0.25em).
-      // The table's glyph is the text-style one. OXIDIZED_DESIGN_DIVERGENCES #612.
+      // The table's glyph is the text-style one. OXIDIZED_DESIGN_DIVERGENCES #989.
       if display && let Some(total) = display_large_operator_extent(ch) {
         h = max(h, ((total / 2.0 + 0.25) * size * UNITY_F64).trunc() as i64);
         d = max(d, ((total / 2.0 - 0.25) * size * UNITY_F64).trunc() as i64);
@@ -2350,7 +2421,7 @@ fn push_fontmap_char(result: &mut String, c: char, _code: u8) {
 }
 
 /// Check if a character is a Unicode combining mark (category Mn).
-fn is_combining_mark(c: char) -> bool {
+pub fn is_combining_mark(c: char) -> bool {
   matches!(c as u32,
     0x0300..=0x036F   // Combining Diacritical Marks
     | 0x1AB0..=0x1AFF // Combining Diacritical Marks Extended
@@ -2386,11 +2457,14 @@ pub fn decode_str(code: u8, encoding_opt: Option<String>, implicit: bool) -> Opt
 /// Look up multi-char override for a given encoding position.
 /// Returns Some(String) if a multi-char override exists.
 fn lookup_multichar_override(code: u8, encoding_opt: Option<&str>) -> Option<String> {
+  let mut font = None;
   let encoding = match encoding_opt {
     Some(enc) if !enc.is_empty() => enc.to_string(),
     _ => {
-      let font = lookup_font();
-      font.and_then(|f| f.get_encoding().map(|e| e.to_string()))?
+      font = lookup_font();
+      font
+        .as_ref()
+        .and_then(|f| f.get_encoding().map(|e| e.to_string()))?
     },
   };
   if encoding.is_empty() {
@@ -2410,13 +2484,34 @@ fn lookup_multichar_override(code: u8, encoding_opt: Option<&str>) -> Option<Str
   // such hazard: `FontDecode` calls `LoadFontMap` first and then indexes one
   // map whose slot already holds the whole string.
   let _ = preload_font_map(&encoding);
-  with_value_sym(fontmap_key_syms(&encoding).multichar, |val_opt| {
+  with_value_sym(decoding_map(&encoding, font.as_deref()).1, |val_opt| {
     if let Some(Stored::HashString(map)) = val_opt {
       map.get(&code.to_string()).cloned()
     } else {
       None
     }
   })
+}
+
+/// The map a font decodes through, and the key of the multichar table that goes with it (Perl `FontDecode`,
+/// Package.pm:2878-2882): its family's own map (`<encoding>_<family>_fontmap`, `OT1_typewriter`, `U_msa`), when one is
+/// declared, with that map's multichar entries (`<encoding>_<family>_fontmap_multichar`), else its encoding's. In Perl a
+/// map slot holds the whole string, so the family's map replaces the encoding's multichar entries too. Perl reads a
+/// family map only after its encoding's map has loaded; here a family map stands on its own, as `font_decode`
+/// (content.rs) already reads it: `U` has no map of its own (u_fontmap.rs), and its families' — `U_msa`, `U_msb`,
+/// `U_eur`, and bbold's `U_blackboard` — are each one font's layout, not the encoding's (bbold_sty.rs;
+/// OXIDIZED_DESIGN_DIVERGENCES #27).
+fn decoding_map(encoding: &str, font: Option<&Font>) -> (Option<Fontmap>, SymStr) {
+  // `load_font_map` preloads; keys are memoized (2026-08-23 audit R6).
+  let map = load_font_map(encoding);
+  if let Some(family) = font.and_then(|font| font.get_family()) {
+    let (family_map_key, family_multichar_key) = fontmap_family_key_syms(encoding, family);
+    let family_map: Option<Fontmap> = with_value_sym(family_map_key, |v| v.and_then(|s| s.into()));
+    if family_map.is_some() {
+      return (family_map, family_multichar_key);
+    }
+  }
+  (map, fontmap_key_syms(encoding).multichar)
 }
 
 pub fn decode(code: u8, encoding_opt: Option<String>, implicit: bool) -> Option<char> {
@@ -2449,23 +2544,23 @@ pub fn decode(code: u8, encoding_opt: Option<String>, implicit: bool) -> Option<
     },
   };
 
-  let mut map: Option<Fontmap> = None;
-  if !encoding.is_empty() {
-    // `load_font_map` preloads; keys are memoized (2026-08-23 audit R6).
-    if let Some(encmap) = load_font_map(&encoding) {
-      // OK got some map.
-      map = Some(encmap);
-      if let Some(ref font) = font
-        && let Some(family) = (*font).get_family()
-      {
-        with_value_sym(fontmap_family_key_sym(&encoding, family), |fmap_opt| {
-          if let Some(fmap) = fmap_opt {
-            map = fmap.into(); // Use the family specific map, if any.
-          }
-        });
-      }
-    }
-  }
+  decode_with_map(code, &encoding, font.as_deref(), implicit)
+}
+
+/// Decode a codepoint in `encoding` as `font` draws it: through the font family's own map, when one is declared
+/// (`decoding_map`). Perl `FontDecode($n, $encoding, $font)`, as `decodeMathChar` calls it (Package.pm:2990): the
+/// math character's encoding is the font info's, its family the font's — `\mathbb{R}` under bbold is `U` in the
+/// `blackboard` family, decoded through `U_blackboard` (bbold_sty.rs).
+pub fn decode_in_font(code: u8, encoding: &str, font: &Font, implicit: bool) -> Option<char> {
+  decode_with_map(code, encoding, Some(font), implicit)
+}
+
+fn decode_with_map(code: u8, encoding: &str, font: Option<&Font>, implicit: bool) -> Option<char> {
+  let map = if encoding.is_empty() {
+    None
+  } else {
+    decoding_map(encoding, font).0
+  };
 
   if implicit {
     if let Some(map) = map {
@@ -2512,26 +2607,16 @@ pub fn decode_string(string: SymStr, encoding_opt: Option<&str>, implicit: bool)
   // the "{encoding}_fontmap"-family key strings each call was ~1M allocations
   // on a 1.3 s paper (2026-08-23 audit R6). `load_font_map` preloads, so no
   // separate `preload_font_map` call is needed.
-  let mut map: Option<Fontmap> = None;
-  if !encoding.is_empty()
-    && let Some(encmap) = load_font_map(encoding)
-  {
-    // OK got some map.
-    map = Some(encmap);
-    if let Some(ref font) = font
-      && let Some(family) = (*font).get_family()
-    {
-      with_value_sym(fontmap_family_key_sym(encoding, family), |fmap_opt| {
-        if let Some(fmap) = fmap_opt {
-          map = fmap.into(); // Use the family specific map, if any.
-        }
-      });
-    }
-  }
+  let (map, multichar_key) = if encoding.is_empty() {
+    (None, None)
+  } else {
+    let (map, multichar_key) = decoding_map(encoding, font.as_deref());
+    (map, Some(multichar_key))
+  };
 
   // Load multi-char overrides if available
-  let multichar_map: Option<HashMap<String, String>> = if !encoding.is_empty() {
-    with_value_sym(fontmap_key_syms(encoding).multichar, |val_opt| {
+  let multichar_map: Option<HashMap<String, String>> = if let Some(multichar_key) = multichar_key {
+    with_value_sym(multichar_key, |val_opt| {
       if let Some(Stored::HashString(m)) = val_opt {
         Some(m.clone())
       } else {

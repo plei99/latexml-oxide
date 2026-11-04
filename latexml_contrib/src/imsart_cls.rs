@@ -3,7 +3,7 @@
 //! imsart.cls loads `article` + requires `imsart.sty` (support file with
 //! \startlocaldefs, \endlocaldefs, etc.). We fall back to OmniBus and raw-
 //! load imsart.sty so most user macros become available.
-use latexml_package::prelude::*;
+use latexml_package::{package::ims_support_sty::vtex_keyword_markup, prelude::*};
 
 LoadDefinitions!({
   LoadClass!("OmniBus");
@@ -16,11 +16,13 @@ LoadDefinitions!({
         .any(|o| ["aap", "aop", "aos", "aoas", "sts", "aihp"].contains(&o.to_string().as_str()))
     })
     .unwrap_or(false);
-  if journal_leqno {
-    RequirePackage!("amsmath", options => vec!["leqno".to_string()]);
-  } else {
-    RequirePackage!("amsmath");
-  }
+  // imsart.cls loads no amsmath itself (244 copies in a 1/20 arXiv sample): amsmath's commands for papers that use them
+  // unloaded, its "Old form" error once the paper loads it; the paper's copy decides
+  // (`amsmath_sty::require_amsmath_beyond_original`, KNOWN_PERL_ERRORS #993).
+  amsmath_sty::require_amsmath_beyond_original(
+    latexml_package::shipped_class::shipped_copy_loads("cls", "amsmath")?,
+    if journal_leqno { &["leqno"] } else { &[] },
+  )?;
   // NOTE: do NOT eagerly `RequirePackage!("amsthm")` here. OmniBus already
   // provides lazy amsthm autoload (theorem-env stubs), and pre-loading it
   // broke the common `\let\proof\relax` + `\usepackage{amsthm}` idiom: the
@@ -75,8 +77,57 @@ LoadDefinitions!({
     "\\lx@add@contact[label={thanks:#2},role=thanks]{#3}",
     locked => true
   );
+  // `\thanksmark[mark]{m1}` (imsart.sty:640-645) prints, in an `\affiliation`, the mark the authors' `\thanksref{m1}`
+  // point at; the authors' marks are not printed here (the `\thanksref` annotation links them), so the address's
+  // mark is dropped too (1202.6182, 1306.1438). Locked as `\thanksref`/`\thankstext` are, so a paper that ships
+  // imsart.sty does not get its `\thanksmark`, which prints `<sup>??</sup>` here.
+  DefMacro!("\\thanksmark[]{}", "", locked => true);
+  // imsart.sty:464-466: `\setattribute[…]{journal}{name}{…}` stores `\journal@name` (`\getattribute` reads it back);
+  // papers blank the journal name with it (1306.0113, 1706.08519).
+  RawTeX!(
+    r"\def\setattribute{\@ifnextchar[\@setattribute{\@setattribute[]}}
+\def\@setattribute[#1]#2#3#4{\expandafter\gdef\csname #2@#3\endcsname{#4}}
+\def\getattribute#1#2{\csname #1@#2\endcsname}"
+  );
+  // imsart.sty's `{keyword}[class=…]` and `\kwd` (:1518-1567 of 1410.4462's copy) are the VTeX classes' shared markup
+  // (`vtex_keyword_markup`, ims_support_sty.rs): every `\kwd` of a block in one list, and a `class=MSC` (`AMS`,
+  // `MSC2010`, `MSC2020`) block the paper's subject classification. Locked, so the raw definitions are refused: imsart.sty
+  // sets its blocks in `\keyword@box` (or, under the journal options' `keywordsasfootnote`, collects them in
+  // `\keyword@toks` through its `\pseudo@keyword`, :1609, which `\begin` reads first), and OmniBus's `\kwd` kept only
+  // the last keyword (KNOWN_PERL_ERRORS #1196): 1410.4462, 2407.13970, 2605.27137 lost every keyword but one and their
+  // MSC codes. The headings are imsart.sty's (:1521-1525), which its own `\setattribute`/`\setpkgattr` lines set again.
+  // Locked only while the class loads — imsart.sty read raw, and a renamed copy of the class read after this binding
+  // with the imsart.sty copy it loads (1401.3408's myimsart.cls, myimsart.sty) — and unlocked at the class's end, as
+  // `\arxiv` below is defined over the raw one: a document's own `\renewcommand{\kwd}` is the document's.
+  RequirePackage!("keyval");
+  vtex_keyword_markup()?;
+  RawTeX!(
+    r"\@namedef{keyword@KWD}{Keywords and phrases:}
+\@namedef{keyword@AMS}{AMS 2000 subject classifications:}
+\@namedef{keyword@MSC}{MSC 2010 subject classifications:}
+\@namedef{keyword@MSC2010}{MSC 2010 subject classifications:}
+\@namedef{keyword@MSC2020}{MSC2020 subject classifications:}"
+  );
+  let keyword_markup = [
+    "\\keyword",
+    "\\endkeyword",
+    "\\begin{keyword}",
+    "\\end{keyword}",
+    "\\kwd",
+    "\\@kwd",
+    "\\pseudo@keyword",
+  ];
+  for cs in keyword_markup {
+    AssignValue!(&s!("{cs}:locked") => true, Some(Scope::Global));
+  }
   // imsart.cls L149: \RequirePackage{imsart}.
   InputDefinitions!("imsart", noltxml => true, extension => Some(Cow::Borrowed("sty")));
+  DefPrimitive!("\\lx@ims@keyword@unlock", {
+    for cs in keyword_markup {
+      AssignValue!(&s!("{cs}:locked") => false, Some(Scope::Global));
+    }
+  });
+  RawTeX!(r"\AtEndOfClass{\lx@ims@keyword@unlock}");
   // `\arxiv{id}` (imsart.sty:1186-1189) prints the paper's arXiv identifier as an unmarked title note: the paper's
   // arXiv pubnote, as jheppub's `\arxivnumber` (jheppub_sty.rs), not an author's note (2201.08502). Defined over the
   // raw one and not locked: a paper citing with its own `\renewcommand\arxiv` keeps it.
@@ -134,17 +185,26 @@ LoadDefinitions!({
   // \def commands but they're used as environments in some .bbl files.
   // Provide as no-op envs (the actual bibliography rendering is handled
   // by biblatex/natbib elsewhere). Witness 2406.15844 (+4 imsart papers).
-  DefEnvironment!("{barticle}", "#body");
-  DefEnvironment!("{bbook}", "#body");
-  DefEnvironment!("{bbooklet}", "#body");
-  DefEnvironment!("{binbook}", "#body");
-  DefEnvironment!("{bincollection}", "#body");
-  DefEnvironment!("{bunpublished}", "#body");
-  DefEnvironment!("{bmisc}", "#body");
-  DefEnvironment!("{bproceedings}", "#body");
-  DefEnvironment!("{bphdthesis}", "#body");
-  DefEnvironment!("{bmastersthesis}", "#body");
-  DefEnvironment!("{btechreport}", "#body");
+  // Each reads an optional argument and drops it (imsart.sty 2012/08/16 :2585-2769, `\def\barticle{\@ifnextchar[
+  // {\@barticle}{\@barticle[]}}` `\def\@barticle[#1]{…}`), which the `.bbl`s fill with the entry's key list,
+  // `\begin{barticle}[author]`: read as text it printed "[author]" before every structured entry (0906.4329,
+  // 1010.4313, 1202.6182). `{binproceedings}` and `{bmanual}` (:2633, :2706) were missing.
+  DefEnvironment!("{barticle}[]", "#body");
+  DefEnvironment!("{bbook}[]", "#body");
+  DefEnvironment!("{bbooklet}[]", "#body");
+  DefEnvironment!("{binbook}[]", "#body");
+  DefEnvironment!("{bincollection}[]", "#body");
+  DefEnvironment!("{binproceedings}[]", "#body");
+  DefEnvironment!("{bmanual}[]", "#body");
+  DefEnvironment!("{bunpublished}[]", "#body");
+  DefEnvironment!("{bmisc}[]", "#body");
+  DefEnvironment!("{bproceedings}[]", "#body");
+  DefEnvironment!("{bphdthesis}[]", "#body");
+  DefEnvironment!("{bmastersthesis}[]", "#body");
+  DefEnvironment!("{btechreport}[]", "#body");
+  // imsart.sty :2514 `\let\endbibitem\relax`: the `.bbl`s close every `\bibitem` with `\endbibitem`
+  // (0906.4329, 1010.4313, 1202.6182).
+  Let!("\\endbibitem", "\\relax");
 
   // IMS bibliography field-tagging macros — imsart.sty defines these
   // as NLM/JATS-style 1-arg setters inside `{barticle}` etc. envs:

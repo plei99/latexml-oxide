@@ -62,7 +62,7 @@ fn memoir_substack_keeps_math_italic() {
 /// amsopn.sty:98-108 defines `\varinjlim`, `\varprojlim`, `\varliminf` and `\varlimsup` as
 /// `\mathop{…}\nmlimits@` with `\nmlimits@` = `\displaylimits` (:109): their limits go below or above in
 /// display style and beside inline. Perl gives them no `scriptpos`, so a limit was always an `msub` or
-/// `msup` at the operator's side (OXIDIZED_DESIGN_DIVERGENCES #598). The `XMDual` the operator is made of
+/// `msup` at the operator's side (OXIDIZED_DESIGN_DIVERGENCES #977). The `XMDual` the operator is made of
 /// carries `mid` on its content branch, which the parser's script attachment reads as Perl's `NewScript`
 /// does (MathParser.pm:1602-1614). The `nonamelimits` option is not honoured.
 #[test]
@@ -88,7 +88,7 @@ fn varlim_operators_take_display_limits_below() {
   );
 }
 
-/// `\widehat` is U+0302 over its base (OXIDIZED_DESIGN_DIVERGENCES #599): the only circumflex the math
+/// `\widehat` is U+0302 over its base (OXIDIZED_DESIGN_DIVERGENCES #978): the only circumflex the math
 /// fonts have a horizontal construction for (U+005E stays a small caret), so it spans `AB` and `\bigoplus` as TeX's
 /// wide hat does (`\widehat{\bigoplus}`, `\widehat{\mathfrak{gl}(1)}`).
 /// `\hat` stays the narrow `^`, `\widetilde` the `~`.
@@ -145,7 +145,7 @@ fn script_ending_in_a_star_parses() {
 /// (`\mskip-\thinmuskip` in the first two) followed by an extra `{}` (fixdif.sty:52, :64, :70-75): that
 /// group is the empty nucleus of a following `_i`, which TeX sets beside the `\partial` the negative glue
 /// pulled back. Perl floats the script, so `\partial_i\partial_{\bar j}K` has `i` as a prescript of the
-/// second `\partial` and `\partial_{z^i}.` stays unparsed (OXIDIZED_DESIGN_DIVERGENCES #600). A script on an
+/// second `\partial` and `\partial_{z^i}.` stays unparsed (OXIDIZED_DESIGN_DIVERGENCES #979). A script on an
 /// empty group with no such space still floats (`x{}^{14}_{6}C`), and one after another script stays
 /// staggered, as in TeX (`\Gamma^{\lambda}\!{}_{\mu\nu}` as `T^{a}{}_{b}`), while `X\!{}^{a}y` is `X`'s. The
 /// dropped group stays in the script's `tex=` reversion. An operator with limits (`\sum`, `\lim` in a
@@ -207,7 +207,7 @@ fn fixdif_script_binds_to_its_partial() {
 /// A script after another script stays a nucleus of its own in TeX: `\Gamma^{\lambda}\!{}_{\mu\nu}` keeps
 /// `\mathord{}` with `_{\mu\nu}` after the glue (`\showlists`), staggered as `T^{a}{}_{b}` is. The empty group
 /// is not dropped and the script floats; the formula is unparsed in Perl as well, which has no stagger
-/// rule for it (OXIDIZED_DESIGN_DIVERGENCES #600).
+/// rule for it (OXIDIZED_DESIGN_DIVERGENCES #979).
 #[test]
 fn script_after_a_script_stays_staggered() {
   let (stderr, html) = convert_html(

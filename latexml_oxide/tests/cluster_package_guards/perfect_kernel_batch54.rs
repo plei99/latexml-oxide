@@ -2099,6 +2099,7 @@ fn index_control_word_before_at_is_not_glued() {
 \newcommand{\docpkg}[1]{\texttt{#1}\index{#1 package@\texttt{#1} package}\index{packages!#1@\texttt{#1}}}
 \begin{document}
 Uses \docpkg{\TIKZ} here.
+\printindex
 \end{document}
 ";
   let (stderr, xml) = convert(tex, false);
@@ -2348,9 +2349,10 @@ fn declare_caption_type_makes_a_float() {
   assert!(!xml.contains("[Listagem][Lista"), "{xml}");
 }
 
-/// KNOWN_PERL_ERRORS #142: `\valign{…}` consumes its alignment
+/// KNOWN_PERL_ERRORS #142: `\valign{…}` reads its template and entries
 /// (fancyvrb.sty:570 `\FancyVerbTab`: one `#`-reaches-stomach error per
-/// tab-bearing `Verbatim` line under `showtabs`, pygmentex_demo).
+/// tab-bearing `Verbatim` line under `showtabs`, pygmentex_demo); since 79w
+/// the tab mark's three symbols are the alignment's columns.
 #[test]
 fn valign_swallows_its_alignment() {
   let tex = "\\documentclass{article}
@@ -2384,6 +2386,7 @@ fn index_control_word_before_letter_at_is_not_glued() {
 \makeatother
 \begin{document}
 \extractinternalcommand Text.
+\printindex
 \end{document}
 ";
   let (stderr, xml) = convert(tex, false);
@@ -2532,6 +2535,7 @@ fn makeidx_keeps_the_allocating_makeindex() {
 \ifdefined\@indexfile STREAMDEFINED\fi
 \makeatother
 \index{alpha}
+\printindex
 \end{document}
 ";
   let (stderr, xml) = convert(tex, false);
@@ -2774,6 +2778,7 @@ fn index_verb_followed_by_cs_is_text() {
 \makeindex
 \begin{document}
 Text\index{foo@\string\verb\string"bar}. More text here.
+\printindex
 \end{document}
 "#;
   let (stderr, xml) = convert(tex, false);
@@ -3130,7 +3135,8 @@ P_2 & 1 & 1 \\
 /// biblatex.sty defines its `\if<test>` commands as BRANCH-SELECTING
 /// macros (`\iffieldundef{f}{true}{false}`, :6205), not TeX conditionals;
 /// plus the round-3 declarations (`\DeclareLabeltitle`, `\letbibmacro`,
-/// `\uspunctuation`, `\footfullcite`).
+/// `\uspunctuation`, `\footfullcite`). `\ifhyperref` takes its false branch: biblatex loads no hyperref
+/// (biblatex.sty:38-44; batch 70a), and pdflatex prints `[N]` too.
 #[test]
 fn biblatex_tests_are_branch_macros() {
   let tex = r"\documentclass{article}
@@ -3150,7 +3156,7 @@ fn biblatex_tests_are_branch_macros() {
 ";
   let (stderr, xml) = convert(tex, false);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
-  assert!(xml.contains("[U]\n[N]\n[N]\n[A]\n[H]"), "{xml}");
+  assert!(xml.contains("[U]\n[N]\n[N]\n[A]\n[N]"), "{xml}");
 }
 
 /// biditools.sty:792 `\bidi@ifscanable` rebuilds a macro from its
@@ -3691,6 +3697,7 @@ fn index_entry_defers_protected_macros() {
 \newcommand\nxt{\def\item{\ltest}}
 \begin{document}
 A\index{key@\protect\nxt}
+\printindex
 \end{document}
 ";
   let (stderr, xml) = convert(tex, true);
@@ -3726,6 +3733,7 @@ fn robustindex_page_reference_hooks_are_inert() {
 \begin{document}
 A\index{alpha!see also gamma\gobblepageref}
 B\index{beta\wrappageref\textbf}
+\printindex
 \end{document}
 ";
   let (stderr, xml) = convert(tex, true);
@@ -3830,6 +3838,7 @@ fn index_sanitized_backslash_symbol_stays_literal() {
 \usepackage{makeidx}\makeindex
 \begin{document}
 Il comando \cn{\\*} qui.
+\printindex
 \end{document}
 "#;
   let (stderr, xml) = convert(tex, true);
@@ -3981,7 +3990,7 @@ fn underline_is_robust_in_an_edef_write() {
 /// doubled key `→abc→abc`; latex-via-exemplos' accent table).
 #[test]
 fn overrightarrow_is_robust_in_an_index_phrase() {
-  let tex = "\\documentclass{article}\n\\usepackage{makeidx}\\makeindex\n\\begin{document}\nX\\index{$\\overrightarrow{abc}$} Y\n\\end{document}\n";
+  let tex = "\\documentclass{article}\n\\usepackage{makeidx}\\makeindex\n\\begin{document}\nX\\index{$\\overrightarrow{abc}$} Y\n\\printindex\\end{document}\n";
   let (stderr, xml) = convert(tex, false);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   latexml::util::test::assert_element(
@@ -4356,7 +4365,7 @@ Figure body text.
     &xml,
     "figure",
     &[],
-    "<figure xml:id=\"fig1\"><p class=\"ltx_figure_panel\">Figure body text.</p><break class=\"ltx_break\"/><inline-sectional-block class=\"ltx_figure_panel\"><paragraph inlist=\"toc\" xml:id=\"S0.SS1.SSS0.Px1\"><title>Notes</title><para xml:id=\"S0.SS1.SSS0.Px1.p1\"><p>inside the figure.</p></para></paragraph></inline-sectional-block></figure>",
+    "<figure class=\"ltx_panels_gallery\" panelcols=\"1\" panelrows=\"2\" xml:id=\"fig1\"><p class=\"ltx_figure_panel\">Figure body text.</p><break class=\"ltx_break\"/><inline-sectional-block class=\"ltx_figure_panel\"><paragraph inlist=\"toc\" xml:id=\"S0.SS1.SSS0.Px1\"><title>Notes</title><para xml:id=\"S0.SS1.SSS0.Px1.p1\"><p>inside the figure.</p></para></paragraph></inline-sectional-block></figure>",
   );
 }
 
@@ -5123,9 +5132,12 @@ $\begin{pNiceMatrix}
 /// (Perl State.pm:502-517), and its readers then fail on the internal it
 /// would have defined (`\flyleaf`/`\titlepage` :637/:688; usethesis). The
 /// dropped body's `\def`-targets are defined EMPTY, the class's own default
-/// convention (:494-495), so the locked binding stays the single source.
+/// convention (:494-495), so the locked binding stays the single source; the
+/// replay of the refused setter (OXIDIZED_DESIGN #482) then sets them as the
+/// call does, and a store that holds the argument stays set (77i): pdflatex
+/// prints "[First Author][First Author]".
 #[test]
-fn locked_setter_internals_are_defined_empty() {
+fn refused_setter_internals_take_the_replayed_value() {
   let tex = r"\documentclass{article}
 \makeatletter
 \def\author#1{\def\auth@r{#1}\gdef\auth@rtwo{#1}}
@@ -5137,8 +5149,13 @@ fn locked_setter_internals_are_defined_empty() {
 ";
   let (stderr, xml) = convert(tex, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
-  assert!(xml.contains("[][]"), "{xml}");
-  assert!(xml.contains("First Author"), "{xml}");
+  assert!(xml.contains("[First Author][First Author]"), "{xml}");
+  // …and the author is the frontmatter's creator, once
+  assert_eq!(xml.matches("<creator ").count(), 1, "{xml}");
+  assert!(
+    xml.contains("<personname>First Author</personname>"),
+    "{xml}"
+  );
 }
 
 /// xcolor.sty:762-763 `\color` = `\@ifnextchar[\@undeclaredcolor\@declaredcolor`;
@@ -5650,7 +5667,7 @@ fn physics2_delopen_delclose_active_pipe_reduced() {
   let (stderr, xml) = convert(tex, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   // The `\langle … \rangle` fence the idiom wraps keeps both delimiters (its `\mathclose` wrap is let through
-  // before parsing, OXIDIZED_DESIGN #580).
+  // before parsing, OXIDIZED_DESIGN #959).
   assert!(
     xml.contains(r#"name="langle" role="OPEN" stretchy="true">⟨"#)
       && xml.contains(r#"name="rangle" role="CLOSE" stretchy="true">⟩"#),

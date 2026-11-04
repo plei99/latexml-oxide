@@ -266,7 +266,10 @@ fn raw_class_doi_is_a_string() {
 }
 
 /// 65m: cleveref's `\label[appendixtable]{tab:a_b}` right after `\caption` (2404.11739): the type is the optional, the
-/// key the label — not `labels="LABEL:["` and "appendixtable]tab:a_b" typeset (Perl pool:3172 the same). Repro
+/// key the label — not `labels="LABEL:["` and "appendixtable]tab:a_b" typeset (Perl pool:3172 the same). Since 77s the
+/// type names the table's cleveref tags ("Appendix Table", as `\cref` prints it; KNOWN_PERL_ERRORS #998); since 78g it
+/// also gives the forms an object's own type has no name for (algorithm2e's procedure: "Procedure", as pdflatex's
+/// "See Procedure -."; OXIDIZED_DESIGN_DIVERGENCES #813). Repro
 /// captions-floats/cleveref_label_type_after_caption.
 #[test]
 fn cleveref_label_type_after_caption() {
@@ -281,7 +284,7 @@ fn cleveref_label_type_after_caption() {
     &xml,
     "table",
     &[],
-    r#"<table inlist="lot" labels="LABEL:tab:a_b" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="creftype">table</tag><tag role="creftypecap">Table</tag><tag role="creftypeplural">tables</tag><tag role="creftypepluralcap">Tables</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><toccaption><tag close=" ">1</tag>T</toccaption><caption><tag close=": ">Table 1</tag>T</caption></table>"#,
+    r#"<table inlist="lot" labels="LABEL:tab:a_b" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="creftype">Appendix Table</tag><tag role="creftypecap">Appendix Table</tag><tag role="creftypeplural">Appendix Tables</tag><tag role="creftypepluralcap">Appendix Tables</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><toccaption><tag close=" ">1</tag>T</toccaption><caption><tag close=": ">Table 1</tag>T</caption></table>"#,
   );
   // The same move after algorithm2e's procedure caption and after caption.sty's `\captionof`. Repros
   // captions-floats/cleveref_label_type_after_procedure_caption, captions-floats/cleveref_label_type_after_captionof.
@@ -296,7 +299,7 @@ fn cleveref_label_type_after_caption() {
     &xml,
     "float",
     &[],
-    "<float class=\"ltx_algorithm\" framed=\"top\" labels=\"LABEL:alg:a_b\" xml:id=\"algorithmx1\"><tags><tag role=\"refnum\">Proc</tag></tags><toccaption>Procedure\u{a0}Proc</toccaption><caption><text font=\"bold\" xml:id=\"algorithmx1.1\">Procedure</text>\u{a0}Proc</caption><listing class=\"ltx_lst_numbers_left\" framed=\"topbottom\" xml:id=\"algorithmx1.2\"><listingline xml:id=\"algorithmx1.2.1\">x;</listingline></listing></float>",
+    "<float class=\"ltx_algorithm\" framed=\"top\" labels=\"LABEL:alg:a_b\" xml:id=\"algorithmx1\"><tags><tag role=\"refnum\">Proc</tag><tag role=\"creftype\">Procedure</tag><tag role=\"creftypeplural\">Procedures</tag><tag role=\"creftypecap\">Procedure</tag><tag role=\"creftypepluralcap\">Procedures</tag></tags><toccaption>Procedure\u{a0}Proc</toccaption><caption><text font=\"bold\" xml:id=\"algorithmx1.1\">Procedure</text>\u{a0}Proc</caption><listing class=\"ltx_lst_numbers_left\" framed=\"topbottom\" xml:id=\"algorithmx1.2\"><listingline xml:id=\"algorithmx1.2.1\">x;</listingline></listing></float>",
   );
   assert!(!xml.contains("procedure]"), "{xml}");
   let xml = convert_counted(
@@ -310,7 +313,7 @@ fn cleveref_label_type_after_caption() {
     &xml,
     "table",
     &[],
-    r#"<table align="center" inlist="lot" labels="LABEL:tab:a_b" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="creftype">table</tag><tag role="creftypecap">Table</tag><tag role="creftypeplural">tables</tag><tag role="creftypepluralcap">Tables</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><toccaption><tag close=" ">1</tag>T</toccaption><caption><tag close=": ">Table 1</tag>T</caption></table>"#,
+    r#"<table align="center" inlist="lot" labels="LABEL:tab:a_b" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="creftype">Appendix Table</tag><tag role="creftypecap">Appendix Table</tag><tag role="creftypeplural">Appendix Tables</tag><tag role="creftypepluralcap">Appendix Tables</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><toccaption><tag close=" ">1</tag>T</toccaption><caption><tag close=": ">Table 1</tag>T</caption></table>"#,
   );
   assert!(!xml.contains("appendixtable]"), "{xml}");
 }

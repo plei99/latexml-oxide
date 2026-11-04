@@ -2,7 +2,7 @@
 //! in small capitals: `\@makecaption` prints `#1` under `\@captionheadfont`, `\scshape`
 //! (amsart.cls:1354 and :1389, amsproc.cls:1290 and :1325, amsbook.cls:1250 and :1285), and the title
 //! after it in `\@captionfont\upshape`. Perl leaves the label upright and leaves the small capitals
-//! to ltx-amsart.css. OXIDIZED_DESIGN_DIVERGENCES #605.
+//! to ltx-amsart.css. OXIDIZED_DESIGN_DIVERGENCES #984.
 
 fn captions(class: &str, preamble: &str) -> String {
   let (stderr, xml) = super::convert(

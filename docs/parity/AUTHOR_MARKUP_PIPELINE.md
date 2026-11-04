@@ -7,7 +7,7 @@
 
 ## Why
 
-`latexml_engine/src/base_utilities.rs::\lx@add@authors` (the `DefMacro!("\\lx@add@authors{}", …)`
+`latexml_engine/src/base_utilities/defs/author_macros.rs::\lx@add@authors` (the `DefMacro!("\\lx@add@authors{}", …)`
 at ~:883) recovers structured creators from the abused `\author{…}` idiom. It runs
 **two different algorithms**, picked by whether the block contains a superscript
 (`position_of(stuff, authorsup_markers())`, markers = `^` / `\textsuperscript`):
@@ -36,7 +36,9 @@ Same entry point, same emitted `\lx@add@author` / `\lx@add@affiliation` /
    marker-led / institution-shaped → affiliation; else → author-names. Superscript
    position becomes one input, not a separate algorithm.
 3. **Split author-name lines into creators** (`split_author_line`: comma / " and " /
-   `\quad` / `\and`); fold the whole-line `\textbf{…}` unwrap in here.
+   `\quad` / `\and`; an "and" or `\&` beside a control word or line break and a comma in a
+   mark's math read as separators first, OXIDIZED_DESIGN_DIVERGENCES #765); fold the
+   whole-line `\textbf{…}` unwrap in here.
 4. **Attach contacts** — affiliation/email lines to the right authors; a lone trailing
    affiliation after a multi-line author list attaches to **all** authors (shared),
    not just the last.
@@ -64,7 +66,7 @@ fix; `?` = judgement call. Baseline re-captured by `tools/author_markup_char.py
 | czipreprint | `\author` + `*`/orcid | 2, affils+orcid+email | ✓ |
 | ieee_authorblock (2602.05517) | `\IEEEauthorblockN{1ˢᵗ Name}` | `1st Alice Smith`, `2nd Bob Jones` | ? ordinal in name |
 | ieee_membership (2508.00603) | `Name, \IEEEmembership{…}, and Name…\thanks` | Alice, **EMPTY, EMPTY**, Bob, **EMPTY**::thanks | ✗ 3 phantom empty creators |
-| ieee_linebreak_optarg (2605.23553) | lazy `\\[1em]` block | 3 authors; shared emails land on last author | ? email distribution |
+| ieee_linebreak_optarg (2605.23553) | lazy `\\[1em]` block | 3 authors, affils by number, e-mails by address | ✓ (the paper's second address line carries its submission `\thanks`, which made it the last author's affiliation: an address line since 101b, the note the document's — OD #52(j)) |
 | inst_affiliation_dedup | shared institute | 1, deduped affils | ✓ |
 | jmlr_name | structured `\author` | 2, thanks+email+affil | ✓ |
 | llncs_and_institutes (2605.00347) | `\institute{A \and B}`, "…and…" names | 2, affils+email (institution "and" intact) | ✓ #52 |

@@ -217,7 +217,7 @@ fn tikz_alignment_bindings(
   // list, with the `\baselineskip` / `\lineskip` / `\lineskiplimit` in force for it. pgf's matrices run under
   // `\offinterlineskip` (pgfmodulematrix.code.tex:181), which leaves no glue between their rows; a TikZ node's lines
   // (`\vbox{\halign{…}}`, tikz.code.tex:4252-4256) stay a `\baselineskip` apart. `normalize_sum_sizes` places the
-  // rows with them (OXIDIZED_DESIGN_DIVERGENCES #587; Perl stacks the rows tightly).
+  // rows with them (OXIDIZED_DESIGN_DIVERGENCES #966; Perl stacks the rows tightly).
   for (key, register) in [
     ("interline_baselineskip", "\\baselineskip"),
     ("interline_lineskip", "\\lineskip"),
@@ -360,6 +360,15 @@ fn tikz_alignment_bindings(
 LoadDefinitions!({
   // (protocol fix is applied at \pgfsys@invoke below)
 
+  // gnuplot-lua-tikz-common.tex:17-32 (gnuplot's lua terminal, shipped beside papers' plots) keys its output mode by the
+  // pgf driver file (`\gnuplot@select@driver@\pgfsysdriver`) and stops with "The driver pgfsys-latexml.def is not
+  // supported" (`\errmessage`) for one its table lacks. This driver's entry is `html`, the mode of
+  // pgfsys-tex4ht.def, the other driver writing SVG for the web: a plot's image file is `\pgfimage` (`\gploadimage`,
+  // :88-90), an inline raw image gnuplot's own "not implemented" warning (:79-83) — never the PDF/PostScript image
+  // operators of the `pdf`/`ps` modes (:50-77), which no SVG renders. The table's own `\def`s leave the entry alone
+  // (OXIDIZED_DESIGN_DIVERGENCES #702). Witness 2501.11366. Guard: `perfect_kernel_batch70a::gnuplot_lua_tikz_driver_mode`.
+  RawTeX!(r"\expandafter\def\csname gnuplot@select@driver@pgfsys-latexml.def\endcsname{html}");
+
   // Perl L29-31: image suffix list
   DefMacro!("\\pgfsys@imagesuffixlist",
     ".svg:.png:.gif:.jpg:.jpeg:.eps:.ps:.postscript:.ai:.pdf:");
@@ -384,6 +393,9 @@ LoadDefinitions!({
   // with transform matrices instead of <ltx:tabular/tr/td>.
   DefConstructor!("\\lxSVG@halign BoxSpecification",
     "#alignment",
+    // It takes the primitive's place (`\lxSVG@installcommands` lets `\halign` to it), so a document's `\halign` macro
+    // saved inside a picture ends with it (tex_tables.rs `run_halign_redefinition_prelude`; witness 2107.05054).
+    halign_primitive => true,
     bounded => true, leave_horizontal => true,
     sizer => sub[whatsit] {
       match whatsit.get_property("alignment").as_deref() { Some(Stored::Digested(alignment_d)) => {
@@ -1514,7 +1526,7 @@ LoadDefinitions!({
   // Guarded as `\lxSVG@begingroup` guards the opening: outside a picture (`\pgfdeclarefading` brackets its box in
   // `\pgfsys@beginscope`/`\pgfsys@endscope`, pgfcoretransparency.code.tex:109) nothing was opened, and the
   // protocol's `\space` (`\pgfsysprotocol@literalbuffered`, pgfsysprotocol.code.tex:32-35) came back as a space in the box,
-  // 3.3pt of width the pdf drivers' `\pdfliteral` does not have (OXIDIZED_DESIGN_DIVERGENCES #615).
+  // 3.3pt of width the pdf drivers' `\pdfliteral` does not have (OXIDIZED_DESIGN_DIVERGENCES #992).
   DefMacro!("\\pgfsys@endscope",
     "\\ifpgfpicture\\pgfsysprotocol@literal{\\lxSVG@closescope}\\fi\\lxSVG@endscope");
 
@@ -1555,11 +1567,17 @@ LoadDefinitions!({
   DefMacro!("\\pgfsys@defineimage",
     "\\edef\\pgf@image{\\lxSVG@includegraphics{\\pgf@imagewidth}{\\pgf@imageheight}{\\pgf@filename}}");
 
-  // Perl L597-623: \lxSVG@includegraphics — simplified
-  // The full Perl version has complex beforeConstruct/afterConstruct for foreignObject
-  // wrapping. For now, just emit the graphics element.
+  // Perl L597-628: \lxSVG@includegraphics, pgf's image — `\pgfimage`, and the file tikz's `external` library
+  // includes for a picture (`mode=graphics if exists`, tikzlibraryexternal_code_tex.rs). Its candidates are the files
+  // the graphics search finds (Perl `pathname_findall($graphic, types => ['*'], paths => GRAPHICSPATHS)` relative to
+  // the source directory: `image_candidates`), and its box is the file's size under the width/height keys (`sizer =>
+  // \&image_graphicx_sizer`). Red (int83a): no candidates, so post had no file to render and every externalized
+  // figure was an `ltx_missing_image` (2302.00752: 18 figures shipped as `SFTforPDE-figure<N>.pdf`; 1905.03839,
+  // 1506.05333). Perl's beforeConstruct/afterConstruct open an svg:foreignObject when none is open; here the
+  // document auto-opens one inside a picture, and outside a picture none is wanted (Perl's errs: "<svg:foreignObject>
+  // isn't allowed in <ltx:p>"). Guard: `perfect_kernel_batch79k::an_externalized_tikz_figure_finds_its_file`.
   DefConstructor!("\\lxSVG@includegraphics{}{} Semiverbatim",
-    "<ltx:graphics graphic='#3' options='#options'/>",
+    "<ltx:graphics graphic='#graphic' candidates='#candidates' options='#options'/>",
     properties => sub[args] {
       let w = args.first().and_then(|a| a.as_ref()).map(|a| a.to_string()).unwrap_or_default();
       let h = args.get(1).and_then(|a| a.as_ref()).map(|a| a.to_string()).unwrap_or_default();
@@ -1568,9 +1586,13 @@ LoadDefinitions!({
       if !w.is_empty() { options_parts.push(format!("width={}", w)); }
       if !h.is_empty() { options_parts.push(format!("height={}", h)); }
       let options = options_parts.join(",");
-      let candidates = graphic.clone();
+      let candidates = util::image::image_candidates(&graphic);
       Ok(stored_map!("graphic" => graphic, "candidates" => candidates, "options" => options))
-    }
+    },
+    after_digest => sub[whatsit] {
+      util::image::image_graphicx_sizer(whatsit);
+    },
+    alias => "\\includegraphics"
   );
 
   //===================================================================
@@ -1582,7 +1604,7 @@ LoadDefinitions!({
   DefMacro!("\\pgfsys@fill@opacity{}",
     "\\lxSVG@fill@opacity{#1}\\lxSVG@begingroup{fill-opacity={#1}}");
   // Fadings (pgfsys.code.tex:878-886; Perl leaves both `# NOT IMPLEMENTED` — pgfsys-latexml.def.ltxml:811-824;
-  // OXIDIZED_DESIGN_DIVERGENCES #615). pgf passes the fading's name unexpanded (`\pgfdeclarefading{\tikz@smuggle}`,
+  // OXIDIZED_DESIGN_DIVERGENCES #992). pgf passes the fading's name unexpanded (`\pgfdeclarefading{\tikz@smuggle}`,
   // `\pgfsetfading{\tikz@path@fading}`, pgfcoretransparency.code.tex:108-136), and the pdf driver uses it in a
   // `\csname` (pgfsys-pdftex.def:272-290); the name is expanded here likewise. A fading is only ever in force
   // inside a picture, so its use rides the protocol, in the order of the paths it masks.
@@ -1907,7 +1929,7 @@ LoadDefinitions!({
 
       // Define \lxSVG@pos macro: the shading's size, as the TeX dimension it is
       // (the pixel number read as points made the box of `\pgfuseshading`
-      // 1.38 times its size — OXIDIZED_DESIGN_DIVERGENCES #616).
+      // 1.38 times its size — OXIDIZED_DESIGN_DIVERGENCES #993).
       let pos_toks = mouth::tokenize_internal(
         TeXString::assembled(format!("\\pgfqpoint{{{}sp}}{{{}sp}}", x_dim.value_of(), y_dim.value_of())));
       let _ = def_macro(T_CS!("\\lxSVG@pos"), None, pos_toks, None);
@@ -2011,7 +2033,7 @@ LoadDefinitions!({
     sub[document, args, _props] {
       // Pixels (Perl takes `ptValue` — "Something odd with scales; these SHOULD be pixels!",
       // pgfsys-latexml.def.ltxml:721-729 — to match the shading size it put in `\lxSVG@pos` as pixels read
-      // as points; `\lxSVG@pos` is now in points, #616).
+      // as points; `\lxSVG@pos` is now in points, #993).
       let x = args.first().and_then(|a| a.as_ref()).and_then(|a| a.get_dimension())
         .map(dim_to_px).unwrap_or(0.0);
       let y = args.get(1).and_then(|a| a.as_ref()).and_then(|a| a.get_dimension())

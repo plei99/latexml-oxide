@@ -34,10 +34,7 @@ fn old_font_switch_survives_a_raw_size_switch() {
     include_str!("../../../tools/perfect_kernel/repros/fonts-nfss/old_font_switch_then_size.tex");
   let (stderr, xml) = convert(tex, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
-  // KOMA-Script 3.49.2 (TeX Live 2026) has no `\@startsection`/`\@sect` identity
-  // check; its `cmd/@startsection/before` hook (scrartcl.cls:3310-3321) warns
-  // only for a `\@startsection` call. This document has no heading; KOMA
-  // headings are guarded in perfect_kernel_batch53.
+  // (scrartcl's own `\@startsection`/`\@sect` checks pass, as under pdflatex: koma_script.rs `koma_pre_load`)
   assert_eq!(warning_count(&stderr), 0, "{stderr}");
   assert_element(
     &xml,

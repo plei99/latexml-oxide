@@ -28,7 +28,12 @@ static CONTROLNAME: &[&str] = &[
 ];
 
 /// A Token category code, as in TeX
+///
+/// Two bytes (`#[repr(u16)]`), so that [`Token`] (`text` u32, `code`, `prov` u16) has no padding byte: with one, every
+/// move of a token on the gullet's read path (`Option<Token>`, `CheckedRead::Tok`, the `Result` slot) copied the pad
+/// and `prov` as a 3-byte blob, byte by byte (`token_layout_code_at_byte_4`).
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
+#[repr(u16)]
 pub enum Catcode {
   ESCAPE,
   BEGIN,
@@ -284,12 +289,26 @@ impl Catcode {
 ///     Token { text: arena::pin_static(" "), code: Catcode::SPACE}
 ///   });
 /// ```
+///
+/// `#[repr(C)]` pins the field order `text`, `code`, `prov` (`loc`): `code` stays at byte 4, where it sat before
+/// `prov` existed, and with a two-byte [`Catcode`] the struct has no padding (`prov` at 6). Rust's default layout put
+/// `prov` at 4 and `code` at 6, which made every move of a token through `Option<Token>`, `CheckedRead::Tok` and the
+/// read path's `Result` slot a 4-piece field-wise copy (`gullet::read_internal_token_checked`: +1.29 % instructions
+/// on an empty article; +1.14 % with `repr(C)` alone, the pad byte still copied apart; +0.65 % gap-free). The guard
+/// is `token_layout_code_at_byte_4`.
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub struct Token {
   /// an arena id the character content for this token
   pub text: SymStr,
   /// a TeX catcode
   pub code: Catcode,
+  /// Out-of-band field provenance (`0` = none): the frontmatter field whose stored value this token
+  /// is a token of (the kernel `\title`/`\author` stamp their store, latexml_engine `\lx@field@mark`), so the
+  /// ink digested from it is known for that field's print. Not part of TeX's token: **excluded from `PartialEq`**
+  /// (`\ifx`, `\meaning`, `\pdfstrcmp`, xstring compare as pdflatex does), never written, never dumped. It sits in
+  /// what was the struct's padding: `Token` stays 8 bytes (`token_size_invariant`). OXIDIZED_DESIGN #715.
+  pub prov: u16,
   /// Origin handle into the per-conversion token-origin side arena (1-based;
   /// `0` = no recorded origin). Present only under the `token-locators` feature
   /// (the opt-in source-map precision build); `Token` stays 8 bytes otherwise.
@@ -375,6 +394,7 @@ pub fn noexpand_family(shadowed: &Token) -> Token {
   Token {
     text: arena::pin(text),
     code: Catcode::CS,
+    prov: 0,
     #[cfg(feature = "token-locators")]
     loc: 0,
   }
@@ -390,6 +410,7 @@ pub fn noexpand_family(shadowed: &Token) -> Token {
 pub static TOKEN_BEGIN: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("{"),
   code: Catcode::BEGIN,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -398,6 +419,7 @@ pub static TOKEN_BEGIN: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_END: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("}"),
   code: Catcode::END,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -406,6 +428,7 @@ pub static TOKEN_END: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_MATH: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("$"),
   code: Catcode::MATH,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -414,6 +437,7 @@ pub static TOKEN_MATH: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_ALIGN: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("&"),
   code: Catcode::ALIGN,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -422,6 +446,7 @@ pub static TOKEN_ALIGN: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_PARAM: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("#"),
   code: Catcode::PARAM,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -430,6 +455,7 @@ pub static TOKEN_PARAM: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_SUPER: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("^"),
   code: Catcode::SUPER,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -438,6 +464,7 @@ pub static TOKEN_SUPER: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_SUB: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("_"),
   code: Catcode::SUB,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -446,6 +473,7 @@ pub static TOKEN_SUB: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_SPACE: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static(" "),
   code: Catcode::SPACE,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -454,6 +482,7 @@ pub static TOKEN_SPACE: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_CR: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("\n"),
   code: Catcode::SPACE,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -462,6 +491,7 @@ pub static TOKEN_CR: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_RELAX: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("\\relax"),
   code: Catcode::CS,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -470,6 +500,7 @@ pub static TOKEN_RELAX: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_EXPANDAFTER: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("\\expandafter"),
   code: Catcode::CS,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -478,6 +509,7 @@ pub static TOKEN_EXPANDAFTER: Lazy<Token> = Lazy::new(|| Token {
 pub static TOKEN_ENDCSNAME: Lazy<Token> = Lazy::new(|| Token {
   text: arena::pin_static("\\endcsname"),
   code: Catcode::CS,
+  prov: 0,
   #[cfg(feature = "token-locators")]
   loc: 0,
 });
@@ -531,7 +563,7 @@ macro_rules! T_SUB(() => { *$crate::token::TOKEN_SUB });
 macro_rules! T_SPACE(() => { *$crate::token::TOKEN_SPACE };
 ($text:literal) => {
   Token { text: $crate::pin!($text), code: Catcode::SPACE,
-      #[cfg(feature = "token-locators")] loc: 0
+      prov: 0, #[cfg(feature = "token-locators")] loc: 0
     }
 });
 /// macro for a CR "\n" token
@@ -544,6 +576,7 @@ macro_rules! T_LETTER {
     Token {
       text: $crate::pin!($text),
       code: Catcode::LETTER,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -552,6 +585,7 @@ macro_rules! T_LETTER {
     Token {
       text: $crate::common::arena::pin($text),
       code: Catcode::LETTER,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -564,6 +598,7 @@ macro_rules! T_OTHER {
     Token {
       text: $crate::pin!($text),
       code: Catcode::OTHER,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -572,6 +607,7 @@ macro_rules! T_OTHER {
     Token {
       text: $crate::common::arena::pin($text),
       code: Catcode::OTHER,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -584,6 +620,7 @@ macro_rules! T_OTHER_CHAR {
     Token {
       text: $crate::common::arena::pin_char($text),
       code: Catcode::OTHER,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -598,6 +635,7 @@ macro_rules! T_ACTIVE {
     Token {
       text: $crate::common::arena::pin(s),
       code: Catcode::ACTIVE,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -610,6 +648,7 @@ macro_rules! T_COMMENT {
     Token {
       text: $crate::common::arena::pin($text),
       code: Catcode::COMMENT,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -622,6 +661,7 @@ macro_rules! T_CS {
     $crate::token::Token {
       text: $crate::pin!($text),
       code: $crate::token::Catcode::CS,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -630,6 +670,7 @@ macro_rules! T_CS {
     $crate::token::Token {
       text: $crate::common::arena::pin($text),
       code: $crate::token::Catcode::CS,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -647,6 +688,7 @@ macro_rules! T_MARKER {
     Token {
       text: $crate::common::arena::pin($text),
       code: Catcode::MARKER,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -660,6 +702,7 @@ macro_rules! T_ARG {
     Token {
       text: $crate::common::arena::pin($text.to_string()),
       code: Catcode::ARG,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -674,6 +717,7 @@ macro_rules! Token {
     Token {
       text: $sym,
       code: $cc,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -685,6 +729,7 @@ macro_rules! Token {
     Token {
       text: $crate::pin!($text),
       code: $cc,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -693,6 +738,7 @@ macro_rules! Token {
     Token {
       text: $crate::common::arena::pin($text),
       code: $cc,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -709,6 +755,7 @@ macro_rules! CharToken {
     $crate::token::Token {
       text: $crate::common::arena::pin_char($c),
       code: $cc,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -780,6 +827,7 @@ impl Default for Token {
     Token {
       text: arena::pin_static("EXPECTED_TOKEN"),
       code: Catcode::OTHER,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -788,12 +836,252 @@ impl Default for Token {
 
 ///======================================================================
 /// Accessors.
+/// The bits of a [`Token::prov`] below the field: the token's position in the field's stored value (saturating).
+pub const FIELD_PROV_POS_BITS: u16 = 14;
+/// The largest position a [`Token::prov`] holds.
+pub const FIELD_PROV_POS_MASK: u16 = (1 << FIELD_PROV_POS_BITS) - 1;
+/// The field provenance of the token at `pos` of field `field`'s stored value (`field` 1..=3; `0` is no field).
+pub fn field_prov(field: u16, pos: usize) -> u16 {
+  (field << FIELD_PROV_POS_BITS) | (pos.min(FIELD_PROV_POS_MASK as usize) as u16)
+}
+/// The field of a [`Token::prov`] (`0` = none).
+#[inline]
+pub fn field_prov_field(prov: u16) -> u16 { prov >> FIELD_PROV_POS_BITS }
+/// The position in its field's stored value of a [`Token::prov`].
+#[inline]
+pub fn field_prov_pos(prov: u16) -> u16 { prov & FIELD_PROV_POS_MASK }
+
+/// The expansion of a token with a field provenance (`prov`, [`Token::prov`]) is that field's too: each of its tokens
+/// without a provenance of its own takes `prov` (an `\and` in `\@author` expands to ink of the author field). A no-op
+/// for `prov` 0, the case of every token outside a frontmatter field's store.
+#[inline]
+pub fn inherit_field_prov(prov: u16, expansion: &mut Tokens) {
+  if prov != 0 {
+    for t in expansion.unlist_mut() {
+      if t.prov == 0 {
+        t.prov = prov;
+      }
+    }
+  }
+}
+
+/// A cover of a field's stored value: the positions `start..end` (end exclusive) of one field (`field`, `0` = none)
+/// that an invocation consumed, its own position and its arguments. See [`field_cover_pending_merge`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FieldCover {
+  /// the field (`1` title, `2` author; `0` = no cover)
+  pub field: u16,
+  /// the first position covered
+  pub start: u16,
+  /// one past the last position covered
+  pub end:   u16,
+}
+
+/// The cover of a field token's invocation that produced no box (a font switch, `\relax`, a macro's expansion still
+/// to be digested): the next box digested from that field's tokens within it takes it (a field's print covers its
+/// font switches and the arguments a macro or primitive consumed, OXIDIZED_DESIGN #715).
+#[thread_local]
+static FIELD_COVER_PENDING: std::cell::Cell<FieldCover> =
+  std::cell::Cell::new(FieldCover { field: 0, start: 0, end: 0 });
+
+/// Merge `cover` with the pending cover of a boxless invocation when they touch (the same field, `cover` starting
+/// inside or at the end of the pending one), clearing the pending cover either way: what a box digested from a field
+/// token covers of its stored value.
+pub fn field_cover_pending_merge(cover: FieldCover) -> FieldCover {
+  let pending = FIELD_COVER_PENDING.replace(FieldCover::default());
+  if pending.field == cover.field && pending.start <= cover.start && cover.start <= pending.end {
+    FieldCover {
+      field: cover.field,
+      start: pending.start,
+      end:   pending.end.max(cover.end),
+    }
+  } else {
+    cover
+  }
+}
+
+/// Leave `cover` pending for the next box of its field ([`field_cover_pending_merge`]), merged with the pending one
+/// it continues.
+pub fn field_cover_set_pending(cover: FieldCover) {
+  let merged = field_cover_pending_merge(cover);
+  FIELD_COVER_PENDING.set(merged);
+}
+
+/// One entry of the field ledger ([`field_ledger_push`]): the cover of a box digested from a field token, and whether
+/// the structure the print is set in took the box instead of the document absorbing it ([`field_ledger_take`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FieldLedgerEntry {
+  /// what the box covers of its field's value
+  pub cover: FieldCover,
+  /// taken by an alignment the document shows: a `tabular` row's end marker (a value's `\\`), digested and consumed by
+  /// the alignment body, never absorbed, so no run of ink holds it (taken when the alignment's whatsit is absorbed,
+  /// core `document::FIELD_TAKEN_PROPERTY`)
+  pub taken: bool,
+}
+
+thread_local! {
+  /// The covers of the boxes digested from field tokens, in digestion order ([`field_ledger_push`]). What a run of ink
+  /// covers is the entries of the boxes it absorbed (core `Document::absorb`'s field runs keep their serials), and of
+  /// those an alignment took right after them ([`field_ledger_take`]); never an entry absorbed elsewhere (another run,
+  /// a formula) or never absorbed (an unused `\setbox`, `\sbox`, `{lrbox}`), OXIDIZED_DESIGN #715.
+  static FIELD_LEDGER: std::cell::RefCell<Vec<FieldLedgerEntry>> =
+    const { std::cell::RefCell::new(Vec::new()) };
+}
+/// Set once the frontmatter placement settled the field ink (core `Document::settle_field_ink`): the ledger records
+/// nothing more, and nothing digested after it carries a field provenance property.
+#[thread_local]
+static FIELD_LEDGER_SETTLED: std::cell::Cell<bool> = std::cell::Cell::new(false);
+/// The most covers the ledger keeps (a full ledger records no more: a print digested past it is no whole print).
+const FIELD_LEDGER_CAP: usize = 1 << 16;
+
+/// Is the field ledger recording ([`field_ledger_settle`])? The stomach records a field token's box only while it is.
+#[inline]
+pub fn field_ledger_live() -> bool { !FIELD_LEDGER_SETTLED.get() }
+
+/// Stop recording field covers: the frontmatter placement settled the field ink (no run is marked after it).
+pub fn field_ledger_settle() { FIELD_LEDGER_SETTLED.set(true); }
+
+/// Record the cover of a box digested from a field token (the field ledger); its serial, the box's `fieldSerial`.
+pub fn field_ledger_push(cover: FieldCover) -> Option<u32> {
+  if FIELD_LEDGER_SETTLED.get() {
+    return None;
+  }
+  FIELD_LEDGER.with(|ledger| {
+    let mut ledger = ledger.borrow_mut();
+    if ledger.len() >= FIELD_LEDGER_CAP {
+      return None;
+    }
+    ledger.push(FieldLedgerEntry { cover, taken: false });
+    u32::try_from(ledger.len() - 1).ok()
+  })
+}
+
+/// Note that the structure a print is set in took the box recorded with `serial` (an alignment's row-end marker, a
+/// value's `\\`): no run absorbs it, and the run its row ends may cover it ([`FieldLedgerEntry::taken`]).
+pub fn field_ledger_take(serial: u32) {
+  FIELD_LEDGER.with(|ledger| {
+    if let Some(entry) = ledger.borrow_mut().get_mut(serial as usize) {
+      entry.taken = true;
+    }
+  });
+}
+
+/// The positions of field `field`'s value covered by the ledger entries with the serials in `serials` (inclusive
+/// `first..=last` intervals): sorted disjoint `start..end` intervals, merged where they touch.
+pub fn field_ledger_cover(field: u16, serials: &[(u32, u32)]) -> Vec<(u16, u16)> {
+  let mut cover: Vec<(u16, u16)> = FIELD_LEDGER.with(|ledger| {
+    let ledger = ledger.borrow();
+    let mut cover = Vec::new();
+    for &(first, last) in serials {
+      let (first, last) = (first as usize, last as usize);
+      if first > last || first >= ledger.len() {
+        continue;
+      }
+      cover.extend(
+        ledger[first..=last.min(ledger.len() - 1)]
+          .iter()
+          .filter(|e| e.cover.field == field)
+          .map(|e| (e.cover.start, e.cover.end.max(e.cover.start + 1))),
+      );
+    }
+    cover
+  });
+  cover.sort_unstable();
+  let mut merged: Vec<(u16, u16)> = Vec::with_capacity(cover.len());
+  for (start, end) in cover {
+    match merged.last_mut() {
+      Some((_, e)) if start <= *e => *e = (*e).max(end),
+      _ => merged.push((start, end)),
+    }
+  }
+  merged
+}
+
+/// The entry the field ledger recorded with `serial` ([`field_ledger_push`]).
+pub fn field_ledger_entry(serial: u32) -> Option<FieldLedgerEntry> {
+  FIELD_LEDGER.with(|ledger| ledger.borrow().get(serial as usize).copied())
+}
+
+/// A stretch of digestion the document never keeps (a rehearsal of a frontmatter field's value, latexml_engine's
+/// frontmatter observer), over which the field ledger records ([`field_ledger_live`], even once the placement settled
+/// it) and after which it is as it was: the entries pushed meanwhile are dropped, the pending cover and the settled
+/// flag put back, and the gate of field stamping (`document::field_prov_stamped`: a `\title` the rehearsal
+/// stamps) as it was (on drop). Its serials are read while it is open ([`field_ledger_entry`]); a print the document
+/// makes later is numbered as if it had never run.
+///
+/// The boxes the stomach stamped with a field provenance meanwhile (`fieldProv`/`fieldSerial`, `invoke_token`) are
+/// unstamped on drop as well (`field_stamp_noted`): a box the run did not make — a register's, `\copy`/`\usebox`
+/// handing back the stored box itself — would otherwise keep the run's serial, which the ledger no longer holds, and
+/// the document's own print of it, finding it stamped, would not stamp it again (FM S2a.2 r9: `\usebox{\ORCIDicon}` in
+/// an `\author`, wrapped in an `ltx:text` with an id with `LATEXML_FM_SHADOW` set: 2405.14627, 2603.26792; repro
+/// `sectioning-frontmatter/observer_rehearsal_leaves_a_used_box_unchanged`).
+pub struct FieldLedgerScope {
+  len:     usize,
+  pending: FieldCover,
+  settled: bool,
+  stamped: bool,
+  /// The enclosing scope's stamp journal (none outside every scope).
+  outer:   Option<Vec<Digested>>,
+}
+
+thread_local! {
+  /// The boxes stamped with a field provenance while a [`FieldLedgerScope`] is open (none outside one).
+  static FIELD_STAMPED_BOXES: std::cell::RefCell<Option<Vec<Digested>>> =
+    const { std::cell::RefCell::new(None) };
+}
+
+/// Note that the stomach stamped `digested` with a field provenance (`fieldProv`/`fieldSerial`), which had none: a
+/// [`FieldLedgerScope`] open now takes the stamp off again when it closes.
+pub(crate) fn field_stamp_noted(digested: &Digested) {
+  FIELD_STAMPED_BOXES.with(|boxes| {
+    if let Some(boxes) = boxes.borrow_mut().as_mut() {
+      boxes.push(digested.clone());
+    }
+  });
+}
+
+impl FieldLedgerScope {
+  /// Open the scope: the ledger records from here.
+  pub fn begin() -> Self {
+    let len = FIELD_LEDGER.with(|ledger| ledger.borrow().len());
+    FieldLedgerScope {
+      len,
+      pending: FIELD_COVER_PENDING.replace(FieldCover::default()),
+      settled: FIELD_LEDGER_SETTLED.replace(false),
+      stamped: crate::document::field_prov_stamped(),
+      outer: FIELD_STAMPED_BOXES.with(|boxes| boxes.replace(Some(Vec::new()))),
+    }
+  }
+}
+
+impl Drop for FieldLedgerScope {
+  fn drop(&mut self) {
+    FIELD_LEDGER.with(|ledger| ledger.borrow_mut().truncate(self.len));
+    FIELD_COVER_PENDING.set(self.pending);
+    FIELD_LEDGER_SETTLED.set(self.settled);
+    crate::document::restore_field_prov_stamped(self.stamped);
+    let stamped = FIELD_STAMPED_BOXES.with(|boxes| boxes.replace(self.outer.take()));
+    for digested in stamped.into_iter().flatten() {
+      digested.try_remove_property(crate::document::FIELD_PROV_PROPERTY);
+      digested.try_remove_property(crate::document::FIELD_SERIAL_PROPERTY);
+    }
+  }
+}
+
+/// Clear the pending field cover and the ledger, and record again (conversion start).
+pub fn reset_field_cover_pending() {
+  FIELD_COVER_PENDING.set(FieldCover::default());
+  FIELD_LEDGER.with(|ledger| ledger.borrow_mut().clear());
+  FIELD_LEDGER_SETTLED.set(false);
+}
+
 impl Token {
   /// simple Token constructor, wrapping over text and catcode
   pub fn new<T: AsRef<str>>(text: T, code: Catcode) -> Self {
     Token {
       text: arena::pin(text),
       code,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -957,6 +1245,7 @@ impl Token {
     Some(Token {
       text: arena::pin(name),
       code,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     })
@@ -1038,6 +1327,7 @@ impl Token {
     Token {
       text: self.text,
       code: Catcode::OTHER,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -1046,6 +1336,7 @@ impl Token {
     Token {
       text: self.text,
       code: Catcode::CS,
+      prov: 0,
       #[cfg(feature = "token-locators")]
       loc: 0,
     }
@@ -1304,13 +1595,68 @@ mod tests {
     assert_eq!(
       size_of::<Token>(),
       8,
-      "default Token must stay 8 bytes (SymStr + Catcode)"
+      "default Token must stay 8 bytes (SymStr + Catcode + prov)"
     );
     #[cfg(feature = "token-locators")]
     assert_eq!(
       std::mem::size_of::<Token>(),
       12,
       "token-locators Token is 8 + a u32 origin handle"
+    );
+  }
+
+  /// The field ledger (OXIDIZED_DESIGN #715): an entry an alignment took is marked so, a run's cover is the entries of
+  /// the serials it holds (never an entry between them it does not), and once the frontmatter placement settled the
+  /// field ink nothing more is recorded (fms1 round-3 review finding 5).
+  #[test]
+  fn field_ledger_take_cover_and_settle() {
+    reset_field_cover_pending();
+    let cover = |start, end| FieldCover { field: 1, start, end };
+    let a = field_ledger_push(cover(0, 5)).unwrap();
+    let unused = field_ledger_push(cover(5, 9)).unwrap();
+    let marker = field_ledger_push(cover(9, 10)).unwrap();
+    field_ledger_take(marker);
+    assert!(field_ledger_entry(marker).is_some_and(|e| e.taken));
+    assert!(field_ledger_entry(unused).is_some_and(|e| !e.taken));
+    assert_eq!(field_ledger_cover(1, &[(a, a)]), vec![(0, 5)]);
+    assert_eq!(field_ledger_cover(1, &[(a, a), (marker, marker)]), vec![
+      (0, 5),
+      (9, 10)
+    ]);
+    assert!(field_ledger_live());
+    field_ledger_settle();
+    assert!(!field_ledger_live());
+    assert_eq!(field_ledger_push(cover(10, 11)), None);
+    reset_field_cover_pending();
+    assert!(field_ledger_live());
+    assert_eq!(field_ledger_entry(a), None);
+  }
+
+  /// `#[repr(C)]` and a two-byte `Catcode` keep `Token` gap-free with `code` at byte 4 (`text` u32 at 0, `code` u16
+  /// at 4, `prov` u16 at 6, `loc` at 8 under token-locators). Why: under Rust's default layout `prov` took byte 4 and
+  /// `code` moved to byte 6, and a pad byte stayed, so every token move on the gullet's read path became a field-wise
+  /// copy (+1.29 % instructions on an empty article, +3.27 % on 2311.18489; gap-free +0.65 % / +1.66 %, fms1 round 3).
+  /// OXIDIZED_DESIGN #715.
+  #[test]
+  fn token_layout_code_at_byte_4() {
+    assert_eq!(std::mem::offset_of!(Token, text), 0);
+    assert_eq!(
+      std::mem::offset_of!(Token, code),
+      4,
+      "Token.code must sit at byte 4 (read-path codegen)"
+    );
+    assert_eq!(
+      size_of::<Catcode>(),
+      2,
+      "Catcode fills bytes 4-5: no pad byte before prov"
+    );
+    assert_eq!(std::mem::offset_of!(Token, prov), 6);
+    #[cfg(feature = "token-locators")]
+    assert_eq!(std::mem::offset_of!(Token, loc), 8);
+    assert_eq!(
+      size_of::<Option<Token>>(),
+      size_of::<Token>(),
+      "Option<Token> keeps its niche"
     );
   }
 

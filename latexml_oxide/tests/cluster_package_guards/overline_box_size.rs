@@ -1,7 +1,7 @@
 //! `\overline{x}` and `\underline{x}` are as wide as `x`. Perl's `defmath_cons` (Package.pm:1869-1873) sized every
 //! DefMath with arguments by its operator glyph alone, here the 5pt macron, so `\hbox{$\overline{C}$}` was 5pt wide
 //! (TeX: 7.86pt) and TikZ-cd drew the arrows of a node `\overline{C\setminus C_i}` through its label
-//! (OXIDIZED_DESIGN_DIVERGENCES #610). TeX's `\overline` adds 5θ above the box and `\underline` 5θ below it
+//! (OXIDIZED_DESIGN_DIVERGENCES #987). TeX's `\overline` adds 5θ above the box and `\underline` 5θ below it
 //! (tex.web §734-735, θ = 0.4pt at 10pt): `\hbox{$\overline{C}$}` is 7.86249pt x 8.8332pt + 0pt there, and
 //! `\hbox{$\underline{C}$}` 7.86249pt x 6.83331pt + 1.9999pt.
 
@@ -37,6 +37,6 @@ fn tikzcd_node_of_an_overlined_formula_is_as_wide_as_the_formula() {
     xml.contains(
       r#"style="--ltx-fo-width:2.68em;--ltx-fo-height:0.88em;--ltx-fo-depth:0.15em;font-size:10pt;""#
     ),
-    "the node's box holds the overlined formula (TeX: 27.78pt wide, 9.5pt high + 2.5pt; the residual is the measure of `C\\setminus C_i` as an argument, divergence #610):\n{xml}"
+    "the node's box holds the overlined formula (TeX: 27.78pt wide, 9.5pt high + 2.5pt; the residual is the measure of `C\\setminus C_i` as an argument, divergence #987):\n{xml}"
   );
 }

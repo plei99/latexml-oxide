@@ -214,7 +214,9 @@ fn author_block_appended_after_author_is_kept() {
 
 /// 59d: the extended T2A letters print through t2aenc.def's `\DeclareTextSymbol`s; the fontenc
 /// binding's empty stubs made the declarations refuse the bare commands, so ј љ њ ћ ђ џ і ї є ґ
-/// vanished (serbian-def-cyr/proba, cmpj/template). Repro fonts-nfss/t2a_extended_letters_print.
+/// vanished (serbian-def-cyr/proba, cmpj/template). Since 77s ј і Ј, set in the Latin slots j i J, are the
+/// Cyrillic letters (OXIDIZED_DESIGN_DIVERGENCES #776; they read Latin j/i/J before). Repro
+/// fonts-nfss/t2a_extended_letters_print.
 #[test]
 fn t2a_extended_letters_print() {
   let tex =
@@ -222,7 +224,7 @@ fn t2a_extended_letters_print() {
   assert_elements(tex, RAW, (0, 0), &[(
     "para",
     "p1",
-    "<para xml:id=\"p1\"><p>jљњћђџ JЉЊЋЂЏ ґєiї ж</p></para>",
+    "<para xml:id=\"p1\"><p>\u{0458}љњћђџ \u{0408}ЉЊЋЂЏ ґє\u{0456}ї ж</p></para>",
   )]);
 }
 
@@ -587,7 +589,8 @@ fn tcb_listing_keeps_its_hypertarget() {
 }
 
 /// 59i: a listing box's `label=` names its own listing (its first line; run before the listing,
-/// the label named the element before it), and `step=` steps its counter. Repro
+/// the label named the element before it), and `step=` steps its counter; 78g: the first line takes the box counter's
+/// number, which `\ref` prints (each `[auto counter]` box "1"; OXIDIZED_DESIGN_DIVERGENCES #813). Repro
 /// captions-floats/tcb_listing_label_names_its_listing.
 #[test]
 fn tcb_listing_label_names_its_listing() {
@@ -597,7 +600,7 @@ fn tcb_listing_label_names_its_listing() {
   assert_elements(tex, RAW, (0, 0), &[(
     "para",
     "p1",
-    r##"<para xml:id="p1"><listing class="ltx_lstlisting" data="YSBi" dataencoding="base64" datamimetype="text/plain"><listingline labels="LABEL:first" xml:id="lstnumberx1"><text class="ltx_lst_identifier">a</text><text class="ltx_lst_space"> </text><text class="ltx_lst_identifier">b</text></listingline></listing><listing class="ltx_lstlisting" data="YyBk" dataencoding="base64" datamimetype="text/plain"><listingline labels="LABEL:second" xml:id="lstnumberx2"><text class="ltx_lst_identifier">c</text><text class="ltx_lst_space"> </text><text class="ltx_lst_identifier">d</text></listingline></listing><listing class="ltx_lstlisting" data="ZSBm" dataencoding="base64" datamimetype="text/plain"><listingline xml:id="lstnumberx3"><text class="ltx_lst_identifier">e</text><text class="ltx_lst_space"> </text><text class="ltx_lst_identifier">f</text></listingline></listing><p>See <ref labelref="LABEL:first"/>, <ref labelref="LABEL:second"/>; section 1.</p></para>"##,
+    r##"<para xml:id="p1"><listing class="ltx_lstlisting" data="YSBi" dataencoding="base64" datamimetype="text/plain"><listingline labels="LABEL:first" xml:id="lstnumberx1"><tags><tag role="refnum">1</tag></tags><text class="ltx_lst_identifier">a</text><text class="ltx_lst_space"> </text><text class="ltx_lst_identifier">b</text></listingline></listing><listing class="ltx_lstlisting" data="YyBk" dataencoding="base64" datamimetype="text/plain"><listingline labels="LABEL:second" xml:id="lstnumberx2"><tags><tag role="refnum">1</tag></tags><text class="ltx_lst_identifier">c</text><text class="ltx_lst_space"> </text><text class="ltx_lst_identifier">d</text></listingline></listing><listing class="ltx_lstlisting" data="ZSBm" dataencoding="base64" datamimetype="text/plain"><listingline xml:id="lstnumberx3"><text class="ltx_lst_identifier">e</text><text class="ltx_lst_space"> </text><text class="ltx_lst_identifier">f</text></listingline></listing><p>See <ref labelref="LABEL:first"/>, <ref labelref="LABEL:second"/>; section 1.</p></para>"##,
   )]);
 }
 
@@ -824,7 +827,7 @@ fn hypertarget_block_text_keeps_a_visible_destination() {
     (
       "figure",
       "S0.F1",
-      r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="autoref">Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><rule class="ltx_figure_panel" height="28.5pt" width="28.5pt"/><break class="ltx_break"/><p class="ltx_figure_panel"><anchor xml:id="f"/></p><toccaption><tag close=" ">1</tag>C</toccaption><caption><tag close=": ">Figure 1</tag>C</caption></figure>"##,
+      r##"<figure class="ltx_panels_gallery" inlist="lof" panelcols="1" panelrows="2" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="autoref">Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><rule class="ltx_figure_panel" height="28.5pt" panelwidth="0.082" width="28.5pt"/><break class="ltx_break"/><p class="ltx_figure_panel"><anchor xml:id="f"/></p><toccaption><tag close=" ">1</tag>C</toccaption><caption><tag close=": ">Figure 1</tag>C</caption></figure>"##,
     ),
     (
       "para",
@@ -867,7 +870,7 @@ fn tblr_evaluate_and_expand_preprocess_the_body() {
     (
       "para",
       "p1",
-      r##"<para xml:id="p1"><tabular class="ltx_guessed_headers" vattach="middle"><tbody><tr><td/><td align="left">y</td><td align="left">y</td><td align="left">y</td></tr><tr><td thead="row"/><td align="left">y</td><td align="left">y</td><td align="left">y</td></tr><tr><td/><td align="left">y</td><td align="left">y</td><td align="left">y</td></tr></tbody></tabular></para>"##,
+      r##"<para xml:id="p1"><tabular class="ltx_guessed_headers" vattach="middle"><thead><tr><td border="l r t" thead="column"/><td align="left" border="r t" thead="column">y</td><td align="left" border="r t" thead="column">y</td><td align="left" border="r t" thead="column">y</td></tr></thead><tbody><tr><td border="l r t"/><td align="left" border="r t">y</td><td align="left" border="r t">y</td><td align="left" border="r t">y</td></tr><tr><td border="b l r t"/><td align="left" border="b r t">y</td><td align="left" border="b r t">y</td><td align="left" border="b r t">y</td></tr></tbody></tabular></para>"##,
     ),
     (
       "para",
@@ -877,7 +880,7 @@ fn tblr_evaluate_and_expand_preprocess_the_body() {
     (
       "para",
       "p3",
-      r##"<para xml:id="p3"><tabular vattach="middle"><tbody><tr><td align="left">Row1</td><td align="left">1</td></tr><tr><td align="left">All</td><td align="left">All</td></tr></tbody></tabular></para>"##,
+      r##"<para xml:id="p3"><tabular vattach="middle"><tbody><tr><td align="left" border="t">Row1</td><td align="left" border="t">1</td></tr><tr><td align="left" border="b t">All</td><td align="left" border="b t">All</td></tr></tbody></tabular></para>"##,
     ),
     (
       "para",
@@ -1165,7 +1168,7 @@ fn autoref_names_follow_hyperref() {
       (
         "figure",
         "S0.F1",
-        r##"<figure inlist="lof" labels="LABEL:f" xml:id="S0.F1"><tags><tag><text fontsize="90%">Figure 1</text></tag><tag role="autoref">Fig. 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure inlist="lof" labels="LABEL:sf" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="autoref">Fig. 1a</tag><tag role="refnum">1a</tag></tags><toccaption><tag close=" ">a</tag>S</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">S</text></caption></figure><toccaption><tag close=" ">1</tag>C</toccaption><caption><tag close=": "><text fontsize="90%">Figure 1</text></tag><text fontsize="90%">C</text></caption></figure>"##,
+        r##"<figure inlist="lof" labels="LABEL:f" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="autoref">Fig. 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure inlist="lof" labels="LABEL:sf" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="autoref">Fig. 1a</tag><tag role="refnum">1a</tag></tags><toccaption><tag close=" ">a</tag>S</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">S</text></caption></figure><toccaption><tag close=" ">1</tag>C</toccaption><caption><tag close=": ">Figure 1</tag>C</caption></figure>"##,
       ),
       (
         "theorem",

@@ -1,4 +1,4 @@
-//! biblatex's standard bibliography drivers (OXIDIZED_DESIGN_DIVERGENCES #601).
+//! biblatex's standard bibliography drivers (OXIDIZED_DESIGN_DIVERGENCES #980).
 //!
 //! A document in `style=alphabetic` or `alphabetic-verb`, whose drivers are standard.bbx's, gets its References as
 //! pdflatex + biber print them, not in LaTeXML's rows (`Author (2008)`, "External Links:", "Cited by:"): standard.bbx:28-733
@@ -693,7 +693,7 @@ fn the_standard_list_carries_the_class_that_scopes_its_fonts() {
 }
 
 /// `alphabetic-verb.cbx:31-40` brackets every key, `[AGV08]; [Giv98]`; the core citation gives the semicolon inside one
-/// pair of brackets (DIVERGENCES #601, "Citations").
+/// pair of brackets (DIVERGENCES #980, "Citations").
 #[test]
 fn alphabetic_verb_cite_has_the_semicolon_in_one_pair_of_brackets() {
   let html = clean_html(

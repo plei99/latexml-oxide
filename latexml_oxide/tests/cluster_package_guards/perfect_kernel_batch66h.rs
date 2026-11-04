@@ -1,5 +1,7 @@
 //! Red/green guards for batch 66h: run 345's Error → Fatal regressions (root-causer report
 //! `agent_reports/2026-10-14_ef345_regressions.md`) and three sandbox regressions from runs 341/342.
+use latexml::util::test::assert_element;
+
 use super::perfect_kernel_batch46::{error_count, warning_count};
 
 fn convert_counted(tex: &str) -> (String, String) {
@@ -70,7 +72,10 @@ fn revtex_email_redressed_over_sanitize_url() {
 }
 
 /// svjour3's `\institute` sentinel `\at` is not the affiliation's text, so a document's own `\at` macro does not run
-/// there (1404.4148 and 8 more: Fatal Stomach:Recursion).
+/// there (1404.4148 and 8 more: Fatal Stomach:Recursion). The name before `\at` is the entry's first line, no author
+/// being queued to print it (batch 98b, OXIDIZED_DESIGN_DIVERGENCES #952): the repro has no `\maketitle`; with one,
+/// pdflatex prints "A. Bensoussan" over "Center for Risk" (2 errors, the document's `\at` in svjour3's place; the
+/// rev98b review's g2).
 #[test]
 fn svjour3_institute_with_document_at_macro() {
   let (log, xml) = convert_counted(include_str!(
@@ -79,7 +84,7 @@ fn svjour3_institute_with_document_at_macro() {
   assert_eq!((error_count(&log), fatal_count(&log)), (0, 0), "{log}");
   assert_eq!(xml.matches(r#"role="affiliation""#).count(), 1, "{xml}");
   assert!(
-    xml.contains(r#"role="affiliation">Center for Risk</contact>"#),
+    xml.contains(r#"role="affiliation">A. Bensoussan<break/>Center for Risk</contact>"#),
     "{xml}"
   );
 }
@@ -93,7 +98,9 @@ fn svjour3_doubled_at_left_in_text_closes_once() {
   ));
   assert_eq!(
     (error_count(&log), warning_count(&log), fatal_count(&log)),
-    (3, 2, 0),
+    // (the affiliation's open `\left` group closes with the item since 79l, `digest_in_own_group`: no "Attempt to end
+    // mode" errors nor open groups at `\end{document}`)
+    (1, 1, 0),
     "{log}"
   );
   assert_eq!(
@@ -151,8 +158,9 @@ fn lipics_thm_restate_only_on_its_option() {
   assert_eq!((error_count(&log), fatal_count(&log)), (0, 0), "{log}");
 }
 
-/// With the `thm-restate` option the class loads thm-restate: `{restatable}` is a theorem, and its restatement a
-/// reference to it as thm-restate.sty.ltxml:28's `\lx@thm@restate` sets it (2211.04601).
+/// With the `thm-restate` option the class loads thm-restate: `{restatable}` is a theorem, and its restatement the
+/// statement again, numbered as it (2211.04601; 78i, KNOWN_PERL_ERRORS #1048 — Perl's thm-restate.sty.ltxml:28 a "See"
+/// reference).
 #[test]
 fn lipics_thm_restate_option_loads_restatable() {
   let (log, xml) = convert_counted(include_str!(
@@ -163,11 +171,22 @@ fn lipics_thm_restate_option_loads_restatable() {
     xml.contains(r#"<theorem class="ltx_theorem_theorem""#),
     "{xml}"
   );
-  assert_eq!(xml.matches("Restated body.").count(), 1, "{xml}");
-  assert!(
-    xml.contains(r#"<p xml:id="p1.1">See <ref labelref="LABEL:restatable:mythm"/></p>"#),
-    "{xml}"
+  assert_eq!(xml.matches("Restated body.").count(), 2, "{xml}");
+  // the restatement, whole: numbered as the original, no label (the autoref tag's `~` a no-break space)
+  assert_element(
+    &xml,
+    "theorem",
+    &["xml:id=\"Thmtheoremx1\""],
+    "<theorem class=\"ltx_theorem_theorem\" inlist=\"thm theorem:theorem\" xml:id=\"Thmtheoremx1\"><tags><tag>Theorem \
+     1</tag><tag role=\"autoref\">Theorem\u{a0}1<text xml:id=\"Thmtheoremx1.1\"/></tag><tag \
+     role=\"creftype\">Theorem</tag><tag role=\"creftypecap\">Theorem</tag><tag role=\"creftypeplural\">Theorems</tag><tag \
+     role=\"creftypepluralcap\">Theorems</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Theorem \
+     1</tag></tags><title class=\"ltx_runin\"><tag><text font=\"bold\" xml:id=\"Thmtheoremx1.2\">Theorem \
+     1</text></tag><text font=\"bold\" xml:id=\"Thmtheoremx1.3\">.</text></title><para xml:id=\"Thmtheoremx1.p1\"><p \
+     xml:id=\"Thmtheoremx1.p1.1\"><text font=\"italic\" xml:id=\"Thmtheoremx1.p1.1.1\">Restated \
+     body.</text></p></para></theorem>",
   );
+  assert!(!xml.contains("See <ref"), "{xml}");
 }
 
 /// lipics-v2021 under `autoref` without `thm-restate` gives each theorem sibling an aliascnt alias of `theorem`'s

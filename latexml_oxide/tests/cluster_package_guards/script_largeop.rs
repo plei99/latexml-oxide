@@ -1,5 +1,5 @@
-//! A large operator in a script is typeset in the script style (OXIDIZED_DESIGN_DIVERGENCES #606; the Perl
-//! defect is KNOWN_PERL_ERRORS #668).
+//! A large operator in a script is typeset in the script style (OXIDIZED_DESIGN_DIVERGENCES #985; the Perl
+//! defect is KNOWN_PERL_ERRORS #1215).
 //!
 //! Perl's `doVariablesizeOp` (TeX_Math.pool.ltxml:353) records `mathstyle="text"` on every `\sum`, `\int`, ... that
 //! is not in display style, so one in a superscript (`e^{\sum x_iB_i}`, `z^{\sum D_i\cdot d}`) read as a text-style

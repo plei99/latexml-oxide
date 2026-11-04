@@ -31,7 +31,8 @@ single-level expansion tolerates — our/Perl recursion guard is load-bearing),
 also invokes at CONSTRUCTION time inside elements — the wrapper leaks tokens
 into the DOM), `titleps_sty.rs`/`schooldocs_sty.rs` (purely presentational
 page-style surfaces with no XML counterpart; schooldocs hides its one semantic
-command inside a `\fancypagestyle` body both engines discard),
+command inside a `\fancypagestyle` body, which Perl discards and ours stores as the
+style, read but never run),
 `frontespizio_sty.rs` (the package typesets its title page in a SECOND pdflatex
 run on a generated file and re-includes it as a graphic — external compilation,
 out of scope like shell-escape; the binding forces the package's own inline
@@ -55,7 +56,10 @@ bindings of the same justified kind: `floatrow_sty.rs` (58i: LaTeXML's locked `\
 `\@floatcapt`, so the kernel's caption material is pointed at it) and `enotez_sty.rs` (58l: the package fills its list
 only from the previous run's `.aux`). Phase 59 added `g_brief_cls.rs`/`g_brief2_cls.rs` (59o: the letter's sender and
 addressee live only in a first-page style LaTeXML never typesets; they become frontmatter at `\begin{g-brief}`, user
-ruling 2026-10-01). A raw-first attempt is still the default for every new cluster; a new binding
+ruling 2026-10-01). Batch 68u added `beilstein_cls.rs`/`lni_cls.rs` (their author blocks live in accumulators only
+the refused `\maketitle` reads, built through an `\author` the kernel's or authblk's lock refuses; OXIDIZED_DESIGN #644)
+and `apa6_cls.rs`/`apa_cls.rs` (the numbered author forms, apa6.cls:745-777, read only by the refused `\maketitle`).
+A raw-first attempt is still the default for every new cluster; a new binding
 requires a justification of this kind in the file header.
 
 > **Stages.** The error-free stage (S0∧S1) closed 2026-09-17; the program now measures content preservation and markup

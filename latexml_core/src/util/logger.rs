@@ -1,5 +1,5 @@
 use std::{
-  cell::RefCell,
+  cell::{Cell, RefCell},
   sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering},
 };
 
@@ -623,6 +623,27 @@ impl DiagnosticsHold {
     now.error.saturating_sub(then.error) + usize::from(now.fatal && !then.fatal)
   }
 
+  /// Whether a Fatal was raised since [`begin`](Self::begin): counted (the report's flag set) or held as a record — what
+  /// [`defer`](Self::defer) never sets aside, and a caller taking back its work must not [`discard`](Self::discard).
+  pub fn fatal_raised(&self) -> bool {
+    let fatal_now = {
+      let now = crate::common::error::REPORT.borrow();
+      now.fatal && !self.snapshot.report.fatal
+    };
+    fatal_now
+      || HELD.borrow().as_ref().is_some_and(|records| {
+        records
+          .iter()
+          .any(|(_, m)| strip_ansi(m).starts_with("Fatal:"))
+      })
+  }
+
+  /// Warnings raised since [`begin`](Self::begin) (a suppressed one counted too).
+  pub fn warnings_raised(&self) -> usize {
+    let now = crate::common::error::REPORT.borrow();
+    now.warning.saturating_sub(self.snapshot.report.warning)
+  }
+
   fn take_held(&mut self) -> Vec<(Level, String)> {
     self.resolved = true;
     let mut held = HELD.borrow_mut();
@@ -652,6 +673,17 @@ impl DiagnosticsHold {
         report.error,
         report.fatal,
       ) == (then.debug, then.info, then.warning, then.error, then.fatal)
+  }
+
+  /// The scope raised nothing but Debug messages (counted, never written): [`is_empty`](Self::is_empty) but for those.
+  /// A held tag whose typesetting only traced itself holds nothing to defer (latexml_engine tags_refnums.rs
+  /// `\lx@tag@intags@held`).
+  pub fn is_empty_but_debug(&self) -> bool {
+    let report = crate::common::error::REPORT.borrow();
+    let then = &self.snapshot.report;
+    HELD.borrow().as_ref().is_none_or(Vec::is_empty)
+      && (report.info, report.warning, report.error, report.fatal)
+        == (then.info, then.warning, then.error, then.fatal)
   }
 
   /// Keep the scope's diagnostics: write the held records.
@@ -884,12 +916,37 @@ pub fn replay_shown_deferred() {
   }
 }
 
-/// Forget the job's deferred diagnostics (each conversion's `initialize_report`).
+/// Forget the job's deferred diagnostics (each conversion's `initialize_report`), the empty held tags it was waiting
+/// on too: a persistent worker's next paper starts at none.
 pub fn reset_deferred_diagnostics() {
   DEFERRED.borrow_mut().clear();
   DEFERRED_AT_LABEL.borrow_mut().take();
   LABEL_USES.borrow_mut().clear();
+  EMPTY_HELD_TAGS.set(0);
 }
+
+/// How many empty held tags are kept in the document, waiting for their target to settle them
+/// ([`note_empty_held_tag`]).
+#[thread_local]
+static EMPTY_HELD_TAGS: Cell<usize> = Cell::new(0);
+
+/// A held tag (`\lx@tag@intags@held`, latexml_engine tags_refnums.rs) that typeset nothing but holds diagnostics
+/// (`_deferred`) is kept, empty, until its target closes, which ties them to its labels (latex_constructs sect11.rs
+/// `tie_held_tags`) and then removes it ([`take_empty_held_tag`]); one no target closed over (a caption's tags folded
+/// into a minipage panel) is settled once the document is built (sect11.rs `settle_empty_held_tags`, tied to its
+/// owner's labels only: an unlabelled owner drops it with its diagnostics). A form that errs
+/// gives no content, and its errors are raised where a reference prints its role (cleveref_sty.rs
+/// `\lx@cref@docformat`; 2008.12750, 2604.24399).
+pub fn note_empty_held_tag() { EMPTY_HELD_TAGS.set(EMPTY_HELD_TAGS.get() + 1); }
+
+/// Whether an empty held tag is waiting for its target to settle it ([`note_empty_held_tag`]).
+pub fn empty_held_tags_pending() -> bool { EMPTY_HELD_TAGS.get() > 0 }
+
+/// One empty held tag ([`note_empty_held_tag`]) was removed.
+pub fn take_empty_held_tag() { EMPTY_HELD_TAGS.set(EMPTY_HELD_TAGS.get().saturating_sub(1)); }
+
+/// The document is built: every empty held tag is settled ([`note_empty_held_tag`]).
+pub fn settled_empty_held_tags() { EMPTY_HELD_TAGS.set(0); }
 
 /// initialize the logger at a given STDERR verbosity `level`
 ///
@@ -962,6 +1019,32 @@ mod tests {
     note_label_use("LABEL:a", "autoref");
     replay_shown_deferred();
     assert_eq!(get_status(LogStatus::Error), 0, "stale deferred set");
+  }
+
+  /// A hold tells a Fatal raised in its scope (`fatal_raised`), which a caller taking its work back commits rather
+  /// than discards — Fatal stays Fatal (review rev94a r5, the writer's re-part take-back); an Error alone is no Fatal.
+  #[test]
+  fn a_hold_tells_a_fatal_raised_in_it() {
+    use crate::common::error::{LogStatus, get_status, initialize_report, note_status_from_logger};
+    initialize_report();
+    let hold = DiagnosticsHold::begin();
+    note_status_from_logger(LogStatus::Error);
+    assert!(!hold.fatal_raised(), "an Error is no Fatal");
+    note_status_from_logger(LogStatus::Fatal);
+    assert!(hold.fatal_raised());
+    hold.commit();
+    assert_eq!(
+      get_status(LogStatus::Fatal),
+      1,
+      "committed, the Fatal stays"
+    );
+    let hold = DiagnosticsHold::begin();
+    assert!(
+      !hold.fatal_raised(),
+      "one raised before the hold is not its own"
+    );
+    hold.discard();
+    initialize_report();
   }
 
   #[test]

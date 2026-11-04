@@ -1,6 +1,6 @@
 //! xstring.sty / xstring.tex (v1.86, 2023/08/22, C. Tellechea) — string tests and operations.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(q). Each xstring command reads an
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(q). Each xstring command reads an
 //! optional `*`, an optional leading `[n]`, its arguments and an optional trailing `[\name]`
 //! (`\xs_newmacro`, xstring.tex:235-298); it expands its string and number arguments by the mode set by
 //! `\fullexpandarg` (`\edef`, the default), `\expandarg` (the first token once) or `\noexpandarg`

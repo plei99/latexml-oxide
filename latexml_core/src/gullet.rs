@@ -1703,11 +1703,16 @@ pub fn read_token() -> Result<Option<Token>> {
     if let Some(ref nextt) = next_token {
       if (align_group_count() == 0)
         && has_reading_alignment()
-        && let Some((atoken, atype, ahidden)) = is_column_end(nextt)
+        && let Some((_atoken, atype, ahidden)) = is_column_end(nextt)
       {
         let reading_alignment = get_reading_alignment().unwrap();
         if let DigestedData::Alignment(data) = reading_alignment.data() {
-          handle_template(data.borrow_mut(), atoken, atype, ahidden)?;
+          // The token as read goes back after the v-part, not its canonical `\cr`/`&` (Perl Gullet.pm:310 passes
+          // `$token`): TeX drops the token and keeps its meaning (tex.web §789), so a `\let\crnorm=\cr` is no name a
+          // v-part's keyword scan can expand — with `\cr` itself redefined (`\def\cr{&\crnorm}`, Cowan's tables.tex)
+          // a `\vrule` before it read the macro's `&` (hep-ph9612244, hep-ph9711334). Guard
+          // `perfect_kernel_batch68z::a_let_cr_ends_the_row_as_itself`.
+          handle_template(data.borrow_mut(), *nextt, atype, ahidden)?;
         } else {
           return Err("reading_alignment should always contain DigestedData::Alignment".into());
         }
@@ -1846,12 +1851,17 @@ impl Drop for ExpandDepthGuard {
 /// `\protect` is not `\@typeset@protect` — literally
 /// `\@protected@testopt`'s test. Cheap: the parameter check is a slice
 /// peek; the state lookups run only for leading-Optional definitions
-/// under partial expansion.
+/// under partial expansion. A first parameter flagged
+/// [`Parameter::testopt`](crate::parameter::Parameter::testopt) is a protected command
+/// too: xargs's `\newcommandx` with any optional argument
+/// (`\@protected@testopt@xargs`, xargs.sty:20-25, 205-212), whose first
+/// argument may be a plain one.
 fn optional_arg_protected(defn: &std::rc::Rc<dyn Definition>) -> bool {
   match defn.get_parameters() {
     Some(params) => match params.get_parameters().first() {
       Some(p) => {
-        p.name == crate::pin!("Optional") && !super::definition::expandable::protect_is_typeset()
+        (p.name == crate::pin!("Optional") || p.testopt)
+          && !super::definition::expandable::protect_is_typeset()
       },
       None => false,
     },
@@ -1891,6 +1901,86 @@ fn expands_now(defn: &std::rc::Rc<dyn Definition>, fully_expand: bool) -> bool {
     && !scan_stops_at_futurelet_peek(defn)
 }
 
+/// A place in the input ([`input_mark`]): what the input held still to be read when it was taken — the current
+/// mouth's pushback (its length and its last token below anything pushed since), the mouth's read position, and how
+/// many mouths enclose it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InputMark {
+  depth:    usize,
+  pushback: usize,
+  below:    Option<Token>,
+  mouth:    (usize, usize, usize, usize),
+}
+
+/// Mark the input as it stands: everything still to be read now ([`input_unread_since`]). What is pushed back after
+/// the mark (a macro's expansion, unread on top of the pushback) is read before anything the mark holds.
+pub fn input_mark() -> InputMark {
+  let gullet = gullet!();
+  let depth = gullet.mouthstack.len();
+  match gullet.runtime.as_ref() {
+    Some(rt) => InputMark {
+      depth,
+      pushback: rt.pushback.len(),
+      below: rt.pushback.last().copied(),
+      mouth: rt.mouth.read_position(),
+    },
+    None => InputMark {
+      depth,
+      pushback: 0,
+      below: None,
+      mouth: (0, 0, 0, 0),
+    },
+  }
+}
+
+/// Whether none of the input `mark` held has been read since it was taken ([`input_mark`]): its mouth is still open,
+/// has read no further, and its pushback still holds every token it held then (only what was pushed after the mark
+/// was read, or what a mouth opened since holds). Read-only, for an observer telling apart what a call's expansion
+/// did from what the input after the call did (the frontmatter observer's ledger). A token read and another of the
+/// same text pushed back in its place is not told apart.
+pub fn input_unread_since(mark: &InputMark) -> bool {
+  let gullet = gullet!();
+  let depth = gullet.mouthstack.len();
+  if depth < mark.depth {
+    return false;
+  }
+  let runtime = if depth == mark.depth {
+    gullet.runtime.as_ref()
+  } else {
+    gullet.mouthstack.get(depth - mark.depth - 1)
+  };
+  let Some(rt) = runtime else {
+    return mark.pushback == 0 && mark.mouth == (0, 0, 0, 0);
+  };
+  rt.mouth.read_position() == mark.mouth
+    && rt.pushback.len() >= mark.pushback
+    && (mark.pushback == 0 || rt.pushback.get(mark.pushback - 1).copied() == mark.below)
+}
+
+/// What the invocation of a token with field provenance `prov` ([`Token::prov`]) consumed of its field's stored
+/// value, now that it read what it reads: its own position up to the next token of that value still to be read, if
+/// the pushback holds one (a primitive's or a macro's arguments: `\hspace{1em}`, `\\[2pt]`, `$x$`), else its own
+/// position alone. The pushback only: a field's stored tokens are read from it (an expansion, a digested argument),
+/// never from a mouth, so nothing is read or tokenized. OXIDIZED_DESIGN #715.
+pub fn field_cover_of(prov: u16) -> crate::token::FieldCover {
+  use crate::token::{field_prov_field, field_prov_pos};
+  let (field, pos) = (field_prov_field(prov), field_prov_pos(prov));
+  let next = {
+    let gullet = gullet!();
+    gullet
+      .runtime
+      .as_ref()
+      .and_then(|rt| rt.pushback.last().map(|t| t.prov))
+      .unwrap_or(0)
+  };
+  let end = if next != 0 && field_prov_field(next) == field && field_prov_pos(next) > pos {
+    field_prov_pos(next)
+  } else {
+    pos + 1
+  };
+  crate::token::FieldCover { field, start: pos, end }
+}
+
 /// Expand `token` (defined as `defn`) ONE level and push the expansion back
 /// onto the input, as `read_x_token` does for each expandable token it meets.
 #[inline]
@@ -1905,13 +1995,19 @@ fn invoke_expansion(token: Token, defn: &std::rc::Rc<dyn Definition>) -> Result<
   // / the math parser; params in `crate::stack_guard`.
   // The expansion goes straight onto the input (`Definition::invoke_onto_input`, tex.web §390) unless it is
   // inspected on the way: token-locators fill its origins, `TRACE_GROUP_END` counts its groups.
-  if cfg!(not(feature = "token-locators")) && !*TRACE_GROUP_END {
+  // A token of a frontmatter field's stored value passes its provenance to its expansion (`Token::prov`).
+  if cfg!(not(feature = "token-locators")) && !*TRACE_GROUP_END && token.prov == 0 {
     crate::stack_guard::maybe_grow(|| defn.invoke_onto_input(false))?;
     expire_current_token();
     return Ok(());
   }
-  #[cfg_attr(not(feature = "token-locators"), allow(unused_mut))]
   let mut invoked = crate::stack_guard::maybe_grow(|| defn.invoke(false))?;
+  if token.prov != 0 {
+    // the macro's position and its arguments are covered by the boxes its expansion digests to (or by the next ones,
+    // when it expands to nothing): a field's print is whole with them (OXIDIZED_DESIGN #715)
+    crate::token::field_cover_set_pending(field_cover_of(token.prov));
+    crate::token::inherit_field_prov(token.prov, &mut invoked);
+  }
   // token-locators: fill-only origin inheritance. A macro that
   // expands into synthesized tokens with no origin — e.g.
   // `\today → ExplodeText!(Today!())` yielding "May 25, 2026" —
@@ -1983,6 +2079,45 @@ pub fn expand_once_partial(token: Token) -> Result<bool> {
       Ok(true)
     },
     _ => Ok(false),
+  }
+}
+
+/// The alignment's cell-head peek, tex.web §785 `align_peek` and §791 (e-TeX `get_x_or_protected`): expand until
+/// the first token that is not expandable — or protected, as `read_x_token(Some(true), false, Some(false))` stops —
+/// and stop as well at a macro whose optional argument is a `\newcommand` one ([`Parameter::testopt`]): LaTeX's
+/// `\newcommand\dg[3][]` is `\@protected@testopt\dg\\dg{}`, whose expansion reaches the unexpandable `\let` of
+/// `\kernel@ifnextchar` before it reads an argument (latex.ltx:1249-1261), so TeX starts the cell there and the
+/// arguments are read inside it. Our macro reads its arguments as it expands; expanded in the peek it read the
+/// cell's `&` before the cell existed (diagbox.sty:212 `\newcommand\diagbox[3][]`, 2406.11917). The token is
+/// returned unexpanded: the cell's own reader expands it. The binding closures that peek by `\futurelet`
+/// ([`Definition::peeks_by_futurelet`], the kernel's `\@ifnextchar` family) still expand here: several stand for a
+/// TeX macro whose head is not the peek (booktabs' `\cmidrule` is `\noalign{…\@ifnextchar[…}`, booktabs.sty:166).
+///
+/// [`Parameter::testopt`]: crate::parameter::Parameter::testopt
+pub fn read_x_token_cell_head() -> Result<Option<Token>> {
+  loop {
+    let Some(token) = read_token()? else {
+      return read_x_token(Some(true), false, Some(false));
+    };
+    if token.get_catcode().is_active_or_cs()
+      && with_meaning(&token, |defn| {
+        defn.and_then(Stored::to_definition).is_some_and(|defn| {
+          defn.is_expandable()
+            && defn.get_parameters().is_some_and(|params| {
+              params
+                .get_parameters()
+                .first()
+                .is_some_and(|param| param.testopt)
+            })
+        })
+      })
+    {
+      return Ok(Some(token));
+    }
+    if !expand_once_partial(token)? {
+      unread_one(token);
+      return read_x_token(Some(true), false, Some(false));
+    }
   }
 }
 
@@ -2131,6 +2266,16 @@ pub fn read_x_token(
             // most once per session; see `binding::kernel_autoload`.
             if crate::binding::kernel_autoload::try_autoload(&token) {
               unread_one(token); // Retry, now that the kernel is in state.
+              continue;
+            }
+            // a command a refused class environment defines for its body (`kernel_autoload`)
+            if crate::binding::kernel_autoload::try_refused_environment_definition(&token) {
+              unread_one(token);
+              continue;
+            }
+            // a stand-in named for the undefined name (`\chapter` in a class without chapters, OXIDIZED_DESIGN #734)
+            if let Some(stand_in) = crate::binding::kernel_autoload::undefined_fallback(&token) {
+              unread_one(stand_in);
               continue;
             }
             return Ok(Some(generate_error_stub(&token)?));
@@ -2539,6 +2684,23 @@ pub fn read_balanced_with_close(
             tokens.push(next_t); // Pass on NEXT token, unchanged.
           }
         },
+        // The v-part's `}` of a template that braces its cells (latex.ltx:15760-15763 `{eqnarray}`'s
+        // `$\displaystyle{##}$`, amsmath's templates), carried as latexml_engine tex_box.rs `\lx@template@egroup`:
+        // an argument read when a column end fires at alignment count 0 meets it (the cell's `}` closed the
+        // template's `{`, so the argument's `{` holds the count at 0, tex.web §342), and as the explicit `}` it is in
+        // TeX it closes the argument (§392). `a^{b}_c} - \frac{x}{y_{d}&=& 0.` in an eqnarray: `\frac`'s second
+        // argument is `y_{d}`, as in pdflatex (0 errors); before, the argument ran past the template to the end of the
+        // document (0902.2869, from line 409). The count is left as the primitive leaves it: the template's braces
+        // are invisible to it (§324 resets it after the u-part). Guard
+        // `perfect_kernel_batch69c::eqnarray_cell_braces_balance_across_the_template`.
+        Catcode::CS if token.text == pin!("\\lx@template@egroup") => {
+          level -= 1;
+          if level <= 0 {
+            close = Some(T_END!());
+            break;
+          }
+          tokens.push(T_END!());
+        },
         Catcode::END => {
           // Perl Gullet.pm L476: track ALIGN_STATE for } inside readBalanced
           decrement_align_group_count();
@@ -2588,7 +2750,8 @@ pub fn read_balanced_with_close(
                 && (expansion_level == Full || !optional_arg_protected(&defn))
               {
                 local_current_token(token);
-                let expansion = defn.invoke(false)?;
+                let mut expansion = defn.invoke(false)?;
+                crate::token::inherit_field_prov(token.prov, &mut expansion);
                 if expansion.is_empty() {
                   expire_current_token();
                   continue;
@@ -2866,8 +3029,17 @@ pub fn read_until(delim: &Tokens) -> Result<Option<Tokens>> {
           abandon_argument_at_par(token);
           return Ok(Some(Tokens!()));
         }
-        // Perl: $$token[1] == CC_BEGIN — direct catcode check
-        if token.get_catcode() == Catcode::BEGIN {
+        // Perl: $$token[1] == CC_BEGIN — direct catcode check. A `{` that completes the delimiter (one ending in `{`,
+        // from a parameter text's closing `#{`) is its last token: tex.web §392 compares the token with the delimiter
+        // before it takes a `{` as a group.
+        if token.get_catcode() == Catcode::BEGIN
+          && !(ring.len() + 1 == ntomatch
+            && token == want[ntomatch - 1]
+            && ring
+              .iter()
+              .zip(want.iter())
+              .all(|(have, wanted)| have == wanted))
+        {
           // read balanced, and refill ring.
           nbraces += 1;
           for r_token in ring {
@@ -3231,15 +3403,14 @@ fn read_cs_name_inner(quiet: bool) -> Result<Token> {
 /// reads and discards tokens, until it encounters a conditional, if any.
 /// Perl: skipConditionalBody inner loop (Conditional.pm L127-133) reads tokens directly
 /// from pushback/mouth (NOT through readToken) and manually tracks
-/// `$LaTeXML::ALIGN_STATE` for `{` and `}`. Critically, this bypasses the
-/// "alignment-template trigger" check that fires `handleTemplate` on `&`/`\cr`
-/// when align_group_count==0 — that check belongs to digestion, not to
-/// `\else`-skip. Rust's `read_token` includes the trigger; calling it from
-/// here would let pmatrix's `&` get treated as the OUTER alignment's
+/// `$LaTeXML::ALIGN_STATE` for `{` and `}`. This loop does not call `read_token` either:
+/// its expansion and comment handling belong to digestion, and calling it from
+/// here once let pmatrix's `&` get treated as the OUTER alignment's
 /// column-end during `\ifx.#1.\else…\fi` skip when `#1` contains
 /// `\begin{pmatrix}…&…\end{pmatrix}`. (REG-2 / math-ph0501074: the 9-line
-/// `\nonumber+\lefteqn+\pmatrix` repro.) Use `read_internal_token` instead
-/// and track BEGIN/END manually, matching Perl byte-for-byte.
+/// `\nonumber+\lefteqn+\pmatrix` repro.) It does take a column end at a zero count
+/// for the cell's end, as tex.web's `pass_text` does through `get_next` (§342) and
+/// Perl does not (KNOWN_PERL_ERRORS #1183).
 pub fn read_next_conditional() -> Result<Option<(Token, ConditionalType)>> {
   loop {
     // The FOURTH reader loop over the combined checked read (the `\else`/`\fi`
@@ -3258,6 +3429,24 @@ pub fn read_next_conditional() -> Result<Option<(Token, ConditionalType)>> {
           Catcode::BEGIN => increment_align_group_count(),
           Catcode::END => decrement_align_group_count(),
           _ => {},
+        }
+        // tex.web §342: `pass_text` reads through `get_next`, so a tab or `\cr` met at align_state 0 while a false
+        // branch is skipped ends the cell all the same: the column's v-part goes in ahead of it (§789,
+        // `handle_template` raises the count to 1000000) and the skip reads on through it, where its `\fi` can end
+        // the skip — the hide-column template `>{\iffalse}c<{\fi}` (witness 1504.08100). A column end inside a brace
+        // group of the skipped text is at a nonzero count and is skipped, as the pmatrix `&` above is. The hidden
+        // ends (`\lx@hidden@cr`, `\lx@hidden@align`) stand for LaTeX's `\\` and amsmath's tabs, whose `\cr` or `&`
+        // TeX reaches only by expansion, behind `\relax\iffalse{\fi` (latex.ltx `\@arraycr`), so a skip passes
+        // them (`\ifnum1<\nb\\\hline\fi`, tabularcalc.sty:428). Guard
+        // `perfect_kernel_batch80a::a_false_conditional_in_a_template_ends_at_its_v_part`.
+        if align_group_count() == 0
+          && has_reading_alignment()
+          && let Some((_, atype, false)) = is_column_end(&token)
+          && let Some(reading_alignment) = get_reading_alignment()
+          && let DigestedData::Alignment(data) = reading_alignment.data()
+        {
+          handle_template(data.borrow_mut(), token, atype, false)?;
+          continue;
         }
         if cc.is_active_or_cs()
           && let Some(cond_type) = lookup_conditional(&token)
@@ -4908,6 +5097,45 @@ pub fn isolated_input_ends_here() -> bool {
     },
     None => false,
   }
+}
+
+/// The tokens the current input holds next, without reading them: the pushback, next-read first, then the current
+/// mouth's next `max_lines` source lines (at most `max_chars` characters of them, [`Mouth::peek_text`]) tokenized by
+/// a scratch mouth under the current catcodes as the iterator is drawn on, `max_tokens` in all. Nothing is read,
+/// expanded or moved, so a catcode change the look-ahead runs past still applies to the text when it is really read.
+/// Only the current mouth: the input levels outside it are not reached. The cost is bounded by the limits, not by the
+/// length of the line or of the pending expansion. A look-ahead for a decision about what follows (stomach.rs
+/// `formula_continues_past_par`, OXIDIZED_DESIGN #553).
+pub fn peek_upcoming_tokens(
+  max_lines: usize,
+  max_chars: usize,
+  max_tokens: usize,
+) -> impl Iterator<Item = Token> {
+  let (pending, text) = {
+    let gullet = gullet!();
+    match gullet.runtime.as_ref() {
+      Some(runtime) => (
+        runtime
+          .pushback
+          .iter()
+          .rev()
+          .take(max_tokens)
+          .copied()
+          .collect::<Vec<Token>>(),
+        runtime.mouth.peek_text(max_lines, max_chars),
+      ),
+      None => (Vec::new(), String::new()),
+    }
+  };
+  let mut scratch = if pending.len() < max_tokens && !text.is_empty() {
+    Mouth::new(&text, None).ok()
+  } else {
+    None
+  };
+  pending
+    .into_iter()
+    .chain(std::iter::from_fn(move || scratch.as_mut()?.read_token()))
+    .take(max_tokens)
 }
 
 /// Check if there is more input to be read from the current mouth

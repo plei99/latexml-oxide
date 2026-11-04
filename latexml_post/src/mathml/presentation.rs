@@ -45,6 +45,10 @@ thread_local! {
   /// absolute fontsize on tokens, which the mathsize context gate already
   /// compensates.)
   static CTX_FONT: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+  /// The font of the text around the formula (Perl's `$LaTeXML::MathML::FONT`, MathML.pm:278), which an `XMText`'s
+  /// content is written against and its `m:mtext` falls back to; the tokens' own context is `CTX_FONT`, read inside
+  /// the formula only (`math_context_font`, OXIDIZED_DESIGN_DIVERGENCES #780).
+  static CTX_TEXTFONT: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
   static CTX_COLOR: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
   static CTX_BGCOLOR: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
   static CTX_OPACITY: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
@@ -227,7 +231,7 @@ fn maybe_style_wrap(result: NodeData, ostyle: MathStyle, nstyle: Option<MathStyl
 }
 
 /// A stretchy fence token (`\left`, `\right`): the math parser gave it the extent of a `\vphantom` beside it as
-/// `height`/`depth` (`filter_hints`, OXIDIZED_DESIGN_DIVERGENCES #612), a minimum for its size.
+/// `height`/`depth` (`filter_hints`, OXIDIZED_DESIGN_DIVERGENCES #989), a minimum for its size.
 fn is_stretchy_fence(node: &Node) -> bool {
   node.get_attribute("stretchy").as_deref() == Some("true")
     && matches!(
@@ -419,6 +423,7 @@ pub fn convert_to_pmml(doc: &PostDocument, xmath: &Node) -> NodeData {
   // nested math's style/font and mangles its remaining tokens.
   let saved_style = CURRENT_STYLE.with(|s| s.get());
   let saved_font = CTX_FONT.with(|c| c.borrow().clone());
+  let saved_text_font = CTX_TEXTFONT.with(|c| c.borrow().clone());
   let saved_color = CTX_COLOR.with(|c| c.borrow().clone());
   let saved_bgcolor = CTX_BGCOLOR.with(|c| c.borrow().clone());
   let saved_opacity = CTX_OPACITY.with(|c| c.borrow().clone());
@@ -440,9 +445,11 @@ pub fn convert_to_pmml(doc: &PostDocument, xmath: &Node) -> NodeData {
   });
   // Perl pmml_top L278-285: bind the inherited style context from the XMath
   // node's ancestor chain, so tokens without their own attributes pick up
-  // the surrounding font/color ({\color{red}$a+b$}).
+  // the surrounding color ({\color{red}$a+b$}); the font from inside the
+  // formula only (`math_context_font`, OXIDIZED_DESIGN_DIVERGENCES #780).
+  ctx_set(&CTX_FONT, super::math_context_font(xmath));
   ctx_set(
-    &CTX_FONT,
+    &CTX_TEXTFONT,
     super::find_inherited_attribute(doc, xmath, "font"),
   );
   ctx_set(
@@ -472,6 +479,7 @@ pub fn convert_to_pmml(doc: &PostDocument, xmath: &Node) -> NodeData {
   // Restore the caller's inherited context (see the reentrancy note above).
   CURRENT_STYLE.with(|s| s.set(saved_style));
   ctx_set(&CTX_FONT, saved_font);
+  ctx_set(&CTX_TEXTFONT, saved_text_font);
   ctx_set(&CTX_COLOR, saved_color);
   ctx_set(&CTX_BGCOLOR, saved_bgcolor);
   ctx_set(&CTX_OPACITY, saved_opacity);
@@ -492,8 +500,9 @@ pub(super) fn pmml_for_ci(doc: &PostDocument, node: &Node) -> NodeData { pmml(do
 /// the previous conversion left (audit should-fix 11).
 pub(super) fn bind_cmml_top_context(doc: &PostDocument, xmath: &Node) {
   CURRENT_STYLE.with(|s| s.set(MathStyle::Text));
+  ctx_set(&CTX_FONT, super::math_context_font(xmath));
   ctx_set(
-    &CTX_FONT,
+    &CTX_TEXTFONT,
     super::find_inherited_attribute(doc, xmath, "font"),
   );
   ctx_set(
@@ -513,6 +522,9 @@ pub(super) fn bind_cmml_top_context(doc: &PostDocument, xmath: &Node) {
 /// The inherited font context, for the content side's ci stylization
 /// (Perl stylizeContent's `|| $LaTeXML::MathML::FONT` fallback).
 pub(super) fn ctx_font() -> Option<String> { ctx_get(&CTX_FONT) }
+
+/// The text font around the formula, for an `XMText`'s `m:mtext` (Perl stylizeContent's `|| $LaTeXML::MathML::FONT`).
+pub(super) fn ctx_text_font() -> Option<String> { ctx_get(&CTX_TEXTFONT) }
 
 /// The inherited color context (Perl `|| $LaTeXML::MathML::COLOR`).
 pub(super) fn ctx_color() -> Option<String> { ctx_get(&CTX_COLOR) }
@@ -604,7 +616,7 @@ fn pmml(doc: &PostDocument, node: &Node) -> NodeData {
       attrs.insert("_role".to_string(), role);
     }
     // The TeX atom class a token records in `mathclass` (a class-3 `\delimiter`/`\mathchar` whose glyph's role is no
-    // relation's, #611; the operator that opens a math group, Ord, #613): the spacewalk takes it over the role's atom
+    // relation's, #988; the operator that opens a math group, Ord, #990): the spacewalk takes it over the role's atom
     // type.
     if let Some(class) = node.get_attribute("mathclass") {
       let attrs = attributes.get_or_insert_with(Default::default);
@@ -810,7 +822,7 @@ fn rule_line_kind(op: &Node) -> Option<bool> {
 }
 
 /// Present `\overline` / `\underline` as a bordered `m:mrow` around the base
-/// (divergence #584; Perl `Apply:OVERACCENT:?`/`UNDERACCENT`, MathML.pm
+/// (divergence #963; Perl `Apply:OVERACCENT:?`/`UNDERACCENT`, MathML.pm
 /// L1490-1506, emits `m:mover accent="true"` with a U+00AF `m:mo`).
 ///
 /// MathML Core makes U+00AF/U+203E horizontally stretchy, but stretching needs a
@@ -889,7 +901,7 @@ fn pmml_rule_line(rop: &Node, base: NodeData, over: bool) -> NodeData {
   }
 }
 
-/// The glyph `\widehat` is presented with: U+0302 COMBINING CIRCUMFLEX ACCENT (divergence #599; Perl
+/// The glyph `\widehat` is presented with: U+0302 COMBINING CIRCUMFLEX ACCENT (divergence #978; Perl
 /// `math_common.pool.ltxml:528` presents it as the ASCII `^` U+005E, which MathML 3's operator
 /// dictionary stretched).
 ///
@@ -963,7 +975,7 @@ fn pmml_apply_dispatch(
       }
     },
     "OVERACCENT" if !args.is_empty() => {
-      // `\overline` is a drawn rule, not an accent (divergence #584): see
+      // `\overline` is a drawn rule, not an accent (divergence #963): see
       // `pmml_rule_line`. Decided by the operator's NAME, never its macron
       // glyph — `\bar` shares U+00AF and stays the narrow accent below.
       if let Some(over) = rule_line_kind(rop) {
@@ -1002,7 +1014,7 @@ fn pmml_apply_dispatch(
       }
     },
     "UNDERACCENT" if !args.is_empty() => {
-      // `\underline` is a drawn rule too (divergence #584); see OVERACCENT.
+      // `\underline` is a drawn rule too (divergence #963); see OVERACCENT.
       if let Some(over) = rule_line_kind(rop) {
         return pmml_rule_line(rop, pmml(doc, &args[0]), over);
       }
@@ -1559,7 +1571,7 @@ fn pmml_token_inner(doc: &PostDocument, node: &Node, role_override: Option<&str>
     }
     // A strut beside a stretchy fence (`\left.x\vphantom{\int}\right|`, which the math parser put on the fence as
     // `height`/`depth`) is a minimum for its size: the fence is as tall as the strut when the row is not.
-    // OXIDIZED_DESIGN_DIVERGENCES #612.
+    // OXIDIZED_DESIGN_DIVERGENCES #989.
     if stretchy && is_stretchy_fence(node) && !attrs.contains_key("minsize") {
       let extent = ["height", "depth"]
         .iter()
@@ -2069,7 +2081,7 @@ fn pmml_script_full(doc: &PostDocument, op: &Node, base: &Node, script: &Node) -
   let base_mml = pmml(doc, &inner_base);
   // A script on a base in another style than its context (Perl wraps the whole layout with `displaystyle`
   // only, MathML.pm:883-887, so `\scriptstyle\sum_i a_i` stayed at the size of the line; latexml-oxide,
-  // OXIDIZED_DESIGN #606). When the base's style was in force over the scripts, the XML records their sizes
+  // OXIDIZED_DESIGN #985). When the base's style was in force over the scripts, the XML records their sizes
   // from it (the scripts of `\scriptstyle\sum_i` are 50%), and the whole layout is wrapped for that style
   // with its scriptlevel, the scripts laid out under it. When the style was set inside a group around the
   // base (`{\scriptstyle\sum}_i`, `\mathop{\scriptstyle\sum}\limits`), the scripts keep the sizes of the

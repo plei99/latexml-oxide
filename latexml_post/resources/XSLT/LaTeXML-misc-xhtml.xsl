@@ -66,7 +66,7 @@
           </xsl:element>
         </xsl:element>
       </xsl:when>
-      <!-- (latexml-oxide, OXIDIZED_DESIGN #607) A direct child of an m:mtext is a block-level box of the
+      <!-- (latexml-oxide, OXIDIZED_DESIGN #986) A direct child of an m:mtext is a block-level box of the
            math layout, whatever its display, so the vertical-align that its vattach class gives it
            (ltx_align_middle) has no line to act on: Chrome puts the last line of a stackengine stack on
            the baseline and Firefox the first, and the stretchy fence around it grows to one side only.

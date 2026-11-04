@@ -2296,7 +2296,7 @@ pub fn filter_hints(nodes: Vec<Node>) -> Vec<Node> {
       }
       // A `\vphantom` strut (a box of the argument's height and depth, latex.ltx `\finph@nt`) anywhere inside a
       // `\left … \right` pair sizes the pair: the innermost open one takes its extent, and gives it to all its
-      // fences when it closes. The hint itself is dropped below (OXIDIZED_DESIGN_DIVERGENCES #612).
+      // fences when it closes. The hint itself is dropped below (OXIDIZED_DESIGN_DIVERGENCES #989).
       if let Some((height, depth)) = strut_extent(&node)
         && let Some(fence) = open_fences.last_mut()
       {

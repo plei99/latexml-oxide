@@ -13,39 +13,39 @@
     `\fontencoding` and `\usefont`, and a document using it lost the bold of `\maketitle`, `\caption`, `\item[…]` and
     description labels and every `\textit`, `\textsl` and `\scshape` (no error), printed `T1` for `\fontencoding{T1}` and
     printed a `\jfont` spec. Where raw TeX Live packages are read (`rawstyles`) the genuine files still load. `luatexja-otf`, `luatexja-ruby` and `luatexja-ajmacros` stay unbound (their text comes from
-    `\directlua`). Divergence #614. Guards `cluster_package_guards::native_notes_bindings::luatexja_*`.
+    `\directlua`). Divergence #991. Guards `cluster_package_guards::native_notes_bindings::luatexja_*`.
   - **TikZ path fadings fade.** `\fill[white, path fading=fade right]` (and `scope fading`, `\pgfsetfading`, the `east`,
     `circle with fuzzy edge 10 percent`… fadings of the library, `\tikzfading`, `tikzfadingfrompicture`) drew an opaque
     shape: the driver's `\pgfsys@fadingfrombox`/`\pgfsys@usefading` were no-ops (Perl: `# NOT IMPLEMENTED`). The fading's
     box is now an `svg:mask` placed as the pdf driver places its soft mask, referenced by the faded path's group; a second
     fading in a scope replaces the first, an undefined name is an error, as in pgf, and a fading with text in its box
     (a `foreignObject` no browser paints in a mask) leaves the path unmasked with a warning. `\pgfsys@endscope` outside a
-    picture no longer leaves a space in the box (divergence #615). A shading's size read pixels as points, so a picture of
+    picture no longer leaves a space in the box (divergence #992). A shading's size read pixels as points, so a picture of
     `\pgfuseshading` was 1.38 times too large and a node holding one placed it off its centre: both are exact now
-    (divergence #616; `unit_tests_by_silviu` regenerated). Guards `pgf_fadings::*`.
+    (divergence #993; `unit_tests_by_silviu` regenerated). Guards `pgf_fadings::*`.
 
   - **A set-builder bar of class 3 keeps its relation spacing.** `\left\{d \delimiter"326A30C D\right\}` came out `d|D`,
     the bar with `lspace="0em" rspace="0em"`: the glyph's role (VERTBAR, MIDDLE in a fence) won over the class
     (Package.pm:2993) and the spacing walk types MIDDLE as Ord. A class-3 `\delimiter` or `\mathchar` now records
-    `mathclass="Rel"`, a new optional `XMath` attribute the spacing walk reads before the role (divergence #611).
+    `mathclass="Rel"`, a new optional `XMath` attribute the spacing walk reads before the role (divergence #988).
     `\middle|` is unchanged. Guards `math_group_spacing::*` (class 3).
   - **A `\vphantom` beside a stretchy fence sizes it, and physics' `\evaluated` bar is as tall as its strut.**
     `\evaluated{\lambda(\alpha)}_{X \wedge X}` is `\left.…\vphantom{\int}\right|` (physics.sty:180-193); the strut was
     dropped by the math parser and left out of the binding, so the bar was short and the limit hung from its middle.
     The parser now gives the strut's extent to the fence, the page makes a `minsize` of it, the binding writes the
-    strut, and a display-style `\int`, `\sum`… has TeX's height and depth, 2.222em / 1.6em in all (divergence #612).
+    strut, and a display-style `\int`, `\sum`… has TeX's height and depth, 2.222em / 1.6em in all (divergence #989).
     The strut sizes both fences of its pair.
     Guards `math_group_spacing::*` (strut, physics).
   - **A minus that opens a math group is tight.** `D_X\mathsf{-Mod}`, `a{-b}` and `a\mathrm{-b}` were set as the binary
     minus with a space either side; a group is one Ord atom and its leading operator is unary (tex.web §727). The
-    operator now records `mathclass="Ord"` (divergence #613). `a - b`, `a\mathsf{x} - b`, `x^{-1}` and a group that
+    operator now records `mathclass="Ord"` (divergence #990). `a - b`, `a\mathsf{x} - b`, `x^{-1}` and a group that
     opens its formula are unchanged. Guards `math_group_spacing::*` (minus).
 
   - **An `\item`'s label is set in the font in force at the `\item`.** The `1.` `2.` of an `enumerate` inside a
     `plain`-style theorem were upright beside italic item text (Perl builds every tag after `neutralizeFont` and
-    `\normalfont`, Base_Utility.pool.ltxml:1005, 1041; KNOWN_PERL_ERRORS #667); LaTeX's `\@item` sets `\makelabel{#1}` in
+    `\normalfont`, Base_Utility.pool.ltxml:1005, 1041; KNOWN_PERL_ERRORS #1214); LaTeX's `\@item` sets `\makelabel{#1}` in
     the list's current font (latex.ltx:16196, :16245), so they are italic, small in a `\small` list and red in a red one.
-    The displayed `ltx:tag` now carries that font (divergence #604); the `refnum` and `typerefnum` tags, which `\ref`
+    The displayed `ltx:tag` now carries that font (divergence #983); the `refnum` and `typerefnum` tags, which `\ref`
     copies, do not, a description label keeps its bold upright, enumitem's `font=` adds to the context's and a footnote in
     a label is set as one in the text. Bullets stay upright, as in LaTeX: the kernel's `\labelitemi`..`iv` start with
     `\labelitemfont` (`\normalfont`, article.cls:355-359). Guards `item_label_font::*`.
@@ -60,24 +60,24 @@
   - **`\overline{x}` and `\underline{x}` are as wide as `x`.** The box of `\overline{C\setminus C_i}` was the
     5pt macron, so a TikZ-cd node holding it was 0.5em wide and the arrows ran through its label; it is now the
     argument's width, 5θ taller above (`\overline`) or below (`\underline`) as `make_over`/`make_under` build it
-    (divergence #610). Guards `overline_box_size::overline_and_underline_boxes_take_the_width_of_their_argument`
+    (divergence #987). Guards `overline_box_size::overline_and_underline_boxes_take_the_width_of_their_argument`
     and `::tikzcd_node_of_an_overlined_formula_is_as_wide_as_the_formula`.
   - **A centred stackengine stack in a formula is centred in the page.** `\left\{ \Centerstack{…}
     \right\}` is a block of the math layout in an `mtext`, so its `vertical-align:middle` did nothing:
     Chromium set its last line on the baseline and Firefox its first, and the braces had an empty half. The
     stylesheet holds the stack in a line of a `span.ltx_mtext_line` and LaTeXML.css gives it the width of its
-    content (divergence #607). `\parbox`, `minipage`, `\shortstack` and `top`/`bottom` boxes are unchanged.
+    content (divergence #986). `\parbox`, `minipage`, `\shortstack` and `top`/`bottom` boxes are unchanged.
     Guards `mtext_block_alignment::*`.
 
   - **A large operator in a script is script size.** `e^{\sum x_iB_i}` and `z^{\sum D_i\cdot d}` in a
     fraction put a `\sum`, `\int`, ... in a script into `<mstyle scriptlevel="-1">`, the operator and its
     operands back at the size of the line (Perl's `doVariablesizeOp` records `text` for every style but display,
     MathML.pm:240-268 answers with the `script → text` entry, and the port compensated with `maxsize` and
-    per-token `mathsize`; KNOWN_PERL_ERRORS #668). The operator now records the style it stands in, also through
+    per-token `mathsize`; KNOWN_PERL_ERRORS #1215). The operator now records the style it stands in, also through
     `\mathchar` and `\over` (which stepped the recorded style, not the font's), and a script on a base in a smaller
     style than its context (`\scriptstyle\sum_i a_i`) is wrapped with a `scriptlevel`; a style set in a group
     around the base alone (`{\scriptstyle\sum}_i`) wraps the base only, the limits keeping the context's size
-    (divergence #606). Guards `script_largeop::*`.
+    (divergence #985). Guards `script_largeop::*`.
 
   - **fix: a group's `\raggedleft`/`\raggedright`/`\centering` aligns the paragraphs it finishes, not the one still
     open at its end; `\vspace` inside a paragraph keeps the paragraph whole.** A title page
@@ -86,7 +86,7 @@
     (flush left). An environment or box (figure, minipage, `\parbox`, quote, ...) and a paragraph with a `\\` of its own
     in the group align as before. `\vspace` in a paragraph's text is a `\vadjust` in latex.ltx:9522-9532 and no longer
     ends the paragraph (its vertical space is dropped); it keeps its `\vskip` in vertical mode, in restricted
-    horizontal mode and math, and after a line of leaders. Beyond Perl: OXIDIZED_DESIGN_DIVERGENCES #602 and #603.
+    horizontal mode and math, and after a line of leaders. Beyond Perl: OXIDIZED_DESIGN_DIVERGENCES #981 and #982.
     An environment with a `#body` and no mode of its own (titling's `{titlingpage}`) is treated like a paragraph's text for
     both, so a title page set inside it has its last line unaligned too; `{titlingpage}` and lscape's `{landscape}` end
     their paragraph at `\end` as their TeX end code does, so the text after them is a paragraph of its own. A bad
@@ -94,7 +94,7 @@
     guards `paragraph_alignment_at_par::*`.
   - **fix: amsart, amsproc and amsbook set the label of a figure or table caption in small capitals**
     (`\@makecaption` under `\@captionheadfont`, amsart.cls:1354/:1389), where the markup was upright and left the
-    small capitals to a stylesheet. OXIDIZED_DESIGN_DIVERGENCES #605; guards `ams_caption_label_smallcaps::*`.
+    small capitals to a stylesheet. OXIDIZED_DESIGN_DIVERGENCES #984; guards `ams_caption_label_smallcaps::*`.
   - **Guard: a memoir chapter style spells the chapter in the head, not in the contents.** Under
     `\chapterstyle{demo2}` the head reads "One" and the `<toctitle>` keeps `\thechapter`
     (`\addcontentsline{toc}{chapter}{\chapternumberline{\thechapter}...}`,
@@ -104,7 +104,7 @@
   - **A picture's labels in the HTML keep their space, and a picture in a formula, its math.**
     (1) The blank between `\textbf{Family:}` and `$xy$` in a `\node` was stripped as whitespace of
     an `svg:*` element, giving "Family:xy" (Perl's stylesheet does the same); a `foreignObject` now
-    preserves its blanks (divergence #597). Guard
+    preserves its blanks (divergence #976). Guard
     `foreignobject_label_markup::the_space_between_words_and_math_in_a_label_stays`. Two errors of
     the Rust port are fixed (docs/SYNC_STATUS.md "Rust error fixes"): (2) a picture inside a
     formula (`\overline{\left\{\begin{tikzpicture}...\right\}}`) gave its `m:mtext` the picture's
@@ -123,7 +123,7 @@
     (xeCJK.sty:6316-6329 `\__xeCJK_pass_args:nnnn`); `\setCJKmainfont`, `\setCJKromanfont`,
     `\setCJKsansfont`, `\setCJKmonofont`, `\setCJKmathfont`, `\CJKfontspec`, `\setCJKfamilyfont`
     and `\setCJKfallbackfamilyfont` now do the same, and a `[` after a name that had leading options
-    is text. Divergence #596; guards `xecjk_post_optional::options_after_the_font_name_are_arguments`,
+    is text. Divergence #975; guards `xecjk_post_optional::options_after_the_font_name_are_arguments`,
     `::options_before_the_font_name_are_arguments`,
     `::a_bracket_after_a_font_name_with_leading_options_is_text` and
     `::cjkfontspec_ignores_the_spaces_after_it` (`\CJKfontspec` ends in `\ignorespaces` too, xeCJK.sty:6378-6382).
@@ -134,7 +134,7 @@
     "Part I" in the heading, the contents and a `\ref` where the PDF reads "Part 1" in the heading, "1" in a
     reference and "Part 1." in the contents line. `amsart` and
     `amsproc` also close the heading's number with a full stop, "Part 1. Title", as for sections
-    (`\@secnumpunct`, amsart.cls:1059-1065). Divergence #595; guards
+    (`\@secnumpunct`, amsart.cls:1059-1065). Divergence #974; guards
     `amsart_part_number::amsart_parts_are_arabic`, `::amsproc_parts_are_arabic`,
     `::amsbook_parts_are_arabic` and `::article_parts_stay_roman`.
   - **A biblatex bibliography in an `alphabetic` style reads as biblatex prints it.**
@@ -161,7 +161,7 @@
     printed "References" for a book-mode class). Other styles keep MakeBibliography's rows, and so
     does a style that merely requires `alphabetic`. An eprint that is not arXiv's now carries
     `class="eprint"` in the `.bib` reader's XML (it shared `ltx:bib-links` with `archive`),
-    so the alphabetic list can print it as `JSTOR: …` or `eprint: …`; DIVERGENCES #601. Guards
+    so the alphabetic list can print it as `JSTOR: …` or `eprint: …`; DIVERGENCES #980. Guards
     `biblatex_standard_layout::*`.
   - **A raw class's size command no longer turns math letters upright.** `\@setfontsize` ended in
     `\selectfont`, which merges the text font's family, series and shape; run in math (memoir's
@@ -179,13 +179,13 @@
     parser's script attachment now reads the `scriptpos` of an `XMDual` base, its own and then its
     content branch's, as Perl's `NewScript` does. Guard
     `math_layout_parity::varlim_operators_take_display_limits_below` (all four, display and inline;
-    OXIDIZED_DESIGN_DIVERGENCES #598).
+    OXIDIZED_DESIGN_DIVERGENCES #977).
 
   - **`\widehat` stretches over its base.** The math fonts have wide-hat variants for U+0302, not for
     the ASCII `^` Perl presents it with, so `\widehat{\bigoplus}` and `\widehat{\mathfrak{gl}(1)}` showed
     a small caret at the base's left edge. `\widehat` is now `<mo>U+0302</mo>` over its base; `\hat` and
     `\widetilde` are unchanged. Guard `math_layout_parity::widehat_stretches_with_u0302`
-    (OXIDIZED_DESIGN_DIVERGENCES #599).
+    (OXIDIZED_DESIGN_DIVERGENCES #978).
 
   - **A script on an empty group after negative math space belongs to the atom before it.** fixdif's
     `\partial` and `\d` end in a `\mathchoice` of four choices (`\mskip-\thinmuskip` in the first two)
@@ -196,7 +196,7 @@
     limits (`\sum\!{}_{i}`), floats as before.
     Guards `math_layout_parity::{fixdif_script_binds_to_its_partial,
     fixdif_package_script_binds_to_its_partial, script_after_a_script_stays_staggered}`
-    (OXIDIZED_DESIGN_DIVERGENCES #600).
+    (OXIDIZED_DESIGN_DIVERGENCES #979).
 
   - **A post script that ends in a bare multiplicative operator parses.** Perl's `Subscript` rule reads
     `g *` in `L_{g *}` as two items joined by an invisible comma; the grammar had no such rule, so the
@@ -251,10 +251,10 @@
     unicode-math and ignores the key options (its raw file blanks `\hbar`, `\varPhi` and some
     ninety more symbols with `\Umathchardef`), and `memhfixc`, which only provides
     `\bookautorefname` and `\subfigureautorefname` (its patches call hyperref
-    internals LaTeXML lacks, so a raw load fails on `\book*`; OXIDIZED_DESIGN #592-593). The `futs`
+    internals LaTeXML lacks, so a raw load fails on `\book*`; OXIDIZED_DESIGN #971-972). The `futs`
     ornament font has a glyph map (`futs_fontmap.rs`) that `\FourierOrns` selects (a font switch still),
     in the `futs` and the TU (OTF) branch alike, so `\warning` is `⚠` and `\lefthand` is `☜` instead
-    of the slot letters `1` and `M` (OXIDIZED_DESIGN #591); fourier's Utopia text in the same `futs`
+    of the slot letters `1` and `M` (OXIDIZED_DESIGN #970); fourier's Utopia text in the same `futs`
     family stays text, and fourier.sty's `noOTF` option reaches fourier-orns under every persona.
     Under the default pdfTeX persona `ctex` itself errors, as pdflatex does (fontset
     auto-detection), and the xetex persona that the corpus protocol gives ctex documents loads it
@@ -279,7 +279,7 @@
     not read, so `\overline{\mathcal M}_{g,n}` spoke as `\mathcal M_{g,n}`. The bordered row
     is now the base of an accent `<mover>`/`<munder>` (Perl's structure, MathML.pm
     L1490-1506) whose `¯` is drawn at `mathsize="0"`; the border stays the visible rule
-    (OXIDIZED_DESIGN_DIVERGENCES #584). Guard `90_latexmlpost::overline_post_test`.
+    (OXIDIZED_DESIGN_DIVERGENCES #963). Guard `90_latexmlpost::overline_post_test`.
 
   - **A display equation's layout table is `role="presentation"`, and table header cells carry
     `scope`.** Nothing in the markup said that the `<table class="ltx_eqn_table">` placing a display
@@ -392,7 +392,7 @@
     when set, old-style ids such as `math/0211159` included), beside the DOI and URL
     links, for biblatex's `.bib` and for classic `\bibliography` alike. An eprint of
     another type or none stays text. Perl has the defect (BibTeX.pool.ltxml:724).
-    OXIDIZED_DESIGN_DIVERGENCES #585. Guards `bib_eprint_arxiv_link::*`.
+    OXIDIZED_DESIGN_DIVERGENCES #964. Guards `bib_eprint_arxiv_link::*`.
 
   - **cleveref's `\crefformat` and `\Crefformat` are honoured.** `\Crefformat{subsection}{第~#2#1#3~节}`
     printed "Section 3.2" for `\Cref` (only `\crefname` names took effect). A single
@@ -405,7 +405,7 @@
     `\Crefname`-only renames print as before, and a document with no format has the same
     XML. Not modelled: `\crefrangeformat`, `\crefmultiformat` and their `\Cref`/`label` forms;
     a format set after the label it shapes. Perl has the defect (cleveref.sty.ltxml:47-58).
-    OXIDIZED_DESIGN_DIVERGENCES #586. Guards `cleveref_crefformat::*`.
+    OXIDIZED_DESIGN_DIVERGENCES #965. Guards `cleveref_crefformat::*`.
 
   - **The lines of a multi-line TikZ node are a `\baselineskip` apart.** A node without
     `text width` (`\node[align=left]{a\\ b\\ c}`, any `align=`) is a nested
@@ -416,7 +416,7 @@
     adds its skip): 16.60 px between lines, the three-line `draw`n node 54.12 px high (was
     40.13). The rows of a `\matrix` and of `tikzcd` (`\offinterlineskip`), `text width`
     nodes and every HTML table are unchanged; a multi-line node inside a matrix cell gets
-    its own 12pt lines, as pdfTeX. Perl has the defect. OXIDIZED_DESIGN_DIVERGENCES #587. Guards
+    its own 12pt lines, as pdfTeX. Perl has the defect. OXIDIZED_DESIGN_DIVERGENCES #966. Guards
     `multiline_node_rows::*`.
 
   - **`\overline` and `\underline` are drawn rules in MathML.** They came out as
@@ -430,7 +430,7 @@
     operator's colour, over exactly the base (`\overline{\mathcal M}_{g,n}` rules the ℳ only),
     nested rules each drawn, `\underline{\overline X}` two rows instead of a `<munderover>`.
     Keyed on the operator's name: `\bar{z}` stays the narrow accent. LaTeXML.css keeps the
-    mrow clear of the text-mode `text-decoration`. OXIDIZED_DESIGN_DIVERGENCES #584. Guard
+    mrow clear of the text-mode `text-decoration`. OXIDIZED_DESIGN_DIVERGENCES #963. Guard
     `90_latexmlpost::overline_post_test`.
 
   - **A `\titleformat` heading keeps its number as a tag.** With titlesec's
@@ -448,7 +448,7 @@
     LaTeXML.css). The default label of `\titleformat*` ends in its own `\quad`,
     which stays inside the tag. Perl has the defect (titlesec.sty.ltxml:55, whose
     L49 comment worries about "inheritted CSS"). OXIDIZED_DESIGN_DIVERGENCES
-    #583, KNOWN_PERL_ERRORS #665. Guards `titlesec_label_tag::*`.
+    #962, KNOWN_PERL_ERRORS #1212. Guards `titlesec_label_tag::*`.
 
   - **biblatex's alphabetic styles label from the `.bib`.** `style=alphabetic`
     (and `alphabetic-verb`, `ieee-alphabetic`, `bibstyle=`/`citestyle=` pairs of
@@ -459,7 +459,7 @@
     honoured, as package options or `\ExecuteBibliographyOptions`), `a`/`b`
     after two equal labels, the list in label order. A `.bbl`'s own labels still
     win. Not modelled: `shorthand`/`label` fields, `uniquelist`, custom label
-    templates. OXIDIZED_DESIGN_DIVERGENCES #582. Guards
+    templates. OXIDIZED_DESIGN_DIVERGENCES #961. Guards
     `biblatex_alphabetic_labels::*`.
 
   - **memoir's table of contents is LaTeXML's, and memoir is styled as a
@@ -496,7 +496,7 @@
     indentation between a tabular's rows was text in table context, which the
     HTML parser moved in front of the `<table>`, a line of spaces that dropped
     the table below its line. Edge spaces of other text stay NBSP
-    (`\fbox{ q }` in math keeps them). OXIDIZED_DESIGN_DIVERGENCES #581. And `.ltx_tabular` resets
+    (`\fbox{ q }` in math keeps them). OXIDIZED_DESIGN_DIVERGENCES #960. And `.ltx_tabular` resets
     `text-indent`, which cells otherwise inherit from an indented paragraph
     (each ytableau box sat 2em right in a widened cell). Guards
     `ytableau_boxes::a_diagram_in_math_renders_on_its_line`,
@@ -520,7 +520,7 @@
     the row's columns, so ytableau's boxes kept only a row's first and last
     entries and drew no box. Such a rule is now the box's own, as in TeX, and a
     ytableau binding makes each box its cell's four borders, sized and centred
-    as in the PDF (fills included). KNOWN_PERL_ERRORS #661.
+    as in the PDF (fills included). KNOWN_PERL_ERRORS #1208.
 
   - **TikZ matrix and tikz-cd cells sit on their last row's baseline (#785).**
     `openTikzAlignment` placed a matrix at `y = h + d`; Perl
@@ -555,7 +555,7 @@
     is TeX's, and the parser reads an empty `\mathopen{}`/`\mathclose{}` and a
     `\mathclose`/`\mathopen` around one fence as spacing: the idiom parses as its
     `\left…\right` (2605.22010: unparsed formulas 287 → 5, every reading equal to
-    the paper's without its redefinition). OXIDIZED_DESIGN #580; guard
+    the paper's without its redefinition). OXIDIZED_DESIGN #959; guard
     `tests/parse/class_wrapped_fences`.
 
   - **A null delimiter no longer prints "CLOSE" or "OPEN".** The fence partner
@@ -583,22 +583,31 @@
     (set by Chinese documents after `\usepackage{xeCJK}`) were undefined; they
     are now read and kept, as HTML leaves line breaking to the browser.
 
-  - **A theorem or section inside a `quote` stays in the quote.** Both were
-    "isn't allowed in <ltx:quote>" errors (an author's theorem in a quote; a
-    class `\tableofcontents` wrapping its heading in one, as moduli.cls does).
-    The unit now opens a sectional block in the quote, the theorem a logical
-    block. OXIDIZED_DESIGN #271 addendum, KNOWN_PERL_ERRORS #664.
-
   - **A math `'` followed by `\sp` is one superscript.** The prime absorbed a
     following `^` only as that token, not by meaning as LaTeX's `\pr@m@s` does,
     so `\sp` (derivative.sty's `\pdv[order=2]{}{x'}`) gave "Double
-    superscript". KNOWN_PERL_ERRORS #663.
+    superscript". KNOWN_PERL_ERRORS #1210.
 
   - **`\pmod` no longer errors under memoir.** Its `mod` was set with plain
     TeX's `{\rm mod}`, and memoir makes `\rm` a class error, so every `\pmod`
     reported "Font command \rm is not supported" and printed `mod` as italic
     letters. The LaTeX layer now sets it in `\operator@font`, as latex.ltx
-    does. KNOWN_PERL_ERRORS #662.
+    does. KNOWN_PERL_ERRORS #1209.
+  - **`post::PostOptions::nodefaultresources` is now `default_resources`, with the
+    meaning inverted.** The double negative (`nodefaultresources: false`) is gone.
+    The positive name is Perl's option name (`Config.pm:120` `defaultresources!`),
+    and the XSLT step still receives its negation as `noresources`, as
+    `LaTeXML.pm:584` passes it. The CLI flags `--defaultresources` and
+    `--nodefaultresources` are unchanged.
+  - **New `api::convert_to_html_with(tex, &HtmlOptions)`.** `HtmlOptions` holds the
+    settings of the library's HTML entry point, and its `Default` is what
+    `api::convert_to_html(tex)` does, so that function is unchanged. The first
+    setting is `default_resources`; set it to `false` (the `--nodefaultresources`
+    equivalent) to get the page without links to the bundled CSS/JS and with
+    nothing written to the working directory. Construct `HtmlOptions` with
+    `..Default::default()`, so a setting added later leaves callers compiling. The
+    tests use it through `util::test::convert_to_html_page`, so a test run no
+    longer leaves `LaTeXML.css`/`ltx-*.css` in `latexml_oxide/`.
 
   - **The XSLT recursion cap now applies in the statically linked release
     binaries.** `xsltMaxDepth = 1000` (Perl `XML::LibXSLT->max_depth(1000)`) was

@@ -5,7 +5,7 @@
 //! rules came out beside the content. A box is its cell's border instead, as LaTeXML renders `\fbox` with a frame:
 //! top and bottom unless ytableau's horizontal rules are off (`\hrule@none@YT`), left and right unless its vertical
 //! ones are (`\vrule@none@YT`, `\ytableausetup{nobaseline}`'s skew fill), and the content in `\colorbox` for a filled
-//! box (`*(red)`). `\none` cells (`\omit\none@YT`) get no box, as in the PDF. KNOWN_PERL_ERRORS #661.
+//! box (`*(red)`). `\none` cells (`\omit\none@YT`) get no box, as in the PDF. KNOWN_PERL_ERRORS #1208.
 use crate::prelude::*;
 
 LoadDefinitions!({

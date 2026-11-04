@@ -1,7 +1,7 @@
 //! faktor.sty (v0.1b, 2006/04/05) — quotient structures `G/H` with a raised numerator and a
 //! lowered denominator.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(e). `\faktor[#1]{#2}{#3}`
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(e). `\faktor[#1]{#2}{#3}`
 //! (faktor.sty:33-37) typesets, in the current math style, `#1{#2}` raised by half its height,
 //! a `\diagup` slash kerned in by `\mkern-5mu`/`\mkern-4mu`, and `#1{#3}` lowered by half its
 //! height (`\faktor@impl`, :39-48). Here it is one application of a quotient operator (U+2571, the

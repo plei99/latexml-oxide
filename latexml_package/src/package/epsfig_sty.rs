@@ -68,10 +68,22 @@ LoadDefinitions!({
         }
       let options = opts.join(",");
       Ok(stored_map!("graphic" => file, "candidates" => candidates, "options" => options))
+    },
+    // Perl `sizer => \&image_graphicx_sizer` (epsfig.sty.ltxml:37), as graphicx's `\includegraphics`: the box is the
+    // file's size under the `width`/`height` keys. Without it the box was the size of its arguments, 0 for the file
+    // name the properties take out, so a `\subfigure[…]{\psfig{file=…,width=0.4\textwidth}}` panel was 0 wide and joined
+    // every row (cond-mat9707225, hep-ex0703011; guard `perfect_kernel_batch78t::psfig_panels_are_as_wide_as_their_keys`).
+    after_digest => sub[whatsit] {
+      util::image::image_graphicx_sizer(whatsit);
     });
   Let!("\\epsfig", "\\psfig");
-  DefConstructor!("\\DeclareGraphicsExtensions{}", "");
-  DefConstructor!("\\DeclareGraphicsRule{}{}{} Undigested", "");
+  // No `\DeclareGraphicsExtensions` of its own: epsfig.sty defines none, and Perl's `DefConstructor(…, '')`
+  // (epsfig.sty.ltxml:57) replaced graphics.sty's macro (graphics_sty.rs), so `\DeclareGraphicsExtensions{.pdf,.pdf_tex}`
+  // was typeset and its `_` erred (KNOWN_PERL_ERRORS #966). Guard:
+  // `perfect_kernel_batch73a::declare_graphics_extensions_is_not_typeset`.
+  // Not Perl's `DefConstructor('\DeclareGraphicsRule{}{}{} Undigested', '')` (epsfig.sty.ltxml:58): epsfig.sty
+  // defines no `\DeclareGraphicsRule`, and the redefinition dropped graphics.sty's rule (graphics_sty.rs), so a
+  // `\usepackage{epsfig}` lost gincltex's `.tex` rule (2408.06999; KNOWN_PERL_ERRORS #858, #921).
   def_primitive_noop("\\psdraft")?;
   def_primitive_noop("\\psfull")?;
   def_primitive_noop("\\pssilent")?;
@@ -104,5 +116,7 @@ LoadDefinitions!({
   def_primitive_noop("\\epsfverbosefalse")?;
   DefRegister!("\\epsfxsize" => Dimension::new(0));
   DefRegister!("\\epsfysize" => Dimension::new(0));
-  def_primitive_noop("\\epsfsize{}{}")?;
+  // epsfig.sty:60 `\def\epsfsize#1#2{\epsfxsize}`, as epsf.sty:648 (epsf_sty.rs; Perl epsfig.sty.ltxml:80 a no-op, which
+  // printed "=0.6" for `\epsfsize=0.6\textwidth`, nucl-th0009090; KNOWN_PERL_ERRORS #1117).
+  DefMacro!("\\epsfsize{}{}", "\\epsfxsize");
 });

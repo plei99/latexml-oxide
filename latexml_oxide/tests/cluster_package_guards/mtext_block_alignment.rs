@@ -1,5 +1,5 @@
 //! A stackengine stack in a formula is held in a line of its own, where it is centred (OXIDIZED_DESIGN_DIVERGENCES
-//! #607).
+//! #986).
 //!
 //! `\Centerstack` in a formula is an `ltx:inline-block vattach="middle"` in an `ltx:XMText`, which is
 //! `<m:mtext><span class="ltx_inline-block ltx_align_middle">` in the page. A child of an `mtext` is a block-level box

@@ -429,11 +429,31 @@ fn digest_step_guarded(boxes: &mut Vec<Digested>) -> Result<bool> {
       // in an `<ERROR>` box — so there is no loop to re-enter, and the
       // current level is honest content (the paragraph in progress). Input
       // after the Fatal stays unread, as in Perl.
-      let drop_innermost = match e.target {
-        ErrorTarget::Stomach => Some(true),
-        ErrorTarget::TooManyErrors => Some(false),
+      //
+      //
+      // The conditional guard (`Timeout:IfLimit`) keeps everything too: a run of conditionals adds no boxes of its own,
+      // so the current level is the document's (for a loop in the body's own paragraph, the whole body), and the
+      // salvage's own ceiling still refuses a loop that piles up boxes. A finite figure-heavy paper reaches the limit as
+      // surely as a loop: 2006.14937's 24 matplotlib `.pgf` figures (5.3 MB) trip it at the ninth, and the whole paper
+      // was a 39-byte stub.
+      let drop_innermost = match (&e.target, &e.category) {
+        (ErrorTarget::Stomach, _) => Some(true),
+        (ErrorTarget::TooManyErrors, _) | (ErrorTarget::Timeout, ErrorCategory::IfLimit) => {
+          Some(false)
+        },
         _ => None,
       };
+      // What is kept still has to be built. The Fatal is announced and its document kept, so it leaves the latch the math
+      // parser reads a resource Fatal from (`take_last_resource_fatal`): left there, the first formula a semantic action
+      // rejects took it for its own and dropped the document; `resource_fatal_latched` stays set. A conditional of the
+      // build (a rewrite's, a constructor's) would trip the spent guard again, so the phases after digestion get its
+      // budget afresh, and a loop the build re-enters still ends at the limit.
+      if matches!(e.category, ErrorCategory::IfLimit) {
+        error::take_last_resource_fatal();
+        if state::if_limit() > 0 {
+          state::set_if_limit(state::if_count() + state::if_limit());
+        }
+      }
       if let Some(drop_innermost) = drop_innermost {
         let salvaged = stomach::salvage_pending_box_lists(drop_innermost);
         if !salvaged.is_empty() {
@@ -588,6 +608,11 @@ fn load_source_latexml_rules() {
 fn finish_document(document: &mut Document) -> Result<()> {
   // Every reference is built (forward ones too, the eager and streaming paths alike): the diagnostics a held tag
   // deferred (an `\autoref` name, ruling 7e) are raised for the tags a reference prints.
+  // (an empty held tag no target settled is tied to its owner's labels first, `settle_empty_held_tags`)
+  if let Some(root) = document.get_document().get_root_element() {
+    latexml_engine::latex_constructs::settle_empty_held_tags(document, &root);
+  }
+  latexml_core::util::logger::settled_empty_held_tags();
   latexml_core::util::logger::replay_shown_deferred();
   // Lines of nothing but float-boxes give way to their floats (57g), once the document is built;
   // spilled streaming segments get the same pass in `streaming_pass2`.
@@ -925,8 +950,9 @@ fn streaming_pass2(
           }
         }
       }
-      // The segment's share of `finish_document`'s float-box pass (57g).
+      // The segment's share of `finish_document`'s float-box pass (57g) and of its held-tag settling.
       if let Some(root) = frag.get_document().get_root_element() {
+        latexml_engine::latex_constructs::settle_empty_held_tags(&mut frag, &root);
         latexml_engine::latex_constructs::settle_float_paragraphs(&mut frag, &root)?;
       }
       if let Some(rules) = &rules_opt {

@@ -1,7 +1,7 @@
 //! nccmath.sty (ncctools v1.3, 2006/01/20) — medium-size math, display-style arrays and amsmath
 //! extensions.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(w). nccmath requires amsmath
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(w). nccmath requires amsmath
 //! (nccmath.sty:31) and adds: `\medmath{x}`, `x` as an ordinary atom in display style at a medium size
 //! (80% of the font size, 83% above 11.5pt, rounded to whole points, :60-88, :167-170), with `\medop`,
 //! `\medint`, `\mfrac`, `\mbinom` and the `medsize`/`mmatrix` environments built on it (:171-183);

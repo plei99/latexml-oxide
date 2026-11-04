@@ -1,6 +1,6 @@
 //! stackengine.sty (v4.11, 2021/07/22) — stacks of objects over and under an anchor.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(b). The package builds every stack
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(b). The package builds every stack
 //! with `\stackengine{gap}{anchor}{item}{O|U}{l|c|r}{quiet}{useanchorwidth}{S|L}`
 //! (stackengine.sty:203-255): the anchor sits on the baseline and the item is raised over it (`O`)
 //! or lowered under it (`U`) by a gap measured from the boxes (`S`) or baseline to baseline (`L`),

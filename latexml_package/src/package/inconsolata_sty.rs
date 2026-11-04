@@ -1,6 +1,6 @@
 //! inconsolata.sty (inconsolata-zi4, v1.12 2019/05/17) — Inconsolata as the typewriter font.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(n). The package makes `zi4` the
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(n). The package makes `zi4` the
 //! `\ttdefault` (or, under `nott`, the `\rmdefault`, inconsolata.sty:31-32, :51-56), so
 //! `\ttfamily`/`\texttt` text is typewriter (`zi4` is the typewriter family in the font model,
 //! font.rs). Its glyph options pick character variants of the font (`var0` slashed zero, `varl`,

@@ -1,6 +1,6 @@
 //! epic.sty (Sunil Podar, 1986-1990) — enhancements to the `picture` environment.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(i). epic draws its lines out of
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(i). epic draws its lines out of
 //! dots, dashes and line-font characters placed with `\raise\hbox to\z@{\hskip…}` (epic.sty:162-174),
 //! which a raw load would turn into text boxes, not drawing; here each command is the drawing it makes,
 //! in the picture model the kernel's `\line`/`\circle` emit (`ltx:line`, `ltx:rect`, `ltx:circle`, in

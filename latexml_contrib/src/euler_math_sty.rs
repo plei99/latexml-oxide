@@ -12,7 +12,7 @@
 //! `iftex.sty.ltxml:61` makes it a no-op; witnesses 2605.02089, 2605.16477), so the package loads under the default
 //! persona too, `\iftutex` stays defined for the document, and a later change to that rule applies here. Not
 //! provided: `\setmathfont` features (:30-35) and the names only the file defines (`\varemptyset`,
-//! `\lesseqslantgtr`, …). OXIDIZED_DESIGN #592.
+//! `\lesseqslantgtr`, …). OXIDIZED_DESIGN #971.
 use latexml_package::prelude::*;
 
 LoadDefinitions!({

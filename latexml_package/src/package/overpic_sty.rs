@@ -3,7 +3,7 @@ use crate::prelude::*;
 #[rustfmt::skip]
 LoadDefinitions!({
   // Perl: overpic.sty.ltxml requires graphicx + epic. epic is a native binding
-  // (epic_sty.rs, OXIDIZED_DESIGN #588(i)); the `grid` option draws with its `\grid`.
+  // (epic_sty.rs, OXIDIZED_DESIGN #967(i)); the `grid` option draws with its `\grid`.
   RequirePackage!("graphicx");
   RequirePackage!("epic");
 

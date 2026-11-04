@@ -753,7 +753,7 @@ should use the guardian by default.
 
 ## 38. `\vspace` is the faithful DefMacro; a "doesn't fire" mode-gated primitive means suspect the UPSTREAM mode-setter
 
-**Superseded for text in a paragraph by [OXIDIZED_DESIGN #603](OXIDIZED_DESIGN_DIVERGENCES.md):** in a paragraph's text
+**Superseded for text in a paragraph by [OXIDIZED_DESIGN #982](OXIDIZED_DESIGN_DIVERGENCES.md):** in a paragraph's text
 `\vspace` emits nothing (the paragraph stays whole, the space is dropped and nothing is queued; a `p{}` cell's text and a
 minipage's drop it too, as does the body of an environment with no mode of its own, outside a box). The `\vskip`
 described here stays in vertical mode, in restricted horizontal mode (`\mbox`, `l`/`c` cells), in math, and after a rule
@@ -1828,7 +1828,7 @@ or `//` are unaffected.
 **Witness:** PR-2767 port, `\lx@frontmatter@fallback` — frontmatter
 (title/creator) landed at the *end* of `<ltx:document>` instead of
 after the `ltx:resource` block; caught by `the `20_digestion` `rebox` fixture (`tests/digestion/rebox.{tex,xml}`)`.
-Fixed in `base_utilities.rs` by using
+Fixed in `base_utilities/frontmatter/titlepage_layout.rs` by using
 `/ltx:document/ltx:resource[last()]`.
 
 ## #60 libxml string accessors silently fail on namespaced `xml:id`/`xml:lang` — and a *masked* broken accessor is not automatically a bug
@@ -1934,7 +1934,7 @@ emulateapj).
 
 ## 41. Frontmatter fallback DOM surgery: three construction-time traps
 
-Context: `base_utilities.rs` `\lx@frontmatter@fallback` + `maybe_promote_leading_title`
+Context: `base_utilities/defs/author_macros.rs` `\lx@frontmatter@fallback` + `maybe_promote_leading_title` (`base_utilities/frontmatter/titlepage_layout.rs`)
 (the beyond-Perl "keep abstract below a hand-formatted title block" ordering fix
 and the "promote a leading centered display block to `<ltx:title>`" heuristic for
 `\title`-less papers, e.g. arXiv 1609.07638). Three traps bite any code that
@@ -2745,7 +2745,7 @@ it agrees with the bug. Compare glyphs against Perl, or read the rendered page.
 Witness 2503.04421. Guards: `latexml_oxide/tests/fonts/bbding.{tex,xml}` and
 `tests/116_bbding_family_fontmap.rs`. The same primitive also lacked Perl's
 `reported_unrecognized_font_*` report-once guards (`already_reported` in
-`latexml_engine/src/base_utilities.rs`), which had turned one unrecognized
+`latexml_engine/src/base_utilities/util_text.rs`), which had turned one unrecognized
 family into 28 identical `Info` lines.
 
 Settled dead end: Perl's `DeclareFontMap` `(uppercase|lowercase|digit)_mathstyle`
@@ -3078,3 +3078,42 @@ partner outside the formula (a plain `{…}` group included) looks more general 
 wherever the author's `$` follows (`{\bf $x} y$ after.` — "after." became math); the frame stack cannot tell a
 forgotten `$` from a stray `}` inside a plain group, only `$`-parity in the rest of the paragraph could. OXIDIZED_DESIGN
 #553.
+
+## 98. A parked fleet child is read with gdb and the shipped binary's exact twin, built with symbols
+
+The fleet's `maxperf-cortex` worker is stripped, so a stuck child's `thread apply all bt` is a column of `?? ()`. Rebuild
+the deployed commit in a separate worktree and target directory with `CARGO_PROFILE_MAXPERF_CORTEX_STRIP=none`, after
+copying the main checkout's `resources/dumps/` into it: latexml_engine's build.rs generates code for the embedded dumps,
+so a worktree without them builds a `.text` 17 KB off (with them, 192 bytes, from the paths' lengths). Then map each
+frame by its call site, not by a fixed shift: take the 20 bytes before the return address in the fleet binary's
+`.text` (`objcopy -O binary --only-section=.text`), find them near the same offset in the twin's, and name the twin's
+function there (`nm -C`, sorted). Frames inside the standard library whose call bytes hold a relocated address do not
+match; a naive shift names those. Two process facts make a parked child stand out: all of its threads sleep in a futex
+(`/proc/<pid>/task/*/wchan`), and its CPU time stops growing between two `ps -o times` samples while its age runs past
+the timeout (a harness child converts many papers, so its age alone means nothing). This found the 67m
+allocation-failure-hook deadlock (SYNC_STATUS 67m).
+
+## 99. A binding that reads a file raw is a `RawRead` declaration, not a hand-rolled load
+
+A class or package binding that reads the TeX Live file, or the copy an author's class the paper ships, raw and then
+adjusts it declares a `latexml_package::shipped_class::RawRead` and calls `read_raw`, which owns the order and the
+no-copy path: the paper's copy for a `shipped` class (`requested_shipped_class`, a renamed or path-prefixed request
+included), else OmniBus with the loader's missing-file Warning (`omnibus_without_copy`, silent when the prefix
+fallback already warned); `held` definitions locked against the file's own while it is read and restored after
+(pasa.cls's era `\@popfilename`); `restored` meanings the file overrides with an older kernel's copy, restored after
+(pasa.cls's `\@pushfilename`); `setters` — a store the file defines turned into a frontmatter API body with `#1` its
+argument, the grammar of K11's `STORE_SETTERS`, only when the file defines it (an.cls `\aaabstract`, cclayout's
+`\for@cc@subject`, asmejour's `\keywords`); then `after` TeX. `read_raw` returns `false` when the class fell to
+OmniBus, so version-dependent Rust (an.cls v1.03's labelled store, a family's "only named like it" checks) runs only
+after a real read. Hand-rolled copies of this sequence drifted before it existed: some no-copy branches warned and
+some did not, and a forgotten `AUTHOR_FILE_STAND_INS` entry failed the gates (deepseek, pasa). A new author-file
+binding still needs its name in `AUTHOR_FILE_STAND_INS`; `perfect_kernel_batch68d::every_binding_outside_tex_live_is_listed`
+names any it misses.
+
+## 100. The schema model is not loaded at digest time — decide model questions in a constructor
+
+`document::can_contain_qname` at digest time returns false for every pair but the `_Capture_`/`#Comment`/`_WildCard_` fast paths (latexml_core/src/common/model.rs): the model is loaded with the document head
+(latexml_oxide `core_interface.rs` `build_document_head`, as Perl's `convertDocument` loads it after digestion, since
+a binding may still change the schema while digesting). A digest-time rule keyed on "can this element hold X" silently
+never fires. Record what the rule needs on the whatsit at digest (an `after_digest` property, e.g. the frontmatter
+field the `\par` was digested in) and ask the model in the constructor (`frontmatter_paragraph_break`, OD #766).

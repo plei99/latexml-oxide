@@ -17,11 +17,11 @@ LoadDefinitions!({
   DefMacro!("\\LT@array[]{}",
     r"\lx@longtable@bindings{#2}\@@longtable[#1]{#2}\lx@begin@alignment");
   DefMacro!("\\endlongtable",
-    r"\lx@end@alignment\@end@tabular\endgroup");
+    r"\lx@end@alignment\@end@tabular\endgroup\lx@longtable@labeltype");
   // {longtable*} is defined in revtex4-1 to be able to span a two column document
   DefMacro!("\\csname longtable*\\endcsname", r"\begingroup\LT@array");
   DefMacro!("\\csname endlongtable*\\endcsname",
-    r"\lx@end@alignment\@end@tabular\endgroup");
+    r"\lx@end@alignment\@end@tabular\endgroup\lx@longtable@labeltype");
   // acro.sty's `patch/longtable` (default true) `\patchcmd`s longtable.sty's `\endlongtable` at
   // begindocument/before to switch acronyms off in repeated table heads, which a table here never
   // has; this `\endlongtable` is not longtable.sty's, so the patch failed with "Patching `longtable'
@@ -34,7 +34,7 @@ LoadDefinitions!({
   DefMacro!("\\@gobble@optional[]", None);
   DefMacro!("\\lx@LT@newpage", "\\noalign{\\break}");
 
-  DefConstructor!("\\@@longtable [] Undigested DigestedBody",
+  DefConstructor!("\\@@longtable OptionalPosition Undigested DigestedBody",
     "<ltx:table xml:id='#id' inlist='lot' labels='#label'>#tags?#headcaption(<ltx:caption>#headcaption</ltx:caption>)?#headtoccaption(<ltx:toccaption>#headtoccaption</ltx:toccaption>)#3?#footcaption(<ltx:caption>#footcaption</ltx:caption>)?#foottoccaption(<ltx:toccaption>#foottoccaption</ltx:toccaption>)</ltx:table>",
     reversion => r"\begin{longtable}[#1]{#2}#3\end{longtable}",
     before_digest => {
@@ -196,10 +196,30 @@ LoadDefinitions!({
   // The caption's text, `\lx@longtable@caption@text{<short>}{<caption>}`, is apart from the row the caption ends
   // (`\lx@longtable@caption@row`): a class whose own longtable makes its caption a `\noalign` takes the text without
   // the row (pasj00.cls `\@lt@setcaption`, latexml_contrib `pasj00_cls::pasj_class`).
-  DefMacro!("\\lx@longtable@caption[]{}",
+  // longtable.sty:471-474 `\LT@capti@n`: `\caption*{text}` is `\LT@c@ption\@gobble[]{text}`, the text alone — no
+  // "Table n:" (the `\@gobble` eats `\fnum@table`), no List of Tables line (`[]` empty); the table keeps the number its
+  // begin stepped. Perl's `\lx@longtable@caption[]{}` (longtable.sty.ltxml:127) has no star and took `*` as the caption
+  // ("Table 2: *", the text lost; KNOWN_PERL_ERRORS #363). Guard
+  // `perfect_kernel_batch77s::longtable_starred_caption_keeps_its_text`. With caption loaded the text takes caption's
+  // fonts, as its `\LT@makecaption` makes every longtable caption (caption.sty:1167; `\lx@format@scaption@@`).
+  DefMacro!("\\lx@longtable@caption",
+    r"\@ifstar\lx@longtable@scaption\lx@longtable@caption@nostar");
+  DefMacro!("\\lx@longtable@caption@nostar[]{}",
     r"\lx@longtable@caption@text{#1}{#2}\lx@longtable@caption@row");
+  DefMacro!("\\lx@longtable@scaption{}",
+    r"\lx@longtable@caption@{}{\lx@format@scaption@@{table}{#1}}\lx@longtable@caption@row");
+  // longtable.sty:475-483 `\LT@makecaption` sets "Table 1: text" itself (`#1{#2: }#3`), whatever the class's
+  // `\@makecaption` is (IEEEtran's "TABLE I" over its text, amsart's "Table 1. text": `\lx@makecaption`,
+  // latex_constructs_rust_only.rs); caption, when loaded (not its kernel alone), formats it as a table's
+  // (caption.sty:1167), and a binding that ports its class's or package's own `\LT@makecaption` as its table format
+  // marks it (`\lx@longtable@classformat`: emulateapj.cls:1303-1313, caption2.sty:338). Guards
+  // `perfect_kernel_batch78y::{ieeetran_listings_caption_takes_the_figure_format,
+  // amsart_newfloat_caption_takes_the_class_format, caption_under_an_ams_class_closes_every_type_with_a_period}`.
   DefMacro!("\\lx@longtable@caption@text{}{}",
-    r"\lx@longtable@caption@{\lx@format@toctitle@@{table}{\if\relax\detokenize{#1}\relax\expandafter\@firstoftwo\else\expandafter\@secondoftwo\fi{#2}{#1}}}{\lx@format@title@@{table}{#2}}");
+    r"\lx@longtable@caption@{\lx@format@toctitle@@{table}{\lx@toc@copy@text{#1}{#2}}}{\begingroup\lx@longtable@format\lx@format@caption@@{table}{#2}\endgroup}");
+  RawTeX!(r"\def\lx@longtable@format{\@ifundefined{lx@longtable@classformat}{\@ifpackageloaded{caption}%
+{\@ifundefined{lx@caption@kernel@only}{}{\lx@longtable@ownformat}}{\lx@longtable@ownformat}}{}}
+\def\lx@longtable@ownformat{\long\def\format@title@table##1{\lx@tag[][: ]{\lx@fnum@@{table}}##1}}");
   DefPrimitive!("\\lx@longtable@caption@{}{}", sub[(toccap, cap)] {
     // caption's `\LT@makecaption` (caption.sty:1167, :1171): `\caption@LT@settype` — the table
     // type, a pending continuation cleared — and `\caption@prepare@stepcounter` (the table was
@@ -214,15 +234,74 @@ LoadDefinitions!({
     assign_value("LONGTABLE_CAPTIONS", captions, Some(Scope::Global));
     Ok(())
   });
+  // A caption whose row already holds a cell's text (`x & \caption{…}\\`) is no row of its own: longtable's `\caption`
+  // is a `\noalign` (longtable.sty:455-457 `\LT@caption`), which pdflatex reports as "Misplaced \noalign" and
+  // typesets the cells around it, so the row keeps them (it was dropped whole with the caption, "x" lost with 0
+  // errors). A caption opening its row alone — directly or in a spanning `\multicolumn` — still leaves the row empty,
+  // dropped as above.
   DefPrimitive!("\\lx@longtable@caption@row", sub[_args] {
-    assign_value("LONGTABLE_CAPTION_ROW", true, Some(Scope::Global));
+    let text_before = lookup_alignment().is_some_and(|stored| {
+      stored.alignment_cell().is_some_and(|cell| {
+        let alignment = cell.borrow();
+        let current = alignment.current_column_number();
+        alignment.is_in_column()
+          && current > 1
+          && alignment.current_row().is_some_and(|row| {
+            row.get_columns().iter().take(current - 1).any(|column| {
+              column.boxes.as_ref().is_some_and(typesets_content)
+            })
+          })
+      })
+    });
+    if text_before {
+      Error!(
+        "unexpected",
+        "\\caption",
+        "Misplaced \\noalign: a longtable \\caption begins its row; the cells before it are kept"
+      );
+    } else {
+      assign_value("LONGTABLE_CAPTION_ROW", true, Some(Scope::Global));
+    }
     Ok(())
   });
-  DefPrimitive!("\\lx@longtable@label Semiverbatim", sub[(label)] {
-    // Perl: AssignValue(LONGTABLE_LABEL => CleanLabel(ToString($label)), 'global')
-    let label = clean_label(&label.to_string(), None).into_owned();
-    assign_value("LONGTABLE_LABEL", Stored::String(pin(label)), Some(Scope::Global));
+  // cleveref's `\label[type]{key}` (cleveref.sty `\label` takes an optional type) reads its type here too: read as the
+  // key, `[` labelled the table and the rest was typeset. The type goes on after the table (`\endlongtable`'s
+  // `\lx@longtable@labeltype`), where the built table is the object `\lx@label@type` finds — as the sites that move a
+  // trailing `\label` into a caption give it (sect11.rs `typed_label`; KNOWN_PERL_ERRORS #998; 2508.14936, 30 Errors
+  // -> 0). Without cleveref the type is read too (OXIDIZED_DESIGN #552). Guard
+  // `perfect_kernel_batch77s::label_type_in_caption_text`.
+  // Every `\label` in the table names it (LaTeX's `\@currentlabel` there is the table's number, or the enclosing unit's
+  // before a `\caption`), so the table keeps them all: a notation table's `\label` per row with a `\pageref` beside it
+  // (2211.06081: 3 dangling). Perl's `AssignValue(LONGTABLE_LABEL => …)` (longtable.sty.ltxml:134-135) kept the last
+  // (KNOWN_PERL_ERRORS #1175).
+  // The key is expanded, as LaTeX's `\label` writes it (`\protected@write\@auxout{}{\string\newlabel{#1}…}`): a key
+  // built from macros (`\label{\FloatPre t:\ltbcp}`, 1703.09144's table chapters) labelled every such table with the
+  // macro names, so each `\ref{MCSt:WBS}` dangled. Perl takes `ToString` of the unexpanded key (longtable.sty.ltxml:135;
+  // KNOWN_PERL_ERRORS #1179).
+  DefPrimitive!("\\lx@longtable@label [] Semiverbatim", sub[(ty, label)] {
+    let label = clean_label(&Expand!(label).to_string(), None).into_owned();
+    let labels = match lookup_value("LONGTABLE_LABEL") {
+      Some(Stored::String(previous)) => {
+        let previous = to_string(previous);
+        if previous.split(' ').any(|known| known == label) {
+          previous
+        } else {
+          s!("{previous} {label}")
+        }
+      },
+      _ => label,
+    };
+    assign_value("LONGTABLE_LABEL", Stored::String(pin(labels)), Some(Scope::Global));
+    assign_value("LONGTABLE_LABEL_TYPE", ty.map_or(Stored::None, Stored::Tokens), Some(Scope::Global));
     Ok(())
+  });
+  DefMacro!("\\lx@longtable@labeltype", sub[_args] {
+    let ty = lookup_value("LONGTABLE_LABEL_TYPE");
+    assign_value("LONGTABLE_LABEL_TYPE", Stored::None, Some(Scope::Global));
+    match ty {
+      Some(Stored::Tokens(ty)) => Ok(Tokens::new(engine::latex_constructs::label_type(Some(ty)))),
+      _ => Ok(Tokens!()),
+    }
   });
 
   // Not used, but must be defined.
@@ -285,6 +364,7 @@ fn longtable_bindings(template: Template) -> Result<()> {
   let_i(&T_CS!("\\kill"), &T_CS!("\\lx@longtable@kill"), None);
 
   assign_value("LONGTABLE_LABEL", Stored::None, Some(Scope::Global));
+  assign_value("LONGTABLE_LABEL_TYPE", Stored::None, Some(Scope::Global));
   assign_value("LONGTABLE_CAPTIONS", Stored::None, Some(Scope::Global));
   // Clear any leaked caption/kill row-drop flag from a prior table (#534): the
   // flag is normally consumed by the caption/kill row's `\\`, but a malformed

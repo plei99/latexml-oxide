@@ -5,7 +5,7 @@
 //! the lines on top of one another; the node's box was 22pt short of pdfTeX's `\box0` (30.94444pt + 1.49998pt).
 //! pgf's matrices set `\offinterlineskip` before their `\halign` (pgfmodulematrix.code.tex:181), which leaves no
 //! glue, so their rows (a `\matrix`, a `tikzcd`) keep the spacing their cells give them. Perl has no interline glue
-//! here either (Alignment.pm `normalize_sum_sizes` sums the row heights and depths): OXIDIZED_DESIGN_DIVERGENCES #587.
+//! here either (Alignment.pm `normalize_sum_sizes` sums the row heights and depths): OXIDIZED_DESIGN_DIVERGENCES #966.
 use regex::Regex;
 
 use super::perfect_kernel_batch46::{convert, error_count, warning_count};

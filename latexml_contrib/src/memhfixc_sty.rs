@@ -10,7 +10,7 @@
 //! pdfTeX's hyperref defines and LaTeXML's hyperref binding does not (a raw load turns a `\book*` into
 //! `Error:undefined:\Hy@MakeCurrentHrefAuto`), and the macros it patches (`\M@sect`) are not the ones the native
 //! sectioning runs (`\@startsection`, sect04.rs). LaTeXML's own memoir and hyperref bindings make the anchors and ids.
-//! OXIDIZED_DESIGN #593; guard
+//! OXIDIZED_DESIGN #972; guard
 //! `native_notes_bindings::memhfixc_provides_its_names_for_memoir_with_hyperref`.
 use latexml_package::prelude::*;
 

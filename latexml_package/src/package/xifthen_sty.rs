@@ -1,6 +1,6 @@
 //! xifthen.sty (v1.4.0, 2015/11/05) — more tests for ifthen's `\ifthenelse`.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(u). The package adds tests to
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(u). The package adds tests to
 //! ifthen's evaluator: each test is a macro that `\TE@throw`s TeX conditional code into the
 //! expression ifthen's `\TE@eval` builds (xifthen.sty:72-171): `\cnttest{a}{op}{b}` and
 //! `\dimtest{a}{op}{b}` (calc expressions, `<` `=` `>` `<=` `>=`), `\isnamedefined{name}`,

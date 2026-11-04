@@ -1,6 +1,6 @@
 //! The labels of a picture are HTML, set in the picture's `foreignObject`s. Two things about a picture in a formula
 //! were errors of the Rust port (the stylesheet that mishandled the first is Perl's, byte for byte), and one is a
-//! stylesheet rule of Perl's that the fork changes (OXIDIZED_DESIGN_DIVERGENCES #597).
+//! stylesheet rule of Perl's that the fork changes (OXIDIZED_DESIGN_DIVERGENCES #976).
 //!
 //! 1. A picture inside a formula (`\overline{\left\{\begin{tikzpicture}...\right\}}`, a boundary divisor of a
 //!    moduli space) reaches the HTML as an `m:mtext` holding the picture. A `$T^C$` label of that

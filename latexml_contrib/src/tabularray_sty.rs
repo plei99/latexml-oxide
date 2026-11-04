@@ -190,6 +190,9 @@ struct ParsedColspec {
   cols:    String,
   ncols:   usize,
   unknown: Option<char>,
+  /// Each column's options as written (`Q[…]`/`X[…]`'s, empty for the others): its cell keys
+  /// (`mode=math`, `cmd=…`; tabularray.sty:2866-2880).
+  keys:    Vec<String>,
 }
 
 /// [`parse_colspec`] with its column count and unknown column types; `None` for a construct left
@@ -197,8 +200,9 @@ struct ParsedColspec {
 fn parse_colspec_full(spec: &str, types: ColumnTypes) -> Option<ParsedColspec> {
   let mut ncols = 0usize;
   let mut unknown = None;
-  let cols = parse_colspec_capped(spec, 0, &mut ncols, types, &mut unknown)?;
-  Some(ParsedColspec { cols, ncols, unknown })
+  let mut keys = Vec::new();
+  let cols = parse_colspec_capped(spec, 0, &mut ncols, types, &mut unknown, &mut keys)?;
+  Some(ParsedColspec { cols, ncols, unknown, keys })
 }
 
 /// The widest row of the table body that follows, read ahead and put back: tabularray reads the body
@@ -210,10 +214,22 @@ fn parse_colspec_full(spec: &str, types: ColumnTypes) -> Option<ParsedColspec> {
 /// source) — and the read stops at `TBLR_BODY_READ_CAP` tokens: it never runs on through the rest of
 /// the document, which it would tokenize ahead of any verbatim there. Guard
 /// `perfect_kernel_batch57::tabularray_math_tables`.
-fn tblr_body_width() -> Result<usize> {
+fn tblr_body_width() -> Result<usize> { Ok(tblr_body_shape()?.0) }
+
+/// The widest row and the row count of the table body that follows ([`tblr_body_width`]'s read).
+fn tblr_body_shape() -> Result<(usize, usize)> {
   let scan = tblr_scan_body(TBLR_BODY_READ_CAP)?;
   unread(Tokens::new(scan.tokens));
-  Ok(scan.widest)
+  Ok((scan.widest, scan.rows))
+}
+
+/// The widest row and the row count of a table body held in a token list ([`tblr_body_shape`]'s scan of it).
+fn tblr_shape_of(body: Vec<Token>) -> Result<(usize, usize)> {
+  let mut input = body;
+  input.extend(TokenizeInternal!("\\end{lx@tblr@body}").unlist());
+  unread(Tokens::new(input));
+  let scan = tblr_scan_body(usize::MAX)?;
+  Ok((scan.widest, scan.rows))
 }
 
 /// The table body that follows, read up to the `\end{…}` that ends it ([`tblr_body_width`]'s rule),
@@ -240,6 +256,8 @@ struct TblrBodyScan {
   tokens: Vec<Token>,
   end_at: Option<usize>,
   widest: usize,
+  /// The rows: the row ends, and a last row after the last one that holds more than spaces and `\par`s.
+  rows:   usize,
 }
 
 fn tblr_scan_body(cap: usize) -> Result<TblrBodyScan> {
@@ -272,10 +290,24 @@ fn tblr_scan_body(cap: usize) -> Result<TblrBodyScan> {
   };
   let mut open_envs: Vec<String> = Vec::new();
   let (mut depth, mut widest, mut cells) = (0usize, 0usize, 1usize);
+  let (mut rows, mut row_open) = (0usize, false);
   while body.len() < cap
     && let Some(t) = read_token()?
   {
     body.push(t);
+    let row_end = depth == 0
+      && open_envs.is_empty()
+      && (is_cs(&t, "\\\\") || is_cs(&t, "\\cr") || is_cs(&t, "\\tabularnewline"));
+    // (a last row of one cell whose text, trimmed of spaces and `\par`s, is empty is no row, tabularray.sty:3722-3731
+    // and :3739-3755: the blank line before `\end{tblr}`)
+    if row_end {
+      rows += 1;
+      row_open = false;
+    } else if t.get_catcode() != Catcode::SPACE
+      && !(depth == 0 && (is_cs(&t, "\\end") || is_cs(&t, "\\par")))
+    {
+      row_open = true;
+    }
     match t.get_catcode() {
       Catcode::BEGIN => depth += 1,
       Catcode::END => depth = depth.saturating_sub(1),
@@ -315,8 +347,302 @@ fn tblr_scan_body(cap: usize) -> Result<TblrBodyScan> {
     tokens: body,
     end_at,
     widest: widest.max(cells),
+    rows: rows + usize::from(row_open),
   })
 }
+/// The table body with tabularray's spanned cells made alignment spans: a cell's `\SetCell[r=<m>,c=<n>]{<keys>}`
+/// (tabularray.sty:2542-2615 `\tblr_set_cell:nn`, the `cell/outer` keys `r`/`c`, :2611-2615) spans `n` columns and
+/// `m` rows; the author leaves the covered cells empty, and tabularray typesets the spanned cell over them. The
+/// command becomes `\lx@tblr@cell@span{<m>}`, which gives the cell its row span (as `\multirow` does), and the cell
+/// takes the `n-1` cells after it, their text (if any) kept in it: the column separators between them become the
+/// primitive `\span` (as `\multispan` spans), so the cell keeps its columns' templates — their rules and the first
+/// one's alignment, as tabularray's spanned cell keeps the first column's `halign` unless its keys set one. The keys
+/// (`l`, `c`, `r`, `halign=`, `bg`, `font`, `mode`, …) stay unrendered, as before: a `\multicolumn` for the `halign`
+/// would replace the columns' templates and drop their rules, which tabularray draws apart from the cell
+/// (`colspec={Q[l]|l}` with `\SetCell[c=1]{c}`, 2408.02133; `\SetCell{c, gray9}` in a `c |` column, 2403.06461).
+/// tabularray finds the command among the cell's own tokens, unexpanded (its extractor, :3770-3860), so only a
+/// `\SetCell` written in the table body is read, at the body's own level: never one in braces or in an environment
+/// of a cell; it is at the cell's start after any row-level table command (`\hline \SetCell…`, `\SetRow{…}`) and after
+/// a row end's `*`/`[<space>]` (`table_command_end`). Probe `tblr.tex` (sel78k; "Wide" `c=2`, "Tall" `r=2`); guard
+/// `perfect_kernel_batch78l::{tblr_setcell_spans_columns_and_rows, tblr_setcell_after_a_row_rule_spans}`.
+fn tblr_span_cells(body: Vec<Token>, math: bool) -> Vec<Token> {
+  let is_cs = |t: &Token, name: &str| t.get_catcode() == Catcode::CS && t.with_str(|s| s == name);
+  let is_other = |t: &Token, c: &str| t.get_catcode() == Catcode::OTHER && t.with_str(|s| s == c);
+  let is_row_end = |t: &Token| is_cs(t, "\\\\") || is_cs(t, "\\cr") || is_cs(t, "\\tabularnewline");
+  let skip_spaces = |i: &mut usize| {
+    while body
+      .get(*i)
+      .is_some_and(|t| t.get_catcode() == Catcode::SPACE)
+    {
+      *i += 1;
+    }
+  };
+  // the end (exclusive) of the balanced group opening at `start`
+  let group_end = |start: usize| -> Option<usize> {
+    let mut depth = 0usize;
+    for (k, t) in body.iter().enumerate().skip(start) {
+      match t.get_catcode() {
+        Catcode::BEGIN => depth += 1,
+        Catcode::END => {
+          depth = depth.checked_sub(1)?;
+          if depth == 0 {
+            return Some(k + 1);
+          }
+        },
+        _ => {},
+      }
+    }
+    None
+  };
+  // The `{name}` of the `\begin`/`\end` at `at`, and the index after it.
+  let env_name = |at: usize| -> Option<(String, usize)> {
+    let mut j = at + 1;
+    skip_spaces(&mut j);
+    if body.get(j)?.get_catcode() != Catcode::BEGIN {
+      return None;
+    }
+    let end = group_end(j)?;
+    Some((
+      body[j + 1..end - 1].iter().map(|t| t.to_string()).collect(),
+      end,
+    ))
+  };
+  // Where the cell starting at `from` ends: the next separator or row end of the table (not of a group or an
+  // environment in the cell), else the body's end.
+  let cell_end = |from: usize| -> usize {
+    let (mut depth, mut envs) = (0usize, Vec::<String>::new());
+    let mut k = from;
+    while let Some(t) = body.get(k) {
+      let top = depth == 0 && envs.is_empty();
+      match t.get_catcode() {
+        Catcode::ALIGN if top => return k,
+        Catcode::BEGIN => depth += 1,
+        Catcode::END => depth = depth.saturating_sub(1),
+        _ if top && is_row_end(t) => return k,
+        _ if depth == 0 && (is_cs(t, "\\begin") || is_cs(t, "\\end")) => {
+          if let Some((name, end)) = env_name(k) {
+            if is_cs(t, "\\begin") {
+              envs.push(name);
+            } else if let Some(opened) = envs.iter().rposition(|open| *open == name) {
+              envs.truncate(opened);
+            }
+            k = end;
+            continue;
+          }
+        },
+        _ => {},
+      }
+      k += 1;
+    }
+    k
+  };
+  // The end (exclusive) of the `<open>…<close>` argument opening at `at` (`[<keys>]`, booktabs' `(<trim>)`), braces
+  // balanced inside.
+  let delimited_end = |at: usize, open: &str, close: &str| -> Option<usize> {
+    if !body.get(at).is_some_and(|t| is_other(t, open)) {
+      return None;
+    }
+    let mut brace = 0usize;
+    for (k, t) in body.iter().enumerate().skip(at + 1) {
+      match t.get_catcode() {
+        Catcode::BEGIN => brace += 1,
+        Catcode::END => brace = brace.checked_sub(1)?,
+        _ if brace == 0 && is_other(t, close) => return Some(k + 1),
+        _ => {},
+      }
+    }
+    None
+  };
+  // The end (exclusive) of the arguments of the row-level table command at `at`, if it is one: tabularray's
+  // extractor takes every table command at a cell's start, with its `[…]` and `{…}` arguments, before the cell text
+  // (`\__tblr_extract_table_commands:N`, :3775-3860; `\NewTblrTableCommand <cs> [<n>] [<default>]`, :1613), so a
+  // `\SetCell` after `\hline` (`\hline \SetCell[r=2]{c} T`, 2308.16907; 2507.01654, 2305.00635, 2502.18449,
+  // 2404.12789, 2601.16161, 2604.10925, 2606.09108) is still at the cell's start. The commands
+  // and their mandatory-argument counts: tabularray.sty :1964-2256 (rules), :2410-2467 (borders), :2510-2990 (cell,
+  // column and row styles), :3129-3134 (page breaks), :8143-8184 (its booktabs library, `\cmidrule` with booktabs'
+  // `(<trim>)` too).
+  let table_command_end = |at: usize| -> Option<usize> {
+    let t = body.get(at)?;
+    if t.get_catcode() != Catcode::CS {
+      return None;
+    }
+    let (optional, trim, mandatory) = t.with_str(|name| match name {
+      "\\hline" | "\\firsthline" | "\\lasthline" | "\\vline" | "\\toprule" | "\\midrule"
+      | "\\bottomrule" | "\\addrowspace" | "\\addlinespace" | "\\pagebreak" | "\\nopagebreak" => {
+        Some((true, false, 0))
+      },
+      "\\cline" | "\\rline" | "\\SetRow" | "\\SetRows" | "\\SetColumn" | "\\SetColumns"
+      | "\\SetCells" => Some((true, false, 1)),
+      "\\cmidrule" | "\\cmidrulemore" => Some((true, true, 1)),
+      "\\SetHline" | "\\SetHlines" | "\\SetVline" | "\\SetVlines" => Some((true, false, 2)),
+      "\\hborder" | "\\vborder" => Some((false, false, 1)),
+      "\\specialrule" => Some((false, false, 3)),
+      "\\morecmidrules" => Some((false, false, 0)),
+      _ => None,
+    })?;
+    let mut end = at + 1;
+    let mut j = end;
+    skip_spaces(&mut j);
+    if optional && let Some(k) = delimited_end(j, "[", "]") {
+      end = k;
+      j = k;
+      skip_spaces(&mut j);
+    }
+    if trim && let Some(k) = delimited_end(j, "(", ")") {
+      end = k;
+      j = k;
+      skip_spaces(&mut j);
+    }
+    for _ in 0..mandatory {
+      end = match body.get(j) {
+        Some(t) if t.get_catcode() == Catcode::BEGIN => group_end(j)?,
+        Some(t) if !matches!(t.get_catcode(), Catcode::END | Catcode::ALIGN) => j + 1,
+        _ => return Some(end),
+      };
+      j = end;
+      skip_spaces(&mut j);
+    }
+    Some(end)
+  };
+  let mut out = Vec::with_capacity(body.len());
+  let mut i = 0;
+  // the start of the current cell: a `\SetCell` there (after spaces) is the cell's
+  let mut cell_start = true;
+  while i < body.len() {
+    let t = body[i];
+    if cell_start && t.get_catcode() == Catcode::SPACE {
+      out.push(t);
+      i += 1;
+      continue;
+    }
+    // a row-level table command before the cell text (`\hline`, `\SetRow{gray9}`): copied, the cell still starts
+    if cell_start && let Some(end) = table_command_end(i) {
+      out.extend(body[i..end].iter().copied());
+      i = end;
+      continue;
+    }
+    if cell_start && is_cs(&t, "\\SetCell") {
+      // `[<outer keys>]` and `{<inner keys>}` (`\NewTblrTableCommand \SetCell [2] []`, :2542)
+      let mut j = i + 1;
+      skip_spaces(&mut j);
+      let mut outer = Vec::new();
+      if body.get(j).is_some_and(|t| is_other(t, "[")) {
+        let mut k = j + 1;
+        let mut brace = 0usize;
+        while let Some(t) = body.get(k) {
+          match t.get_catcode() {
+            Catcode::BEGIN => brace += 1,
+            Catcode::END => brace = brace.saturating_sub(1),
+            _ if brace == 0 && is_other(t, "]") => break,
+            _ => {},
+          }
+          k += 1;
+        }
+        if k < body.len() {
+          outer = body[j + 1..k].to_vec();
+          j = k + 1;
+          skip_spaces(&mut j);
+        }
+      }
+      let inner_end = match body.get(j) {
+        Some(t) if t.get_catcode() == Catcode::BEGIN => group_end(j),
+        Some(t) if t.get_catcode() != Catcode::END && t.get_catcode() != Catcode::ALIGN => {
+          Some(j + 1)
+        },
+        _ => None,
+      };
+      if let Some(end) = inner_end {
+        let outer_keys = tblr_style_keys(&Tokens::new(outer));
+        let count = |name: &str| {
+          outer_keys
+            .iter()
+            .rev()
+            .find(|(key, _)| key == name)
+            .and_then(|(_, value)| {
+              evaluate_count(&Tokens::new(value.clone().unwrap_or_default()).to_string())
+            })
+            .unwrap_or(1)
+        };
+        let (rows, columns) = (count("r"), count("c").max(1));
+        if rows > 1 || columns > 1 {
+          // the cell's text and the covered cells', with the separators between them
+          let mut text = Vec::new();
+          if rows > 1 {
+            text.push(T_CS!("\\lx@tblr@cell@span"));
+            text.extend(tblr_braced(&TokenizeInternal!(TeXString::assembled(
+              rows.to_string()
+            ))));
+          }
+          let mut k = cell_end(end);
+          text.extend(body[end..k].iter().copied());
+          for _ in 1..columns {
+            text.push(T_CS!("\\lx@span"));
+            // a row that ends before the covered cells (`\SetCell[c=3]{c} Time & \\`, 2305.00635): the span
+            // still covers them, as tabularray's does — a text table has columns to spare (the margin
+            // `\lx@tblr@env` adds), a math one does not, so there the span ends with the row
+            if body
+              .get(k)
+              .is_none_or(|t| t.get_catcode() != Catcode::ALIGN)
+            {
+              if math {
+                text.pop();
+                break;
+              }
+              continue;
+            }
+            let next = cell_end(k + 1);
+            text.extend(body[k + 1..next].iter().copied());
+            k = next;
+          }
+          out.extend(text);
+          i = k;
+          cell_start = false;
+          continue;
+        }
+      }
+    }
+    cell_start = false;
+    out.push(t);
+    i += 1;
+    match t.get_catcode() {
+      Catcode::ALIGN => cell_start = true,
+      Catcode::BEGIN => {
+        // a group of the cell: copied whole
+        if let Some(end) = group_end(i - 1) {
+          out.extend(body[i..end].iter().copied());
+          i = end;
+        }
+      },
+      _ if is_row_end(&t) => {
+        cell_start = true;
+        // the row end's `*` and `[<space>]` (`\\[2pt]`, `\\*`) come before the next row's first cell
+        if !is_cs(&t, "\\cr") {
+          let mut j = i;
+          skip_spaces(&mut j);
+          if body.get(j).is_some_and(|t| is_other(t, "*")) {
+            j += 1;
+            out.extend(body[i..j].iter().copied());
+            i = j;
+            skip_spaces(&mut j);
+          }
+          if let Some(end) = delimited_end(j, "[", "]") {
+            out.extend(body[i..end].iter().copied());
+            i = end;
+          }
+        }
+      },
+      _ if is_cs(&t, "\\begin") => {
+        // an environment of the cell: copied whole, to the end of the cell (its `&`s are its own)
+        let end = cell_end(i - 1);
+        out.extend(body[i..end].iter().copied());
+        i = end;
+      },
+      _ => {},
+    }
+  }
+  out
+}
+
 /// How far `tblr_body_width` reads ahead at most (the preprocessing read, `tblr_read_body`, has none).
 const TBLR_BODY_READ_CAP: usize = 1 << 16;
 
@@ -331,6 +657,7 @@ fn parse_colspec_capped(
   total: &mut usize,
   types: ColumnTypes,
   unknown: &mut Option<char>,
+  keys: &mut Vec<String>,
 ) -> Option<String> {
   if depth > 8 {
     return None;
@@ -356,6 +683,7 @@ fn parse_colspec_capped(
       // tabularray.sty:3339 `j` is `Q[j]`, justified: the default alignment.
       'j' => {
         cols.push('l');
+        keys.push(String::new());
         *total += 1;
         if *total > 512 {
           return None;
@@ -364,6 +692,7 @@ fn parse_colspec_capped(
       },
       'c' | 'l' | 'r' => {
         cols.push(c);
+        keys.push(String::new());
         *total += 1;
         if *total > 512 {
           return None;
@@ -377,6 +706,7 @@ fn parse_colspec_capped(
       'Q' | 'X' => {
         i += 1;
         let mut align = 'l';
+        let mut column_keys = String::new();
         if i < b.len() && b[i] == b'[' {
           let start = i + 1;
           let mut j = start;
@@ -387,6 +717,7 @@ fn parse_colspec_capped(
             return None; // unbalanced [..]
           }
           let opts = &spec[start..j];
+          column_keys = opts.to_string();
           // Alignment is a STANDALONE single-letter key (or halign=X) among
           // the comma-separated options — a substring scan misread
           // `bg=cyan` as centered ('c' in "cyan").
@@ -403,6 +734,7 @@ fn parse_colspec_capped(
           i = j + 1;
         }
         cols.push(align);
+        keys.push(column_keys);
         *total += 1;
         if *total > 512 {
           return None;
@@ -415,6 +747,7 @@ fn parse_colspec_capped(
         i += 1;
         let width = parse_braced_group(b, spec, &mut i)?;
         cols.push_str(&s!("p{{{width}}}"));
+        keys.push(String::new());
         *total += 1;
         if *total > 512 {
           return None;
@@ -443,6 +776,7 @@ fn parse_colspec_capped(
           }
           cols.push_str(&spec[start..i]);
           let _ = body_start;
+          keys.push(String::new());
           *total += 1;
           if *total > 512 {
             return None;
@@ -460,7 +794,8 @@ fn parse_colspec_capped(
         // further copy so the TOTAL cap holds under multiplication. The spec ends
         // in the first copy at an unknown type: one copy, charged once.
         let before = *total;
-        let sub_cols = parse_colspec_capped(&sub, depth + 1, total, types, unknown)?;
+        let keys_before = keys.len();
+        let sub_cols = parse_colspec_capped(&sub, depth + 1, total, types, unknown, keys)?;
         let copies = if unknown.is_some() { 1 } else { n };
         let per = *total - before;
         let extra = per.checked_mul(copies.saturating_sub(1))?;
@@ -468,8 +803,12 @@ fn parse_colspec_capped(
         if *total > 512 {
           return None;
         }
-        for _ in 0..copies {
+        let copy_keys = keys[keys_before..].to_vec();
+        for n in 0..copies {
           cols.push_str(&sub_cols);
+          if n > 0 {
+            keys.extend(copy_keys.iter().cloned());
+          }
         }
       },
       // Inter-column material `@{…}`/`!{…}` and the array.sty hooks `>{…}`/
@@ -529,6 +868,7 @@ fn parse_colspec_capped(
           total,
           types,
           unknown,
+          keys,
         )?);
       },
     }
@@ -1146,6 +1486,516 @@ fn tblr_braced(tokens: &Tokens) -> Vec<Token> {
   out
 }
 
+/// A cell's `mode` and `cmd` keys (tabularray.sty:2635-2639 cell, :2874-2877 column, :3040-3043 row): its text is set
+/// as `$<style><cmd>{<text>}$` (:4593-4618, `\__tblr_build_cell_content`), `<style>` empty for `math`, `\textstyle`
+/// for `imath`, `\displaystyle` for `dmath`; `text` is a text cell even in a math table.
+#[derive(Clone, Default)]
+struct TblrCellStyle {
+  mode: Option<String>,
+  cmd:  Option<Vec<Token>>,
+}
+
+/// The cell styles of one table, by row and column (from 1), and whether the table is a math one.
+struct TblrStyles {
+  math:  bool,
+  cells: HashMap<(usize, usize), TblrCellStyle>,
+}
+
+/// The pending styles of the table being opened, which its alignment's first cell takes (`\lx@tblr@cell@open`).
+const TBLR_PENDING_STYLES: &str = "tblr_pending_styles";
+/// The alignment property holding a table's [`TblrStyles`].
+const TBLR_STYLES: &str = "tblr_styles";
+
+impl TblrCellStyle {
+  /// Apply one key of a cell key list.
+  fn apply(&mut self, name: &str, value: Option<Vec<Token>>) {
+    match name {
+      "mode" => {
+        if let Some(value) = value {
+          self.mode = Some(Tokens::new(value).to_string().trim().to_string());
+        }
+      },
+      "$" => self.mode = Some(String::from("math")),
+      "$$" => self.mode = Some(String::from("dmath")),
+      "cmd" => self.cmd = value.filter(|v| !v.is_empty()),
+      _ => {},
+    }
+  }
+  fn is_set(&self) -> bool { self.mode.is_some() || self.cmd.is_some() }
+}
+
+/// The keys of a cell key list (`mode=math, cmd=\foo`), as `(name, value)`.
+fn tblr_style_keys(keys: &Tokens) -> Vec<(String, Option<Vec<Token>>)> {
+  tblr_keys(keys)
+    .into_iter()
+    .map(|key| {
+      let value = key.value.unlist();
+      let has_value = !value.is_empty();
+      (key.name, has_value.then_some(value))
+    })
+    .collect()
+}
+
+/// tabularray's child selectors (tabularray.sty:1290-1345): a comma list of indices `n`, `X`/`Y`/`Z` (the last but
+/// two, but one, the last; `U`-`W` earlier), ranges `a-b`, `odd`/`even` (from an optional `[start]`), and `-` for all;
+/// `total` children. A selector it does not read selects nothing.
+fn tblr_select(selector: &str, total: usize) -> Vec<usize> {
+  let index = |text: &str| -> Option<usize> {
+    let text = text.trim();
+    let from_end = |k: usize| Some(total.saturating_sub(k).max(1));
+    match text {
+      "" => None,
+      "U" => from_end(5),
+      "V" => from_end(4),
+      "W" => from_end(3),
+      "X" => from_end(2),
+      "Y" => from_end(1),
+      "Z" => Some(total.max(1)),
+      _ => text.parse().ok(),
+    }
+  };
+  let mut out = Vec::new();
+  for item in selector.split(',') {
+    let item = item.trim();
+    let (name, start) = match item.split_once('[') {
+      Some((name, rest)) => (
+        name.trim(),
+        rest.trim_end_matches(']').trim().parse::<usize>().ok(),
+      ),
+      None => (item, None),
+    };
+    match name {
+      "-" => out.extend(1..=total),
+      "odd" | "even" => {
+        let first = start.unwrap_or(if name == "odd" { 1 } else { 2 });
+        let parity = usize::from(name == "even");
+        let first = if first % 2 == (1 - parity) % 2 {
+          first
+        } else {
+          first + 1
+        };
+        out.extend((first..=total).step_by(2));
+      },
+      _ => match name.split_once('-') {
+        Some((a, b)) => {
+          if let (Some(a), Some(b)) = (index(a).or(Some(1)), index(b).or(Some(total))) {
+            out.extend(a..=b.min(total));
+          }
+        },
+        None => out.extend(index(name).filter(|&n| n <= total)),
+      },
+    }
+  }
+  out
+}
+
+/// The two braced selectors of `cell{<rows>}{<columns>}`, or the one of `row{…}`/`column{…}`, as text.
+fn tblr_selector_groups(arg: &Tokens) -> Vec<String> {
+  let mut groups = Vec::new();
+  let mut depth = 0usize;
+  let mut current = Vec::new();
+  for t in arg.unlist_ref() {
+    match t.get_catcode() {
+      Catcode::BEGIN => {
+        if depth > 0 {
+          current.push(*t);
+        }
+        depth += 1;
+      },
+      Catcode::END => {
+        depth = depth.saturating_sub(1);
+        if depth == 0 {
+          groups.push(Tokens::new(std::mem::take(&mut current)).to_string());
+        } else {
+          current.push(*t);
+        }
+      },
+      _ => current.push(*t),
+    }
+  }
+  if groups.is_empty() && !current.is_empty() {
+    groups.push(Tokens::new(current).to_string());
+  }
+  groups
+}
+
+/// The cell styles of a table (`None` when no cell has one): its columns' options from the colspec (`column_keys`),
+/// then the inner keys in order — `cells`, `rows`, `columns`, `row{…}`, `column{…}`, `cell{…}{…}` — each later key
+/// setting the cells it selects again, as tabularray's key code does (`\__tblr_cell_gput:nn`, :2924, :3089).
+fn tblr_cell_styles(
+  column_keys: &[String],
+  keys: &[TblrKey],
+  nrows: usize,
+  ncols: usize,
+  math: bool,
+) -> Option<TblrStyles> {
+  let mut cells: HashMap<(usize, usize), TblrCellStyle> = HashMap::default();
+  let mut set = |rows: &[usize], cols: &[usize], list: &[(String, Option<Vec<Token>>)]| {
+    for &r in rows {
+      for &c in cols {
+        let style = cells.entry((r, c)).or_default();
+        for (name, value) in list {
+          style.apply(name, value.clone());
+        }
+      }
+    }
+  };
+  let all_rows: Vec<usize> = (1..=nrows).collect();
+  let all_cols: Vec<usize> = (1..=ncols).collect();
+  for (j, options) in column_keys.iter().enumerate() {
+    if options.trim().is_empty() {
+      continue;
+    }
+    let list = tblr_style_keys(&TokenizeInternal!(TeXString::assembled(options.clone())));
+    set(&all_rows, &[j + 1], &list);
+  }
+  for key in keys {
+    let list = || tblr_style_keys(&key.value);
+    match key.name.as_str() {
+      "cells" => set(&all_rows, &all_cols, &list()),
+      "rows" => set(&all_rows, &all_cols, &list()),
+      "columns" => set(&all_rows, &all_cols, &list()),
+      "row" => {
+        let groups = tblr_selector_groups(&key.arg);
+        let rows = groups
+          .first()
+          .map(|g| tblr_select(g, nrows))
+          .unwrap_or_default();
+        set(&rows, &all_cols, &list());
+      },
+      "column" => {
+        let groups = tblr_selector_groups(&key.arg);
+        let cols = groups
+          .first()
+          .map(|g| tblr_select(g, ncols))
+          .unwrap_or_default();
+        set(&all_rows, &cols, &list());
+      },
+      "cell" => {
+        let groups = tblr_selector_groups(&key.arg);
+        if let [rows, cols] = &groups[..] {
+          set(
+            &tblr_select(rows, nrows),
+            &tblr_select(cols, ncols),
+            &list(),
+          );
+        }
+      },
+      _ => {},
+    }
+  }
+  cells.retain(|_, style| style.is_set());
+  (!cells.is_empty()).then_some(TblrStyles { math, cells })
+}
+
+/// The `$…$` (or, for a text cell of a math table, `\hbox{…}`) a cell's mode puts around its text.
+fn tblr_mode_wrap(style: &TblrCellStyle, math_table: bool) -> (Vec<Token>, Vec<Token>) {
+  match style.mode.as_deref() {
+    Some("math") if !math_table => (vec![T_MATH!()], vec![T_MATH!()]),
+    Some("imath") if !math_table => (vec![T_MATH!(), T_CS!("\\textstyle")], vec![T_MATH!()]),
+    Some("imath") => (vec![T_CS!("\\textstyle")], vec![]),
+    Some("dmath") if !math_table => (vec![T_MATH!(), T_CS!("\\displaystyle")], vec![T_MATH!()]),
+    Some("dmath") => (vec![T_CS!("\\displaystyle")], vec![]),
+    Some("text") if math_table => (vec![T_CS!("\\hbox"), T_BEGIN!()], vec![T_END!()]),
+    _ => (vec![], vec![]),
+  }
+}
+
+/// The State key of the rules of the table being built ([`TblrRules`]), drawn at its end (`\lx@tblr@rules`).
+const TBLR_RULES: &str = "tblr_rules";
+
+/// One rule key of a table: an `hline{<i>}`/`hlines` or `vline{<j>}`/`vlines` key (tabularray.sty:4011-4012,
+/// :3991-3992 with the `hline{…}`/`vline{…}` child keys), or a `|` of the `rowspec` (`\__tblr_parse_colrow_spec:nn`,
+/// :4003). `positions` selects the lines (`1,Z`; `-` for every one), `cross` the columns an hline spans or the rows a
+/// vline spans; `index` is the line's number at its position (a second one is a double rule), and `drawn` is false
+/// for a `text=` line (text in place of the rule) and for a white one (invisible on the page).
+#[derive(Clone)]
+struct TblrRuleKey {
+  horizontal: bool,
+  positions:  String,
+  cross:      String,
+  index:      usize,
+  drawn:      bool,
+}
+
+/// The rules of one table and its shape: the colspec's column count (when it was read) and, from its body, the
+/// widest row and the row count (`\lx@tblr@rules@shape` recounts a body `evaluate=`/`expand=` changed).
+#[derive(Default)]
+struct TblrRules {
+  keys:  Vec<TblrRuleKey>,
+  ncols: Option<usize>,
+  shape: (usize, usize),
+}
+
+/// The top-level items of a key's value, each a braced group's text or a token's.
+fn tblr_value_items(value: &Tokens) -> (bool, Vec<String>) {
+  let tokens = value.unlist_ref();
+  let head_group = tokens
+    .iter()
+    .find(|t| t.get_catcode() != Catcode::SPACE)
+    .is_some_and(|t| t.get_catcode() == Catcode::BEGIN);
+  let mut items = Vec::new();
+  let mut depth = 0usize;
+  let mut current = Vec::new();
+  for t in tokens {
+    match t.get_catcode() {
+      Catcode::BEGIN => {
+        if depth > 0 {
+          current.push(*t);
+        }
+        depth += 1;
+      },
+      Catcode::END => {
+        depth = depth.saturating_sub(1);
+        if depth == 0 {
+          items.push(Tokens::new(std::mem::take(&mut current)).to_string());
+        } else {
+          current.push(*t);
+        }
+      },
+      Catcode::SPACE if depth == 0 => {},
+      _ if depth == 0 => items.push(Tokens::new(vec![*t]).to_string()),
+      _ => current.push(*t),
+    }
+  }
+  (head_group, items)
+}
+
+/// Whether a rule's style draws a rule (tabularray.sty:2100-2125 `hline/inner`, :2350-2375 `vline/inner`): `text=`
+/// sets text in its place (none when empty), and a white rule does not show on the page.
+fn tblr_rule_style_drawn(style: &str) -> bool {
+  style.split(',').map(str::trim).all(|item| {
+    let (name, value) = item
+      .split_once('=')
+      .map_or((item, ""), |(n, v)| (n.trim(), v.trim()));
+    !(name == "text" || name == "white" || (name == "fg" && value == "white"))
+  })
+}
+
+/// A rule key's value as tabularray reads it (`\__tblr_set_hline_aux:nn`, `\__tblr_set_every_hline_aux:n`,
+/// tabularray.sty:1983-1993, :2045-2055, and their vline twins): `{<index>}{<cross>}{<style>}` with three groups,
+/// `{<cross>}{<style>}` with a group first, else `<style>` for every cell of the line, index 1.
+fn tblr_rule_key(horizontal: bool, positions: String, value: &Tokens) -> TblrRuleKey {
+  let (head_group, items) = tblr_value_items(value);
+  let (index, cross, style) = match (head_group, &items[..]) {
+    (true, [index, cross, style]) => (
+      index.trim().parse().unwrap_or(1),
+      cross.clone(),
+      style.clone(),
+    ),
+    (true, [cross, rest @ ..]) => (1, cross.clone(), rest.join("")),
+    _ => (1, String::from("-"), value.to_string()),
+  };
+  // `text=` with no value leaves the line as it was (:2026-2031): no key at all
+  let text_only = style.split(',').any(|item| {
+    item
+      .split_once('=')
+      .is_some_and(|(n, v)| n.trim() == "text" && v.trim().is_empty())
+  });
+  TblrRuleKey {
+    horizontal,
+    positions,
+    cross: cross.trim().to_string(),
+    index: if text_only { 0 } else { index },
+    drawn: tblr_rule_style_drawn(&style),
+  }
+}
+
+/// The `|`s of a rowspec (`\__tblr_parse_colrow_spec:nn {Row}`, tabularray.sty:4003, the colspec's reader): before
+/// row `i` (and after the last) an hline, numbered at its position; a row is a letter with its `[…]`/`{…}` options,
+/// `*{<n>}{<spec>}` repeats.
+fn tblr_rowspec_rules(spec: &str, keys: &mut Vec<TblrRuleKey>, row: &mut usize, depth: usize) {
+  let b = spec.as_bytes();
+  let mut i = 0;
+  let mut at_position = 0usize;
+  while i < b.len() && depth < 8 {
+    match b[i] {
+      b'|' => {
+        i += 1;
+        let mut style = String::new();
+        if i < b.len() && b[i] == b'[' {
+          let start = i + 1;
+          if skip_bracket_group(b, &mut i).is_none() {
+            return;
+          }
+          style = spec[start..i.saturating_sub(1).max(start)].to_string();
+        }
+        at_position += 1;
+        keys.push(TblrRuleKey {
+          horizontal: true,
+          positions:  (*row + 1).to_string(),
+          cross:      String::from("-"),
+          index:      at_position,
+          drawn:      tblr_rule_style_drawn(&style),
+        });
+      },
+      b'*' => {
+        i += 1;
+        let (Some(n), Some(sub)) = (
+          parse_braced_uint(b, spec, &mut i),
+          parse_braced_group(b, spec, &mut i),
+        ) else {
+          return;
+        };
+        for _ in 0..n.min(512) {
+          tblr_rowspec_rules(&sub, keys, row, depth + 1);
+        }
+        at_position = 0;
+      },
+      c if c.is_ascii_alphabetic() => {
+        i += 1;
+        while i < b.len() && (b[i] == b'[' || b[i] == b'{') {
+          let ok = if b[i] == b'[' {
+            skip_bracket_group(b, &mut i).is_some()
+          } else {
+            parse_braced_group(b, spec, &mut i).is_some()
+          };
+          if !ok {
+            return;
+          }
+        }
+        *row += 1;
+        at_position = 0;
+      },
+      _ => i += 1,
+    }
+  }
+}
+
+/// The rule keys of a table's inner key list, in order (later keys set a line again).
+fn tblr_rule_keys(keys: &[TblrKey]) -> Vec<TblrRuleKey> {
+  let mut rules = Vec::new();
+  for key in keys {
+    let horizontal = key.name.starts_with('h');
+    match key.name.as_str() {
+      "hlines" | "vlines" => rules.push(tblr_rule_key(horizontal, String::from("-"), &key.value)),
+      "hline" | "vline" => {
+        let positions = tblr_selector_groups(&key.arg)
+          .into_iter()
+          .next()
+          .unwrap_or_default();
+        rules.push(tblr_rule_key(horizontal, positions, &key.value));
+      },
+      "rowspec" => {
+        let mut row = 0;
+        tblr_rowspec_rules(&key.value.to_string(), &mut rules, &mut row, 0);
+      },
+      _ => {},
+    }
+  }
+  rules.retain(|rule| rule.index > 0);
+  rules
+}
+
+/// The borders each cell of a `nrows` × `ncols` table takes from its rules, as the kernel's `|` and `\hline` give them
+/// (an hline above row `i` is that row's `t`, the last one row `nrows + 1`'s — the empty row after a last `\\`, which
+/// `tblr_draw_rules` makes the last row's `b` when there is none; a vline left of column `j` is column `j-1`'s `r`, the
+/// first one column 1's `l`), one letter per line at the place: `(row, column) → letters`.
+fn tblr_rule_borders(rules: &TblrRules) -> HashMap<(usize, usize), String> {
+  let (widest, nrows) = rules.shape;
+  let ncols = rules.ncols.map_or(widest, |n| n.max(widest));
+  let mut lines: HashMap<(bool, usize, usize, usize), bool> = HashMap::default();
+  for key in &rules.keys {
+    let (along, across) = if key.horizontal {
+      (nrows + 1, ncols)
+    } else {
+      (ncols + 1, nrows)
+    };
+    for position in tblr_select(&key.positions, along) {
+      for cross in tblr_select(&key.cross, across) {
+        lines.insert((key.horizontal, position, cross, key.index), key.drawn);
+      }
+    }
+  }
+  let mut borders: HashMap<(usize, usize), String> = HashMap::default();
+  let mut keys: Vec<_> = lines
+    .into_iter()
+    .filter(|(_, drawn)| *drawn)
+    .map(|(k, _)| k)
+    .collect();
+  keys.sort_unstable();
+  for (horizontal, position, cross, _) in keys {
+    let (cell, letter) = match (horizontal, position) {
+      (true, p) => ((p, cross), 't'),
+      (false, 1) => ((cross, 1), 'l'),
+      (false, p) => ((cross, p - 1), 'r'),
+    };
+    if nrows > 0 && cell.0 > 0 && cell.1 > 0 {
+      borders.entry(cell).or_default().push(letter);
+    }
+  }
+  borders
+}
+
+/// `\lx@tblr@rules`: the borders of the table's rules on its alignment's cells (`tblr_rule_borders`).
+fn tblr_draw_rules() -> Result<()> {
+  let Some(Stored::Opaque(rules)) = lookup_value(TBLR_RULES) else {
+    return Ok(());
+  };
+  let Some(rules) = rules.downcast_ref::<TblrRules>() else {
+    return Ok(());
+  };
+  let borders = tblr_rule_borders(rules);
+  if borders.is_empty() {
+    return Ok(());
+  }
+  let Some(alignment) = lookup_alignment() else {
+    return Ok(());
+  };
+  let Some(data) = alignment.alignment_cell() else {
+    return Ok(());
+  };
+  let mut data = data.borrow_mut();
+  let rows: Vec<usize> = data
+    .rows()
+    .iter()
+    .enumerate()
+    .filter(|(_, row)| !row.is_pseudo())
+    .map(|(i, _)| i)
+    .collect();
+  let nrows = rules.shape.1;
+  // The cells a spanned cell covers in the rows below it (`\lx@tblr@cell@span`'s row span, over its columns): tabularray
+  // draws no hline through a spanned cell, nor a vline inside one (tabularray.sty:2730-2750 `omit`), so a row it covers whole stays
+  // empty and is pruned as before.
+  let mut covered: HashMap<(usize, usize), ()> = HashMap::default();
+  for (r, &i) in rows.iter().enumerate() {
+    for (c, cell) in data.rows()[i].get_columns().iter().enumerate() {
+      let (down, across) = (cell.rowspan.unwrap_or(1), cell.colspan.unwrap_or(1));
+      for k in 1..down {
+        for m in 0..across {
+          covered.insert((r + 1 + k, c + 1 + m), ());
+        }
+      }
+    }
+  }
+  for ((row, column), mut letters) in borders {
+    // the last hline, with no row after the last one: that row's bottom
+    let row = if row > nrows && rows.len() <= nrows {
+      letters = letters.replace('t', "b");
+      nrows
+    } else {
+      row
+    };
+    if covered.contains_key(&(row, column)) {
+      letters.retain(|c| c != 't');
+    }
+    let Some(row) = rows.get(row - 1).and_then(|&i| data.rows_mut().get_mut(i)) else {
+      continue;
+    };
+    let Some(cell) = row.get_column_mut(column) else {
+      continue;
+    };
+    for letter in ['t', 'b', 'l', 'r'] {
+      let wanted = letters.chars().filter(|&c| c == letter).count();
+      let present = cell.border.chars().filter(|&c| c == letter).count();
+      for _ in present..wanted {
+        cell.border.push(letter);
+      }
+    }
+  }
+  Ok(())
+}
+
 LoadDefinitions!({
   RequirePackage!("booktabs");
   // `\tblr` maps to `\tabular`, but tabularray's argument is a key-value inner
@@ -1173,6 +2023,8 @@ LoadDefinitions!({
     let spec = extract_colspec_value(&inner.to_string()).or_else(|| key_list_colspec(&stored));
     let math = lookup_string_from_sym(pin!("MODE")).ends_with("math");
     let body_width = if math { tblr_body_width()? } else { 0 };
+    let mut column_keys = Vec::new();
+    let mut colspec_ncols = None;
     let (cols, ncols) = match spec {
       Some(spec) => match parse_colspec_full(&spec, &tblr_column_type) {
         Some(parsed) => {
@@ -1181,6 +2033,8 @@ LoadDefinitions!({
           if let Some(c) = parsed.unknown {
             Error!("unexpected", &c.to_string(), s!("Unknown Column type {c}!"));
           }
+          column_keys = parsed.keys;
+          colspec_ncols = Some(parsed.ncols);
           (parsed.cols, parsed.ncols)
         },
         // a construct the reduction does not translate: the kernel's template reads it as written
@@ -1189,6 +2043,34 @@ LoadDefinitions!({
       // columns inferred from the rows: in math exactly the widest row
       None if math => (s!("*{{{}}}{{l}}", body_width.max(1)), body_width.max(1)),
       None => (String::from("*{32}{l}"), 32),
+    };
+    // The cells' `mode`/`cmd` keys (tabularray.sty:2635-2639, :2874-2877, :3040-3043): from the columns' options and
+    // the inner keys (the environment's defaults first, :3975-3979), for the cells of the body that follows, read
+    // ahead for its shape (rc_struct2 C3: 2603.14418 `cell{3-Z}{2-7}={mode=math}`, 2407.17127's sbnf
+    // `X[l,mode=math,cmd=\checkemptycase]`). Each cell's text is set as tabularray sets it (`\lx@tblr@cell@open`).
+    let inner_text = inner.to_string();
+    let mut inner_keys = TokenizeInternal!(TeXString::assembled(stored.clone())).unlist();
+    if is_tblr_key_list(&inner_text) {
+      inner_keys.push(T_OTHER!(","));
+      inner_keys.extend(inner.clone().unlist());
+    }
+    let inner_keys = tblr_keys(&Tokens::new(inner_keys));
+    let styling = |list: Vec<(String, Option<Vec<Token>>)>| {
+      list.iter().any(|(n, _)| matches!(n.as_str(), "mode" | "$" | "$$" | "cmd"))
+    };
+    let styled = column_keys
+      .iter()
+      .any(|k| styling(tblr_style_keys(&TokenizeInternal!(TeXString::assembled(k.clone())))))
+      || inner_keys.iter().any(|k| {
+        matches!(k.name.as_str(), "cells" | "rows" | "columns" | "row" | "column" | "cell")
+          && styling(tblr_style_keys(&k.value))
+      });
+    let styles = if styled {
+      let (widest, nrows) = tblr_body_shape()?;
+      let width = if ncols == usize::MAX { widest } else { ncols.max(widest) };
+      tblr_cell_styles(&column_keys, &inner_keys, nrows, width, math)
+    } else {
+      None
     };
     // tabularray parses its own body and tolerates a row wider than the
     // colspec (circularglyphs-doc.tex:196: `*{13}{X[m,c]}` with a 14-cell
@@ -1233,7 +2115,33 @@ LoadDefinitions!({
         _ => {},
       }
     }
-    let body = if evaluate.is_empty() && expand.is_empty() { None } else { tblr_read_body()? };
+    // The body is read whole (tabularray's `+b` argument, :3463) for its spanned cells (`tblr_span_cells`).
+    // The rules (`hlines`, `vline{2}`, a rowspec's `|`s; tabularray.sty:1957-2290), drawn at the table's end against
+    // its shape: the body's as read, or as `evaluate=`/`expand=` leave it (`\lx@tblr@rules@shape`).
+    let rule_keys = tblr_rule_keys(&inner_keys);
+    let mut rules = (!rule_keys.is_empty()).then_some(TblrRules {
+      keys:  rule_keys,
+      ncols: colspec_ncols,
+      shape: (0, 0),
+    });
+    let body = if evaluate.is_empty() && expand.is_empty() {
+      if let Some(body) = tblr_read_body()? {
+        if let Some(rules) = &mut rules {
+          rules.shape = tblr_shape_of(body.clone())?;
+        }
+        let spans = body.iter().any(|t| t.get_catcode() == Catcode::CS && t.with_str(|s| s == "\\SetCell"));
+        unread(Tokens::new(if spans { tblr_span_cells(body, math) } else { body }));
+      }
+      None
+    } else {
+      tblr_read_body()?.map(|body| tblr_span_cells(body, math))
+    };
+    // a table without rules has none of an enclosing one's
+    assign_value(
+      TBLR_RULES,
+      rules.map_or(Stored::None, |rules| Stored::Opaque(Rc::new(rules))),
+      None,
+    );
     // A long or tall table in math is a box (tabularray typesets its caption and notes around
     // the math cells, "Table 1: …" in `$…$`): an `\hbox` holding them and a math `array`.
     let (open, end, mot) = match (math, portrait) {
@@ -1266,15 +2174,20 @@ LoadDefinitions!({
     // Fatal).
     // `\lx@tblr@after` follows the environment's end: a long or tall table's notes, remarks and
     // float end (`\lx@tblr@portrait`).
-    let mut out = TokenizeInternal!(TeXString::assembled(format!(
+    let mut out = Vec::new();
+    if let Some(styles) = styles {
+      assign_value(TBLR_PENDING_STYLES, Stored::Opaque(Rc::new(styles)), None);
+      out.extend(TokenizeInternal!(r"\let\lx@alignment@column@before\lx@tblr@cell@open").unlist());
+    }
+    out.extend(TokenizeInternal!(TeXString::assembled(format!(
       "\\ifx\\hline\\lx@tblr@hline\\else\\let\\lx@tblr@saved@hline\\hline\\let\\hline\\lx@tblr@hline\\fi\
        \\ifx\\cline\\lx@tblr@cline\\else\\let\\lx@tblr@saved@cline\\cline\\let\\cline\\lx@tblr@cline\\fi\
-       \\def\\lx@tblr@end{{{end}\\lx@tblr@after{close_box}}}\\let\\lx@tblr@mot{mot}\
+       \\def\\lx@tblr@end{{\\lx@tblr@rules{end}\\lx@tblr@after{close_box}}}\\let\\lx@tblr@mot{mot}\
        \\let\\lx@tblr@saved@do\\do\\def\\do#1{{\\expandafter\\let\\expandafter#1\\csname lx@tblr@tc@\\string#1\\endcsname}}\
        \\lx@tblr@table@commands\\let\\do\\lx@tblr@saved@do\
        \\ifdefined\\lx@tblr@diagbox\\let\\diagbox\\lx@tblr@diagbox\\let\\diagboxthree\\lx@tblr@diagboxthree\\fi"
     )))
-    .unlist();
+    .unlist());
     // no after-material unless a long or tall table sets it (a nested table must not print its
     // enclosing one's notes)
     assign_value(TBLR_AFTER, Stored::Tokens(Tokens!()), None);
@@ -1304,6 +2217,7 @@ LoadDefinitions!({
       out.extend([T_END!(), T_BEGIN!()]);
       out.extend(expand);
       out.push(T_END!());
+      out.push(T_CS!("\\lx@tblr@rules@shape"));
     }
     // tabularray's own alignment keeps the interline values `\\@array` zeroes (tex_tables.rs `array_zeroes_interline`)
     out.extend(
@@ -1312,6 +2226,110 @@ LoadDefinitions!({
     if body.is_some() {
       out.push(T_CS!("\\l__tblr_body_tl"));
     }
+    Ok(Tokens::new(out))
+  });
+  // A styled table's cell (tabularray.sty:4593-4618 `\__tblr_build_cell_content`): `\lx@alignment@column@before`,
+  // the first token of every cell's template part, is this hook inside the table. It reads the column's own template
+  // tokens and puts back after them the mode's `$` (`$\displaystyle` for `dmath`; `\hbox{` for a text cell of a math
+  // table), its close at the head of the column's after part; a `cmd` takes the cell's text, read up to the cell's
+  // end (the after part `&` brings, or a row end or the table's `\end`), as its argument: `$<cmd>{<text>}$`. A cell
+  // holding an environment keeps its text as written (its `&`s are not the table's). The table's styles reach its
+  // alignment at its first cell (`TBLR_PENDING_STYLES`); a table inside a cell has its own or none.
+  DefMacro!("\\lx@tblr@cell@open", sub[_args] {
+    let Some(alignment) = lookup_alignment() else { return Ok(Tokens!()) };
+    let Some(data) = alignment.alignment_cell() else { return Ok(Tokens!()) };
+    let styles = {
+      let mut data = data.borrow_mut();
+      if data.get_property(TBLR_STYLES).is_none()
+        && let Some(pending) = lookup_value(TBLR_PENDING_STYLES)
+        && matches!(pending, Stored::Opaque(_))
+      {
+        data.get_properties_mut().insert(TBLR_STYLES, pending);
+        // taken for good: the cell's group must not give it back to an alignment inside a later cell (paper.sty's
+        // `<*` is an `\ialign` in a cell's math, 2407.17127)
+        assign_value(TBLR_PENDING_STYLES, Stored::None, Some(Scope::Global));
+      }
+      match data.get_property(TBLR_STYLES).as_deref() {
+        Some(Stored::Opaque(styles)) => styles.clone(),
+        _ => return Ok(Tokens!()),
+      }
+    };
+    let Some(styles) = styles.downcast_ref::<TblrStyles>() else { return Ok(Tokens!()) };
+    let (row, column, before, after) = {
+      let mut data = data.borrow_mut();
+      let (row, column) = (data.current_row_number(), data.current_column_number());
+      match data.current_column() {
+        Some(cell) => {
+          let before = cell.before.clone().unwrap_or_default();
+          (row, column, before, cell.after.clone().unwrap_or_default())
+        },
+        None => return Ok(Tokens!()),
+      }
+    };
+    let Some(style) = styles.cells.get(&(row, column)) else { return Ok(Tokens!()) };
+    let (open, close) = tblr_mode_wrap(style, styles.math);
+    if open.is_empty() && style.cmd.is_none() {
+      return Ok(Tokens!());
+    }
+    // the column's own template tokens, which follow this hook
+    let mut out = Vec::new();
+    for _ in 0..before.unlist_ref().len() {
+      match read_token()? {
+        Some(t) => out.push(t),
+        None => break,
+      }
+    }
+    out.extend(open.iter().copied());
+    let mut new_after = close.clone();
+    new_after.extend(after.unlist());
+    // the cell's template is now these parts: the reversion trims both (`trim_column_template`)
+    if let Some(cell) = data.borrow_mut().current_column() {
+      cell.before = Some(Tokens::new(out.clone()));
+      cell.after = Some(Tokens::new(new_after.clone()));
+    }
+    let Some(cmd) = &style.cmd else { return Ok(Tokens::new(out)) };
+    let is_cs = |t: &Token, name: &str| t.get_catcode() == Catcode::CS && t.with_str(|s| s == name);
+    let mut text: Vec<Token> = Vec::new();
+    let mut depth = 0usize;
+    let mut ended_by_after = false;
+    let mut nested = false;
+    while let Some(t) = read_token()? {
+      if depth == 0 && is_cs(&t, "\\lx@alignment@column@after") {
+        ended_by_after = true;
+        text.push(t);
+        break;
+      }
+      if depth == 0
+        && (is_cs(&t, "\\\\") || is_cs(&t, "\\tabularnewline") || is_cs(&t, "\\end") || is_cs(&t, "\\begin"))
+      {
+        nested = is_cs(&t, "\\begin");
+        unread_one(t);
+        break;
+      }
+      match t.get_catcode() {
+        Catcode::BEGIN => depth += 1,
+        Catcode::END => depth = depth.saturating_sub(1),
+        _ => {},
+      }
+      text.push(t);
+    }
+    if nested {
+      // an environment in the cell: its text as written
+      unread_vec(text);
+      return Ok(Tokens::new(out));
+    }
+    let tail = if ended_by_after {
+      // the after part `&` put back (its tokens and the hook) follows the text
+      let keep = new_after.len() + 1;
+      text.split_off(text.len().saturating_sub(keep))
+    } else {
+      Vec::new()
+    };
+    out.extend(cmd.iter().copied());
+    out.push(T_BEGIN!());
+    out.extend(text);
+    out.push(T_END!());
+    out.extend(tail);
     Ok(Tokens::new(out))
   });
   // A long or tall table's caption, notes and remarks (tabularray.sty:6384-6470, the templates at
@@ -1427,7 +2445,14 @@ LoadDefinitions!({
           before.push(T_CS!("\\lx@tblr@list"));
         }
         before.extend(internal("\\@@toccaption{\\lx@format@toctitle@@{table}"));
-        before.extend(tblr_braced(&lot_text));
+        // the caption's own text, printed below, is re-read for the line (`\lx@reread@copy`, `tex_math::REREAD_COPY`)
+        if caption_shown && lot_text.to_string() == caption.to_string() {
+          let mut reread = vec![T_CS!("\\lx@reread@copy")];
+          reread.extend(lot_text.clone().unlist());
+          before.extend(tblr_braced(&Tokens::new(reread)));
+        } else {
+          before.extend(tblr_braced(&lot_text));
+        }
         before.push(T_END!());
       } else if container && numbered {
         before.push(T_CS!("\\lx@tblr@nolist"));
@@ -1534,6 +2559,39 @@ LoadDefinitions!({
   // an environment around the table rebinds it (longtable's row caption swallowed the table).
   RawTeX!(r"\let\lx@tblr@caption\caption\AtBeginDocument{\let\lx@tblr@caption\caption}");
   // The material after a table's end (`\lx@tblr@portrait`), in the table's group.
+  // A table's rules (`TBLR_RULES`): its body's shape once `evaluate=`/`expand=` have run (`\l__tblr_body_tl`)...
+  DefPrimitive!("\\lx@tblr@rules@shape", {
+    if let Some(Stored::Opaque(rules)) = lookup_value(TBLR_RULES)
+      && let Some(rules) = rules.downcast_ref::<TblrRules>()
+    {
+      let body = lookup_definition(&T_CS!("\\l__tblr_body_tl"))?
+        .and_then(|d| d.get_expansion().cloned())
+        .and_then(|b| match b {
+          ExpansionBody::Tokens(t) => Some(t.unlist()),
+          _ => None,
+        })
+        .unwrap_or_default();
+      let shape = tblr_shape_of(body)?;
+      let rules = TblrRules {
+        keys: rules.keys.clone(),
+        ncols: rules.ncols,
+        shape,
+      };
+      assign_value(TBLR_RULES, Stored::Opaque(Rc::new(rules)), None);
+    }
+  });
+  // ... and, at the table's end, the cells' borders: the `t`/`b`/`l`/`r` the kernel's `\hline` and
+  // `|` give (`tblr_rule_borders`), on the rows of the alignment (its `\hline`s' pseudo-rows aside), each letter not
+  // already there from the template's `|` (tabularray's `vlines` is the colspec's first `|` at a place, :2208-2240).
+  // tabularray draws its rules apart from the cells, so an all-empty table keeps its grid (the manual's
+  // `\makeEmptyTable`, tabularray.tex:2859-2870; OXIDIZED_DESIGN_DIVERGENCES #855). Guards
+  // `perfect_kernel_batch78p::{tblr_rules_keep_an_empty_table, tblr_rule_keys_become_cell_borders}`.
+  // Expandable, done as it expands: after a last `\\` the alignment's row-start scan expands it, where a primitive
+  // started a row of its own (whose first cell, with a `cmd=` column, read on past the table's end).
+  DefMacro!("\\lx@tblr@rules", {
+    tblr_draw_rules()?;
+    Ok(Tokens!())
+  });
   DefMacro!("\\lx@tblr@after", {
     Ok(match lookup_value(TBLR_AFTER) {
       Some(Stored::Tokens(tokens)) => tokens,
@@ -1755,22 +2813,41 @@ LoadDefinitions!({
   // `\NewTblrTableCommand\myhline{\hline[0.1em,red5]}` (manual). It means its body only inside
   // a table (`\__tblr_enable_table_commands:`, :1646-1650, at the table's start, :3516): kept as
   // `\lx@tblr@tc@<cmd>`, listed in `\lx@tblr@table@commands`, and let to the command there
-  // (`\lx@tblr@env`); undefined, `\myhline` was an error. The meaning is a `\newcommand`,
-  // expandable as the row-start scan needs. tabularray's own `\pagebreak`/`\nopagebreak`
-  // (:3129-3137, `[1][4]`) set a row's page break, which has no place here: the kernel's
-  // started a cell, and the `\hline` after it came mid-row (4 errors in the manual).
+  // (`\lx@tblr@env`); undefined, `\myhline` was an error. The meaning is expandable as the row-start
+  // scan needs: tabularray executes a table command when it extracts it from the body (:1640-1660),
+  // before any cell is typeset, which that scan models. An optional argument is read by the kernel's
+  // `\@ifnextchar` (`\lx@tblr@tc@opt`), not by a `\newcommand` one, at which the scan stops as TeX's
+  // `align_peek` does at `\@protected@testopt` (68z, `gullet::read_x_token_cell_head`).
+  // tabularray's own `\pagebreak`/`\nopagebreak` (:3129-3137, `[1][4]`) set a row's page break, which
+  // has no place here: the kernel's started a cell, and the `\hline` after it came mid-row (4 errors
+  // in the manual).
   RawTeX!(
     r"\def\lx@tblr@table@commands{}
+\def\lx@tblr@tc@opt#1[#2]{#1{#2}}
 \NewDocumentCommand\NewTblrTableCommand{m O{0} o m}{%
 \@ifundefined{lx@tblr@tc@\string#1}{}{\PackageError{tabularray}{Table command \string#1 already defined!}{}}%
 \IfValueTF{#3}%
-{\expandafter\newcommand\csname lx@tblr@tc@\string#1\endcsname[#2][#3]{#4}}%
+{\expandafter\newcommand\csname lx@tblr@tc@@\string#1\endcsname[#2]{#4}%
+\expandafter\edef\csname lx@tblr@tc@\string#1\endcsname{\noexpand\@ifnextchar[%
+{\noexpand\lx@tblr@tc@opt\expandafter\noexpand\csname lx@tblr@tc@@\string#1\endcsname}%
+{\expandafter\noexpand\csname lx@tblr@tc@@\string#1\endcsname{\unexpanded{#3}}}}}%
 {\expandafter\newcommand\csname lx@tblr@tc@\string#1\endcsname[#2]{#4}}%
 \g@addto@macro\lx@tblr@table@commands{\do#1}}
 \let\NewTableCommand\NewTblrTableCommand
 \NewTblrTableCommand\pagebreak[1][4]{}\NewTblrTableCommand\nopagebreak[1][4]{}"
   );
   def_macro_noop("\\SetCell[]{}")?;
+  // A row-spanning cell's `\SetCell` in a table (`tblr_span_cells`): the row span, as `\multirow`'s
+  // (multirow_sty.rs `\lx@multirow@setup`).
+  DefPrimitive!("\\lx@tblr@cell@span{Number}", sub[(rows)] {
+    if let Some(alignment) = lookup_alignment()
+      && let Some(data) = alignment.alignment_cell()
+      && let Some(cell) = data.borrow_mut().current_column()
+    {
+      cell.rowspan = Some(rows.value_of().max(1) as usize);
+    }
+    Ok(())
+  });
   def_macro_noop("\\SetCells[]{}")?;
   // The other `\NewTblrTableCommand`s (tabularray.sty:1613; :2990 `\SetRow`,
   // :2962 `\SetRows`, :2824 `\SetColumn`, :2796 `\SetColumns` = `O{} m`;

@@ -636,7 +636,8 @@ fn nicematrix_x_column_takes_its_keys() {
 /// tabularray's `\NewColumnType` defines a column type whose body, its
 /// arguments put in, is more colspec (tabularray.sty:3291-3334): `Y` is its
 /// default `Q[c]`. A no-op, the spec became the template and a `b` read `l`
-/// as its width (non-decimal-units: 11 -> 15 errors in 56jr).
+/// as its width (non-decimal-units: 11 -> 15 errors in 56jr). `U`'s `cmd={\textbf}` sets its cells bold, as
+/// pdflatex prints them (68z: the `cmd` cell key, tabularray.sty:4593-4618).
 #[test]
 fn tabularray_new_column_type_expands() {
   let tex = include_str!(
@@ -651,7 +652,7 @@ fn tabularray_new_column_type_expands() {
     &[],
     r#"<tr>
       <td align="right">a</td>
-      <td align="right" border="r">1.2.3</td>
+      <td align="right" border="r"><text font="bold">1.2.3</text></td>
       <td align="center">x</td>
       <td align="left">u</td>
     </tr>"#,
@@ -760,7 +761,7 @@ fn bindings_load_calc_where_their_packages_do() {
     ("\\documentclass{article}\\usepackage{diagbox}", 0),
     ("\\documentclass{article}\\usepackage{animate}", 0),
     ("\\documentclass{article}\\usepackage{savetrees}", 0),
-    // The stub's own "breqn.sty is not implemented" warning.
+    // The stub's own "breqn.sty is minimally stubbed" warning.
     ("\\documentclass{article}\\usepackage{breqn}", 1),
     ("\\documentclass{jmlr}", 0),
   ] {

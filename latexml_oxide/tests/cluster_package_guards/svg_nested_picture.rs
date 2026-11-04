@@ -24,7 +24,7 @@ pub(crate) fn post_html_logged(xml: &str) -> (String, String) {
     source_directory:          Some("tests/cluster_regressions"),
     site_directory:            None,
     search_paths:              &[],
-    nodefaultresources:        true,
+    default_resources:         false,
     css_files:                 &[],
     js_files:                  &[],
     noinvisibletimes:          false,

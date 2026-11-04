@@ -1,6 +1,6 @@
 //! nccfoots.sty (ncctools v1.2, 2005/02/03) — footnotes with a given mark.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(m). `\Footnote{mark}{text}`,
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(m). `\Footnote{mark}{text}`,
 //! `\Footnotemark{mark}` and `\Footnotetext{mark}{text}` (nccfoots.sty:36-38) set `\@thefnmark` to the
 //! mark (an empty one keeps the current mark, `\NCC@makefnmark`, :28-34) and then make LaTeX's footnote,
 //! mark or text without stepping the counter. Here each is the kernel's note (`\lx@note`,

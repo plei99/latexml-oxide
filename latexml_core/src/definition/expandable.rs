@@ -73,6 +73,10 @@ pub struct ExpandableOptions {
   /// Declared with TeX's long-ness: the `\def` family, LaTeX's starred `\newcommand` family. Such a macro, made
   /// by a format, a raw-loaded file or the document, checks its arguments for `\par` ([`Expandable::checks_par`]).
   pub tex_declared:       bool,
+  /// A binding's port of a TeX macro that is not `\long`: it checks its arguments for `\par` as the original does
+  /// ([`Expandable::checks_par`]), wherever it is made. amsppt.sty:804/:814's `\footnote`/`\footnotetext`, whose
+  /// arguments stop at a paragraph's end (amsppt_sty.rs).
+  pub short:              bool,
   /// Wraps the name's current meaning and delegates to it (OmniBus's `\bibitem`, which loads natbib for a
   /// `[\protect\citeauthoryear…]` label and otherwise calls the `\bibitem` it saved): it extends the name rather
   /// than replacing it, so a provide-only load installs it too (`state::provide_only_declines`).
@@ -175,6 +179,79 @@ impl Definition for Expandable {
 
   /// Expand the expandable control sequence. This should be carried out by the Gullet.
   fn invoke(&self, once_only: bool) -> Result<Tokens> {
+    if crate::definition::origin::setter_watch() && note_setter_call(&self.cs) {
+      return self.expand_noted(once_only);
+    }
+    self.expand(once_only)
+  }
+
+  /// [`Self::invoke`] onto the input, a token-list body without building the expansion: the parameterless
+  /// body is pushed as stored, a body with parameters through its substitution plan
+  /// ([`crate::gullet::unread_substituted`]). Closures, argument-only definitions and a frontmatter setter (whose
+  /// expansion is noted, as [`Self::invoke`] notes it) take the general path.
+  fn invoke_onto_input(&self, once_only: bool) -> Result<()> {
+    if crate::definition::origin::setter_watch() && note_setter_call(&self.cs) {
+      crate::gullet::unread_expansion(self.expand_noted(once_only)?);
+      return Ok(());
+    }
+    if self.yields_calls
+      && let Some(owner) = self.call_owner()?
+    {
+      crate::gullet::unread_expansion(Tokens!(owner));
+      return Ok(());
+    }
+    let Some(ExpansionBody::Tokens(tokens)) = &self.expansion else {
+      crate::gullet::unread_expansion(self.invoke(once_only)?);
+      return Ok(());
+    };
+    let Some(parms) = &self.paramlist else {
+      let body = self.parameterless_body(tokens, once_only)?;
+      crate::gullet::unread_substituted(body, &[BodyPiece::Run(0, body.len() as u32)], &[]);
+      return Ok(());
+    };
+    // A call that does not match its `\def` (tex.web §398) or whose argument ran off a file's end (§392)
+    // expands to nothing.
+    let Some(args) = self.read_call_arguments(parms)? else {
+      return Ok(());
+    };
+    if !self.has_cc_arg {
+      crate::gullet::unread_substituted(
+        tokens.unlist_ref(),
+        &[BodyPiece::Run(0, tokens.len() as u32)],
+        &[],
+      );
+      return Ok(());
+    }
+    self.substitute_onto_input(tokens, &args)
+  }
+
+  // Not implemented for expandable
+  fn invoke_primitive(&self) -> Result<Vec<Digested>> { Ok(Vec::new()) }
+  fn before_digest(&self) -> Option<&Vec<BeforeDigestClosure>> { None }
+  fn after_digest(&self) -> Option<&Vec<DigestionClosure>> { None }
+  fn do_absorption(&self, _document: &mut Document, _whatsit: &Whatsit) -> Result<Vec<Node>> {
+    fatal!(
+      Definition,
+      Unexpected,
+      "do_absorption on Expandable should never be called!"
+    );
+  }
+}
+
+impl Expandable {
+  /// [`Self::expand`] for a frontmatter setter ([`note_setter_call`]): its expansion noted once its arguments are read,
+  /// the input after them what it is read before (the frontmatter observer's ledger).
+  #[cold]
+  #[inline(never)]
+  fn expand_noted(&self, once_only: bool) -> Result<Tokens> {
+    let expansion = self.expand(once_only)?;
+    note_frontmatter_setter_expansion(&self.cs);
+    Ok(expansion)
+  }
+
+  /// The expansion of a call ([`Definition::invoke`]), its arguments read.
+  #[inline(always)]
+  fn expand(&self, once_only: bool) -> Result<Tokens> {
     // Perl shortcut for "trivial" macros that were tracing- or
     // profiling-aware. Neither tracing nor profiling is implemented
     // in the Rust port (the returned `_tracing` / `_profiled` values
@@ -251,55 +328,6 @@ impl Definition for Expandable {
     }
   }
 
-  /// [`Self::invoke`] onto the input, a token-list body without building the expansion: the parameterless
-  /// body is pushed as stored, a body with parameters through its substitution plan
-  /// ([`crate::gullet::unread_substituted`]). Closures and argument-only definitions take the general path.
-  fn invoke_onto_input(&self, once_only: bool) -> Result<()> {
-    if self.yields_calls
-      && let Some(owner) = self.call_owner()?
-    {
-      crate::gullet::unread_expansion(Tokens!(owner));
-      return Ok(());
-    }
-    let Some(ExpansionBody::Tokens(tokens)) = &self.expansion else {
-      crate::gullet::unread_expansion(self.invoke(once_only)?);
-      return Ok(());
-    };
-    let Some(parms) = &self.paramlist else {
-      let body = self.parameterless_body(tokens, once_only)?;
-      crate::gullet::unread_substituted(body, &[BodyPiece::Run(0, body.len() as u32)], &[]);
-      return Ok(());
-    };
-    // A call that does not match its `\def` (tex.web §398) or whose argument ran off a file's end (§392)
-    // expands to nothing.
-    let Some(args) = self.read_call_arguments(parms)? else {
-      return Ok(());
-    };
-    if !self.has_cc_arg {
-      crate::gullet::unread_substituted(
-        tokens.unlist_ref(),
-        &[BodyPiece::Run(0, tokens.len() as u32)],
-        &[],
-      );
-      return Ok(());
-    }
-    self.substitute_onto_input(tokens, &args)
-  }
-
-  // Not implemented for expandable
-  fn invoke_primitive(&self) -> Result<Vec<Digested>> { Ok(Vec::new()) }
-  fn before_digest(&self) -> Option<&Vec<BeforeDigestClosure>> { None }
-  fn after_digest(&self) -> Option<&Vec<DigestionClosure>> { None }
-  fn do_absorption(&self, _document: &mut Document, _whatsit: &Whatsit) -> Result<Vec<Node>> {
-    fatal!(
-      Definition,
-      Unexpected,
-      "do_absorption on Expandable should never be called!"
-    );
-  }
-}
-
-impl Expandable {
   /// For a [`Self::yields_calls`] override: `\lx@locked@<cs>`, the locked binding, when the next raw token opens a
   /// call of it — an explicit catcode-1 `{`, or a `[`/`*` its signature opens with
   /// ([`crate::state::call_openers`]) — and `None` for any other use, which expands the override. The peek reads
@@ -538,14 +566,15 @@ impl Expandable {
       is_outer: traits.outer || get_prefix_sym(crate::pin!("outer")),
       is_long,
       checks_par: !is_long
-        && traits.tex_declared
         && reads_arguments
-        && matches!(
-          crate::definition::origin::current_origin(),
-          crate::definition::origin::DefinitionOrigin::Format
-            | crate::definition::origin::DefinitionOrigin::File
-            | crate::definition::origin::DefinitionOrigin::Document
-        ),
+        && (traits.short
+          || traits.tex_declared
+            && matches!(
+              crate::definition::origin::current_origin(),
+              crate::definition::origin::DefinitionOrigin::Format
+                | crate::definition::origin::DefinitionOrigin::File
+                | crate::definition::origin::DefinitionOrigin::Document
+            )),
       has_cc_arg,
       alias: traits.alias,
       ..Expandable::default()

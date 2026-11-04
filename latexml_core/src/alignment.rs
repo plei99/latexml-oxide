@@ -228,6 +228,43 @@ impl Alignment {
   }
 
   pub fn rows(&self) -> &VecDeque<Row> { &self.rows }
+  pub fn rows_mut(&mut self) -> &mut VecDeque<Row> { &mut self.rows }
+
+  /// Turns the rows read into the table's columns: `\valign`'s body is read as `\halign`'s is, but each line its `\cr`
+  /// ends is a column of the table, its `&`-separated entries stacked from the top (tex.web §768, §785), and a span
+  /// covers rows. A column shorter than the longest ends in empty cells; the material a `\noalign` put between
+  /// columns opens the first row.
+  pub fn transpose(&mut self) {
+    let columns: Vec<Row> = self.rows.drain(..).collect();
+    let height = columns
+      .iter()
+      .map(|column| column.get_columns().len())
+      .max()
+      .unwrap_or(0);
+    let mut rows: Vec<Row> = (0..height)
+      .map(|_| {
+        let mut row = self.template.clone();
+        row.get_columns_mut().clear();
+        row
+      })
+      .collect();
+    for mut column in columns {
+      if let Some(first) = rows.first_mut() {
+        first.before.append(&mut column.before);
+        first.before.append(&mut column.after);
+      }
+      let mut cells = std::mem::take(column.get_columns_mut()).into_iter();
+      for row in &mut rows {
+        let mut cell = cells
+          .next()
+          .unwrap_or_else(|| Cell { empty: true, ..Cell::default() });
+        std::mem::swap(&mut cell.colspan, &mut cell.rowspan);
+        std::mem::swap(&mut cell.colspanned, &mut cell.rowspanned);
+        row.get_columns_mut().push(cell);
+      }
+    }
+    self.rows = rows.into();
+  }
   pub fn get_cached_height(&self) -> Option<Dimension> { self.cached_height }
   pub fn get_cached_depth(&self) -> Option<Dimension> { self.cached_depth }
   pub fn get_row_heights(&self) -> &[Dimension] { &self.row_heights }
@@ -376,6 +413,17 @@ impl Alignment {
     }
   }
 
+  /// [`Self::omit_next_column`], the cell's material boxed as text ([`Cell::omit_text_box`]).
+  pub fn omit_next_column_as_text(&mut self) {
+    if let Some(cw) = self.current_row
+      && let Some(row) = self.rows.get_mut(cw)
+      && let Some(column) = row.get_column_mut(self.current_column + 1)
+    {
+      column.omitted = true;
+      column.omit_text_box = true;
+    }
+  }
+
   pub fn get_column_before(&mut self) -> Tokens {
     if let Some(column) = self.current_column() {
       if !column.omitted {
@@ -383,6 +431,10 @@ impl Alignment {
           T_CS!("\\lx@alignment@column@before"),
           column.before.clone().unwrap_or_default().unlist()
         )
+      } else if column.omit_text_box {
+        // the cell's own group, explicit braces: the before-column marker that follows resets the ledger; its leading
+        // and trailing fills are the cell's (tex_tables.rs `hoist_omit_text_box_fills`)
+        Tokens!(T_CS!("\\hbox"), T_BEGIN!())
       } else {
         Tokens!()
       }
@@ -399,6 +451,8 @@ impl Alignment {
           column.after.clone().unwrap_or_default().unlist(),
           T_CS!("\\lx@alignment@column@after")
         )
+      } else if column.omit_text_box {
+        Tokens!(T_END!())
       } else {
         Tokens!()
       }
@@ -464,6 +518,14 @@ impl Alignment {
     // Mark the cell frame: its `\aftergroup` tokens are run at the cell's
     // end (see `end_column`).
     assign_frame_value_sym(crate::pin!("alignCellGroup"), true);
+    // The cell frame is the template's brace pair (latex.ltx:16666 `\@tabclassz`'s `\@preamble{…\@sharp…}`, see
+    // `end_column`), so it carries the template-brace mark: a cell's stray `}` closes that `{` and leaves the frame
+    // (`stomach::close_template_brace`); the column end then meets the count −1 (tex.web §1127 `align_error`, "Missing {
+    // inserted"), and the inserted `{` is closed at the cell's end as the template's `}` would close it. Before, the `}`
+    // popped the cell frame and the column bookkeeping bound in it, and a `{a & b}` or `a & b}` row lost its first cell
+    // to a spanning second one (`colspan="2"`). Guard
+    // `perfect_kernel_batch70b::tabular_stray_close_brace_keeps_its_cells`.
+    assign_value(TEMPLATE_BRACE_OPEN, true, None);
     set_align_group_count(1000000);
     self.in_column = true;
     Ok(())
@@ -471,6 +533,18 @@ impl Alignment {
 
   pub fn end_column(&mut self) -> Result<()> {
     if self.in_column {
+      // The template's `}` (see `start_column`): when the cell's own `}` closed the template's `{` and a `{` was
+      // inserted after it (tex.web §1127 `align_error`), that `{` is the group open at the cell's end, and this `}`
+      // closes it. Then the cell frame is popped as itself, never taken for a template brace again.
+      if !is_value_bound("alignCellGroup", Some(0))
+        && !lookup_bool(TEMPLATE_BRACE_OPEN)
+        && off_save_closer().is_some_and(|closer| closer == T_END!())
+      {
+        egroup()?;
+      }
+      if is_value_bound("alignCellGroup", Some(0)) {
+        assign_value(TEMPLATE_BRACE_OPEN, false, None);
+      }
       // `\aftergroup` IN A CELL FIRES INSIDE THE CELL. LaTeX's tabular/array
       // entry template wraps every entry in a brace group (latex.ltx
       // `\@classz`: `{\hfil\hskip1sp\ignorespaces\@sharp\unskip\hfil}`), so an
@@ -650,7 +724,12 @@ impl BoxOps for Alignment {
     // token-locators: stamp the `tabular` with the table span before it opens.
     #[cfg(feature = "token-locators")]
     document.set_current_box_locator(table_span);
-    open_container_fn(document, attrs)?;
+    // an alignment is a TeX box: the container it opens is marked, its cells' text no body text for a field's print
+    // outside it (OXIDIZED_DESIGN #715)
+    document.arm_field_box();
+    let opened = open_container_fn(document, attrs);
+    document.disarm_field_box();
+    opened?;
 
     for row in rows {
       // token-locators: stamp this `tr` with the row's span before it opens.
@@ -661,6 +740,12 @@ impl BoxOps for Alignment {
       let mut open_row_attrs = HashMap::default();
       for (k, v) in &row.properties {
         open_row_attrs.insert(k.clone(), v.clone());
+      }
+      if row.has_explicit_tags() {
+        open_row_attrs.insert(
+          template::TAGGED_ROW_ATTRIBUTE.to_string(),
+          Stored::from("true"),
+        );
       }
       if let Some(x) = row.x {
         open_row_attrs.insert("x".to_string(), Stored::Dimension(x));

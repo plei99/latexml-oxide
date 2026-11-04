@@ -4,7 +4,7 @@
 //! the group added, the open paragraph included (latex_constructs.pool.ltxml:1232-1241
 //! `applyAligningContext`). `\vspace` in horizontal mode is a `\vadjust` (latex.ltx:9522-9532
 //! `\@vspace`) and does not end the paragraph either, where `\vskip` does.
-//! OXIDIZED_DESIGN_DIVERGENCES #602 and #603.
+//! OXIDIZED_DESIGN_DIVERGENCES #981 and #982.
 
 fn xml_of(body: &str) -> String {
   let (stderr, xml) = super::convert(

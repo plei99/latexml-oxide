@@ -1,4 +1,4 @@
-//! biblatex's own layout of a bibliography entry (OXIDIZED_DESIGN_DIVERGENCES #601).
+//! biblatex's own layout of a bibliography entry (OXIDIZED_DESIGN_DIVERGENCES #980).
 //!
 //! `MakeBibliography`'s `%FMT_SPEC` rows ([`crate::make_bibliography`]) lay an entry out the way LaTeXML's
 //! `.bst`-flavoured formatter does: the author with the year, "External Links:", "Cited by:". A document that loads

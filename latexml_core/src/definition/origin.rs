@@ -13,7 +13,7 @@
 //! `{figure}`… in article.cls, our pool pre-defines them for class-less
 //! robustness, so a standalone class redeclaring them is not an error —
 //! while a genuine double declaration between two raw files still is.
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 /// Who made a definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,6 +41,11 @@ pub enum DefinitionOrigin {
   /// `\equalcontrib`, set inside its `\@maketitle`): yields as `Fallback` does, and to a raw class's or package's own
   /// `\newcommand` of the name too, since the real file does define it (copernicus.cls:1673 `\equalcontrib[1]`).
   Stub,
+  /// What a binding borrows from a package the real one does not load (`binding::content::require_package_borrowed`:
+  /// theorem.sty's and ntheorem.sty's bindings borrow amsthm's): in LaTeX the names do not exist, so they yield as
+  /// `Fallback` does, and to every raw file's own definition too — TeX Live's or the author's (cc.cls's ccproof.sty:56
+  /// `\newenvironment{proof}` after theorem.sty; 1507.02955).
+  Borrowed,
   /// A raw format file read as definitions (latex.ltx, plain.tex, expl3-code.tex).
   Format,
   /// A raw `.sty`/`.cls`/`.def`/`.tex` the document loaded as definitions.
@@ -111,6 +116,216 @@ impl Drop for ProvideOnlyGuard {
       crate::state::end_provide_only();
     }
   }
+}
+
+thread_local! {
+  /// The stand-in copy whose provides-mode is in force (`0`: none), and the modes it interrupted.
+  static COPY_PROVIDES: Cell<u32> = const { Cell::new(0) };
+  static COPY_PROVIDES_STACK: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The stand-in copy whose read is in force — "a stand-in's copy provides" (`state::note_copy_provides_assignment`): the
+/// 1-based number of the paper's copy of an author file a stand-in binding answers
+/// (`binding::content::read_stand_in_copy`), while that copy is read, while a hook it registered runs, or `0`.
+pub fn copy_provides() -> u32 { COPY_PROVIDES.with(|c| c.get()) }
+
+/// Enter copy `id`'s provides-mode (`0`: suspend it, for a file the copy loads), until the matching
+/// [`leave_copy_provides`]. A stack, not a guard: the scope markers `\lx@copy@provides@begin{N}` and
+/// `\lx@copy@provides@end` wrapped around a hook the copy registers bracket a token run, not a Rust call. Entering
+/// from no mode (or leaving to none) puts `\AddToHook`'s registration seam in place (or back out,
+/// `state::swap_copy_provides_hook_seam`).
+pub fn enter_copy_provides(id: u32) {
+  let previous = COPY_PROVIDES.with(|c| c.get());
+  COPY_PROVIDES_STACK.with(|s| s.borrow_mut().push(previous));
+  crate::state::enter_copy_provides_frame(id, previous);
+  if (previous == 0) != (id == 0) {
+    crate::state::swap_copy_provides_hook_seam(id != 0);
+  }
+  // (the copy's code is a file's: locked, as a raw read is, `load_tex_definitions` — also when its
+  // `\AtEndOfClass` code runs inside `\documentclass`'s unlocked after-digestion)
+  if id != 0 {
+    crate::common::local_assignments::local_state_unlocked(false);
+  }
+  COPY_PROVIDES.with(|c| c.set(id));
+}
+
+/// Leave the provides-mode [`enter_copy_provides`] entered: the interrupted one is in force again. An unmatched leave
+/// is ignored.
+pub fn leave_copy_provides() {
+  let Some(previous) = COPY_PROVIDES_STACK.with(|s| s.borrow_mut().pop()) else {
+    return;
+  };
+  let current = COPY_PROVIDES.with(|c| c.replace(previous));
+  if current != 0 {
+    crate::common::local_assignments::expire_state_unlocked();
+  }
+  crate::state::leave_copy_provides_frame();
+  if (previous == 0) != (current == 0) {
+    crate::state::swap_copy_provides_hook_seam(previous != 0);
+  }
+}
+
+/// RAII form of [`enter_copy_provides`]/[`leave_copy_provides`], for a Rust-bracketed scope (the copy's read, a
+/// nested load's suspension).
+pub struct CopyProvidesGuard;
+
+impl CopyProvidesGuard {
+  pub fn new(id: u32) -> Self {
+    enter_copy_provides(id);
+    CopyProvidesGuard
+  }
+}
+
+impl Drop for CopyProvidesGuard {
+  fn drop(&mut self) { leave_copy_provides(); }
+}
+
+thread_local! {
+  static STAND_IN_LOADING: Cell<u32> = const { Cell::new(0) };
+  static STAND_IN_OWN_CODE: Cell<bool> = const { Cell::new(false) };
+  static STAND_IN_LOADER_OWN_CODE: Cell<bool> = const { Cell::new(false) };
+  static STAND_IN_BASE_CLASS: Cell<bool> = const { Cell::new(false) };
+  /// Which setter watches are on: [`COPY_DEFAULT_WATCH`], [`FRONTMATTER_WATCH`] (one flag, read at every macro call).
+  static SETTER_WATCH: Cell<u8> = const { Cell::new(0) };
+}
+
+/// [`watch_setter_calls`]' watch: a stand-in copy stored a default of the setters' fields.
+const COPY_DEFAULT_WATCH: u8 = 1;
+/// [`watch_frontmatter_setter_calls`]' watch: the frontmatter observer's.
+const FRONTMATTER_WATCH: u8 = 2;
+
+/// Are frontmatter setter calls observed ([`watch_setter_calls`], [`watch_frontmatter_setter_calls`])? Read at every
+/// macro call, so a flag.
+pub fn setter_watch() -> bool { SETTER_WATCH.with(|c| c.get()) != 0 }
+
+/// Is [`watch_frontmatter_setter_calls`]' watch on?
+pub fn frontmatter_watch() -> bool { SETTER_WATCH.with(|c| c.get()) & FRONTMATTER_WATCH != 0 }
+
+/// Is [`watch_setter_calls`]' watch on?
+pub fn copy_default_watch() -> bool { SETTER_WATCH.with(|c| c.get()) & COPY_DEFAULT_WATCH != 0 }
+
+/// Observe the calls of the setters `names` from now on (`state::note_setter_call`): a stand-in's copy stored a
+/// default of their field, which the document's own call replaces whatever its value.
+pub fn watch_setter_calls(names: &[&str]) {
+  crate::state::watch_setters(names);
+  SETTER_WATCH.with(|c| c.set(c.get() | COPY_DEFAULT_WATCH));
+}
+
+/// Observe the expansions of the frontmatter setters `names` for this conversion (`state::note_setter_call`,
+/// `state::open_frontmatter_setter`: whose expansion an entry the frontmatter API queues was made in — latexml_engine's
+/// observer ledger), or stop observing them (`None`).
+pub fn watch_frontmatter_setter_calls(names: Option<&[&str]>) {
+  crate::state::watch_frontmatter_setters(names.unwrap_or_default());
+  SETTER_WATCH.with(|c| {
+    c.set(match names {
+      Some(_) => c.get() | FRONTMATTER_WATCH,
+      None => c.get() & !FRONTMATTER_WATCH,
+    })
+  });
+}
+
+/// Is a binding that stands in for an author's file loading ([`StandInLoadGuard`]), itself or a file it loads?
+pub fn stand_in_loading() -> bool { STAND_IN_LOADING.with(|c| c.get()) != 0 }
+
+/// Is the code running now a stand-in binding's own ([`StandInLoadGuard::new`]), not a file it loads
+/// ([`StandInLoadGuard::suspend`])?
+pub fn stand_in_own_code() -> bool { STAND_IN_OWN_CODE.with(|c| c.get()) }
+
+/// Did a stand-in binding's own code request the file now loading ([`StandInLoadGuard::suspend`] keeps the flag it
+/// suspended)? A stand-in binding that file is joins the loading binding's command set only then
+/// ([`StandInLoadGuard::loaded_by`]).
+pub fn stand_in_loader_own_code() -> bool { STAND_IN_LOADER_OWN_CODE.with(|c| c.get()) }
+
+/// Is the code running now a class a stand-in binding loads ([`StandInLoadGuard::suspend_for`]: its base class, the
+/// pool's article, report or book, or the OmniBus guess built on them), not the binding's own code nor a package?
+/// The text defaults such a class assigns (`\refname`, `\bibname`, `\abstractname`) are not the binding's
+/// (`state::State::stand_in_base_defaults`).
+pub fn stand_in_base_class() -> bool { STAND_IN_BASE_CLASS.with(|c| c.get()) }
+
+/// RAII guard: while a binding that stands in for an author's file loads (`binding::content::input_definitions`),
+/// every name assigned is recorded as that binding's (`state::State::stand_in_meanings`), whatever made it — its
+/// `DefMacro!`s, its `Let!`s and `RawTeX`, the bindings it requires — so the paper's copy read after it only provides
+/// them (`state::note_copy_provides_assignment`). The names its own code assigns, not a file it loads
+/// ([`StandInLoadGuard::suspend`]: OmniBus, natbib, a nested stand-in's own), are also its command set
+/// (`state::State::stand_in_last_load`), which the copy must define to be the file the binding stands in for
+/// (`binding::content` `copy_is_the_stood_in_file`).
+pub struct StandInLoadGuard {
+  own_code: bool,
+  load:     bool,
+  /// (a load: its names join the stand-in binding loading it, whose own code requested it; a suspension: the loader
+  /// flag it replaced)
+  from_own: bool,
+  /// (the base-class flag replaced: [`stand_in_base_class`])
+  base:     bool,
+}
+
+impl StandInLoadGuard {
+  /// A stand-in binding the code running now requests (`binding::content::input`'s `.tex` route): it joins the command
+  /// set of a stand-in binding loading it when that is the binding's own code.
+  pub fn new() -> Self { Self::loaded_by(stand_in_own_code()) }
+
+  /// A stand-in binding loads, requested by a stand-in binding's own code when `from_own_code`
+  /// (`binding::content::input_definitions`, [`stand_in_loader_own_code`]): its names join that binding's command set
+  /// at its end (`state::end_stand_in_load`) — the diagrams binding's diagrams.tex (hep-ph9609379) —, and not when a
+  /// file the outer binding loads requested it: OmniBus's `RequirePackage!("aas_macros")` (omnibus_cls.rs:71) under
+  /// asme2ej (2309.12017), nature-pre (2102.01782, 2111.09589), cimart (2412.00032).
+  pub fn loaded_by(from_own_code: bool) -> Self {
+    STAND_IN_LOADING.with(|c| c.set(c.get() + 1));
+    crate::state::begin_stand_in_load();
+    StandInLoadGuard {
+      own_code: STAND_IN_OWN_CODE.with(|c| c.replace(true)),
+      load:     true,
+      from_own: from_own_code,
+      base:     STAND_IN_BASE_CLASS.with(|c| c.replace(false)),
+    }
+  }
+
+  /// A file a stand-in binding loads (`binding::content::input_definitions`): its names are the binding's to own, but
+  /// not the binding's command set, until the guard drops.
+  pub fn suspend() -> Self { Self::suspend_for(false) }
+
+  /// [`StandInLoadGuard::suspend`] for a file that is a class (`class`, a `.cls`) or not: a class the binding's own
+  /// code loads is its base class ([`stand_in_base_class`]), and so is every class that class loads; a package any of
+  /// them loads is not (the bindings a binding requires stay its own).
+  pub fn suspend_for(class: bool) -> Self {
+    let own_code = STAND_IN_OWN_CODE.with(|c| c.replace(false));
+    let base = STAND_IN_BASE_CLASS.with(|c| c.replace(class && (own_code || c.get())));
+    StandInLoadGuard {
+      own_code,
+      load: false,
+      from_own: STAND_IN_LOADER_OWN_CODE.with(|c| c.replace(own_code)),
+      base,
+    }
+  }
+}
+
+impl Default for StandInLoadGuard {
+  fn default() -> Self { Self::new() }
+}
+
+impl Drop for StandInLoadGuard {
+  fn drop(&mut self) {
+    STAND_IN_OWN_CODE.with(|c| c.set(self.own_code));
+    STAND_IN_BASE_CLASS.with(|c| c.set(self.base));
+    if self.load {
+      STAND_IN_LOADING.with(|c| c.set(c.get().saturating_sub(1)));
+      crate::state::end_stand_in_load(self.from_own);
+    } else {
+      STAND_IN_LOADER_OWN_CODE.with(|c| c.set(self.from_own));
+    }
+  }
+}
+
+/// Forget every provides-mode: a new conversion starts with none (`reset_thread_engine`).
+pub fn reset_copy_provides() {
+  STAND_IN_LOADING.with(|c| c.set(0));
+  STAND_IN_OWN_CODE.with(|c| c.set(false));
+  STAND_IN_LOADER_OWN_CODE.with(|c| c.set(false));
+  STAND_IN_BASE_CLASS.with(|c| c.set(false));
+  // (the frontmatter observer's watch is its own, set at its reset: `watch_frontmatter_setter_calls`)
+  SETTER_WATCH.with(|c| c.set(c.get() & FRONTMATTER_WATCH));
+  COPY_PROVIDES.with(|c| c.set(0));
+  COPY_PROVIDES_STACK.with(|s| s.borrow_mut().clear());
 }
 
 /// Run `f` with `origin` as the current definition origin.

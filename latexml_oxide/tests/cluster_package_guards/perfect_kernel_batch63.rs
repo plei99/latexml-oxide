@@ -1317,13 +1317,15 @@ fn author_prefix_marked_unrequested_affiliation_stays_affiliation() {
 /// sectioning-frontmatter/author_prefix_marked_company_affiliation_with_email_line.
 #[test]
 fn author_prefix_marked_company_affiliation_with_email_line() {
+  // (each mark-led address line an e-mail of the name it spells, today's affiliation of it cut by the writer — 95c, OD
+  // #938; it was an affiliation, the writer declining)
   assert_creators(
     include_str!(
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/author_prefix_marked_company_affiliation_with_email_line.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Google DeepMind</contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\"><text font=\"typewriter\" xml:id=\"id1\">ann@google.com</text></contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Huawei Technologies</contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\"><text font=\"typewriter\" xml:id=\"id2\">bob@huawei.com</text></contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Google DeepMind</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann@google.com</text></contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Huawei Technologies</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">bob@huawei.com</text></contact></creator>",
     ],
   );
 }
@@ -1348,13 +1350,15 @@ fn author_prefix_marked_company_affiliation_with_place_line() {
 /// with theirs (review r10). Repro sectioning-frontmatter/author_prefix_marked_names_beside_company_affiliations_below.
 #[test]
 fn author_prefix_marked_names_beside_company_affiliations_below() {
+  // (each mark-led address line an e-mail of the name it spells, today's affiliation of it cut by the writer — 95c, OD
+  // #938; it was an affiliation, the writer declining)
   assert_creators(
     include_str!(
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/author_prefix_marked_names_beside_company_affiliations_below.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Google DeepMind</contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\"><text font=\"typewriter\" xml:id=\"id1\">ann@google.com</text></contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Huawei Technologies</contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\"><text font=\"typewriter\" xml:id=\"id2\">bob@huawei.com</text></contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Google DeepMind</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann@google.com</text></contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Huawei Technologies</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">bob@huawei.com</text></contact></creator>",
     ],
   );
 }
@@ -1650,6 +1654,7 @@ fn svjour3_sole_author_keeps_the_institute() {
 }
 
 /// 63h: the same for llncs, whose `\institute` without `\inst` went to a name-less creator even under one author (#159).
+/// Since 85b its e-mail is a line under the names (`share_row_contacts`, #901), which takes the space before it.
 /// Repro sectioning-frontmatter/llncs_sole_author_keeps_the_institute.
 #[test]
 fn llncs_sole_author_keeps_the_institute() {
@@ -1658,7 +1663,7 @@ fn llncs_sole_author_keeps_the_institute() {
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/llncs_sole_author_keeps_the_institute.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A </contact><contact name=\"E-mail\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann@a.org</text></contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A</contact><contact name=\"E-mail\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann@a.org</text></contact></creator>",
     ],
   );
 }
@@ -1758,7 +1763,9 @@ fn svjour3_at_institutes_link_by_surname_in_any_order() {
 /// 63h: a name-only svjour3 institute piece (`\institute{A. Able \and B. Baker \at Univ A}`; 1406.4834, 1603.00632,
 /// 1709.00485, 2311.02489, 2208.03119) pairs nothing by position: the institute stays shared, as at 63g (63h review r2).
 /// The name-only piece "A. Able" pinned as a shared affiliation (at 63g it sat on the last author) is the known residual of
-/// RED svjour3_name_only_piece_shares_the_next_institute: turning that green updates this guard.
+/// RED svjour3_name_only_piece_shares_the_next_institute: turning that green updates this guard. Since 97e (sv_support
+/// written) the `\at` piece is Bob Baker's, the institute's e-mail Ann Able's, whom it spells; the name-only piece stays
+/// the block's (Ann Able's Univ A, pdflatex's "A. Able · B. Baker" over "Univ A", is the RED residual's).
 /// Repro sectioning-frontmatter/svjour3_name_only_piece_keeps_the_institute_shared.
 #[test]
 fn svjour3_name_only_piece_keeps_the_institute_shared() {
@@ -1767,9 +1774,9 @@ fn svjour3_name_only_piece_keeps_the_institute_shared() {
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/svjour3_name_only_piece_keeps_the_institute_shared.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able</personname></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname></creator>",
-      "<creator role=\"author\"><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">A. Able</contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A </contact><contact name=\"E-mail: \" role=\"email\">ann@a.org</contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"E-mail: \" role=\"email\">ann@a.org</contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A </contact></creator>",
+      "<creator role=\"author\"><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">A. Able</contact></creator>",
     ],
   );
 }
@@ -1791,7 +1798,8 @@ fn elsarticle_lettered_addresses_no_one_cites_stay_shared() {
 }
 
 /// 63h: an svjour3 `\at` piece naming several authors (`Olivier Augereau, Koichi Kise, and Motoi Iwata \at …`,
-/// 1811.03214; 1001.2544) is every one of theirs. Repro sectioning-frontmatter/svjour3_at_piece_naming_several_authors.
+/// 1811.03214; 1001.2544) is every one of theirs; since 97e (sv_support written) the piece's e-mail is Carl Cole's, whom
+/// it spells, no longer the block's. Repro sectioning-frontmatter/svjour3_at_piece_naming_several_authors.
 #[test]
 fn svjour3_at_piece_naming_several_authors() {
   assert_creators(
@@ -1801,8 +1809,7 @@ fn svjour3_at_piece_naming_several_authors() {
     &[
       "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A</contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ B </contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Carl Cole</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ B </contact></creator>",
-      "<creator role=\"author\"><contact name=\"E-mail: \" role=\"email\">carl@b.org</contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Carl Cole</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ B </contact><contact name=\"E-mail: \" role=\"email\">carl@b.org</contact></creator>",
     ],
   );
 }
@@ -1812,14 +1819,15 @@ fn svjour3_at_piece_naming_several_authors() {
 /// sectioning-frontmatter/revtex_marked_affiliations_link_by_mark.
 #[test]
 fn revtex_marked_affiliations_link_by_mark() {
+  // (the corresponding author's address Ann's, which it spells — FIDELITY_CHARTER §4, not the last author's, 82x)
   assert_creators(
     include_str!(
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/revtex_marked_affiliations_link_by_mark.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able<sup xml:id=\"id1\"><text font=\"italic\" xml:id=\"id1.1\">a</text></sup></personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A</contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able<sup xml:id=\"id1\"><text font=\"italic\" xml:id=\"id1.1\">a</text></sup></personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A</contact><contact name=\"Email:\u{a0}\" role=\"email\">Corresponding author: ann@a.org</contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker<sup xml:id=\"id2\"><text font=\"italic\" xml:id=\"id2.1\">b</text></sup></personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ B</contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole<sup xml:id=\"id3\"><text font=\"italic\" xml:id=\"id3.1\">a</text></sup></personname><contact name=\"Email:\u{a0}\" role=\"email\">Corresponding author: ann@a.org</contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A</contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole<sup xml:id=\"id3\"><text font=\"italic\" xml:id=\"id3.1\">a</text></sup></personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A</contact></creator>",
     ],
   );
 }
@@ -2130,8 +2138,10 @@ fn author_and_tied_to_the_last_name_splits() {
   );
 }
 
-/// 63j review: an empty row holding `\label` but no number (eqnarray's `\nonumber`, align*) names no number, so it is
-/// still dropped and its label left unresolved, while align's numbered one keeps (2). Repro
+/// 63j review: an empty row holding `\label` but no number is dropped and its label left unresolved in an align*
+/// (pdflatex "??"), while align's numbered one keeps (2). In an eqnarray the label names the counter's next value,
+/// pdflatex's 2: since 78r its row stands with that number's reference forms and no printed tag (OD #847, KPE #1106;
+/// `perfect_kernel_batch78r::eqnarray_label_with_no_numbered_row_after_it_names_the_next_number`). Repro
 /// alignment/unnumbered_empty_labelled_row_stays_unresolved.
 #[test]
 fn unnumbered_empty_labelled_row_stays_unresolved() {
@@ -2159,10 +2169,12 @@ fn unnumbered_empty_labelled_row_stays_unresolved() {
   assert_eq!(
     (
       labelled,
+      tags_of_labelled_equation(&xml, "LABEL:un").as_deref(),
       tags_of_labelled_equation(&xml, "LABEL:nu").as_deref()
     ),
     (
-      vec!["LABEL:nu"],
+      vec!["LABEL:un", "LABEL:nu"],
+      Some("<tags><tag role=\"refnum\">2</tag></tags>"),
       Some("<tags><tag>(2)</tag><tag role=\"refnum\">2</tag></tags>")
     ),
     "{xml}"
@@ -2281,7 +2293,7 @@ fn post_xml(tex: &str) -> String {
     source_directory:          None,
     site_directory:            None,
     search_paths:              &[],
-    nodefaultresources:        true,
+    default_resources:         false,
     css_files:                 &[],
     js_files:                  &[],
     noinvisibletimes:          false,
@@ -2405,7 +2417,7 @@ fn author_email_line_label_is_its_name() {
       "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann@a.edu</text></contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ B</contact><contact name=\"E-mail: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">bob@b.edu</text></contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ C</contact><contact name=\"Emails: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">cat@c.edu</text></contact><contact name=\"Emails: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id4\">cc@c.edu</text></contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Dan Doe</personname><contact name=\"E-mail: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id5\">dan.doe@d.edu</text></contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ D</contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Dan Doe</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ D</contact><contact name=\"E-mail: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id5\">dan.doe@d.edu</text></contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Eve Eng</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ D</contact><contact name=\"E-mail: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id6\">eve.eng@d.edu</text></contact></creator>",
     ],
   );
@@ -2578,7 +2590,7 @@ fn author_group_affiliation_goes_to_each_name() {
     ),
     &[
       "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"E-mail: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">bob.baker@a.edu</text></contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact><contact name=\"E-mail: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">bob.baker@a.edu</text></contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Dan Doe</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. B</contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Eve Elm</personname></creator>",
@@ -2627,7 +2639,8 @@ fn ieee_grade_comma_before_a_break_continues_names() {
 }
 
 /// 63m: a second line of two or more names under the names is more names (2308.07107), and a line of bare addresses
-/// is their emails, each to the name it spells, else the last (2401.15897, 2402.02746). Repro
+/// is their emails, each to the name it spells (2401.15897, 2402.02746), else the block's, on the shared creator (user
+/// ruling R10 2026-10-20; 63m-77p r9 gave `staff@` to the last name). Repro
 /// sectioning-frontmatter/author_names_line_and_address_line.
 #[test]
 fn author_names_line_and_address_line() {
@@ -2636,11 +2649,12 @@ fn author_names_line_and_address_line() {
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/author_names_line_and_address_line.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann.able@a.edu</text></contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann.able@a.edu</text></contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Dan Doe</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of Physics, Univ. A</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">dan.doe@a.edu</text></contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Eve Elm</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. B</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">eve@b.edu</text></contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id4\">staff@b.edu</text></contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Eve Elm</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. B</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">eve@b.edu</text></contact></creator>",
+      "<creator role=\"author\"><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id4\">staff@b.edu</text></contact></creator>",
     ],
   );
 }
@@ -2689,16 +2703,18 @@ fn author_brace_email_groups_on_one_line() {
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/author_brace_email_groups_on_one_line.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">able@a.edu</text></contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of CS</contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">baker@a.edu</text></contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of CS</contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole</personname><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">cole@b.edu</text></contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of CS</contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of CS</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">able@a.edu</text></contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of CS</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">baker@a.edu</text></contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of CS</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">cole@b.edu</text></contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Dan Doe</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept. of CS</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id4\">dan.doe@b.edu</text></contact></creator>",
     ],
   );
 }
 
-/// 63m: a marked block's address line in another order than the authors is the block's, not the authors' in order
-/// (2509.10377 lists one address for each author, by institution; 2406.06326). Repro
+/// 63m: a marked block's address line in another order than the authors is not the authors' in order (2509.10377
+/// lists one address for each author, by institution; 2406.06326): each address goes to the author it spells (77p r3,
+/// `owners_by_elimination`; was the whole line one contact of the last author), and a line that spells no one is the
+/// block's, on the shared creator (user ruling R10 2026-10-20; was one contact of the last author). Repro
 /// sectioning-frontmatter/author_email_list_out_of_author_order.
 #[test]
 fn author_email_list_out_of_author_order() {
@@ -2707,9 +2723,10 @@ fn author_email_list_out_of_author_order() {
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/author_email_list_out_of_author_order.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. A</contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. B</contact></creator>",
-      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole</personname><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">{able, cole}@a.edu, baker@b.edu</text></contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">zed@z.edu</text></contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. A</contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. A</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">able@a.edu</text></contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. B</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">baker@b.edu</text></contact></creator>",
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Cat Cole</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. A</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">cole@a.edu</text></contact></creator>",
+      "<creator role=\"author\"><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id4\">zed@z.edu</text></contact></creator>",
     ],
   );
 }
@@ -2738,7 +2755,7 @@ fn author_email_underscore_kept() {
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/author_email_underscore_kept.tex"
     ),
     &[
-      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann_able@x.edu</text></contact><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. A</contact></creator>",
+      "<creator role=\"author\"><personname>Ann Able</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. A</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann_able@x.edu</text></contact></creator>",
       "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ. A</contact><contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">bob@y.edu</text></contact></creator>",
     ],
   );
@@ -3375,15 +3392,15 @@ fn newclude_include_star() {
 }
 
 /// 63t: biblatex's `\Citeauthor` is its capitalized `\citeauthor` (biblatex.def:2624-2625; 2410.22329). In this
-/// numeric style the citation is the bracketed number, where biblatex prints the name: an open residual, RED
-/// index-bib/biblatex_citeauthor_numeric_prints_name. Repro loader/biblatex_capital_citeauthor.
+/// numeric style too it prints the name (78a, OXIDIZED_DESIGN_DIVERGENCES #786; until then the bracketed number,
+/// index-bib/biblatex_citeauthor_numeric_prints_name). Repro loader/biblatex_capital_citeauthor.
 #[test]
 fn biblatex_capital_citeauthor() {
   let tex =
     include_str!("../../../tools/perfect_kernel/repros/loader/biblatex_capital_citeauthor.tex");
   assert_eq!(
     hf3_element(tex, "p", "showed"),
-    "<p xml:id=\"p1.1\"><cite class=\"ltx_citemacro_cite\">[<bibref bibrefs=\"Hampe_2017\" separator=\",\" yyseparator=\",\"/>]</cite> showed it.</p>"
+    "<p xml:id=\"p1.1\"><cite class=\"ltx_citemacro_citeauthor\"><bibref bibrefs=\"Hampe_2017\" separator=\",\" show=\"Authors\" yyseparator=\",\"/></cite> showed it.</p>"
   );
 }
 
@@ -3400,8 +3417,9 @@ fn jfm_subeqnarray() {
     0,
     "{log}"
   );
-  // the rows numbered (1a), (1b) under the group's (1)
-  for (row, id) in [("1a", "S0.E1.1.1"), ("1b", "S0.E1.2.1")] {
+  // the rows numbered (0.1a), (0.1b) under the group's (0.1): jfm numbers the equations within the sections, "0.1"
+  // before the first (jfm.cls v1.27 :573, pdflatex with the selection probe's copy; 78q, KNOWN_PERL_ERRORS #1097)
+  for (row, id) in [("0.1a", "S0.E1.1.1"), ("0.1b", "S0.E1.2.1")] {
     let tags = format!(
       "<tags>\n            <tag>({row})</tag>\n            <tag role=\"autoref\">Equation\u{a0}{row}<text xml:id=\"{id}\"/></tag>\n            <tag role=\"refnum\">{row}</tag>\n          </tags>"
     );
@@ -3418,7 +3436,7 @@ fn jfm_subeqnarray() {
 }
 
 /// 63t: breqn's math-active `_` and `^` (mathstyle.sty:233-236, :250-261) still script in math, siunitx's units
-/// among them (siunitx.sty:6810-6813), and `_` in text prints (2402.04396, 2403.03720). The one warning is the binding's own "breqn.sty is not implemented". Repro
+/// among them (siunitx.sty:6810-6813), and `_` in text prints (2402.04396, 2403.03720). The one warning is the binding's own "breqn.sty is minimally stubbed". Repro
 /// loader/breqn_text_underscore.
 #[test]
 fn breqn_text_underscore() {
@@ -3473,7 +3491,7 @@ fn cas_ead_verbatim() {
     hf3_element(tex, "creator", "A."),
     "<creator role=\"author\">\n    <personname>A. B</personname>\n    <contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">arash_khajooei@alumni.iust.ac.ir</text></contact>\n  </creator>"
   );
-  let html = latexml::api::convert_to_html(tex).expect("HTML");
+  let html = latexml::util::test::convert_to_html_page(tex).expect("HTML");
   assert!(
     html.contains(
       "<a href=\"mailto:arash_khajooei@alumni.iust.ac.ir\"><span class=\"ltx_text ltx_font_typewriter\">arash_khajooei@alumni.iust.ac.ir</span></a>"
@@ -3491,7 +3509,7 @@ fn acmart_doi_verbatim() {
   );
   assert_eq!(
     hf3_element(tex, "pubnote", "doi"),
-    "<pubnote name=\"DOI:\u{a0}\" role=\"doi\">10.475/123_4</pubnote>"
+    "<pubnote role=\"doi\">10.475/123_4</pubnote>"
   );
 }
 
@@ -3547,7 +3565,7 @@ fn contact_link_from_whole_text() {
     0,
     "{log}"
   );
-  let html = latexml::api::convert_to_html(tex).expect("HTML");
+  let html = latexml::util::test::convert_to_html_page(tex).expect("HTML");
   let at = html.find("<a href=\"mailto:").expect("the email link");
   assert_eq!(
     &html[at..at + html[at..].find("</a>").unwrap() + 4],
@@ -3556,7 +3574,7 @@ fn contact_link_from_whole_text() {
   );
   // an address that is the contact's own text links to that text alone, not the marks after it; a contact that is
   // already a link (`\href`) is not wrapped in another
-  let html = latexml::api::convert_to_html(
+  let html = latexml::util::test::convert_to_html_page(
     r"\documentclass{revtex4-2}
 \usepackage{hyperref}
 \begin{document}
@@ -4041,7 +4059,8 @@ fn interspeech_author_list_argument() {
 }
 
 /// 63w: `\affiliation[nocounter]{…}{…}{…}`, an affiliation the class prints unnumbered, all the authors' (2506.10653
-/// Interspeech.cls:152-176). Repro sectioning-frontmatter/interspeech_affiliation_nocounter.
+/// Interspeech.cls:152-176). Repro sectioning-frontmatter/interspeech_affiliation_nocounter. University A before Lab B,
+/// as printed (since 99a r2 in print order (R8: `relocate::at_queue_position`, OD #954)).
 #[test]
 fn interspeech_affiliation_nocounter() {
   let xml = interspeech_xml(
@@ -4052,11 +4071,11 @@ fn interspeech_affiliation_nocounter() {
   );
   assert_eq!(
     element_with(&xml, "creator", "Ada Byron"),
-    "<creator role=\"author\">\n    <personname>Ada Byron</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Lab B, Company B, Country B</contact>\n    <contact name=\"Affiliation: \" role=\"affiliation\">University A, City A</contact>\n  </creator>"
+    "<creator role=\"author\">\n    <personname>Ada Byron</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">University A, City A</contact>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Lab B, Company B, Country B</contact>\n  </creator>"
   );
   assert_eq!(
     element_with(&xml, "creator", "Bo Li"),
-    "<creator before=\"  \" role=\"author\">\n    <personname>Bo Li</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Lab B, Company B, Country B</contact>\n    <contact name=\"Affiliation: \" role=\"affiliation\">University A, City A</contact>\n  </creator>"
+    "<creator before=\"  \" role=\"author\">\n    <personname>Bo Li</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">University A, City A</contact>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Lab B, Company B, Country B</contact>\n  </creator>"
   );
   assert_eq!(
     element_with(&xml, "creator", "Cy Dee"),
@@ -4275,15 +4294,16 @@ fn acmart_author_name_tu_institution() {
 
 /// 63x (HF2): a mark manyfoot declares beside `\footnotemark` (`\footnotemarkAAffil[1]`, manyfoot.sty:253-257) after
 /// each name of an acmart author list is a mark, so the comma between the names separates two authors. Witness
-/// 2309.13063. Repro sectioning-frontmatter/acmart_manyfoot_marks.
+/// 2309.13063. Repro sectioning-frontmatter/acmart_manyfoot_marks. 95b (acmart written, OD #942): each marked line
+/// of the affiliation its marked author's (`api:split-by-marks`).
 #[test]
 fn acmart_manyfoot_marks() {
   let tex = include_str!(
     "../../../tools/perfect_kernel/repros/sectioning-frontmatter/acmart_manyfoot_marks.tex"
   );
   assert_eq!(creators_63x(tex), vec![
-    "<creator role=\"author\">\n    <personname>Ann Able<sup xml:id=\"id1\">1</sup></personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\"><sup xml:id=\"id2\">1</sup>Univ A, <sup xml:id=\"id3\">2</sup>Univ B <text class=\"ltx_affiliation_country\" xml:id=\"id4\">USA</text></contact>\n  </creator>",
-    "<creator before=\" and \" role=\"author\">\n    <personname>Bob Bee<sup xml:id=\"id5\">2</sup></personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\"><sup xml:id=\"id6\">1</sup>Univ A, <sup xml:id=\"id7\">2</sup>Univ B <text class=\"ltx_affiliation_country\" xml:id=\"id8\">USA</text></contact>\n  </creator>",
+    "<creator role=\"author\">\n    <personname>Ann Able<sup xml:id=\"id1\">1</sup></personname>\n    <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\"><sup xml:id=\"id2\">1</sup>Univ A</contact>\n  </creator>",
+    "<creator before=\" and \" role=\"author\">\n    <personname>Bob Bee<sup xml:id=\"id3\">2</sup></personname>\n    <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\"><sup xml:id=\"id4\">2</sup>Univ B <text class=\"ltx_affiliation_country\" xml:id=\"id5\">USA</text></contact>\n  </creator>",
   ]);
 }
 
@@ -4315,25 +4335,28 @@ fn iopart_authblk_author_wins() {
 /// 63x: a conditional around IEEE author blocks (`\ifdefined\x \IEEEauthorblockN{…} \else … \fi`) keeps its tokens as
 /// written: only the true branch's authors, no empty affiliation, no nameless creator (the `\if`, `\else` and `\fi`
 /// were wrapped as bare affiliation text). Witness 2407.02944. Repro
-/// sectioning-frontmatter/ieeetran_author_block_conditional.
+/// sectioning-frontmatter/ieeetran_author_block_conditional. Since 100b (OD #956, ruling E) the address line of the
+/// institute both names share, spelling neither, is the block's, once — it had stayed welded into the affiliation.
 #[test]
 fn ieeetran_author_block_conditional() {
   let tex = include_str!(
     "../../../tools/perfect_kernel/repros/sectioning-frontmatter/ieeetran_author_block_conditional.tex"
   );
   assert_eq!(creators_63x(tex), vec![
-    "<creator role=\"author\">\n    <personname>Ann Able</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ A <break/>a@b.c</contact>\n  </creator>",
-    "<creator before=\"  \" role=\"author\">\n    <personname>Bob Bee</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ A <break/>a@b.c</contact>\n  </creator>",
+    "<creator role=\"author\">\n    <personname>Ann Able</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ A</contact>\n  </creator>",
+    "<creator before=\"  \" role=\"author\">\n    <personname>Bob Bee</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ A</contact>\n  </creator>",
+    "<creator role=\"author\">\n    <contact name=\"Email: \" role=\"email\">a@b.c</contact>\n  </creator>",
   ]);
 }
 
 /// 63x: a conditional the bare run after a block holds whole is wrapped with it, as any bare text (the email of its
-/// true branch stays the author's, not the body's; review of 63x, the 1901.07768 shape).
+/// true branch stays the author's, not the body's; review of 63x, the 1901.07768 shape). 95b (IEEEtran written, OD
+/// #942): the group's two addresses its only carrier's e-mails (`owner:only-carrier`).
 #[test]
 fn ieeetran_conditional_in_bare_run() {
   let tex = "\\documentclass[10pt,conference]{IEEEtran}\\def\\x{}\\title{T}\n\\author{\\IEEEauthorblockN{Ann Able}\\IEEEauthorblockA{Univ A}\\ifdefined\\x \\{a,b\\}@host.org\\else Hidden Text\\fi}\n\\begin{document}\n\\maketitle\nx\n\\end{document}\n";
   assert_eq!(creators_63x(tex), vec![
-    "<creator role=\"author\">\n    <personname>Ann Able</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ A</contact>\n    <contact name=\"Affiliation: \" role=\"affiliation\">{a,b}@host.org</contact>\n  </creator>",
+    "<creator role=\"author\">\n    <personname>Ann Able</personname>\n    <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Univ A</contact>\n    <contact name=\"Email:\u{a0}\" role=\"email\">a@host.org</contact>\n    <contact name=\"Email:\u{a0}\" role=\"email\">b@host.org</contact>\n  </creator>",
   ]);
 }
 
@@ -4360,9 +4383,10 @@ fn store_set_before_a_superseding_author_list() {
     "../../../tools/perfect_kernel/repros/sectioning-frontmatter/store_set_before_a_superseding_author_list.tex"
   );
   let xml = assert_elements(tex, RAW, (0, 0), &[]);
+  // (Alice's address hers by its spelling, FIDELITY_CHARTER §4 — not Bob's by its position, 82x)
   assert_eq!(creators_in(&xml), vec![
-    "<creator role=\"author\">\n    <personname>Alice A</personname>\n  </creator>",
-    "<creator before=\"  \" role=\"author\">\n    <personname>Bob B</personname>\n    <contact name=\"Address: \" role=\"address\">Shared</contact>\n    <contact name=\"Email: \" role=\"email\">alice@a.org</contact>\n  </creator>",
+    "<creator role=\"author\">\n    <personname>Alice A</personname>\n    <contact name=\"Email: \" role=\"email\">alice@a.org</contact>\n  </creator>",
+    "<creator before=\"  \" role=\"author\">\n    <personname>Bob B</personname>\n    <contact name=\"Address: \" role=\"address\">Shared</contact>\n  </creator>",
   ]);
 }
 
@@ -4507,7 +4531,8 @@ fn elsarticle_unlabelled_addresses_shared() {
 }
 
 /// 63y: in a labelled elsarticle document an unlabelled `\affiliation` names no author and stays the last's, as in
-/// Perl (2609.07780). Repro sectioning-frontmatter/elsarticle_labelled_unlabelled_affiliation.
+/// Perl (2609.07780). Repro sectioning-frontmatter/elsarticle_labelled_unlabelled_affiliation. Univ A before the
+/// unmarked line, as elsarticle.cls:634-653 prints both `\affiliation`s, in call order (since 99a r2 in print order (R8: `relocate::at_queue_position`, OD #954)).
 #[test]
 fn elsarticle_labelled_unlabelled_affiliation() {
   let tex = include_str!(
@@ -4515,7 +4540,7 @@ fn elsarticle_labelled_unlabelled_affiliation() {
   );
   assert_eq!(creators_63x(tex), vec![
     "<creator role=\"author\">\n    <personname>Ann Able</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ A</contact>\n  </creator>",
-    "<creator before=\"  \" role=\"author\">\n    <personname>Bob Baker</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Corresponding: Ann Able</contact>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ A</contact>\n  </creator>",
+    "<creator before=\"  \" role=\"author\">\n    <personname>Bob Baker</personname>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Univ A</contact>\n    <contact name=\"Affiliation: \" role=\"affiliation\">Corresponding: Ann Able</contact>\n  </creator>",
   ]);
 }
 

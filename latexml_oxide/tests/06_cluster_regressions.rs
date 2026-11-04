@@ -764,10 +764,11 @@ fn cluster_floatflt_pctwidth() {
 /// survived and `\affiliation`/`\emailAdd`/`\keywords` were undefined. Routing
 /// jcappub to the jheppub binding accumulates every author. SHARED gap with Perl
 /// (also truncates + `missing file[jcappub.sty]`); surpass-Perl. html_feedback
-/// #6884, witness arXiv 2404.03569 (63 authors rendered, previously 1).
+/// #6884, witness arXiv 2404.03569 (63 authors rendered, previously 1). The binding is a contrib one (78e: Perl has no
+/// jcappub.sty.ltxml), so the conversion dispatches the contrib bindings, with the zero-error gate.
 #[test]
 fn cluster_jcappub_accumulates_authors() {
-  let xml = convert_to_xml("tests/cluster_regressions/jcappub_authors.tex");
+  let xml = convert_to_xml_contrib_clean("tests/cluster_regressions/jcappub_authors.tex");
   assert_eq!(
     xml.matches(r#"role="author""#).count(),
     3,
@@ -970,7 +971,7 @@ fn cluster_null_delimiter_renders_invisible() {
 /// physics2's `\ab(x)` (`\mathopen{}\mathclose\bgroup\left( … \aftergroup\egroup\right)`): Perl's `\right` closed its
 /// group before reading its delimiter, so the `\aftergroup`'d `\egroup` ended `\mathclose` with `(` unmatched inside
 /// it, and the close the parser re-supplied there printed "CLOSE". `\right` now reads first (tex.web §1191) and the
-/// parser lets the idiom through (OXIDIZED_DESIGN #580): it reads `x`, nothing re-supplied, no role text.
+/// parser lets the idiom through (OXIDIZED_DESIGN #959): it reads `x`, nothing re-supplied, no role text.
 #[test]
 fn cluster_mathclose_aftergroup_right_prints_no_role() {
   let src = "tests/cluster_regressions/mathclose_aftergroup_right.tex";
@@ -1076,8 +1077,15 @@ fn cluster_theindex_nested_autoclose() {
 #[test]
 fn cluster_verb_in_index_renders_typewriter() {
   // convert_to_xml gates on 0 errors — the `|` form used to emit
-  // `Error:expected:delimiter Verbatim argument lost`.
-  let xml = convert_to_xml("tests/cluster_regressions/verb_in_index.tex");
+  // `Error:expected:delimiter Verbatim argument lost`. The entries are typeset
+  // only where the index is printed (OXIDIZED_DESIGN_DIVERGENCES #738): the
+  // fixture, which the streaming sweep keeps as is (its documented exception),
+  // is converted here with a `\printindex`.
+  let fixture = std::fs::read_to_string("tests/cluster_regressions/verb_in_index.tex")
+    .expect("read verb_in_index.tex");
+  let printed = fixture.replace("\\end{document}", "\\printindex\n\\end{document}");
+  assert_ne!(printed, fixture);
+  let xml = convert_to_xml(&format!("literal:{printed}"));
   // Four `\verb` bodies (`\verb+..+`, `\verb|..|`, `\verb*|..|`, and the
   // `\verb|sub|` subentry), each a typewriter verbatim; `\index{plain}` and the
   // `grp` head are plain phrases.
@@ -1671,13 +1679,14 @@ fn derivative_package_defines_its_operators() {
 /// arXiv/html_feedback#6876: `\cref` inside math `\text{}` reverted its
 /// inter-word tie to the internal `\lx@tilde` CS in the `tex=` attribute, where
 /// Perl reverts a plain `~`. The `show=` attribute was already `creftype~refnum`
-/// in both engines; only the Semiverbatim `tex=` reversion leaked the CS. Now
-/// byte-matches Perl (`cleveref_sty.rs` emits a catcode-OTHER `~`).
+/// in both engines (`creftype~creflabel` since 78j, the number in cleveref's label
+/// format: OXIDIZED_DESIGN_DIVERGENCES #845); only the Semiverbatim `tex=` reversion
+/// leaked the CS. Now byte-matches Perl (`cleveref_sty.rs` emits a catcode-OTHER `~`).
 #[test]
 fn cleveref_cref_in_math_reverts_tie_as_plain_tilde() {
   let x = convert_to_xml("tests/cluster_regressions/cref_in_math_tilde.tex");
   assert!(
-    x.contains("creftype~refnum"),
+    x.contains("creftype~creflabel"),
     "the cref show/reversion tie is missing:\n{x}"
   );
   assert!(
@@ -2062,14 +2071,15 @@ fn cluster_bib_preamble_no_phantom_entry() {
   );
 }
 
-/// GREEN guard: replaceable frontmatter tags (title/subtitle/date/abstract/keywords)
-/// keep only ONE entry — a later one REPLACES the earlier — while non-replaceable
-/// creators accumulate. Ports upstream `%ReplaceableFrontmatterTags`
-/// (`base_utilities.rs` `REPLACEABLE_FRONTMATTER_TAGS`); the vendored Perl pushed
-/// unconditionally, so a re-added title/abstract kept BOTH → duplicated frontmatter.
-/// Surpass over the vendored Perl (forward-port of the upstream fix); OXIDIZED_DESIGN
-/// #154. Witnesses arXiv 2002.09766 (appendix `\icmltitle` duplicated `<title>`) and
-/// 2511.21969 (nested `{abstract}` duplicated the abstract heading).
+/// GREEN guard: replaceable frontmatter tags (title/subtitle/toctitle/date) keep only
+/// ONE entry — a later one REPLACES the earlier — while creators accumulate, and so do
+/// abstracts: a second `{abstract}` digested in place is printed where it stands, so
+/// both are kept (pdflatex prints both; the vendored Perl, upstream HEAD after #2767
+/// removed `%ReplaceableFrontmatterTags`, keeps both). `base_utilities.rs`
+/// `REPLACEABLE_FRONTMATTER_TAGS` / `PRINTED_WHERE_THEY_STAND`; OXIDIZED_DESIGN #154.
+/// Witnesses arXiv 2002.09766 (appendix `\icmltitle` duplicated `<title>`), 2511.21969
+/// (nested `{abstract}` duplicated the abstract heading), 1006.5288 (the abstract count
+/// was pinned at 1 here, the defect: the second replaced the first).
 #[test]
 fn cluster_frontmatter_replaceable_dedup() {
   let xml = convert_to_xml("tests/cluster_regressions/frontmatter_replaceable_dedup.tex");
@@ -2096,9 +2106,14 @@ fn cluster_frontmatter_replaceable_dedup() {
   );
   assert_eq!(
     count("<abstract"),
-    1,
-    "replaceable <abstract> not deduplicated:\n{head}"
+    2,
+    "both printed abstracts are kept, in source order:\n{head}"
   );
+  let (first, second) = (
+    head.find("First abstract.").expect("first abstract"),
+    head.find("Second abstract.").expect("second abstract"),
+  );
+  assert!(first < second, "abstracts out of source order:\n{head}");
 }
 
 /// Guard: the `algpseudocodex` package (raw-loaded under `--includestyles`/ar5iv

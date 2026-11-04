@@ -53,7 +53,9 @@ fn amsart_email_address_in_typewriter() {
 
 /// 64zc: an llncs `\email` on an `\institute` line, which the author block makes the institute's authors' contact,
 /// keeps the command's typewriter type (llncs.cls:897). Repro
-/// sectioning-frontmatter/llncs_institute_email_in_typewriter.
+/// sectioning-frontmatter/llncs_institute_email_in_typewriter. (Since 92c llncs is written by the observer, OD #923:
+/// the call printing two addresses is written out, ruling 3 — `bob@b.edu` its speller's, `carl@b.edu`, which spells no
+/// author, the block's — each a typewriter contact of its own.)
 #[test]
 fn llncs_institute_email_in_typewriter() {
   let tex = include_str!(
@@ -61,7 +63,8 @@ fn llncs_institute_email_in_typewriter() {
   );
   assert_eq!(creators(&convert_clean(tex)), vec![
     "<creator role=\"author\">\n    <personname>Ann Able</personname>\n    <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">University of A </contact>\n    <contact name=\"E-mail\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">ann_able@a.edu</text></contact>\n  </creator>",
-    "<creator before=\"\u{2003}\u{2003}\" role=\"author\">\n    <personname>Bob Bee</personname>\n    <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">University of B </contact>\n    <contact name=\"E-mail\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">bob@b.edu, carl@b.edu</text></contact>\n  </creator>",
+    "<creator before=\"\u{2003}\u{2003}\" role=\"author\">\n    <personname>Bob Bee</personname>\n    <contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">University of B </contact>\n    <contact name=\"E-mail\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">bob@b.edu</text></contact>\n  </creator>",
+    "<creator role=\"author\">\n    <contact name=\"E-mail\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">carl@b.edu</text></contact>\n  </creator>",
   ]);
 }
 
@@ -120,7 +123,7 @@ fn typewriter_address_split_keeps_its_link() {
     "<creator role=\"author\">\n    <personname>Ann Able</personname>\n    <contact name=\"Address:\u{a0}\" role=\"address\">University of A</contact>\n    <contact name=\"Email address: \" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">$^</text>†<text font=\"typewriter\" xml:id=\"id2\">$ ann@a.edu</text></contact>\n    <contact name=\"URL: \" role=\"url\"><text font=\"typewriter\" xml:id=\"id3\">http://a.edu/~ann</text></contact>\n  </creator>",
     "<creator before=\" and \" role=\"author\">\n    <personname>Bob Bee</personname>\n    <contact name=\"Address:\u{a0}\" role=\"address\">University of B</contact>\n    <contact name=\"URL: \" role=\"url\"><text font=\"typewriter\" xml:id=\"id4\">http://b.edu/$</text>∼<text font=\"typewriter\" xml:id=\"id5\">$bob</text></contact>\n  </creator>",
   ]);
-  let html = latexml::api::convert_to_html(tex).expect("HTML");
+  let html = latexml::util::test::convert_to_html_page(tex).expect("HTML");
   let hrefs: Vec<&str> = html
     .match_indices("<a href=\"")
     .map(|(at, open)| {
@@ -140,7 +143,7 @@ fn typewriter_address_split_keeps_its_link() {
     ],
     "{html}"
   );
-  let html = latexml::api::convert_to_html(
+  let html = latexml::util::test::convert_to_html_page(
     r"\documentclass[aps]{revtex4}
 \begin{document}
 \title{T}
@@ -159,7 +162,7 @@ x
   ] {
     assert!(html.contains(href), "{href}\n{html}");
   }
-  let html = latexml::api::convert_to_html(
+  let html = latexml::util::test::convert_to_html_page(
     r"\documentclass{amsart}
 \begin{document}
 \title{T}

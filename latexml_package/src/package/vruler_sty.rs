@@ -1,6 +1,6 @@
 //! vruler.sty (v2.3, 1996, Z. Jiang) — vertical line-number rulers in the page margin.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(p). `\setvruler[scale][init][step]
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(p). `\setvruler[scale][init][step]
 //! [digits][mode][odd shift][even shift][vshift][height]` (vruler.sty:139-180, its nine optional
 //! arguments defaulted through `\setdefault`, :345-350) patches the output routine (`\set@vruler`
 //! parses `\@outputpage` and wraps it, :146-173) so that every page shipped out carries a box of

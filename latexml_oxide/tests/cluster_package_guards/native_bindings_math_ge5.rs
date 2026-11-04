@@ -1,5 +1,5 @@
 //! Native bindings for the packages of the arXiv mathematics sample with no Perl binding
-//! (OXIDIZED_DESIGN #588): each guard converts in the default configuration, where an unbound
+//! (OXIDIZED_DESIGN #967): each guard converts in the default configuration, where an unbound
 //! package is a missing file and its commands undefined, and asserts what only the binding produces.
 
 fn doc(preamble: &str, body: &str) -> String {
@@ -76,7 +76,7 @@ fn faktor_is_a_quotient() {
   assert!(xml.contains(r#"tex="\faktor[\mathbb]{Z}{n}""#), "{xml}");
 }
 
-/// tensor (#588g), leftindex (#588o): staggered indices are separate script columns.
+/// tensor (#967g), leftindex (#967o): staggered indices are separate script columns.
 #[test]
 fn tensor_and_leftindex_build_multiscripts() {
   let (log, html) = super::perfect_kernel_batch46::convert_html(&doc(
@@ -117,7 +117,7 @@ fn tensor_and_leftindex_build_multiscripts() {
   );
 }
 
-/// old-arrows (#588z): the arrows keep their characters; the added names are arrows.
+/// old-arrows (#967z): the arrows keep their characters; the added names are arrows.
 #[test]
 fn old_arrows_keep_semantic_arrows() {
   let xml = clean(
@@ -164,7 +164,7 @@ fn stackengine_stacks() {
   assert!(i < a && a < end, "{xml}");
 }
 
-/// mathalpha / mathalfa (#588j): each face is set in its design's family.
+/// mathalpha / mathalfa (#967j): each face is set in its design's family.
 #[test]
 fn mathalfa_faces_follow_their_design() {
   let (log, html) = super::perfect_kernel_batch46::convert_html(&doc(
@@ -195,7 +195,7 @@ fn mathalfa_faces_follow_their_design() {
   assert!(log.contains("but `pazo' has no bold"), "{log}");
 }
 
-/// nccmath (#588w): medium-size display-style math, display-style arrays, `\intertext[skip]`.
+/// nccmath (#967w): medium-size display-style math, display-style arrays, `\intertext[skip]`.
 #[test]
 fn nccmath_medium_math_and_darray() {
   let xml = clean(
@@ -212,7 +212,7 @@ fn nccmath_medium_math_and_darray() {
   );
 }
 
-/// calligra (#588r), anyfontsize (#588v), inconsolata (#588n): the fonts the text carries.
+/// calligra (#967r), anyfontsize (#967v), inconsolata (#967n): the fonts the text carries.
 #[test]
 fn font_packages_set_their_families() {
   let xml = clean(
@@ -231,7 +231,7 @@ fn font_packages_set_their_families() {
   assert!(xml.contains("<text font=\"typewriter\">0</text>"), "{xml}");
 }
 
-/// environ (#588l): the body, trimmed, nested environments counted, arguments from the body.
+/// environ (#967l): the body, trimmed, nested environments counted, arguments from the body.
 #[test]
 fn environ_collects_the_body() {
   let xml = clean(
@@ -241,7 +241,7 @@ fn environ_collects_the_body() {
   assert!(xml.contains("[Y:body] [X:in t tEND x]"), "{xml}");
 }
 
-/// xifthen (#588u): the added tests in `\ifthenelse`.
+/// xifthen (#967u): the added tests in `\ifthenelse`.
 #[test]
 fn xifthen_tests() {
   let xml = clean(
@@ -253,7 +253,7 @@ fn xifthen_tests() {
   assert!(xml.contains("ENICDSP"), "{xml}");
 }
 
-/// xstring (#588q): tests, cuts, counts and modes as xstring computes them (pdfLaTeX's results).
+/// xstring (#967q): tests, cuts, counts and modes as xstring computes them (pdfLaTeX's results).
 #[test]
 fn xstring_commands() {
   let xml = clean(
@@ -331,7 +331,7 @@ fn xstring_isolated_numbers_and_explore_cuts() {
   assert!(xml.contains("[FFT/bc/YY/YY/Y:1/bcd//abcdef/.X/Y]"), "{xml}");
 }
 
-/// manyfoot (#588k): further footnote series with their own counters and marks.
+/// manyfoot (#967k): further footnote series with their own counters and marks.
 #[test]
 fn manyfoot_series_are_notes_of_their_own() {
   let xml = clean(
@@ -345,7 +345,7 @@ fn manyfoot_series_are_notes_of_their_own() {
   assert!(xml.contains(r#"<note mark="1" role="footnote" "#), "{xml}");
 }
 
-/// vruler (#588p), hypdvips (#588h), abstract (#588y): print-layout packages keep their
+/// vruler (#967p), hypdvips (#967h), abstract (#967y): print-layout packages keep their
 /// commands and what they typeset.
 #[test]
 fn layout_packages_keep_their_commands() {
@@ -366,7 +366,7 @@ fn layout_packages_keep_their_commands() {
   assert!(xml.contains(">c.txt</ref>"), "{xml}");
 }
 
-/// epic (#588i): epic's dots are `\@wholewidth` squares, its counts epic's (`\sqrtandstuff`: 6 dots on 20pt at
+/// epic (#967i): epic's dots are `\@wholewidth` squares, its counts epic's (`\sqrtandstuff`: 6 dots on 20pt at
 /// a 4pt gap); a dashed line is a dash pattern.
 #[test]
 fn epic_draws() {
@@ -380,7 +380,7 @@ fn epic_draws() {
   assert!(xml.contains(r#"points="0,0 41.51,55.35 83.02,0""#), "{xml}");
 }
 
-/// eepic (#588t): round dots, splines, ellipses, arcs (clockwise on the page), fills.
+/// eepic (#967t): round dots, splines, ellipses, arcs (clockwise on the page), fills.
 #[test]
 fn eepic_draws() {
   let xml = clean(
@@ -412,7 +412,7 @@ fn eepic_draws() {
   );
 }
 
-/// quiver (#588a), tkz-graph (#588x), dynkin-diagrams (#588s): TikZ diagrams without raw files.
+/// quiver (#588a), tkz-graph (#967x), dynkin-diagrams (#967s): TikZ diagrams without raw files.
 #[test]
 fn tikz_diagram_packages_draw() {
   let xml = clean(
@@ -481,7 +481,7 @@ fn bindings_outrank_raw_files() {
 }
 
 /// A local style the default configuration does not read still has its packages loaded (Perl's
-/// dependency scan); its top-level `\let` of a command one of them defines is applied (#589), so
+/// dependency scan); its top-level `\let` of a command one of them defines is applied (#968), so
 /// `\tensor` after `\usepackage{tensor}\let\tensor\otimes` is the operator, not tensor's command
 /// (witness 2610.18718, 598 errors and a runaway before). A `\let` of a command defined before the
 /// scan, one in a macro body, or one of a name the file defines again, stays unread.

@@ -1,6 +1,6 @@
 //! tkz-graph.sty (v2.00, 2021/01/20, A. Matthes) — graphs drawn with TikZ.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(x). The package reads xkeyval keys
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(x). The package reads xkeyval keys
 //! (families `vertex`, `edge`, `loop`, with presets the style commands change) and builds, through
 //! `\protected@edef` and `\ifthenelse`, the TikZ commands that draw: `\Vertex[keys]{name}` a
 //! `\node[outer sep=0pt,style,VertexStyle](name) at (x,y){label}` in a `scope` with the label distance

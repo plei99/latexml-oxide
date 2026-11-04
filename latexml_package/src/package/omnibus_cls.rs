@@ -3,7 +3,9 @@
 //!
 //! Defines common frontmatter commands, theorem environments, natbib autoloads,
 //! and various compatibility macros encountered in real-world arxiv submissions.
-use latexml_core::definition::origin::{DefinitionOrigin, OriginGuard, provide_only};
+use latexml_core::definition::origin::{
+  DefinitionOrigin, OriginGuard, ProvideOnlyGuard, provide_only, with_origin,
+};
 
 use crate::prelude::*;
 
@@ -44,10 +46,29 @@ fn is_all_ascii_digits(arg: &Tokens) -> bool {
   !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
 }
 
+/// OmniBus over the base class a stand-in binding loaded as its real file does (OXIDIZED_DESIGN_DIVERGENCES #736):
+/// provide-only ([`ProvideOnlyGuard`], as `\documentstyle` loads it over a class, sect01.rs), so it adds the frontmatter
+/// commands and environments the base class leaves undefined (`{keywords}`, `\email`, `\affiliation`, …) and replaces
+/// none of the base class's. A binding that once loaded OmniBus as its base (ceurart, atlasdoc, lmcs, pnas-new,
+/// czipreprint) keeps what OmniBus gave it where the real base class (scrartcl, amsart, extarticle) has nothing:
+/// ceurart's `{keywords}`, OmniBus's `ltx:classification`, which a trial without it lost (-10 to -15 words a paper;
+/// ceurart witnesses 2509.11496, 2608.23214).
+pub fn provide_over_base_class() -> Result<()> {
+  let _provide_only = ProvideOnlyGuard::new();
+  load_class("OmniBus", Vec::new(), Tokens!())
+}
+
 #[rustfmt::skip]
 LoadDefinitions!({
   // Perl L33: LoadClass('article'). Loaded provide-only (`\compat@loadpackages`), a class is loaded already, and
   // article's numbering and layout are not that class's (`\documentstyle[foobarx]{report}` numbers "1.1", not "1").
+  // Loaded as the fallback the class loader chose for a class with no binding (`fallback_target`, `load_class`), not
+  // as the base of a named binding (bmvc2k_cls.rs, wileynjd_cls.rs): an unknown class may have chapters, so it keeps
+  // the kernel's `\chapter` (OXIDIZED_DESIGN #179 (c), `settle_chapter_after_class_load`) — from article's return on,
+  // so the packages the class's dependency scan loads after it see it too.
+  if lookup_string("fallback_target") == "OmniBus" {
+    assign_value("OmniBus:fallback", true, Some(Scope::Global));
+  }
   if !provide_only() {
     LoadClass!("article");
   }
@@ -57,10 +78,17 @@ LoadDefinitions!({
   // Perl L34: ProcessOptions();
   ProcessOptions!();
 
-  // Perl L37-45: Various common packages
+  // Perl L37-45: Various common packages. inst_support (`\inst`, `\institute`) and aas_macros (`\apj`, `\mnras`) are
+  // conventions guessed for the class, so they load as part of the guess (`Fallback`, `input_definitions`): a
+  // document's own `\newcommand{\inst}` replaces them (2603.21740, cas-sc: whose class defines no `\inst`). epsf and
+  // graphicx are packages whose commands are their own: they keep a binding's standing, and a document's
+  // `\providecommand{\includegraphics}` stays declined.
   RequirePackage!("inst_support");
-  RequirePackage!("epsf");
-  RequirePackage!("graphicx");
+  with_origin(DefinitionOrigin::Binding, || -> Result<()> {
+    RequirePackage!("epsf");
+    RequirePackage!("graphicx");
+    Ok(())
+  })?;
   RequirePackage!("aas_macros");
 
   // Perl L48-51: natbib autoloads — `DefAutoload($trigger, 'natbib.sty.ltxml')`
@@ -146,6 +174,12 @@ LoadDefinitions!({
   Let!("\\endmainmatter",  "\\@empty");
   Let!("\\backmatter",     "\\@empty");
   Let!("\\endbackmatter",  "\\@empty");
+  // …and the flag book.cls declares with them (book.cls:53 `\newif\if@mainmatter \@mainmattertrue`), which a
+  // package that finds `\mainmatter` defined expects: scrlayer.sty:102-110 warns "\mainmatter defined without
+  // \if@mainmatter!" otherwise, as it did on the ceurart papers whose base class is scrartcl with OmniBus provided over
+  // it (`provide_over_base_class`; 111 of the 112 of 2506+2509: 2509.11492, 2509.11496), where pdflatex, whose
+  // scrartcl has no `\mainmatter`, is quiet. A class that declares the flag keeps its own.
+  RawTeX!(r"\@ifundefined{if@mainmatter}{\newif\if@mainmatter\@mainmattertrue}{}");
 
   // Perl L62-63
   DefMacro!("\\shorttitle{}", "\\lx@add@toctitle{#1}");
@@ -233,10 +267,7 @@ LoadDefinitions!({
   DefMacro!("\\speaker{}", "\\lx@add@creator[role=speaker]{#1}");
 
   // Perl (PR #2767): affiliations, like from aas
-  DefMacro!("\\altaffilmark Semiverbatim",
-    "\\lx@request@frontmatter@annotation[altaffil]{#1}");
-  DefMacro!("\\altaffiltext Semiverbatim {}",
-    "\\lx@add@contact[role=altaffiliation,label={altaffil:#1}]{#2}");
+  aas_support_sty::altaffil_markup()?;
 
   DefMacro!("\\address[]{}", "\\lx@add@address{#2}");
   Let!("\\affaddr", "\\address");
@@ -358,7 +389,19 @@ LoadDefinitions!({
   // Perl (PR #2767): keyword macros
   DefMacro!("\\keywords{}", "\\lx@add@keywords{#1}");
   DefMacro!("\\kword{}",    "\\lx@add@keywords{#1}");
-  DefMacro!("\\kwd[]{}",    "\\lx@add@keywords{#2, }");
+  // Each `\kwd{<entry>}` adds to the entries before it (`\begin{keyword}\kwd{a}\kwd{b}\end{keyword}`: "a, b, "), as
+  // the classes defining `\kwd` list them (imsart.sty:1566 of 1410.4462's copy, bmcart.cls:1560 of 1507.06515's).
+  // Perl's re-added the keywords with only its own entry, `\lx@add@keywords` clearing them first
+  // (Base_Utility.pool.ltxml:613-615), so the last entry was all that was kept (KNOWN_PERL_ERRORS #1196). Found on
+  // 1401.3408's `myimsart`, which now has imsart's own markup (ims_support_sty.rs `vtex_keyword_markup`): no live corpus
+  // paper reaches this `\kwd`. The list is the document's, never reset: the entries of every block are one `<keywords>`,
+  // in order, each once (`\lx@add@keywords` replaces the element it re-adds; a reset per block would drop the blocks
+  // before it).
+  RawTeX!(r"\gdef\lx@omnibus@kwd@list{}");
+  DefMacro!(
+    "\\kwd[]{}",
+    "\\g@addto@macro\\lx@omnibus@kwd@list{#2, }\\expandafter\\lx@add@keywords\\expandafter{\\lx@omnibus@kwd@list}"
+  );
 
   // Perl L133-156: {keyword}, {keywords} as environments, plus auto-variants
   // via `\keywords` that can be used as a section-like bare macro.
@@ -519,49 +562,54 @@ LoadDefinitions!({
   // a theorem there (1308.6566, 0811.3048; cs0511055 `\fact`). A name numbered within another's counter
   // (`\newtheorem{cor}[thm]{…}`) whose owner the set refused for an author's macro (`\newcommand{\thm}{…}`) has no
   // such counter: it gets its own (`\@ifundefined{c@thm}`), not an undefined `\thethm`.
+  // The set runs with the document's origin (from the stub below, at the first undeclared `\begin{proof}`), so it
+  // declares through `\lx@guess@newtheorem` (sect08.rs), which never claims a name: the author's own later
+  // `\newtheorem{note}{Notation}` replaces the guessed {note} rather than being refused as a second declaration.
+  // Guard `perfect_kernel_batch77v::omnibus_guess_yields_to_document_newtheorem`.
   let theorem_preload = concat!(
-    "\\@ifundefined{theorem}{\\newtheorem{theorem}{Theorem}[section]}{}",
-    "\\@ifundefined{conjecture}{\\@ifundefined{c@theorem}{\\newtheorem{conjecture}{Conjecture}}{\\newtheorem{conjecture}[theorem]{Conjecture}}}{}",
-    "\\@ifundefined{proposition}{\\@ifundefined{c@theorem}{\\newtheorem{proposition}{Proposition}}{\\newtheorem{proposition}[theorem]{Proposition}}}{}",
-    "\\@ifundefined{proof}{\\@ifundefined{c@theorem}{\\newtheorem{proof}{Proof}}{\\newtheorem{proof}[theorem]{Proof}}}{}",
-    "\\@ifundefined{lemma}{\\@ifundefined{c@theorem}{\\newtheorem{lemma}{Lemma}}{\\newtheorem{lemma}[theorem]{Lemma}}}{}",
-    "\\@ifundefined{corollary}{\\@ifundefined{c@theorem}{\\newtheorem{corollary}{Corollary}}{\\newtheorem{corollary}[theorem]{Corollary}}}{}",
-    "\\@ifundefined{example}{\\@ifundefined{c@theorem}{\\newtheorem{example}{Example}}{\\newtheorem{example}[theorem]{Example}}}{}",
-    "\\@ifundefined{exercise}{\\@ifundefined{c@theorem}{\\newtheorem{exercise}{Exercise}}{\\newtheorem{exercise}[theorem]{Exercise}}}{}",
-    "\\@ifundefined{definition}{\\@ifundefined{c@theorem}{\\newtheorem{definition}{Definition}}{\\newtheorem{definition}[theorem]{Definition}}}{}",
-    "\\@ifundefined{problem}{\\@ifundefined{c@theorem}{\\newtheorem{problem}{Problem}}{\\newtheorem{problem}[theorem]{Problem}}}{}",
-    "\\@ifundefined{question}{\\@ifundefined{c@theorem}{\\newtheorem{question}{Question}}{\\newtheorem{question}[theorem]{Question}}}{}",
-    "\\@ifundefined{remark}{\\@ifundefined{c@theorem}{\\newtheorem{remark}{Remark}}{\\newtheorem{remark}[theorem]{Remark}}}{}",
-    "\\@ifundefined{solution}{\\@ifundefined{c@theorem}{\\newtheorem{solution}{Solution}}{\\newtheorem{solution}[theorem]{Solution}}}{}",
-    "\\@ifundefined{step}{\\@ifundefined{c@theorem}{\\newtheorem{step}{Step}}{\\newtheorem{step}[theorem]{Step}}}{}",
-    "\\@ifundefined{note}{\\@ifundefined{c@theorem}{\\newtheorem{note}{Note}}{\\newtheorem{note}[theorem]{Note}}}{}",
-    "\\@ifundefined{thm}{\\newtheorem{thm}{Theorem}}{}",
-    "\\@ifundefined{cor}{\\@ifundefined{c@thm}{\\newtheorem{cor}{Corollary}}{\\newtheorem{cor}[thm]{Corollary}}}{}",
-    "\\@ifundefined{lem}{\\@ifundefined{c@thm}{\\newtheorem{lem}{Lemma}}{\\newtheorem{lem}[thm]{Lemma}}}{}",
-    "\\@ifundefined{claim}{\\@ifundefined{c@thm}{\\newtheorem{claim}{Claim}}{\\newtheorem{claim}[thm]{Claim}}}{}",
-    "\\@ifundefined{axiom}{\\@ifundefined{c@thm}{\\newtheorem{axiom}{Axiom}}{\\newtheorem{axiom}[thm]{Axiom}}}{}",
-    "\\@ifundefined{conj}{\\@ifundefined{c@thm}{\\newtheorem{conj}{Conjecture}}{\\newtheorem{conj}[thm]{Conjecture}}}{}",
-    "\\@ifundefined{fact}{\\@ifundefined{c@thm}{\\newtheorem{fact}{Fact}}{\\newtheorem{fact}[thm]{Fact}}}{}",
-    "\\@ifundefined{hypo}{\\@ifundefined{c@thm}{\\newtheorem{hypo}{Hypothesis}}{\\newtheorem{hypo}[thm]{Hypothesis}}}{}",
-    "\\@ifundefined{assum}{\\@ifundefined{c@thm}{\\newtheorem{assum}{Assumption}}{\\newtheorem{assum}[thm]{Assumption}}}{}",
-    "\\@ifundefined{prop}{\\@ifundefined{c@thm}{\\newtheorem{prop}{Proposition}}{\\newtheorem{prop}[thm]{Proposition}}}{}",
-    "\\@ifundefined{crit}{\\@ifundefined{c@thm}{\\newtheorem{crit}{Criterion}}{\\newtheorem{crit}[thm]{Criterion}}}{}",
+    "\\@ifundefined{theorem}{\\lx@guess@newtheorem{theorem}{Theorem}[section]}{}",
+    "\\@ifundefined{conjecture}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{conjecture}{Conjecture}}{\\lx@guess@newtheorem{conjecture}[theorem]{Conjecture}}}{}",
+    "\\@ifundefined{proposition}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{proposition}{Proposition}}{\\lx@guess@newtheorem{proposition}[theorem]{Proposition}}}{}",
+    "\\@ifundefined{proof}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{proof}{Proof}}{\\lx@guess@newtheorem{proof}[theorem]{Proof}}}{}",
+    "\\@ifundefined{lemma}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{lemma}{Lemma}}{\\lx@guess@newtheorem{lemma}[theorem]{Lemma}}}{}",
+    "\\@ifundefined{corollary}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{corollary}{Corollary}}{\\lx@guess@newtheorem{corollary}[theorem]{Corollary}}}{}",
+    "\\@ifundefined{example}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{example}{Example}}{\\lx@guess@newtheorem{example}[theorem]{Example}}}{}",
+    "\\@ifundefined{exercise}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{exercise}{Exercise}}{\\lx@guess@newtheorem{exercise}[theorem]{Exercise}}}{}",
+    "\\@ifundefined{definition}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{definition}{Definition}}{\\lx@guess@newtheorem{definition}[theorem]{Definition}}}{}",
+    "\\@ifundefined{problem}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{problem}{Problem}}{\\lx@guess@newtheorem{problem}[theorem]{Problem}}}{}",
+    "\\@ifundefined{question}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{question}{Question}}{\\lx@guess@newtheorem{question}[theorem]{Question}}}{}",
+    "\\@ifundefined{remark}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{remark}{Remark}}{\\lx@guess@newtheorem{remark}[theorem]{Remark}}}{}",
+    "\\@ifundefined{solution}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{solution}{Solution}}{\\lx@guess@newtheorem{solution}[theorem]{Solution}}}{}",
+    "\\@ifundefined{step}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{step}{Step}}{\\lx@guess@newtheorem{step}[theorem]{Step}}}{}",
+    "\\@ifundefined{note}{\\@ifundefined{c@theorem}{\\lx@guess@newtheorem{note}{Note}}{\\lx@guess@newtheorem{note}[theorem]{Note}}}{}",
+    "\\@ifundefined{thm}{\\lx@guess@newtheorem{thm}{Theorem}}{}",
+    "\\@ifundefined{cor}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{cor}{Corollary}}{\\lx@guess@newtheorem{cor}[thm]{Corollary}}}{}",
+    "\\@ifundefined{lem}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{lem}{Lemma}}{\\lx@guess@newtheorem{lem}[thm]{Lemma}}}{}",
+    "\\@ifundefined{claim}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{claim}{Claim}}{\\lx@guess@newtheorem{claim}[thm]{Claim}}}{}",
+    "\\@ifundefined{axiom}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{axiom}{Axiom}}{\\lx@guess@newtheorem{axiom}[thm]{Axiom}}}{}",
+    "\\@ifundefined{conj}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{conj}{Conjecture}}{\\lx@guess@newtheorem{conj}[thm]{Conjecture}}}{}",
+    "\\@ifundefined{fact}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{fact}{Fact}}{\\lx@guess@newtheorem{fact}[thm]{Fact}}}{}",
+    "\\@ifundefined{hypo}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{hypo}{Hypothesis}}{\\lx@guess@newtheorem{hypo}[thm]{Hypothesis}}}{}",
+    "\\@ifundefined{assum}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{assum}{Assumption}}{\\lx@guess@newtheorem{assum}[thm]{Assumption}}}{}",
+    "\\@ifundefined{prop}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{prop}{Proposition}}{\\lx@guess@newtheorem{prop}[thm]{Proposition}}}{}",
+    "\\@ifundefined{crit}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{crit}{Criterion}}{\\lx@guess@newtheorem{crit}[thm]{Criterion}}}{}",
     // Guard `\theoremstyle{definition}` with `\@ifundefined` so the
     // stub does NOT error when the document deliberately undefined
     // `\theoremstyle` (e.g. `\let\theoremstyle\@undefined` followed
-    // by `\usepackage{amsthm}`-as-no-op-because-already-loaded). The
-    // stub is a *fallback* for env auto-loading; if the document
+    // by a `\usepackage{amsthm}` that is a no-op because amsthm is already
+    // loaded). The stub is a *fallback* for env auto-loading; if the document
     // chose to disable `\theoremstyle`, respect that choice instead
     // of resurrecting an undefined-error. Witness: arXiv:2603.11260,
-    // 2603.11265 (ifacconf.cls -> theorem.sty -> amsthm pre-loaded,
-    // then user `\let\theoremstyle\@undefined`).
+    // 2603.11265 (ifacconf.cls -> theorem.sty, then user
+    // `\let\theoremstyle\@undefined\usepackage{amsthm}`; since 67p the
+    // theorem binding leaves amsthm unloaded, so that load is real).
     "\\@ifundefined{theoremstyle}{}{\\theoremstyle{definition}}",
-    "\\@ifundefined{defn}{\\@ifundefined{c@thm}{\\newtheorem{defn}{Definition}}{\\newtheorem{defn}[thm]{Definition}}}{}",
-    "\\@ifundefined{exmp}{\\@ifundefined{c@thm}{\\newtheorem{exmp}{Example}}{\\newtheorem{exmp}[thm]{Example}}}{}",
-    "\\@ifundefined{rem}{\\@ifundefined{c@thm}{\\newtheorem{rem}{Remark}}{\\newtheorem{rem}[thm]{Remark}}}{}",
-    "\\@ifundefined{prob}{\\@ifundefined{c@thm}{\\newtheorem{prob}{Problem}}{\\newtheorem{prob}[thm]{Problem}}}{}",
-    "\\@ifundefined{prin}{\\@ifundefined{c@thm}{\\newtheorem{prin}{Principle}}{\\newtheorem{prin}[thm]{Principle}}}{}",
-    "\\@ifundefined{alg}{\\newtheorem{alg}{Algorithm}}{}",
+    "\\@ifundefined{defn}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{defn}{Definition}}{\\lx@guess@newtheorem{defn}[thm]{Definition}}}{}",
+    "\\@ifundefined{exmp}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{exmp}{Example}}{\\lx@guess@newtheorem{exmp}[thm]{Example}}}{}",
+    "\\@ifundefined{rem}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{rem}{Remark}}{\\lx@guess@newtheorem{rem}[thm]{Remark}}}{}",
+    "\\@ifundefined{prob}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{prob}{Problem}}{\\lx@guess@newtheorem{prob}[thm]{Problem}}}{}",
+    "\\@ifundefined{prin}{\\@ifundefined{c@thm}{\\lx@guess@newtheorem{prin}{Principle}}{\\lx@guess@newtheorem{prin}[thm]{Principle}}}{}",
+    "\\@ifundefined{alg}{\\lx@guess@newtheorem{alg}{Algorithm}}{}",
   );
   // Only install autoload stubs for CSes that aren't already defined. If
   // amsthm was pre-loaded (e.g. via dep-scan of a local .cls that
@@ -599,6 +647,11 @@ LoadDefinitions!({
     let beginenv_clone = beginenv.clone();
     let preload = theorem_preload.to_string();
     let env_cs = T_CS!(s!("\\{env}"));
+    // (a stub, not a definition of the environment: it steps aside for the one a class declares, so a stand-in's copy
+    // declaring it declares it whole — cimart.cls:295-315's `\newtheorem{theorem}[definition]`, whose `\begin{theorem}`
+    // the binding kept and whose `\end{theorem}` stood, left a group open: 2412.00032, 2408.07575's `{example}`;
+    // `state::note_copy_provides_assignment`)
+    let _stub = OriginGuard::new(DefinitionOrigin::Stub);
     def_macro(cs, None,
       ExpansionBody::Closure(Rc::new(move |_args| {
         // The stub fires once: `\begin` looks it up before `\<env>`, so it steps aside for the environment the
@@ -787,6 +840,10 @@ LoadDefinitions!({
           if is_cls {
             load_class(
               &name_str, Vec::new(), Tokens::default())?;
+          } else if name_str == "amsmath" {
+            // A guess for a class we do not know: amsmath's environments, not its "Old form" error, which waits for a
+            // real load (`amsmath_sty::require_amsmath_beyond_original`; KNOWN_PERL_ERRORS #993).
+            amsmath_sty::require_amsmath_beyond_original(false, &[])?;
           } else {
             require_package(&name_str, RequireOptions::default())?;
           }

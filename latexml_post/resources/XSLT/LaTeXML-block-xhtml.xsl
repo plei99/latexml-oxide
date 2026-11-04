@@ -458,7 +458,7 @@
     </xsl:for-each>
   </func:function>
 
-  <!-- (latexml-oxide, OXIDIZED_DESIGN #590) The table of an aligned equation or
+  <!-- (latexml-oxide, OXIDIZED_DESIGN #969) The table of an aligned equation or
        equationgroup only lays the equation out (padding cells, the equation and its
        number); it is not tabular data. Nothing in the markup said so, leaving each
        browser's layout-table heuristic to decide; role="presentation" says it.

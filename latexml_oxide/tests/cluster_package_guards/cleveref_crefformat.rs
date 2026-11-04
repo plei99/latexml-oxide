@@ -3,7 +3,7 @@
 //! text outside literal. Perl's binding (`cleveref.sty.ltxml:47-58, 132-134`) hardwires
 //! the show `creftype~refnum` and never reads them, so the type name came out in English
 //! whatever the author set: `\Crefformat{subsection}{第~#2#1#3~节}` printed "Section 3.2".
-//! SURPASS-PERL (OXIDIZED_DESIGN_DIVERGENCES #586): the format becomes the
+//! SURPASS-PERL (OXIDIZED_DESIGN_DIVERGENCES #965): the format becomes the
 //! `crefformat` / `crefformatcap` tags of the target (`cleveref_sty.rs`), the show
 //! `crefformat/creftype~refnum` picks the format when the target's type has one, and the
 //! CrossRef pass makes the `#2`..`#3` part the ref and leaves the rest as text beside it.

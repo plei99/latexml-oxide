@@ -1,0 +1,2150 @@
+//! The writer's plan: today's frontmatter ([`dom`]) against the resolver's reading, item by item, as `ab_audit
+//! fmshadow` compares them — per creator (paired by name, in order) and for the author block's own, each item by its
+//! kind and its text's letters and digits — and each difference explained by one of the writer's operations, or the
+//! paper left as today's (FM S2b, OXIDIZED_DESIGN_DIVERGENCES #837 "S2b").
+//!
+//! The operations, each only where the reading's rule holds an adopted ruling's change tag (`resolver::CHANGE_TAGS`):
+//! - **re-assign**: an item today's gives other authors than the reading — copied to the authors it lacks, taken from
+//!   the ones it should not be on (a leading-mark entry to the names requesting its mark, `api:leading-mark`,
+//!   `ruling1:request`; an address left to the block, `owner:block`);
+//! - **cut by marks**: one call's content that the reading cuts into entries at their marks (`api:split-by-marks`),
+//!   today's one contact — each entry made from its tokens (the stamped rehearsal's spans), given to its authors;
+//! - **legend**: an entry the reading takes for a legend note (`api:legend`), today's an affiliation — made a note of
+//!   the names showing its mark;
+//! - **role**: a url printing one address, an e-mail (`role:url-as-email`);
+//! - **write out**: one e-mail call printing several addresses (a braced group `{ann,bob}@x.org`) that the reading
+//!   writes out (`ruling3:written-out`), today's one contact (on every carrier of its entry) — each address a contact
+//!   of its own, made from today's, given to its owner.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use super::{
+  super::{
+    events::{
+      Event, EventKind, FontScope, InkFonts, Wrap, changes_font, entry_font, font_declaration,
+      lex_events, switch_free, text_font_command,
+    },
+    ledger::{ApiCall, Outcome, field_stamped},
+    policy::TitleMarks,
+    rehearsal::{Rehearsal, rehearse},
+    resolver::{
+      addresses_in, base_letters, listed_addresses, mark_labels, spelled_name, split_pieces,
+    },
+  },
+  apply::text_leaf,
+  dom::{Front, Kind, norm, orcid_id},
+  *,
+};
+
+/// Whose an item is: a resolved creator's (its index), or the author block's own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) enum Owner {
+  Creator(usize),
+  Block,
+}
+
+/// What a made item is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Made {
+  /// an affiliation contact, its attributes the template's (today's contact it was cut from)
+  Affiliation,
+  /// a note of the names showing its mark (the kernel's author note markup, `\lx@add@thanks`)
+  Legend,
+  /// an e-mail contact printing the reading's address, written out of its brace list as the reading spells it, in the
+  /// fonts of its row ([`block_address_tokens`]: 2609.39183, 2507.07465)
+  Email,
+}
+
+/// One operation on today's frontmatter.
+#[derive(Debug, Clone)]
+pub(super) enum Op {
+  /// a copy of today's item `from` for `to`
+  Copy { from: Node, to: Owner },
+  /// today's item taken away
+  Remove { node: Node },
+  /// an item made from the queued `tokens` for `owner` — before `before`, the item of today's it replaces there; a
+  /// legend's `label` the mark its note shows; `unanswered`, a piece of a cut labelled line no name answers, the
+  /// block's by the placement order (a labelled item nobody answers goes to the block), not by doubt
+  Make {
+    owner:      Owner,
+    made:       Made,
+    tokens:     Tokens,
+    template:   Node,
+    before:     Option<Node>,
+    label:      Option<String>,
+    unanswered: bool,
+  },
+  /// today's contact given the reading's role
+  Role { node: Node, role: String },
+  /// a copy of today's contact `template` printing only `address`, for `owner` (a written-out address)
+  WriteOut {
+    owner:    Owner,
+    template: Node,
+    address:  String,
+  },
+  /// the e-mail addresses today's affiliation `node` prints taken out of it, in place — the runs of `mailed`, the
+  /// reading's e-mails (`dom::cut_addresses`: brief 95c)
+  CutAddresses { node: Node, mailed: Vec<String> },
+  /// an e-mail contact printing `address`, for `owner`, made beside today's affiliation `template` it was printed in —
+  /// in `wrapper`, the element it printed in there, whole or its font alone, when one (`dom::Wrap`: brief 95c, r2 B4,
+  /// r3 F1-F3) —, named by the label word printed before it, when one (`name`, as an e-mail line's label names its
+  /// contacts: r2 B5)
+  Address {
+    owner:    Owner,
+    template: Node,
+    wrapper:  Option<dom::Wrap>,
+    address:  String,
+    name:     Option<String>,
+  },
+}
+
+impl Op {
+  /// The owner an operation makes an item for from the queued tokens (`writer::writes_a_nameless_creator`) — none for
+  /// a copy of today's item (one a ruling gives the block: an address no author spells, `owner:inner-email`,
+  /// `ruling3:written-out`), a cut line no name answers (`Op::Make`'s `unanswered`: the placement order gives it the
+  /// block, 2007.02542), a written-out address, a removal, a role set.
+  pub(super) fn made_for(&self) -> Option<Owner> {
+    match self {
+      Op::Make { owner, unanswered: false, .. } => Some(*owner),
+      Op::Make { .. }
+      | Op::Copy { .. }
+      | Op::WriteOut { .. }
+      | Op::Remove { .. }
+      | Op::Role { .. }
+      | Op::CutAddresses { .. }
+      | Op::Address { .. } => None,
+    }
+  }
+}
+
+/// The plan: its operations, the document's creator of each resolved creator, and where each of the reading's items
+/// prints ([`Place`], with its place among its owner's items in the reading), which places the items the operations
+/// add among an owner's (rev92c S1).
+#[derive(Debug, Clone)]
+pub(super) struct Plan {
+  pub ops:      Vec<Op>,
+  /// the resolved creators' names, whom an address spells (the address reader's, `Op::CutAddresses`)
+  pub names:    Vec<String>,
+  pub creators: BTreeMap<usize, Node>,
+  pub order:    BTreeMap<(Owner, Key), (Place, usize)>,
+}
+
+pub(super) type Key = (Kind, String);
+
+/// Where one of the reading's items prints: whether a note prints it, then its block or API call's ledger index, then
+/// its span's start (`(0, start)`; `(1, 0)` for none) — the order the resolver keeps a creator's contacts and notes in
+/// (`resolver::in_source_order`), the print order of the entries an owner's marks request (llncs's and aa's institute
+/// list: `\inst{2,1}` prints under institutes 1 and 2, as today's places them). A note's item prints after every item
+/// of the author block, whatever its call's place ([`prints_in_note`]); a note itself is where today's writes it, at
+/// its mark, which its call's place keeps. Within one block or call, a spanned item and an unspanned one are not
+/// ordered (`apply::prints_after`): a span is a position in it, its absence none.
+pub(super) type Place = (bool, usize, (u8, u16));
+
+/// The [`Place`] of the reading's item `assoc` of kind `kind`.
+pub(super) fn place_of(assoc: &Assoc, kind: &Kind) -> Option<Place> {
+  assoc.source.map(|(index, span)| {
+    (
+      *kind != Kind::Note && prints_in_note(index, span),
+      index,
+      span.map_or((1, 0), |(start, _)| (0, start)),
+    )
+  })
+}
+
+/// Whether the print at ledger index `index` (and `span` in it) is a note's, which the page prints below the author
+/// block, not where its call stands: a publication note's call (aa's `\offprints{A. Able, \email{…}}`, "Send offprint
+/// requests to:" in the first page's footer, after the institutes it is called before — 0902.0930, 0903.3512,
+/// 1205.5105, 1411.3255, astro-ph0203288, astro-ph0509342, astro-ph0512559, astro-ph0608284, astro-ph0702605: ordered
+/// by the call, the e-mail had gone above the affiliation, review rev92c r2 B-1), a footnote's text, an `ltx:note`
+/// call, and a contact a `\thanks` or `\footnote` of a block or call holds (`\thanks{Corresponding: \email{…}}`).
+fn prints_in_note(index: usize, span: Option<(u16, u16)>) -> bool {
+  let in_a_note = |events: &[Event]| {
+    span.is_some_and(|(start, end)| {
+      events.iter().any(|e| {
+        e.kind == EventKind::Note
+          && (e.span.is_some_and(|(s, t)| s <= start && end <= t)
+            || e.inner.iter().any(|inner| inner.span == Some((start, end))))
+      })
+    })
+  };
+  with_ledger(|ledger| match ledger.entries.get(index) {
+    Some(Entry::Api(call)) => {
+      matches!(call.tag.as_str(), "ltx:pubnote" | "ltx:note") || in_a_note(&call.events)
+    },
+    Some(Entry::Author(block)) => match &block.outcome {
+      Outcome::Events { events, .. } => in_a_note(events),
+      _ => false,
+    },
+    Some(Entry::NoteText(_)) => true,
+    _ => false,
+  })
+}
+
+/// The resolved creators paired with today's, by name in order: `None` when they differ.
+pub(super) fn pair_names(resolved: &Resolved, front: &Front) -> Option<BTreeMap<usize, usize>> {
+  let named: Vec<usize> = (0..resolved.creators.len())
+    .filter(|&i| !resolved.creators[i].name.trim().is_empty())
+    .collect();
+  if named.len() != front.creators.len() {
+    return None;
+  }
+  named
+    .iter()
+    .zip(&front.creators)
+    .enumerate()
+    .map(|(j, (&i, creator))| {
+      (norm(&resolved.creators[i].name) == norm(&creator.name)).then_some((i, j))
+    })
+    .collect()
+}
+
+/// The reading's items: (owner, kind, text) with the association, as `ab_audit fmshadow`'s `shadow_tuples` reads them
+/// (a creator with no name holds none; an item of no letter or digit compares as none, a creator's as the block's — as
+/// [`held`] reads today's: a note printing only a superscript or a box, `\thanks{\textsuperscript{}}`, the observer's
+/// note of ink in doubt, held the kernel's paper back, OD #925).
+fn wanted(resolved: &Resolved) -> BTreeMap<Key, Vec<(Owner, &Assoc)>> {
+  let mut out: BTreeMap<Key, Vec<(Owner, &Assoc)>> = BTreeMap::new();
+  for (i, c) in resolved.creators.iter().enumerate() {
+    if c.name.trim().is_empty() {
+      continue;
+    }
+    // (one item per creator and text: an address the reading gives one creator twice — from its institute line and from
+    // `\offprints`, 0906.2451; a link's target and its text before the events read only the text, review rev92c B1, S2
+    // — is one contact, the one a ruling decided kept)
+    for (key, a) in creator_items(c) {
+      want_once(&mut out, key, Owner::Creator(i), a);
+    }
+  }
+  for (key, a) in block_items(resolved) {
+    want_once(&mut out, key, Owner::Block, a);
+  }
+  out
+}
+
+/// The owners of `items`, each once: an item is one creator's or the block's, however many times today's or the
+/// reading holds it (rev92c S2: one contact per creator and address).
+fn owners(items: impl Iterator<Item = Owner>) -> Vec<Owner> {
+  let mut out: Vec<Owner> = items.collect();
+  out.sort();
+  out.dedup();
+  out
+}
+
+/// The reading's item `a` of `owner` under `key`, once per owner: the one a ruling decided kept.
+fn want_once<'a>(
+  out: &mut BTreeMap<Key, Vec<(Owner, &'a Assoc)>>,
+  key: Key,
+  owner: Owner,
+  a: &'a Assoc,
+) {
+  let wants = out.entry(key).or_default();
+  match wants.iter_mut().find(|(o, _)| *o == owner) {
+    Some(held) if !writes(held.1) && writes(a) => held.1 = a,
+    Some(_) => {},
+    None => wants.push((owner, a)),
+  }
+}
+
+/// A resolved creator's items as the comparison keys them — its affiliations, contacts and notes, an item of no letter
+/// or digit none ([`wanted`]).
+pub(super) fn creator_items(c: &RCreator) -> Vec<(Key, &Assoc)> {
+  let mut items: Vec<(Key, &Assoc)> = Vec::new();
+  for a in &c.affiliations {
+    items.push(((Kind::Affiliation, norm(&a.text)), a));
+  }
+  for a in &c.contacts {
+    items.push((contact_key(a), a));
+  }
+  for a in &c.notes {
+    items.push(((Kind::Note, norm(&a.text)), a));
+  }
+  items.retain(|(key, _)| !key.1.is_empty());
+  items
+}
+
+/// A resolved creator's contact `a` as the comparison keys it ([`creator_items`]).
+pub(super) fn contact_key(a: &Assoc) -> Key {
+  match a.role.as_str() {
+    "note" | "thanks" => (Kind::Note, norm(&a.text)),
+    "orcid" => (Kind::Contact("orcid".into()), norm(orcid_id(&a.text))),
+    role => (Kind::Contact(role.to_string()), norm(&a.text)),
+  }
+}
+
+/// The author block's own items, as the comparison keys them ([`wanted`]).
+pub(super) fn block_items(resolved: &Resolved) -> Vec<(Key, &Assoc)> {
+  resolved
+    .block
+    .iter()
+    .map(|a| ((Kind::of_block(&a.role), norm(&a.text)), a))
+    .filter(|(key, _)| !key.1.is_empty())
+    .collect()
+}
+
+/// Today's items: (owner, kind, text) with the node and whether it may move (`dom::Item::movable`).
+pub(super) fn held(
+  front: &Front,
+  pairs: &BTreeMap<usize, usize>,
+) -> BTreeMap<Key, Vec<(Owner, Node, bool)>> {
+  let mut out: BTreeMap<Key, Vec<(Owner, Node, bool)>> = BTreeMap::new();
+  // (an item of no text is no content to place, a named creator's as a nameless one's: today's empty contact of an
+  // `\email{}`, an endnote mark's empty note — the comparison reads none, and the paper was held back for it)
+  for (&i, &j) in pairs {
+    for item in &front.creators[j].items {
+      if !item.key.is_empty() {
+        out
+          .entry((item.kind.clone(), item.key.clone()))
+          .or_default()
+          .push((Owner::Creator(i), item.node.clone(), item.movable));
+      }
+    }
+  }
+  for creator in &front.nameless {
+    for item in &creator.items {
+      if !item.key.is_empty() {
+        out
+          .entry((item.kind.clone(), item.key.clone()))
+          .or_default()
+          .push((Owner::Block, item.node.clone(), item.movable));
+      }
+    }
+  }
+  out
+}
+
+/// `a` less `b`, as multisets.
+fn minus(a: &[Owner], b: &[Owner]) -> Vec<Owner> {
+  let mut rest = b.to_vec();
+  a.iter()
+    .filter(|o| match rest.iter().position(|r| r == *o) {
+      Some(at) => {
+        rest.remove(at);
+        false
+      },
+      None => true,
+    })
+    .copied()
+    .collect()
+}
+
+/// Where today's frontmatter and the reading differ, if they do (the writer's check of what it wrote).
+pub(super) fn difference(resolved: &Resolved, front: &Front) -> Option<String> {
+  let Some(pairs) = pair_names(resolved, front) else {
+    return Some("the creators' names".into());
+  };
+  let want = wanted(resolved);
+  let have = held(front, &pairs);
+  for key in want.keys().chain(have.keys()) {
+    let w = owners(want.get(key).into_iter().flatten().map(|(o, _)| *o));
+    let h = owners(have.get(key).into_iter().flatten().map(|(o, ..)| *o));
+    if w != h
+      && !(h.is_empty() && held_as_pubnote(front, key, want.get(key).map_or(&[], Vec::as_slice)))
+    {
+      return Some(s!("{:?} {}: reading {w:?}, written {h:?}", key.0, key.1));
+    }
+  }
+  None
+}
+
+/// Whether the reading gives a note to the author block alone (`wants`) that today's prints as one of the document's
+/// publication notes (`Front::pubnotes`): the block's note is the document's, held where the reading wants it, though
+/// `held` reads no pubnote. Only a note no name requests on a line of notes the names' marks label
+/// (`note:unrequested`: `\\ \thanks{$^{1}$Univ A}\thanks{This work was funded by …}`, 2609.17106; OD #957, review
+/// rev100c S1), and a note on an address line (`note:address-line`), which the token reader takes out as the document's
+/// (`author_block::address_line_notes`, batch 101b: `… \\ \texttt{a@x, b@y}\thanks{Submitted …}`, 2605.23553).
+pub(super) fn held_as_pubnote(front: &Front, key: &Key, wants: &[(Owner, &Assoc)]) -> bool {
+  key.0 == Kind::Note
+    && !wants.is_empty()
+    && wants.iter().all(|(o, a)| {
+      *o == Owner::Block && (rule_has(a, "note:unrequested") || rule_has(a, "note:address-line"))
+    })
+    && front.pubnotes.contains(&key.1)
+}
+
+/// The API call at ledger index `index`.
+pub(super) fn api_call(index: usize) -> Option<ApiCall> {
+  with_ledger(|ledger| match ledger.entries.get(index) {
+    Some(Entry::Api(call)) => Some(call.clone()),
+    _ => None,
+  })
+}
+
+/// The tokens of `content` a piece's span `start..end` covers, past `floor` (where the piece before ended) — with the
+/// switches that open the group it sits in, when it sits inside one (`{\bf $^1$Univ A, $^2$Univ B}`: each piece keeps
+/// the `\bf`, unless `first` is 0: a piece carrying the font it starts in, `events::entry_font`) —, or `None` when no
+/// balanced run of tokens holds it. A mark's formula covers its script, not the `$`
+/// and braces around it (`${}^*$Blackett …` opens at the `^`): the math shifts, braces and script characters just
+/// before the span are the piece's, and the closing braces and shifts just after it that balance them — LaTeX's `\(`
+/// and `\)` as the shifts they spell, with the spaces inside them (`\( ^{1} \)Univ A`: hep-ph0110378, 2307.12984).
+fn piece_tokens(
+  content: &[Token],
+  (start, end): (usize, usize),
+  floor: usize,
+  first: usize,
+) -> Option<(Tokens, usize)> {
+  if start > end || end > content.len() || start < floor {
+    return None;
+  }
+  let (mut start, mut end) = (start, end);
+  loop {
+    if start > floor
+      && matches!(
+        content[start - 1].get_catcode(),
+        Catcode::MATH | Catcode::BEGIN | Catcode::SUPER | Catcode::SUB
+      )
+    {
+      start -= 1;
+    } else if start > floor + 1
+      && content[start - 1].get_catcode() == Catcode::END
+      && content[start - 2].get_catcode() == Catcode::BEGIN
+    {
+      // (an empty group a floating script hangs on, `{}^*`)
+      start -= 2;
+    } else if let Some(open) = (floor..start)
+      .rev()
+      .find(|&i| content[i].get_catcode() != Catcode::SPACE)
+      && is_cs(&content[open], "\\(")
+    {
+      start = open;
+      if start > floor && is_cs(&content[start - 1], "\\protect") {
+        start -= 1;
+      }
+    } else {
+      break;
+    }
+  }
+  let balance = |s: usize, e: usize| -> Option<(i32, usize, i32)> {
+    let (mut depth, mut parens) = (0i32, 0i32);
+    for t in &content[s..e] {
+      match t.get_catcode() {
+        Catcode::BEGIN => depth += 1,
+        Catcode::END => {
+          depth -= 1;
+          if depth < 0 {
+            return None;
+          }
+        },
+        _ if is_cs(t, "\\(") => parens += 1,
+        _ if is_cs(t, "\\)") => {
+          parens -= 1;
+          if parens < 0 {
+            return None;
+          }
+        },
+        _ => {},
+      }
+    }
+    let shifts = content[s..e]
+      .iter()
+      .filter(|t| t.get_catcode() == Catcode::MATH)
+      .count();
+    Some((depth, shifts, parens))
+  };
+  loop {
+    let (depth, shifts, parens) = balance(start, end)?;
+    if depth == 0 && shifts % 2 == 0 && parens == 0 {
+      break;
+    }
+    match content.get(end) {
+      Some(t) if t.get_catcode() == Catcode::END && depth > 0 => end += 1,
+      Some(t) if t.get_catcode() == Catcode::MATH && shifts % 2 == 1 => end += 1,
+      Some(t) if parens > 0 && (t.get_catcode() == Catcode::SPACE || is_cs(t, "\\)")) => end += 1,
+      _ => return None,
+    }
+  }
+  // (the group the pieces sit in: its opening brace, and the switches before the first piece in it)
+  let mut open: Vec<usize> = Vec::new();
+  for (i, t) in content[..start].iter().enumerate() {
+    match t.get_catcode() {
+      Catcode::BEGIN => open.push(i),
+      Catcode::END => {
+        open.pop();
+      },
+      _ => {},
+    }
+  }
+  let mut tokens = Vec::new();
+  if let Some(&group) = open.last()
+    && group < first
+  {
+    let switches = &content[group + 1..first.min(start)];
+    if switches
+      .iter()
+      .all(|t| matches!(t.get_catcode(), Catcode::CS | Catcode::SPACE))
+    {
+      tokens.extend_from_slice(switches);
+    }
+  }
+  tokens.extend_from_slice(&content[start..end]);
+  Some((Tokens::new(tokens), end))
+}
+
+/// Whether `t` is the control sequence `name`.
+fn is_cs(t: &Token, name: &str) -> bool {
+  t.get_catcode() == Catcode::CS && t.with_cs_name(|n| n == name)
+}
+
+/// One call's content cut into the reading's entries: each piece's text (normalised), its tokens.
+fn cut(call: &ApiCall) -> Result<Option<Vec<(String, Tokens)>>> {
+  let content = call.content.unlist_ref();
+  if content.len() > usize::from(FIELD_PROV_POS_MASK) {
+    DebugFeature!("frontmatter", "FRONT writer: the entry is out of positions");
+    return Ok(None);
+  }
+  // (the call's font, which its content's fonts are read against: `events::entry_font`)
+  let root = lookup_font();
+  let (events, ink) = match rehearse(field_stamped(2, 0, content), TitleMarks::Fnsymbol, |d| {
+    (lex_events(d), InkFonts::of(d))
+  })? {
+    Rehearsal::Done { value, .. } => value,
+    Rehearsal::Skipped(_) => return Ok(None),
+  };
+  let scope = root.map(|root| FontScope { ink, root, start: 0 });
+  let pieces = split_pieces(&events, &call.role);
+  let spans: Vec<Option<(usize, usize)>> = pieces.iter().map(|(_, p)| piece_span(p)).collect();
+  let Some(first) = spans.iter().flatten().map(|(s, _)| *s).min() else {
+    return Ok(None);
+  };
+  // (each piece's form, `entry_forms`: the font in effect where it starts — `{\itshape $^1$Univ A\\ $^2$Univ B}`'s
+  // second too —, read from the rehearsal's ink, and a container holding two pieces' ink wrapped round each again —
+  // `\underline{$^1$Univ A\\ $^2$Univ B}`, review rev94b r3 B1; when the boxes cannot tell the font (a command between:
+  // `$^2$\mbox{…}` after `\mbox{Univ A}`) or the container cannot be wrapped again exactly, the piece as before, with
+  // the switches opening the group it sits in: never no cut, review rev94b r4 B1)
+  let Some(starts) = spans
+    .iter()
+    .map(|span| {
+      let (s, e) = (*span)?;
+      Some((s, (u16::try_from(s).ok()?, u16::try_from(e).ok()?)))
+    })
+    .collect::<Option<Vec<_>>>()
+  else {
+    return Ok(None);
+  };
+  let forms = match &scope {
+    Some(scope) => entry_forms(content, 0, &starts, scope, &events),
+    None => vec![(None, None); starts.len()],
+  };
+  let mut out = Vec::new();
+  let mut floor = 0;
+  for (((text, _), span), (font, wrap)) in pieces.iter().zip(&spans).zip(forms) {
+    let Some(span) = *span else {
+      return Ok(None);
+    };
+    let Some((tokens, end)) =
+      piece_tokens(content, span, floor, if font.is_some() { 0 } else { first })
+    else {
+      DebugFeature!(
+        "frontmatter",
+        "FRONT writer: piece {span:?} is no balanced run"
+      );
+      return Ok(None);
+    };
+    floor = end;
+    out.push((
+      norm(text),
+      entry_tokens(font.as_ref(), wrap.as_deref(), tokens),
+    ));
+  }
+  Ok(Some(out))
+}
+
+/// The tokens of an author block's own line, the reading's entry at `span` of the block at ledger index `index`: from
+/// the mark it opens with (the event printed just before it, a Mark with only spaces between: `$^4$ ModelBest.Inc`,
+/// `\textsuperscript{*}Equal contribution`) to its end, as [`piece_tokens`] balances a piece — `None` when the index is
+/// no rehearsed block, no balanced run holds it, or the span's own letters and digits are not the entry's text `key`
+/// (an entry printing through a command, an accent, a line read on to: what the writer would make is not the entry).
+fn block_line_tokens(index: usize, span: (u16, u16), key: &str, mark: bool) -> Option<Tokens> {
+  block_span_tokens(index, span, Some(key), mark)
+}
+
+/// The tokens of the block at ledger index `index` an entry's `span` covers, as [`block_line_tokens`] reads them — the
+/// span's own letters and digits checked against `key` when one is given (the re-part checks what it made on the
+/// digested text instead, `repart`). With `mark` (a legend, whose text keeps its mark's ink: the label-text ruling)
+/// from the mark it opens with; else from its own ink, the mark left out — a made affiliation carries no entry mark, as
+/// today's copies hold none, and a mark's formula cut from a group the entry closes (`{\small $~^2$ Univ of
+/// Colorado}`) is no balanced run: 2308.11662's second institute was no cut, its two lines one contact (review rev94a
+/// B3, S3; 2404.02078, 2609.03563, 1909.05311).
+pub(super) fn block_span_tokens(
+  index: usize,
+  span: (u16, u16),
+  key: Option<&str>,
+  with_mark: bool,
+) -> Option<Tokens> {
+  with_ledger(|ledger| {
+    let Some(Entry::Author(block)) = ledger.entries.get(index) else {
+      return None;
+    };
+    let Outcome::Events { events, .. } = &block.outcome else {
+      return None;
+    };
+    // (the event printed last before the line, a layout change aside)
+    let mark = events
+      .iter()
+      .rev()
+      .find(|e| e.kind != EventKind::Layout && e.span.is_some_and(|(_, e)| e <= span.0))
+      .filter(|e| e.kind == EventKind::Mark)
+      .and_then(|e| e.span);
+    let labelled = events
+      .iter()
+      .find(|e| e.kind == EventKind::Contact && e.label.is_some() && e.span == Some(span));
+    // (a cut entry's font, `events::entry_font`: the entry digested under it, the switches its cut starts past left out;
+    // and the containers holding it and another entry, wrapped round it again: `entry_forms`)
+    let font = labelled.and_then(|e| e.font.as_ref());
+    let wrap = labelled.and_then(|e| e.wrap.as_deref());
+    let tokens = span_tokens(
+      block.tokens.unlist_ref(),
+      block.range.0,
+      span,
+      key,
+      mark,
+      labelled.is_some(),
+      with_mark,
+      font.is_some(),
+    )?;
+    Some(entry_tokens(font, wrap, tokens))
+  })
+}
+
+/// The tokens of an e-mail contact printing `address`, an address the reading reads at `span` of the block at ledger
+/// index `index`: the address's text, as the reading spells it — one address written out of a brace list
+/// (`\{ann,cat\}@a.edu`'s `cat@a.edu`) is the text of no span — inside the fonts it prints in there: each group
+/// holding it that a text font command opens (`\texttt{…}`) or a font declaration starts (`{\scriptsize\ttfamily …}`),
+/// and the declarations before it in its own group — in an alignment's cell, those of the cell (each cell a group of
+/// its own: `\tt\small` before it in a `tabular` cell), and those before the alignment, which every cell starts in.
+/// `None` when the index is no rehearsed block.
+pub(super) fn block_address_tokens(
+  index: usize,
+  span: (u16, u16),
+  address: &str,
+) -> Option<Tokens> {
+  /// One group open at the address: the text font command opening it, its declarations so far, and where its
+  /// alignment's cells start among them (the declarations before the alignment).
+  struct Open {
+    command:      Option<Token>,
+    declarations: Vec<Token>,
+    cells:        Option<usize>,
+  }
+  const ALIGNMENTS: [&str; 6] = [
+    "tabular",
+    "tabular*",
+    "tabularx",
+    "tabulary",
+    "array",
+    "longtable",
+  ];
+  with_ledger(|ledger| {
+    let Some(Entry::Author(block)) = ledger.entries.get(index) else {
+      return None;
+    };
+    let content = block.tokens.unlist_ref();
+    let at = usize::from(span.0).checked_sub(block.range.0)?;
+    let declaration = |t: &Token| font_declaration(t) || *t == T_CS!("\\tt");
+    // (the environment a `\begin` or `\end` at `k` names, when it is an alignment)
+    let alignment = |k: usize| {
+      let name: String = content
+        .get(k + 1..)?
+        .iter()
+        .skip(1)
+        .take_while(|t| t.get_catcode() != Catcode::END)
+        .map(ToString::to_string)
+        .collect();
+      (content.get(k + 1)?.get_catcode() == Catcode::BEGIN && ALIGNMENTS.contains(&name.as_str()))
+        .then_some(())
+    };
+    let mut groups: Vec<Open> = vec![Open {
+      command:      None,
+      declarations: Vec::new(),
+      cells:        None,
+    }];
+    let text_font = |t: &Token| text_font_command(t) || *t == T_CS!("\\emph");
+    for (k, t) in content.iter().enumerate() {
+      // (up to the address's first ink: its span may open with the fonts it prints in, `\texttt{\{ann,cat\}@a.edu}`)
+      if k >= at
+        && !(matches!(t.get_catcode(), Catcode::BEGIN | Catcode::SPACE)
+          || text_font(t)
+          || declaration(t))
+      {
+        break;
+      }
+      let Some(group) = groups.last_mut() else {
+        break;
+      };
+      match t.get_catcode() {
+        Catcode::BEGIN => {
+          let command = k
+            .checked_sub(1)
+            .map(|b| content[b])
+            .filter(|c| text_font(c));
+          groups.push(Open {
+            command,
+            declarations: Vec::new(),
+            cells: None,
+          });
+        },
+        Catcode::END => {
+          if groups.len() > 1 {
+            groups.pop();
+          }
+        },
+        _ if *t == T_CS!("\\begin") && alignment(k).is_some() => {
+          group.cells = Some(group.declarations.len());
+        },
+        _ if *t == T_CS!("\\end") && alignment(k).is_some() => {
+          if let Some(cells) = group.cells.take() {
+            group.declarations.truncate(cells);
+          }
+        },
+        _ if *t == T_CS!("\\\\") || *t == T_ALIGN!() => {
+          if let Some(cells) = group.cells {
+            group.declarations.truncate(cells);
+          }
+        },
+        _ if declaration(t) => group.declarations.push(*t),
+        _ => {},
+      }
+    }
+    let mut out = Vec::new();
+    let mut closes = 0;
+    for group in &groups {
+      if group.command.is_some() || !group.declarations.is_empty() {
+        out.extend(group.command);
+        out.push(T_BEGIN!());
+        out.extend(group.declarations.iter().copied());
+        closes += 1;
+      }
+    }
+    out.extend(ExplodeText!(address));
+    out.extend(std::iter::repeat_n(T_END!(), closes));
+    Some(Tokens::new(out))
+  })
+}
+
+/// A cut entry's `tokens` in its form ([`entry_forms`]): wrapped in its containers again, digested under its font.
+fn entry_tokens(font: Option<&Rc<Font>>, wrap: Option<&Wrap>, tokens: Tokens) -> Tokens {
+  let tokens = match wrap {
+    Some(wrap) => {
+      let mut out = wrap.open.clone();
+      out.extend(tokens.unlist());
+      out.extend(std::iter::repeat_n(T_END!(), wrap.closes));
+      Tokens::new(out)
+    },
+    None => tokens,
+  };
+  match font {
+    Some(font) => entry_font_tokens(font, tokens),
+    None => tokens,
+  }
+}
+
+/// Each cut entry's form: the font changes its cut starts in (`events::entry_font`), and the containers holding its ink
+/// and another entry's — an `\emph{$^1$Univ A, Town\\ $^2$Univ B, City}`, an `\underline{…}` (pdflatex prints both
+/// lines in it) —, which it is wrapped in again ([`container_wrap`]), its font then the one in effect where the
+/// outermost starts. `entries` each entry's cut start (an index into `content`, `content[0]` at position `base`) and
+/// span. Exact only: a container whose entries do not read one font (a switch inside it between them), or one the
+/// writer cannot wrap again ([`container_wrap`]), gives the entries it holds neither — they are cut as before fonts
+/// were read (review rev94b r4 B1: attribution beats typography, a cut is never undone for its markup).
+#[allow(clippy::type_complexity)]
+pub(in crate::base_utilities::frontmatter::observer) fn entry_forms(
+  content: &[Token],
+  base: usize,
+  entries: &[(usize, (u16, u16))],
+  scope: &FontScope,
+  events: &[Event],
+) -> Vec<(Option<Rc<Font>>, Option<Rc<Wrap>>)> {
+  let spans: Vec<(u16, u16)> = entries.iter().map(|(_, span)| *span).collect();
+  let holders = scope.ink.holders(&spans);
+  let leads: Vec<Option<Rc<Font>>> = entries
+    .iter()
+    .map(|(from, _)| entry_font(content, base, *from, scope, events))
+    .collect();
+  entries
+    .iter()
+    .enumerate()
+    .map(|(at, &(from, (_, end)))| {
+      let mine: Vec<&((u16, u16), BTreeSet<usize>)> = holders
+        .iter()
+        .filter(|(_, held)| held.contains(&at))
+        .collect();
+      if mine.is_empty() {
+        return (leads[at].clone(), None);
+      }
+      let one_font = mine.iter().all(|(_, held)| {
+        let first = held.first().and_then(|&k| leads[k].as_ref());
+        first.is_some() && held.iter().all(|&k| leads[k].as_ref() == first)
+      });
+      let wrap = one_font
+        .then(|| {
+          let containers: Vec<((u16, u16), usize)> = mine
+            .iter()
+            .map(|(span, held)| {
+              (
+                *span,
+                held.iter().map(|&k| entries[k].0).min().unwrap_or(from),
+              )
+            })
+            .collect();
+          let end = usize::from(end).checked_sub(base)?;
+          container_wrap(content, base, &containers, from, end, events)
+        })
+        .flatten();
+      // (the font where the outermost container starts: one the boxes cannot tell gives neither — the base's cut;
+      // re-wrapped without it, `\itshape\emph{…\\…}`'s entries read italic where pdflatex prints them upright, review
+      // rev94b r5 BL3)
+      match wrap
+        .and_then(|(wrap, outer)| Some((entry_font(content, base, outer, scope, events)?, wrap)))
+      {
+        Some((font, wrap)) => (Some(font), Some(Rc::new(wrap))),
+        None => (None, None),
+      }
+    })
+    .collect()
+}
+
+/// The tokens opening each container (`containers`: its span, outermost first, and its first entry's cut start) an
+/// entry cut at `from..end` sits in, wrapped round it again ([`entry_forms`]), and where the outermost starts: each
+/// container a command (`content[0]` at position `base`) taking its arguments as braced groups or `[…]` options, the
+/// entry in one of them, with nothing switching a font between that argument's start and the container's first entry
+/// (`events::switch_free`), and only switches between two containers' — `None` otherwise (a container made by a
+/// macro of the document's, an environment, a box whose argument is no group).
+fn container_wrap(
+  content: &[Token],
+  base: usize,
+  containers: &[((u16, u16), usize)],
+  from: usize,
+  end: usize,
+  events: &[Event],
+) -> Option<(Wrap, usize)> {
+  let close_of = |open: usize, (opening, closing): (Catcode, Option<Token>)| -> Option<usize> {
+    let mut depth = 0i32;
+    for (k, t) in content.iter().enumerate().skip(open) {
+      match t.get_catcode() {
+        Catcode::BEGIN => depth += 1,
+        Catcode::END => {
+          depth -= 1;
+          if depth < 0 {
+            return None;
+          }
+          if depth == 0 && opening == Catcode::BEGIN {
+            return Some(k);
+          }
+        },
+        _ if depth == 0 && closing.is_some_and(|c| *t == c) => return Some(k),
+        _ => {},
+      }
+    }
+    None
+  };
+  let mut open = Vec::new();
+  let mut outer = None;
+  let mut after: Option<usize> = None;
+  for (n, &((start, _), first)) in containers.iter().enumerate() {
+    let at = usize::from(start).checked_sub(base)?;
+    // (the innermost container's argument is switch-free up to its first entry; an outer one's holds the next
+    // container, and before it nothing but font declarations — kept in the wrap, every entry printing under them, as
+    // pdflatex prints every line: `\emph{\bfseries\underline{…\\…}}`, review rev94b r5 BL3 — and spaces, which the
+    // wrap leaves out; anything else between prints or acts once, which a copy in every entry would repeat — a
+    // `\newline`'s break, a `\quad`'s space: the base's cut, review rev94b r6 B2)
+    let innermost = n + 1 == containers.len();
+    if let Some(after) = after {
+      let between = content.get(after..at)?;
+      if !between
+        .iter()
+        .all(|t| t.get_catcode() == Catcode::SPACE || font_declaration(t))
+      {
+        return None;
+      }
+      open.extend(between.iter().filter(|t| t.get_catcode() != Catcode::SPACE));
+    }
+    if content.get(at)?.get_catcode() != Catcode::CS {
+      return None;
+    }
+    let mut k = at + 1;
+    let arg = loop {
+      let t = content.get(k)?;
+      match t.get_catcode() {
+        Catcode::SPACE => k += 1,
+        Catcode::BEGIN => {
+          let close = close_of(k, (Catcode::BEGIN, None))?;
+          if k < from && end <= close {
+            break k;
+          }
+          k = close + 1;
+        },
+        _ if *t == T_OTHER!("[") => k = close_of(k + 1, (Catcode::OTHER, Some(T_OTHER!("]"))))? + 1,
+        _ => return None,
+      }
+    };
+    if innermost && !switch_free(content, base, arg + 1, first, events) {
+      return None;
+    }
+    open.extend_from_slice(&content[at..=arg]);
+    outer.get_or_insert(at);
+    after = Some(arg + 1);
+  }
+  // (a kernel text font command whose argument opens with the outermost container — `\textbf{\emph{…\\…}}`: a
+  // macro, `\bgroup\bfseries #1\egroup`, no whatsit holding the entries' ink — opens each entry again too, the font then
+  // the one where it starts; pdflatex prints every line bold italic — review rev94b r6 S1)
+  let mut outer = outer?;
+  let mut closes = containers.len();
+  loop {
+    let mut b = outer;
+    while b > 0 && content[b - 1].get_catcode() == Catcode::SPACE {
+      b -= 1;
+    }
+    if b < 2
+      || content[b - 1].get_catcode() != Catcode::BEGIN
+      || !text_font_command(&content[b - 2])
+      || close_of(b - 1, (Catcode::BEGIN, None)).is_none()
+    {
+      break;
+    }
+    open.splice(0..0, content[b - 2..b].iter().copied());
+    closes += 1;
+    outer = b - 2;
+  }
+  Some((Wrap { open, closes }, outer))
+}
+
+/// `tokens` digested under the font changes `font` ([`events::entry_font`]): `\lx@fm@entry@font{n}` before them, the
+/// font registered as the `n`-th (`frontmatter_stores.rs`), when it changes anything.
+pub(in crate::base_utilities::frontmatter::observer) fn entry_font_tokens(
+  font: &Rc<Font>,
+  tokens: Tokens,
+) -> Tokens {
+  if !changes_font(font) {
+    return tokens;
+  }
+  let n = lookup_int("lx_fm_entry_fonts") + 1;
+  assign_value("lx_fm_entry_fonts", Stored::Int(n), Some(Scope::Global));
+  assign_value(
+    &s!("lx_fm_entry_font_{n}"),
+    Stored::Font(font.clone()),
+    Some(Scope::Global),
+  );
+  let mut out = vec![T_CS!("\\lx@fm@entry@font"), T_BEGIN!()];
+  out.extend(ExplodeText!(&n.to_string()));
+  out.push(T_END!());
+  out.extend(tokens.unlist());
+  Tokens::new(out)
+}
+
+/// Whether `text` prints `name` (`writes_the_name`) somewhere inside it, as an initial or word of the name before its
+/// last word: its words parted at spaces, periods and a capital glued to a small letter (`Y. XuInstitute`, the
+/// `\at` of svjour3 printing nothing between a name and its institute).
+fn prints_the_name(text: &str, name: &str) -> bool {
+  let mut parted = String::new();
+  let mut before: Option<char> = None;
+  for c in base_letters(text).chars() {
+    if c.is_uppercase() && before.is_some_and(char::is_lowercase) {
+      parted.push(' ');
+    }
+    parted.push(c);
+    before = Some(c);
+  }
+  let words: Vec<&str> = parted
+    .split(|c: char| c.is_whitespace() || c == '.' || c == '~' || c == ',')
+    .filter(|w| !w.is_empty())
+    .collect();
+  let of = name.split_whitespace().count().max(2);
+  (0..words.len()).any(|end| {
+    (2..=of.min(end + 1)).any(|n| writes_the_name(&words[end + 1 - n..=end].join(" "), name))
+  })
+}
+
+/// Whether `text` writes `name` and nothing else: its words, accents folded and periods dropped, each a word of the
+/// name or the initial of one, in the name's order, the last the name's last ("A. Able", "Ann Able" for Ann Able; not
+/// "Johns Hopkins University" for anyone).
+fn writes_the_name(text: &str, name: &str) -> bool {
+  let words = |t: &str| -> Vec<String> {
+    base_letters(t)
+      .split(|c: char| c.is_whitespace() || c == '.' || c == '~')
+      .filter(|w| !w.is_empty())
+      .map(str::to_lowercase)
+      .collect()
+  };
+  let (written, of) = (words(text), words(name));
+  if written.is_empty() || written.len() > of.len() || written.last() != of.last() {
+    return false;
+  }
+  let mut at = 0;
+  written.iter().all(|w| {
+    let found = of[at..]
+      .iter()
+      .position(|o| o == w || (w.chars().count() == 1 && o.starts_with(w.as_str())));
+    found.is_some_and(|i| {
+      at += i + 1;
+      true
+    })
+  })
+}
+
+/// The text a text-symbol command prints: LaTeX's `\DeclareTextSymbol` glyph for the current encoding (`\OT1\i`: core
+/// `mouth::text_symbol_char`, latex.ltx's `\i`, `\ss`, `\o`, `\ae`), else its meaning or its robust form's (`\i` is
+/// `\protect\i␣`), a primitive whose body is that text (plain_base.rs; Perl plain_base.pool.ltxml:108, 531
+/// `DefPrimitiveI`).
+fn text_symbol(t: &Token) -> Option<String> {
+  if let Some(c) = mouth::text_symbol_char(t) {
+    return Some(c.to_string());
+  }
+  // (OT1's glyphs are `\chardef`s, `\OT1\i` slot 16: decoded through the encoding's font map, as the glyph prints)
+  let encoding = lookup_font()?
+    .get_encoding()
+    .map_or_else(|| "OT1".to_string(), |e| e.to_string());
+  let glyph = T_CS!(s!(
+    "\\{}{}",
+    encoding.trim(),
+    t.with_cs_name(ToString::to_string)
+  ));
+  if let Some(defn) = lookup_register_definition(&glyph)
+    && matches!(defn.register_type(), Some(RegisterType::CharDef))
+    && let Some(code) = defn.value_of(Vec::new())
+  {
+    return font_decode(code.value_of() as i32, Some(encoding.trim()), None)
+      .0
+      .map(String::from);
+  }
+  let name = t.with_cs_name(ToString::to_string);
+  [T_CS!(name.clone()), T_CS!(s!("{name} "))]
+    .iter()
+    .find_map(|cs| match lookup_meaning(cs) {
+      Some(Stored::Primitive(p)) => match p.replacement {
+        Some(PrimitiveBody::String(text)) => Some(with(text, ToString::to_string)),
+        _ => None,
+      },
+      _ => None,
+    })
+}
+
+/// [`block_span_tokens`] on a block's `content`, its first token at position `base`: `mark` the span of the Mark
+/// event printed last before the entry, `labelled` whether the entry is an in-block contact's entry read from its
+/// leading marks (`events::labelled_entries`, which checks with it at the reading that the writer can cut each entry),
+/// `own_font` whether it carries the font its cut starts in (`events::entry_font`: no switch of a group it sits in
+/// is then its, the font holds them).
+#[allow(clippy::too_many_arguments)]
+pub(in crate::base_utilities::frontmatter::observer) fn span_tokens(
+  content: &[Token],
+  base: usize,
+  (start, end): (u16, u16),
+  key: Option<&str>,
+  mark: Option<(u16, u16)>,
+  labelled: bool,
+  with_mark: bool,
+  own_font: bool,
+) -> Option<Tokens> {
+  let at = |p: u16| usize::from(p).checked_sub(base);
+  let (mut from, to) = (at(start)?, at(end)?);
+  // (the span's printed letters against the key's, accents folded on both sides: an accent command prints its
+  // letter accented — `Ca\~nada`, the key's "cañada" —, a text symbol its own letter — `Astrof{\'\i}sica`, `\ss`, `\o`
+  // —; 1009.1371, 2401.03603's `H\"ugel`)
+  let letters: String = content
+    .get(from..to)?
+    .iter()
+    .filter_map(|t| match t.get_catcode() {
+      Catcode::LETTER | Catcode::OTHER => Some(t.with_str(ToString::to_string)),
+      Catcode::CS => text_symbol(t),
+      _ => None,
+    })
+    .collect();
+  if key.is_some_and(|key| base_letters(&norm(&letters)) != base_letters(key)) {
+    return None;
+  }
+  let mut floor = 0;
+  // (where the group switches the entry keeps are read up to: its own start, or its mark's formula)
+  let mut first = from;
+  // (where the entry starts after its mark: past the math shift closing the mark's formula and the spaces after it —
+  // `$^{1}$Univ X`, whose Mark spans its script —, every command between them the entry's, with the groups it takes,
+  // but a line break or an alignment token: its switches (`$^1$\it Univ X`, `$^1$\small`, `$^1$\color{red}`,
+  // `$^1$\textit{…}`: the font Layout event between them has no span; the made item began at its first Name and lost
+  // the switch, review rev94a r5 u03), a strut, a skip, a box; `None` when a letter outside a group, a break or an
+  // alignment token stands between — review rev94a r6 N3)
+  let lead = |mark_end: usize| -> Option<usize> {
+    let between = content.get(mark_end..from)?;
+    let skip = between
+      .iter()
+      .take_while(|t| matches!(t.get_catcode(), Catcode::SPACE | Catcode::MATH))
+      .count();
+    let mut depth = 0i32;
+    between[skip..]
+      .iter()
+      .all(|t| match t.get_catcode() {
+        Catcode::SPACE => true,
+        Catcode::BEGIN => {
+          depth += 1;
+          true
+        },
+        Catcode::END => {
+          depth -= 1;
+          depth >= 0
+        },
+        Catcode::LETTER | Catcode::OTHER => depth > 0,
+        Catcode::CS => {
+          !["\\\\", "\\par", "\\newline", "\\cr", "\\crcr"]
+            .iter()
+            .any(|cs| is_cs(t, cs))
+            && !ALIGNMENT_ONLY.iter().any(|cs| is_cs(t, cs))
+        },
+        _ => false,
+      })
+      .then_some(mark_end + skip)
+  };
+  let mut switched = None;
+  if let Some((mark_start, mark_end)) = mark
+    && let (Some(mark_start), Some(mark_end)) = (at(mark_start), at(mark_end))
+    && let Some(lead) = lead(mark_end)
+  {
+    // (without the mark, nothing before the entry's ink is the entry's but its switches: the mark's closing shift
+    // stays the mark's)
+    if with_mark {
+      from = mark_start;
+    } else {
+      if lead < from {
+        switched = Some(lead);
+      }
+      floor = from;
+    }
+  } else if labelled {
+    // (an in-block contact's entry read from its leading marks spans its own ink past them (`events::
+    // labelled_entries`): its marks' closing shift before it is theirs — `\affil{$^1$Univ A\\ $^2$Univ B}`, review
+    // rev94b B1 —, and the group and the switches it opens between them and its ink the entry's: `$^2${\itshape Univ
+    // B}, City`, `$^2$\textbf{Univ B}` — review rev94b r2 B1: cut at its ink, the group was no balanced run and the
+    // block's one contact stayed a nameless creator's)
+    from = labelled_lead(content, from);
+    floor = from;
+    // (and a group opened before its marks, with its switches: `{\itshape $^2$Univ B, City}` keeps the `\itshape` —
+    // unless the entry carries its font, which holds them)
+    first = if own_font {
+      0
+    } else {
+      mark_formula_start(content, from)
+    };
+  }
+  // (a group closing past the spaces after the entry: `{\it Department …, Japan }`, 2307.03384)
+  let mut past = to;
+  while content
+    .get(past)
+    .is_some_and(|t| t.get_catcode() == Catcode::SPACE)
+  {
+    past += 1;
+  }
+  let piece = |from: usize, floor: usize, first: usize| {
+    piece_tokens(content, (from, to), floor, first)
+      .or_else(|| {
+        (past > to)
+          .then(|| piece_tokens(content, (from, past), floor, first))
+          .flatten()
+      })
+      .and_then(|(tokens, _)| cell_tokens(content, from, &tokens))
+  };
+  // (from the entry's own switches when they make a balanced run, else from its ink)
+  switched
+    .and_then(|lead| piece(lead, lead, lead))
+    .or_else(|| piece(from, floor, first))
+}
+
+/// Where an in-block contact's entry read from its leading marks starts in `content` ([`span_tokens`]): its ink at
+/// `from`, or the group and switches it opens between its marks' closing shift and its ink (`$^2${\itshape Univ B}`).
+fn labelled_lead(content: &[Token], from: usize) -> usize {
+  let mut lead = from;
+  while lead > 0
+    && matches!(
+      content[lead - 1].get_catcode(),
+      Catcode::CS | Catcode::BEGIN | Catcode::SPACE
+    )
+    && !["\\\\", "\\newline", "\\par", "\\linebreak", "\\cr"]
+      .iter()
+      .any(|name| is_cs(&content[lead - 1], name))
+  {
+    lead -= 1;
+  }
+  if lead < from
+    && lead > 0
+    && matches!(
+      content[lead - 1].get_catcode(),
+      Catcode::MATH | Catcode::END
+    )
+  {
+    while lead < from && content[lead].get_catcode() == Catcode::SPACE {
+      lead += 1;
+    }
+    lead
+  } else {
+    from
+  }
+}
+
+/// The index in `content` (its first token at position `base`) an in-block contact's entry at `span` is cut from
+/// ([`labelled_lead`]), the reading's [`events::entry_font`] reads the font at.
+pub(in crate::base_utilities::frontmatter::observer) fn labelled_start(
+  content: &[Token],
+  base: usize,
+  span: (u16, u16),
+) -> Option<usize> {
+  let from = usize::from(span.0).checked_sub(base)?;
+  (from <= content.len()).then(|| labelled_lead(content, from))
+}
+
+/// Where the mark formula that ends just before `at` begins — a math formula's opening shift (`$^{1,2}$`, the shift
+/// before `at` one that closes: an even count of them up to it), a `\textsuperscript{…}` (`\@textsuperscript`) —, else
+/// `at`.
+fn mark_formula_start(content: &[Token], at: usize) -> usize {
+  let closes = |k: usize| {
+    content[..=k]
+      .iter()
+      .filter(|t| t.get_catcode() == Catcode::MATH)
+      .count()
+      % 2
+      == 0
+  };
+  match at.checked_sub(1).map(|k| (k, content[k].get_catcode())) {
+    Some((close, Catcode::MATH)) if closes(close) => (0..close)
+      .rev()
+      .find(|&k| content[k].get_catcode() == Catcode::MATH)
+      .filter(|&open| {
+        content[open..close]
+          .iter()
+          .any(|t| t.get_catcode() == Catcode::SUPER)
+      })
+      .unwrap_or(at),
+    Some((close, Catcode::END)) => {
+      let mut depth = 0i32;
+      let mut k = close + 1;
+      while k > 0 {
+        k -= 1;
+        match content[k].get_catcode() {
+          Catcode::END => depth += 1,
+          Catcode::BEGIN => {
+            depth -= 1;
+            if depth == 0 {
+              break;
+            }
+          },
+          _ => {},
+        }
+      }
+      if depth == 0
+        && k > 0
+        && ["\\textsuperscript", "\\@textsuperscript"]
+          .iter()
+          .any(|name| is_cs(&content[k - 1], name))
+      {
+        k - 1
+      } else {
+        at
+      }
+    },
+    _ => at,
+  }
+}
+
+/// The environments whose `\\` ends a row of an alignment.
+const ALIGNMENTS: &[&str] = &[
+  "tabular",
+  "tabular*",
+  "tabularx",
+  "tabulary",
+  "array",
+  "longtable",
+  "supertabular",
+];
+
+/// What only an alignment reads: outside one, TeX's "Misplaced" errors (`\cr`, `\omit`, `\noalign`, …).
+const ALIGNMENT_ONLY: &[&str] = &[
+  "\\cr",
+  "\\crcr",
+  "\\omit",
+  "\\span",
+  "\\noalign",
+  "\\multicolumn",
+  "\\hline",
+  "\\cline",
+  "\\tabularnewline",
+];
+
+/// Tokens cut from a block at `from` as an item digests them outside the block's alignment, cut at its cells: `None`
+/// when they hold, outside any whole environment of their own, an alignment tab or a command only an alignment reads
+/// ([`ALIGNMENT_ONLY`]) — made outside the alignment, the tab is a stray one, an Error, and the item one of two columns
+/// (review rev94a r4 B2: `\author{\begin{tabular}{cc}Ann Able & Bob Baker\\ Univ X & Univ Y\end{tabular}}` made "Univ
+/// X & Univ Y" one affiliation). Where the block's innermost environment or `\shortstack` open at `from` is an
+/// alignment ([`ALIGNMENTS`]), an entry continued over the rows of its column is each row's tokens in a group of its
+/// own, the row ends between them the line breaks they print (`$^2$Chinese Center …\\ \footnotesize\sl P. O. Box
+/// …`, nucl-th0306055): a switch set in a cell stays the cell's, as the alignment's cells group them; a row end inside
+/// a group of the tokens' own is no cut, so `None`.
+fn cell_tokens(content: &[Token], from: usize, tokens: &Tokens) -> Option<Tokens> {
+  // (an environment's name after `\begin`/`\end`: its braced letters)
+  let env_name = |run: &[Token], at: usize| -> Option<String> {
+    let mut i = at + 1;
+    while run
+      .get(i)
+      .is_some_and(|t| t.get_catcode() == Catcode::SPACE)
+    {
+      i += 1;
+    }
+    if run.get(i)?.get_catcode() != Catcode::BEGIN {
+      return None;
+    }
+    let mut name = String::new();
+    for t in run.get(i + 1..)? {
+      if t.get_catcode() == Catcode::END {
+        return Some(name);
+      }
+      name.push_str(&t.with_str(ToString::to_string));
+    }
+    None
+  };
+  // (the containers open at `from`: each environment by name, a `\shortstack`'s argument as the group it opens)
+  let mut open: Vec<(String, Option<i32>)> = Vec::new();
+  let mut depth = 0i32;
+  let mut stack_next = false;
+  for (i, t) in content[..from.min(content.len())].iter().enumerate() {
+    match t.get_catcode() {
+      Catcode::BEGIN => {
+        depth += 1;
+        if std::mem::take(&mut stack_next) {
+          open.push(("shortstack".to_string(), Some(depth)));
+        }
+      },
+      Catcode::END => {
+        if open.last().is_some_and(|(_, d)| *d == Some(depth)) {
+          open.pop();
+        }
+        depth -= 1;
+      },
+      Catcode::CS if is_cs(t, "\\shortstack") => stack_next = true,
+      Catcode::CS if is_cs(t, "\\begin") => {
+        if let Some(name) = env_name(content, i) {
+          open.push((name, None));
+        }
+      },
+      Catcode::CS if is_cs(t, "\\end") => {
+        if let Some(name) = env_name(content, i)
+          && let Some(at) = open.iter().rposition(|(n, d)| d.is_none() && *n == name)
+        {
+          open.truncate(at);
+        }
+      },
+      _ => {},
+    }
+  }
+  let in_rows = open
+    .last()
+    .is_some_and(|(name, _)| name == "shortstack" || ALIGNMENTS.contains(&name.as_str()));
+  // (the tokens' own environments and groups: what is inside one whole is theirs)
+  let run = tokens.unlist_ref();
+  let (mut own, mut depth) = (0usize, 0i32);
+  let mut row_ends: Vec<usize> = Vec::new();
+  for (i, t) in run.iter().enumerate() {
+    match t.get_catcode() {
+      Catcode::BEGIN => depth += 1,
+      Catcode::END => depth -= 1,
+      _ if is_cs(t, "\\begin") && env_name(run, i).is_some() => own += 1,
+      _ if is_cs(t, "\\end") && env_name(run, i).is_some() => own = own.saturating_sub(1),
+      _ if own > 0 => {},
+      Catcode::ALIGN => return None,
+      _ if ALIGNMENT_ONLY.iter().any(|cs| is_cs(t, cs)) => return None,
+      _ if in_rows && is_cs(t, "\\\\") => {
+        if depth != 0 {
+          return None;
+        }
+        row_ends.push(i);
+      },
+      _ => {},
+    }
+  }
+  if row_ends.is_empty() {
+    return Some(tokens.clone());
+  }
+  // (each row a group, the row end and its star and optional skip between: `\\[2pt]`)
+  let mut out = vec![T_BEGIN!()];
+  let mut i = 0;
+  while i < run.len() {
+    if row_ends.contains(&i) {
+      out.push(T_END!());
+      out.push(run[i]);
+      i += 1;
+      while run
+        .get(i)
+        .is_some_and(|t| t.get_catcode() == Catcode::SPACE)
+      {
+        i += 1;
+      }
+      // (the star and the skip read as `\@ifstar` and `\@ifnextchar[` read them, past the spaces before each — `\\*
+      // [2pt]` —, and the spaces a cell opens with none of its text, as the column template's `\ignorespaces` takes
+      // them: review rev94a r5 y01, t02, t12)
+      let skip_spaces = |i: &mut usize| {
+        while run
+          .get(*i)
+          .is_some_and(|t| t.get_catcode() == Catcode::SPACE)
+        {
+          *i += 1;
+        }
+      };
+      if run.get(i).is_some_and(|t| t.with_str(|s| s == "*")) {
+        out.push(run[i]);
+        i += 1;
+        skip_spaces(&mut i);
+      }
+      if run.get(i).is_some_and(|t| t.with_str(|s| s == "[")) {
+        while let Some(t) = run.get(i) {
+          out.push(*t);
+          i += 1;
+          if t.with_str(|s| s == "]") {
+            break;
+          }
+        }
+        skip_spaces(&mut i);
+      }
+      out.push(T_BEGIN!());
+      continue;
+    }
+    out.push(run[i]);
+    i += 1;
+  }
+  out.push(T_END!());
+  Some(Tokens::new(out))
+}
+
+/// The writer's cut of an author block's own lines (FM stage 7, OD #925): today's one affiliation joining several of
+/// the reading's entries, each one line of the same block (`$^4$ ModelBest.Inc $^5$ Renmin University of China`, one
+/// contact today, four entries each requested by its mark: 2404.02078, 2509.24142), or one legend line the reading
+/// takes for a note (`\textsuperscript{*}Equal contribution`, ruling 2: 2407.07614) — each entry made from its line's
+/// tokens for the authors the reading gives it, today's item taken. Only entries the reading decided by a ruling's
+/// change, none of which today's holds anywhere, in one run of consecutive lines whose texts joined are today's item's;
+/// anything else is left to the final check, which declines. A line of the run whose label no name requests
+/// (`label:unrequested owner:block`, `ruling2:uncarried owner:block`) is a piece of the cut too, made once for the block
+/// with its printed label, as a legend is (label text is markup, never dropped: review rev98e S1) — a labelled item nobody answers goes to the block (FRONTMATTER_SINGLE_ENGINE_PLAN's placement order), never to the
+/// holders of the joined item — where another line of the run is so decided: one printed label no name carries had
+/// declined the whole paper, today's numbered list one contact on each holder of its first label (2007.02542's
+/// BESIII list, 143 holders of mark 1 each the list, 347 authors none; `$^{1}$ Univ A\\$^{b}$ Also at …` in one `{\it
+/// …}` group). A run of such lines alone keeps today's placement (`writer::writes`).
+fn cut_block_lines(
+  want: &BTreeMap<Key, Vec<(Owner, &Assoc)>>,
+  have: &BTreeMap<Key, Vec<(Owner, Node, bool)>>,
+  wanted_only: &mut Vec<Key>,
+  held_only: &mut Vec<Key>,
+  ops: &mut Vec<Op>,
+) {
+  // (the reading's entries no item of today's holds, each one span of one block, by a ruling's change or the block's for
+  // a label no name requests — `unanswered`, which no run of its own cuts —, in print order)
+  let unanswered = |o: &Owner, a: &Assoc| {
+    *o == Owner::Block
+      && [
+        "label:unrequested owner:block",
+        "ruling2:uncarried owner:block",
+      ]
+      .iter()
+      .any(|tag| a.rule.contains(tag))
+  };
+  let mut lines: Vec<(usize, (u16, u16), Key, bool)> = wanted_only
+    .iter()
+    .filter(|key| !matches!(key.0, Kind::Contact(_)))
+    .filter_map(|key| {
+      let wants = &want[key];
+      let (index, Some(span)) = wants.first()?.1.source? else {
+        return None;
+      };
+      // (one line's entry, opened by its mark: not one a line under it continued, nor one whose mark trails it)
+      let one_line = |a: &Assoc| {
+        !["line:continued", "-joined", "mark:trailing"]
+          .iter()
+          .any(|tag| a.rule.contains(tag))
+      };
+      let blocks = wants.iter().all(|(o, a)| unanswered(o, a));
+      wants
+        .iter()
+        .all(|(o, a)| {
+          (writes(a) || unanswered(o, a)) && one_line(a) && a.source == Some((index, Some(span)))
+        })
+        .then(|| (index, span, key.clone(), blocks))
+    })
+    .collect();
+  lines.sort();
+  for whole in held_only.clone() {
+    if whole.0 != Kind::Affiliation {
+      continue;
+    }
+    let holds = &have[&whole];
+    if holds.iter().any(|(_, _, movable)| !movable) {
+      continue;
+    }
+    let Some(run) = (0..lines.len()).find_map(|from| {
+      let mut joined = String::new();
+      for to in from..lines.len() {
+        if lines[to].0 != lines[from].0 {
+          return None;
+        }
+        joined.push_str(&lines[to].2.1);
+        if joined == whole.1 {
+          return Some(from..=to);
+        }
+        if !whole.1.starts_with(&joined) {
+          return None;
+        }
+      }
+      None
+    }) else {
+      continue;
+    };
+    let run: Vec<(usize, (u16, u16), Key, bool)> = lines[run].to_vec();
+    // (one line alone is today's item under another kind only: a legend; and a run of the block's lines alone stays)
+    if (run.len() == 1 && run[0].2.0 != Kind::Note) || run.iter().all(|line| line.3) {
+      continue;
+    }
+    let Some(pieces) = run
+      .iter()
+      // (with its mark where the mark is the line's only key left: a legend's, whose text keeps its mark's ink, and a
+      // line no name answers, whose printed label is markup never dropped — FIDELITY_CHARTER: label text is markup;
+      // the `b` of `$^{b}$ Also at …` kept on the block, review rev98e S1)
+      .map(|(index, span, key, blocks)| {
+        block_line_tokens(*index, *span, &key.1, key.0 == Kind::Note || *blocks)
+      })
+      .collect::<Option<Vec<Tokens>>>()
+    else {
+      DebugFeature!("frontmatter", "FRONT writer: a block line does not cut");
+      continue;
+    };
+    for ((_, _, key, blocks), tokens) in run.iter().zip(pieces) {
+      let made = if key.0 == Kind::Note {
+        Made::Legend
+      } else {
+        Made::Affiliation
+      };
+      for (owner, assoc) in &want[key] {
+        ops.push(Op::Make {
+          owner: *owner,
+          made,
+          tokens: tokens.clone(),
+          template: holds[0].1.clone(),
+          before: holds
+            .iter()
+            .find(|(o, ..)| o == owner)
+            .map(|(_, n, _)| n.clone()),
+          label: assoc.label.clone(),
+          unanswered: *blocks,
+        });
+      }
+    }
+    for (_, node, _) in holds {
+      ops.push(Op::Remove { node: node.clone() });
+    }
+    let keys: Vec<&Key> = run.iter().map(|(_, _, key, _)| key).collect();
+    wanted_only.retain(|k| !keys.contains(&k));
+    lines.retain(|(_, _, k, _)| !keys.contains(&k));
+    held_only.retain(|k| *k != whole);
+  }
+}
+
+/// Whether an e-mail contact's `text` prints its addresses alone: with its braced groups (`{ann,bob}@a.org`,
+/// `{ann,bob@a.org}`, `{ann@mails, bob@mail}.a.edu` — the domain after the brace the group's, 2407.18899: review rev92c
+/// r2 B-3) taken out, every word between the separators (`,`, `;`, spaces) an address — no label, no remark beside
+/// them (rev92c B2).
+fn addresses_alone(text: &str) -> bool {
+  let mut flat = String::new();
+  let mut rest = text;
+  let domain_end = |domain: &str| {
+    domain
+      .find(|c: char| c.is_whitespace() || ",;".contains(c))
+      .unwrap_or(domain.len())
+  };
+  while let Some(open) = rest.find('{') {
+    let Some(close) = rest[open..].find('}').map(|c| open + c) else {
+      return false;
+    };
+    flat.push_str(&rest[..open]);
+    flat.push(' ');
+    let after = &rest[close + 1..];
+    if let Some(domain) = after.strip_prefix('@') {
+      rest = &domain[domain_end(domain)..];
+    } else if rest[open + 1..close].contains('@') {
+      // (a domain the group's addresses end in, printed after the brace: `}.tsinghua.edu.cn`)
+      rest = match after.strip_prefix('.') {
+        Some(domain) if !domain.is_empty() => &domain[domain_end(domain)..],
+        _ => after,
+      };
+    } else {
+      return false;
+    }
+  }
+  flat.push_str(rest);
+  flat
+    .split(|c: char| c.is_whitespace() || ",;".contains(c))
+    .filter(|w| !w.is_empty())
+    .all(|w| {
+      w.split_once('@').is_some_and(|(local, domain)| {
+        !local.is_empty() && domain.contains('.') && !domain.contains('@')
+      })
+    })
+}
+
+/// Whom an address spells among `names` (`spells` of the address reader, `resolver::address_runs`): a local part alone.
+pub(super) fn spells_one_of<'a>(names: &'a [&'a str]) -> impl Fn(&str) -> bool + 'a {
+  move |local: &str| spelled_name(names, &s!("{local}@x.org")).is_some()
+}
+
+/// The writer's cut of the addresses the reading took out of an affiliation entry (brief 95c,
+/// `Resolver::take_out_entry_addresses`): each of today's affiliation items the reading holds under no owner whose
+/// printed addresses, cut by the reading's own reader (`dom::address_cut`), leave what the reading holds (or nothing,
+/// an item of addresses alone), every address one of the reading's e-mails — cut in place (`Op::CutAddresses`; taken
+/// when it keeps nothing), and held under its new key from here on, so that the re-assignment that follows copies the
+/// cut item. Every holder of the item must cut so, or none is. The addresses cut, by their keys: each with the item it
+/// printed in, its wrapper and its label word, for the e-mail contacts the reading wants that today's holds nowhere
+/// (`Op::Address`) — and its place in print order, the order they are made in (brief 95c r2 S1). An item the cut
+/// empties is removed, and its own printed label goes to its addresses' contacts, before the label word the cut took
+/// ([`holder_label`], brief 97b).
+fn cut_entry_addresses(
+  want: &BTreeMap<Key, Vec<(Owner, &Assoc)>>,
+  have: &mut BTreeMap<Key, Vec<(Owner, Node, bool)>>,
+  names: &[&str],
+  ops: &mut Vec<Op>,
+) -> Result<BTreeMap<Key, PrintedIn>> {
+  let spells = spells_one_of(names);
+  let email = Kind::Contact("email".into());
+  let mailed = |a: &str| want.contains_key(&(email.clone(), norm(a)));
+  let mailed_keys: Vec<String> = want
+    .keys()
+    .filter(|key| key.0 == email)
+    .map(|key| key.1.clone())
+    .collect();
+  let mut printed_in: BTreeMap<Key, PrintedIn> = BTreeMap::new();
+  let keys: Vec<Key> = have
+    .keys()
+    .filter(|key| key.0 == Kind::Affiliation && !want.contains_key(*key))
+    .cloned()
+    .collect();
+  for key in keys {
+    let holds = have[&key].clone();
+    let Some(cuts) = holds
+      .iter()
+      .map(|(_, node, movable)| {
+        let cut = dom::address_cut(node, &spells, &mailed).filter(|_| *movable)?;
+        (cut.key.is_empty() || want.contains_key(&(Kind::Affiliation, cut.key.clone())))
+          .then_some(cut)
+      })
+      .collect::<Option<Vec<dom::AddressCut>>>()
+    else {
+      continue;
+    };
+    have.remove(&key);
+    for ((owner, node, movable), cut) in holds.iter().zip(&cuts) {
+      let holder = if cut.key.is_empty() {
+        holder_label(node)?
+      } else {
+        None
+      };
+      for run in &cut.runs {
+        let name = match (&holder, &run.label) {
+          (Some(holder), Some(label)) => Some(s!("{holder} {label}")),
+          (Some(holder), None) => Some(holder.clone()),
+          (None, label) => label.clone(),
+        };
+        for (address, wrapper) in &run.addresses {
+          let seq = printed_in.len();
+          printed_in
+            .entry((email.clone(), norm(address)))
+            .or_insert_with(|| PrintedIn {
+              address: address.clone(),
+              template: node.clone(),
+              wrapper: wrapper.clone(),
+              name: name.clone(),
+              seq,
+            });
+        }
+      }
+      ops.push(Op::CutAddresses {
+        node:   node.clone(),
+        mailed: mailed_keys.clone(),
+      });
+      if cut.key.is_empty() {
+        ops.push(Op::Remove { node: node.clone() });
+      } else {
+        have
+          .entry((Kind::Affiliation, cut.key.clone()))
+          .or_default()
+          .push((*owner, node.clone(), *movable));
+      }
+    }
+  }
+  Ok(printed_in)
+}
+
+/// The label today's affiliation item `node` prints before its text, which a take-out that empties it keeps on the
+/// e-mail contacts made of it (brief 97b: a take-out removes what it read, and nothing else the class prints): its
+/// `name`, without its trailing space — aa's `\mail` holder `Correspondence to ` (`\lx@add@address[name={\mailname}]`,
+/// aa_support_sty.rs; aa.cls v7.0 `\footnotetext[0]{\mailname\ \@mail}`, 1005.3784, 0805.1001, 1102.1556) —, none
+/// when it is its role's default, which no class printed ("Affiliation: ", 1506.05709) or it has none.
+pub(super) fn holder_label(node: &Node) -> Result<Option<String>> {
+  let Some(name) = node
+    .get_attribute("name")
+    .filter(|name| !name.trim().is_empty())
+  else {
+    return Ok(None);
+  };
+  let role = node.get_attribute("role").unwrap_or_default();
+  if get_frontmatter_name(None, "ltx:contact", &role)?.as_deref() == Some(name.as_str()) {
+    return Ok(None);
+  }
+  Ok(Some(name.trim_end().to_string()))
+}
+
+/// An address [`cut_entry_addresses`] cut out of today's affiliation: as written out, the item it printed in (the
+/// e-mail contact's template), the wrapper it printed in, the label word before it, and its place in print order.
+#[derive(Debug, Clone)]
+struct PrintedIn {
+  address:  String,
+  template: Node,
+  wrapper:  Option<dom::Wrap>,
+  name:     Option<String>,
+  seq:      usize,
+}
+
+/// No plan, and why (the `frontmatter` debug feature).
+fn declined(reason: &str) -> Option<Plan> {
+  DebugFeature!("frontmatter", "FRONT writer: declined, {reason}");
+  None
+}
+
+fn rule_has(assoc: &Assoc, tag: &str) -> bool { assoc.rule.split_whitespace().any(|t| t == tag) }
+
+/// The plan for a written family's paper: `None` when the reading and today's agree, or when a difference is no
+/// operation's.
+pub(super) fn plan(resolved: &Resolved, front: &Front) -> Result<Option<Plan>> {
+  let Some(pairs) = pair_names(resolved, front) else {
+    return Ok(declined("names differ"));
+  };
+  let want = wanted(resolved);
+  let mut have = held(front, &pairs);
+  // (the creators' names, by the resolved creator's index: whom an address spells)
+  let names: Vec<&str> = resolved.creators.iter().map(|c| c.name.as_str()).collect();
+  let mut ops = Vec::new();
+  // today's affiliations printing the addresses the reading took out of them: cut in place, held under what they keep
+  let printed_in = cut_entry_addresses(&want, &mut have, &names, &mut ops)?;
+  let mut wanted_only: Vec<Key> = Vec::new();
+  let mut held_only: Vec<Key> = Vec::new();
+  let keys: Vec<Key> = want
+    .keys()
+    .chain(have.keys())
+    .cloned()
+    .collect::<BTreeSet<_>>()
+    .into_iter()
+    .collect();
+  for key in keys {
+    let wants: &[(Owner, &Assoc)] = want.get(&key).map_or(&[], Vec::as_slice);
+    let holds: &[(Owner, Node, bool)] = have.get(&key).map_or(&[], Vec::as_slice);
+    let w = owners(wants.iter().map(|(o, _)| *o));
+    let h = owners(holds.iter().map(|(o, ..)| *o));
+    let (added, removed) = (minus(&w, &h), minus(&h, &w));
+    if (added.is_empty() && removed.is_empty())
+      || (h.is_empty() && held_as_pubnote(front, &key, wants))
+    {
+      continue;
+    }
+    // (an affiliation that is one of the paper's own names, given to an author: a name the reading took for an entry —
+    // svjour3's `\institute{A. Able \and B. Baker \at Univ X}`, whose name-only piece "A. Able" the `\and`-list numbers
+    // as entry 1 and gives every author, 2609.05466; the faithful link is RED
+    // `svjour3_name_only_piece_shares_the_next_institute` —: the paper is declined, today's kept)
+    if key.0 == Kind::Affiliation
+      && let Some((_, a)) = wants.first()
+    {
+      let given: Vec<usize> = added
+        .iter()
+        .filter_map(|o| match o {
+          Owner::Creator(c) => Some(*c),
+          Owner::Block => None,
+        })
+        .collect();
+      if !given.is_empty() && names.iter().any(|name| writes_the_name(&a.text, name)) {
+        return Ok(declined(&s!(
+          "an affiliation spelling an author's name: {:?}",
+          a.text
+        )));
+      }
+      // (an entry the reading gives by the name it prints (`fuzzy:surname`, svjour3's `\at`) that prints the name of an
+      // author it does not give it to — `\institute{Z. Peng \and W. Yin \at Univ A \\ Y. Xu \at Univ B \\ M. Yan \at
+      // Univ C}`, its `\\`-parted pieces one entry given W. Yin by its surname, 1506.02396, 1908.03628, 2007.09912: the
+      // reading took several authors' pieces for one. Only such an entry: a name in any other entry is no evidence — an
+      // IEEE entry naming its own owners, `S. Sharma, Y. Kulkarni … are with …`, 2405.17600; a street, `5720 S Ellis Ave`
+      // beside an author S. Ellis, 1201.0008)
+      let owned_by = |o: usize| w.contains(&Owner::Creator(o));
+      if !given.is_empty()
+        && wants.iter().all(|(_, a)| rule_has(a, "fuzzy:surname"))
+        && names
+          .iter()
+          .enumerate()
+          .any(|(o, name)| !owned_by(o) && prints_the_name(&a.text, name))
+      {
+        return Ok(declined(&s!(
+          "an affiliation printing another author's name: {:?}",
+          a.text
+        )));
+      }
+    }
+    if wants.is_empty() {
+      held_only.push(key);
+      continue;
+    }
+    if holds.is_empty() {
+      wanted_only.push(key);
+      continue;
+    }
+    // re-assign: the reading's owners by a ruling's change, today's item copied there and taken from the rest
+    if !wants.iter().any(|(_, a)| writes(a)) {
+      let rules: Vec<&str> = wants.iter().map(|(_, a)| a.rule.as_str()).collect();
+      return Ok(declined(&s!(
+        "an owner change no ruling decided: {key:?}, reading {w:?} ({rules:?}), today's {h:?}"
+      )));
+    }
+    let Some(from) = holds
+      .iter()
+      .find(|(_, _, movable)| *movable)
+      .map(|(_, n, _)| n.clone())
+    else {
+      return Ok(declined("no item to copy"));
+    };
+    // (an address today's holds on the creator it spells is that creator's: it is copied onto no other, whatever the
+    // reading — a reading that copies it is a defect the writer must not print, review rev93a B1: `$^\dagger$\texttt{\{ann,
+    // cat\}@x.org}` written onto both carriers, 2409.11430, 2506.19548)
+    if key.0 == Kind::Contact("email".into())
+      && let Some(speller) = spelled_name(&names, &wants[0].1.text)
+      && h.contains(&Owner::Creator(speller))
+      && added.iter().any(|o| *o != Owner::Creator(speller))
+    {
+      return Ok(declined(&s!(
+        "an address added beside the creator it spells: {key:?}, reading {w:?}, today's {h:?}"
+      )));
+    }
+    for owner in added {
+      if !wants.iter().any(|(o, a)| *o == owner && writes(a)) {
+        return Ok(declined("an owner added by no ruling"));
+      }
+      ops.push(Op::Copy {
+        from: from.clone(),
+        to:   owner,
+      });
+    }
+    // (every copy today's gives an owner the reading does not: one item per owner, S2)
+    for owner in removed {
+      let mine: Vec<&(Owner, Node, bool)> = holds.iter().filter(|(o, ..)| *o == owner).collect();
+      if mine.iter().any(|(_, _, movable)| !movable) {
+        return Ok(declined("an item to remove that cannot move"));
+      }
+      // (an item that prints, past its first mark, a mark the creator requests is never taken from it: the reading
+      // labelled the entry by its leading mark alone and kept the later one inside it — `†Beijing Institute of
+      // Technology, China ‡Zhejiang Lab, China` under `Hongyang Chen‡`, 2311.10290; `†Accenture Labs, India *Accenture,
+      // USA`, 2607.06101; authblk's unlabelled `\affil{… \textsuperscript{2}TUM School …}` under `\author[2]`,
+      // 2405.00230 — taking it lost the creator's own affiliation)
+      if let Owner::Creator(c) = owner
+        && let Some(creator) = resolved.creators.get(c)
+        && mine.iter().any(|(_, node, _)| {
+          later_marks(node)
+            .iter()
+            .any(|m| creator.requests.contains(m))
+        })
+      {
+        return Ok(declined(&s!(
+          "an item printing a later mark its creator requests: {key:?}, reading {w:?}, today's {h:?}"
+        )));
+      }
+      for (_, node, _) in mine {
+        ops.push(Op::Remove { node: node.clone() });
+      }
+    }
+  }
+  // the reading's entries cut from one call by its marks, today's one item
+  let mut groups: BTreeMap<usize, Vec<Key>> = BTreeMap::new();
+  for key in &wanted_only {
+    let wants = &want[key];
+    if wants
+      .iter()
+      .all(|(_, a)| rule_has(a, "api:split-by-marks") && writes(a))
+      && let Some((index, _)) = wants[0].1.source
+      && wants
+        .iter()
+        .all(|(_, a)| a.source.map(|(i, _)| i) == Some(index))
+    {
+      groups.entry(index).or_default().push(key.clone());
+    }
+  }
+  for (index, keys) in groups {
+    let Some(call) = api_call(index) else {
+      return Ok(declined("no API call"));
+    };
+    if !matches!(call.role.as_str(), "affiliation" | "address") {
+      return Ok(declined("a cut entry of another role"));
+    }
+    let Some(pieces) = cut(&call)? else {
+      return Ok(declined("the entry does not cut"));
+    };
+    // (every piece is one of the reading's entries, and today's item is them all, joined)
+    let joined: String = pieces.iter().map(|(text, _)| text.as_str()).collect();
+    let whole = (Kind::Affiliation, joined);
+    if !held_only.contains(&whole) || pieces.len() != keys.len() {
+      return Ok(declined("today's item is not the pieces joined"));
+    }
+    let holds = &have[&whole];
+    if holds.iter().any(|(_, _, movable)| !movable) {
+      return Ok(declined("an item to remove that cannot move"));
+    }
+    for (text, tokens) in &pieces {
+      let Some(key) = keys.iter().find(|(_, k)| k == text) else {
+        return Ok(declined("a piece the reading lacks"));
+      };
+      let made = match key.0 {
+        Kind::Affiliation => Made::Affiliation,
+        Kind::Note => Made::Legend,
+        Kind::Contact(_) => return Ok(declined("a contact piece")),
+      };
+      for (owner, assoc) in &want[key] {
+        ops.push(Op::Make {
+          owner: *owner,
+          made,
+          tokens: tokens.clone(),
+          template: holds[0].1.clone(),
+          before: holds
+            .iter()
+            .find(|(o, ..)| o == owner)
+            .map(|(_, n, _)| n.clone()),
+          label: assoc.label.clone(),
+          unanswered: false,
+        });
+      }
+      wanted_only.retain(|k| k != key);
+    }
+    for (_, node, _) in holds {
+      ops.push(Op::Remove { node: node.clone() });
+    }
+    held_only.retain(|k| *k != whole);
+  }
+  // the reading's entries of an author block's own lines, today's one item joining them (or a legend line, today's an
+  // affiliation)
+  cut_block_lines(&want, &have, &mut wanted_only, &mut held_only, &mut ops);
+  // a legend the reading takes for a note, today's an affiliation of the same text
+  for key in wanted_only.clone() {
+    let wants = &want[&key];
+    let whole = (Kind::Affiliation, key.1.clone());
+    if key.0 != Kind::Note
+      || !held_only.contains(&whole)
+      || !wants
+        .iter()
+        .all(|(_, a)| rule_has(a, "api:legend") && writes(a))
+    {
+      continue;
+    }
+    let Some((index, None)) = wants[0].1.source else {
+      return Ok(declined("a legend of no API call"));
+    };
+    if wants.iter().any(|(_, a)| a.source != Some((index, None))) {
+      return Ok(declined("a legend of no API call"));
+    }
+    let Some(call) = api_call(index) else {
+      return Ok(declined("no API call"));
+    };
+    let holds = &have[&whole];
+    if holds.iter().any(|(_, _, movable)| !movable) {
+      return Ok(declined("an item to remove that cannot move"));
+    }
+    for (owner, assoc) in wants {
+      ops.push(Op::Make {
+        owner:      *owner,
+        made:       Made::Legend,
+        tokens:     call.content.clone(),
+        template:   holds[0].1.clone(),
+        before:     None,
+        label:      assoc.label.clone(),
+        unanswered: false,
+      });
+    }
+    for (_, node, _) in holds {
+      ops.push(Op::Remove { node: node.clone() });
+    }
+    wanted_only.retain(|k| *k != key);
+    held_only.retain(|k| *k != whole);
+  }
+  // a url printing one address, the reading's e-mail
+  for key in wanted_only.clone() {
+    let url = (Kind::Contact("url".into()), key.1.clone());
+    if key.0 != Kind::Contact("email".into()) || !held_only.contains(&url) {
+      continue;
+    }
+    let wants = &want[&key];
+    if !wants
+      .iter()
+      .all(|(_, a)| rule_has(a, "role:url-as-email") && writes(a))
+    {
+      continue;
+    }
+    let holds = &have[&url];
+    let mut w: Vec<Owner> = wants.iter().map(|(o, _)| *o).collect();
+    let mut h: Vec<Owner> = holds.iter().map(|(o, ..)| *o).collect();
+    w.sort();
+    h.sort();
+    if w != h || holds.iter().any(|(_, _, movable)| !movable) {
+      return Ok(declined("a url's owners differ"));
+    }
+    for (_, node, _) in holds {
+      ops.push(Op::Role {
+        node: node.clone(),
+        role: "email".into(),
+      });
+    }
+    wanted_only.retain(|k| *k != key);
+    held_only.retain(|k| *k != url);
+  }
+  // a group of addresses one e-mail call printed, written out: today's one contact (on each carrier of its entry, or
+  // the block's), the reading's addresses each its own — every address of the group one of the reading's written-out
+  // items, none of them today's but one its owners hold already from another print (S2: written once), and the contact
+  // printing the addresses alone (rev92c B2: `\{ann,bob\}@a.org (corresponding)`, `Emails: \{ann,bob\}@a.org` —
+  // written out, the words beside the group were lost; such a contact stays today's, the paper declined)
+  let email = Kind::Contact("email".into());
+  for key in held_only.clone() {
+    if key.0 != email {
+      continue;
+    }
+    let holds = &have[&key];
+    if holds.iter().any(|(_, _, movable)| !movable) {
+      continue;
+    }
+    let Some(leaf) = holds
+      .iter()
+      .map(|(_, n, _)| text_leaf(n))
+      .collect::<Option<Vec<Node>>>()
+    else {
+      continue;
+    };
+    let text = apply::leaf_text(&leaf[0]);
+    // (a list of local parts sharing the domain too, `julioleite,tmariz@fis.ufal.br`: the reading's address reader,
+    // brief 95c — 1110.2127, 0812.3572)
+    let spells = spells_one_of(&names);
+    let listed = listed_addresses(&text, &spells);
+    let addresses: Vec<String> = listed.clone().unwrap_or_else(|| addresses_in(&text));
+    let keys: Vec<Key> = addresses.iter().map(|a| (email.clone(), norm(a))).collect();
+    let held_elsewhere = |k: &Key| {
+      want.get(k).is_some_and(|wants| {
+        have.get(k).is_some_and(|holds| {
+          owners(wants.iter().map(|(o, _)| *o)) == owners(holds.iter().map(|(o, ..)| *o))
+        })
+      })
+    };
+    if addresses.len() < 2
+      || !(listed.is_some() || addresses_alone(&text))
+      || !keys.iter().any(|k| wanted_only.contains(k))
+      || !keys.iter().all(|k| {
+        held_elsewhere(k)
+          || (wanted_only.contains(k)
+            && want[k]
+              .iter()
+              .all(|(_, a)| rule_has(a, "ruling3:written-out") && writes(a)))
+      })
+    {
+      continue;
+    }
+    let mut written: Vec<&Key> = Vec::new();
+    for (address, k) in addresses.iter().zip(&keys) {
+      // (each address once, however often the group prints it)
+      if !wanted_only.contains(k) || written.contains(&k) {
+        continue;
+      }
+      written.push(k);
+      for (owner, _) in &want[k] {
+        ops.push(Op::WriteOut {
+          owner:    *owner,
+          template: holds[0].1.clone(),
+          address:  address.clone(),
+        });
+      }
+    }
+    for (_, node, _) in holds {
+      ops.push(Op::Remove { node: node.clone() });
+    }
+    wanted_only.retain(|k| !keys.contains(k));
+    held_only.retain(|k| *k != key);
+  }
+  // an address the reading took out of today's affiliation, an e-mail contact of each owner the reading gives it by
+  // a ruling's change or its spelling (brief 95c), made in print order (r2 S1: 1911.11406's `shirazu@` had come out
+  // after `yahoo@`, in the order of the keys)
+  let mut made: Vec<&Key> = wanted_only
+    .iter()
+    .filter(|key| printed_in.contains_key(*key))
+    .collect();
+  made.sort_by_key(|key| printed_in[*key].seq);
+  for key in made.into_iter().cloned().collect::<Vec<_>>() {
+    let Some(PrintedIn {
+      address,
+      template,
+      wrapper,
+      name,
+      ..
+    }) = printed_in.get(&key)
+    else {
+      continue;
+    };
+    let wants = &want[&key];
+    if !wants
+      .iter()
+      .all(|(_, a)| writes(a) || rule_has(a, "owner:spelled"))
+    {
+      continue;
+    }
+    for (owner, _) in wants {
+      ops.push(Op::Address {
+        owner:    *owner,
+        template: template.clone(),
+        wrapper:  wrapper.clone(),
+        address:  address.clone(),
+        name:     name.clone(),
+      });
+    }
+    wanted_only.retain(|k| *k != key);
+  }
+  if !wanted_only.is_empty() || !held_only.is_empty() || ops.is_empty() {
+    return Ok(declined(&s!(
+      "a difference no operation explains: the reading's {wanted_only:?}, today's {held_only:?}"
+    )));
+  }
+  let creators = pairs
+    .iter()
+    .map(|(&i, &j)| (i, front.creators[j].node.clone()))
+    .collect();
+  let order = reading_order(resolved);
+  let names = names.iter().map(ToString::to_string).collect();
+  Ok(Some(Plan { ops, names, creators, order }))
+}
+
+/// The labels of the marks an item prints after its first ink (each `ltx:sup`, or formula that is a mark, some letter
+/// or digit precedes — `dom::later_marks`, as the comparator's segments read them —, read as a mark's labels,
+/// `resolver::mark_labels`; a leading mark is the item's own label): the entries a single item of today's still holds
+/// after its leading one.
+fn later_marks(node: &Node) -> Vec<String> {
+  dom::later_marks(node)
+    .iter()
+    .flat_map(|mark| mark_labels(mark.trim()))
+    .collect()
+}
+
+/// Where each of the reading's items prints, by its owner and key ([`Place`]), and its place among the owner's items in
+/// the reading — the order of the addresses one span prints, which its start alone does not part: what the print-order
+/// pass places an owner's items by (`apply::place`; 2311.01166's `$^\ddag$\tt\{kyding,ycwang12,zhxu13,sjwang3,
+/// congliu2\}@iflytek.com`, the addresses copied onto Keyu Ding and Cong Liu in the order of their texts, review
+/// rev100b2 B1).
+pub(super) fn reading_order(resolved: &Resolved) -> BTreeMap<(Owner, Key), (Place, usize)> {
+  let mut seq: BTreeMap<(Owner, Key), usize> = BTreeMap::new();
+  let named = resolved
+    .creators
+    .iter()
+    .enumerate()
+    .filter(|(_, c)| !c.name.trim().is_empty())
+    .map(|(i, c)| (Owner::Creator(i), creator_items(c)));
+  for (owner, items) in named.chain([(Owner::Block, block_items(resolved))]) {
+    for (n, (key, _)) in items.into_iter().enumerate() {
+      seq.entry((owner, key)).or_insert(n);
+    }
+  }
+  wanted(resolved)
+    .iter()
+    .flat_map(|(key, wants)| {
+      wants.iter().filter_map(|(owner, a)| {
+        let at = (*owner, key.clone());
+        let n = seq.get(&at).copied().unwrap_or(usize::MAX);
+        place_of(a, &key.0).map(|place| (at, (place, n)))
+      })
+    })
+    .collect()
+}

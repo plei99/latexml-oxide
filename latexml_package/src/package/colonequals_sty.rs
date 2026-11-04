@@ -1,6 +1,6 @@
 //! colonequals.sty (oberdiek, v1.1 2016/05/16) — relations built from a vertically centred colon.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(d). colonequals.sty builds each
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(d). colonequals.sty builds each
 //! symbol as `\ensuremath{\mathrel{<centred colons>\colonsep<symbol>}}` (:58-76, the
 //! `\@make@colon@set` family at :78-153). Each is one relation token here, with the Unicode
 //! character where one exists (U+2236 RATIO, U+2237 PROPORTION, U+2254 COLON EQUALS, U+2255 EQUALS

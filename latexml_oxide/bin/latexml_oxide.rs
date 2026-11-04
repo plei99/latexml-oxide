@@ -290,9 +290,14 @@ struct Cli {
   /// bounded fragments, closed subtrees spill to disk beside the source, and
   /// a second, streaming pass finishes them — so peak memory is bounded by
   /// fragment size instead of document size. Output is byte-identical to the
-  /// normal path (guarded by the 114_streaming_* sweep), save one case: a
-  /// heading unit with prose before the bibliography after it keeps its own
-  /// heading (OXIDIZED_DESIGN_DIVERGENCES #456). Off by default;
+  /// normal path (guarded by the 114_streaming_* sweep), save three documented
+  /// cases: a heading unit with prose before the bibliography after it keeps
+  /// its own heading (OXIDIZED_DESIGN_DIVERGENCES #456); an `\index` /
+  /// `\nomenclature` / `\glossary` entry of a list the document never prints
+  /// is typeset at a fragment yield where the normal path typesets nothing
+  /// (OXIDIZED_DESIGN_DIVERGENCES #738); and a late abstract whose cover has a
+  /// root child spilled at a small fragment budget keeps its slot, ahead of
+  /// that cover (OXIDIZED_DESIGN_DIVERGENCES #903). Off by default;
   /// also AUTO-activates when the projected memory need of a large source
   /// exceeds the --max-memory ceiling, i.e. only where the normal path is
   /// certain to exhaust memory anyway.
@@ -450,8 +455,10 @@ struct Cli {
 /// Allocation-failure hook — emits a `Fatal:` line in the project's
 /// logging convention so aggregation tooling records the failure, then
 /// exits with code 137. See `cortex_worker.rs::custom_alloc_error_hook`
-/// for full rationale + witness paper.
+/// for full rationale + witness paper; like it, it allocates nothing, takes no lock and ends at
+/// once on a re-entry (`watchdog::enter_alloc_failure_hook`).
 fn custom_alloc_error_hook(layout: Layout) {
+  latexml_core::watchdog::enter_alloc_failure_hook();
   // Attribute by alignment: the gullet pushback is a Vec<Token> (4-byte
   // items); any other alignment is a DIFFERENT runaway (align 8 = Vec of
   // boxes/pointers — e.g. nested-pgfmatrix churn; align 1 = a string
@@ -460,17 +467,18 @@ fn custom_alloc_error_hook(layout: Layout) {
   let site = if layout.align() == 4 {
     "likely runaway macro expansion (gullet pushback Vec<Token> growth)"
   } else {
-    "allocation site unknown for this alignment — rerun with RUST_BACKTRACE=1"
+    "allocation site unknown for this alignment — break on `__rust_alloc_error_handler` in a \
+     debugger to find it"
   };
-  eprintln!(
+  latexml_core::watchdog::write_stderr_unlocked(format_args!(
     "Fatal:oom:alloc_failed allocation of {} bytes (align {}) failed; {}. \
-     Exiting with code 137.",
+     Exiting with code 137.\n",
     layout.size(),
     layout.align(),
     site
-  );
+  ));
   latexml_core::watchdog::try_remove_registered_paths();
-  process::exit(137);
+  latexml_core::watchdog::exit_now(137);
 }
 
 /// Read back which side of a `--opt`/`--noopt` boolean pair clap kept, or `None`
@@ -514,25 +522,25 @@ fn chosen_by_clap(pos: bool, neg: bool) -> Option<bool> {
 /// `_prepare_options`. Every other pair has a static default and is fully resolved.
 struct ResolvedOptions {
   /// Core tri-states (`None` ⇒ leave the engine/state default untouched).
-  include_comments:   Option<bool>,
-  nomathparse:        Option<bool>,
-  number_sections:    Option<bool>,
+  include_comments:  Option<bool>,
+  nomathparse:       Option<bool>,
+  number_sections:   Option<bool>,
   /// Whether output splitting is enabled (Perl `split!` + `split*`-implies rule).
-  split_enabled:      bool,
+  split_enabled:     bool,
   /// User's explicit `--post`/`--nopost` choice; format-dependent default applied
   /// at the post-processing site.
-  post:               Option<bool>,
+  post:              Option<bool>,
   /// User's explicit `--pmml`/`--nopmml` choice; format-dependent default applied
   /// at the post-processing site.
-  pmml:               Option<bool>,
+  pmml:              Option<bool>,
   /// Post reps/flags with static defaults, fully resolved.
-  cmml:               bool,
-  keep_xmath:         bool,
-  mathtex:            bool,
-  noinvisibletimes:   bool,
-  plane1:             bool,
-  nodefaultresources: bool,
-  graphicimages:      bool,
+  cmml:              bool,
+  keep_xmath:        bool,
+  mathtex:           bool,
+  noinvisibletimes:  bool,
+  plane1:            bool,
+  default_resources: bool,
+  graphicimages:     bool,
 }
 
 impl ResolvedOptions {
@@ -543,29 +551,28 @@ impl ResolvedOptions {
       // Perl Core.pm L45 `comments!`; `noparse`/`parse` (mathparse); `numbersections!`
       // (default on). `None` leaves the setting unset (Rust comments default OFF —
       // OXIDIZED_DESIGN #2).
-      include_comments:   chosen_by_clap(cli.comments, cli.nocomments),
-      nomathparse:        chosen_by_clap(cli.nomathparse, cli.mathparse),
-      number_sections:    chosen_by_clap(cli.numbersections, cli.nonumbersections),
+      include_comments:  chosen_by_clap(cli.comments, cli.nocomments),
+      nomathparse:       chosen_by_clap(cli.nomathparse, cli.mathparse),
+      number_sections:   chosen_by_clap(cli.numbersections, cli.nonumbersections),
       // Perl `Common/Config.pm` L124-130: `split!` is last-wins; the value options
       // `--splitat`/`--splitpath`/`--splitnaming` do `split = 1 unless defined split`,
       // i.e. they enable splitting ONLY when neither `--split` nor `--nosplit`
       // decided it (a split! always overwrites; a split* never overwrites a decided
       // value, so only the split! pair's order — which clap resolves — matters).
-      split_enabled:      chosen_by_clap(cli.split, cli.nosplit)
+      split_enabled:     chosen_by_clap(cli.split, cli.nosplit)
         .unwrap_or(cli.splitat.is_some() || cli.splitnaming.is_some() || cli.splitpath.is_some()),
-      post:               chosen_by_clap(cli.post, cli.nopost),
-      pmml:               chosen_by_clap(cli.pmml, cli.nopmml),
-      cmml:               chosen_by_clap(cli.cmml, cli.nocmml).unwrap_or(false),
-      keep_xmath:         chosen_by_clap(cli.keep_xmath, cli.noxmath).unwrap_or(false),
-      mathtex:            chosen_by_clap(cli.mathtex, cli.nomathtex).unwrap_or(false),
-      noinvisibletimes:   chosen_by_clap(cli.noinvisibletimes, cli.invisibletimes).unwrap_or(false),
+      post:              chosen_by_clap(cli.post, cli.nopost),
+      pmml:              chosen_by_clap(cli.pmml, cli.nopmml),
+      cmml:              chosen_by_clap(cli.cmml, cli.nocmml).unwrap_or(false),
+      keep_xmath:        chosen_by_clap(cli.keep_xmath, cli.noxmath).unwrap_or(false),
+      mathtex:           chosen_by_clap(cli.mathtex, cli.nomathtex).unwrap_or(false),
+      noinvisibletimes:  chosen_by_clap(cli.noinvisibletimes, cli.invisibletimes).unwrap_or(false),
       // Perl `MathML.pm` L70: `--hackplane1` forces plane1 on; otherwise the
       // pair is last-wins over a default-on.
-      plane1:             cli.hackplane1
-        || chosen_by_clap(cli.plane1, cli.noplane1).unwrap_or(true),
-      nodefaultresources: chosen_by_clap(cli.nodefaultresources, cli.defaultresources)
-        .unwrap_or(false),
-      graphicimages:      chosen_by_clap(cli.graphicimages, cli.nographicimages).unwrap_or(true),
+      plane1:            cli.hackplane1 || chosen_by_clap(cli.plane1, cli.noplane1).unwrap_or(true),
+      default_resources: chosen_by_clap(cli.defaultresources, cli.nodefaultresources)
+        .unwrap_or(true),
+      graphicimages:     chosen_by_clap(cli.graphicimages, cli.nographicimages).unwrap_or(true),
     }
   }
 }
@@ -1524,7 +1531,7 @@ fn real_main() -> Result<(), Box<dyn Error>> {
           // destination's directory (document.rs / Perl Config.pm L466-469).
           site_directory: cli.sitedirectory.as_deref(),
           search_paths: &cli.search_paths,
-          nodefaultresources: resolved.nodefaultresources,
+          default_resources: resolved.default_resources,
           css_files: &cli.css_files,
           js_files: &cli.js_files,
           noinvisibletimes: resolved.noinvisibletimes,
@@ -1625,6 +1632,20 @@ fn real_main() -> Result<(), Box<dyn Error>> {
         // every file in), cleaning up the converted-PNG staging directory.
       } else {
         latexml_post::writer::write_output(&xml, target.as_deref())?;
+      }
+      // The frontmatter observer's shadow ledger beside the output, under `LATEXML_FM_SHADOW=1` only
+      // (OXIDIZED_DESIGN_DIVERGENCES #837): a study's by-product, so a failure to write it is a Warning, never the
+      // conversion's.
+      if let Some(dest) = target.as_deref()
+        && let Err(e) = latexml_engine::base_utilities::write_fm_shadow(dest)
+      {
+        latexml_core::common::error::emit_warn(
+          "io",
+          "fmshadow",
+          &format!(
+            "could not write the frontmatter observer's shadow ledger {dest}.fmshadow.json: {e}"
+          ),
+        );
       }
     }
 
@@ -2030,7 +2051,7 @@ fn unpack_archive_files(
     let mut archive = zip::ZipArchive::new(file)?;
     for i in 0..archive.len() {
       let mut entry = archive.by_index(i)?;
-      let outpath = dest.join(entry.mangled_name());
+      let outpath = dest.join(entry.mangled_name()?);
       if entry.is_dir() {
         std::fs::create_dir_all(&outpath)?;
       } else {
@@ -2366,8 +2387,8 @@ mod boolean_flag_last_wins_tests {
 
     let c = cli(&["--defaultresources", "--nodefaultresources"]);
     assert_eq!(
-      chosen_by_clap(c.nodefaultresources, c.defaultresources),
-      Some(true)
+      chosen_by_clap(c.defaultresources, c.nodefaultresources),
+      Some(false)
     );
 
     let c = cli(&["--comments", "--nocomments"]);
@@ -2408,7 +2429,7 @@ mod boolean_flag_last_wins_tests {
     assert!(!r.keep_xmath);
     assert!(!r.mathtex);
     assert!(!r.noinvisibletimes);
-    assert!(!r.nodefaultresources);
+    assert!(r.default_resources, "default_resources defaults ON");
     assert!(!r.split_enabled);
     assert_eq!(r.post, None);
     assert_eq!(r.pmml, None);

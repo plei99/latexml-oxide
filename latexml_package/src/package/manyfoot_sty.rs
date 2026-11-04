@@ -1,6 +1,6 @@
 //! manyfoot.sty (ncctools v1.11) — further series of footnotes.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(k). `\DeclareNewFootnote[style]{S}[fmt]`
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(k). `\DeclareNewFootnote[style]{S}[fmt]`
 //! (manyfoot.sty:230-278) makes a footnote series `S` with its own insert (`\footins<S>`, its own
 //! place at the page foot, :192-207), counter `footnote<S>` printed by `\@<fmt>` (arabic, roman,
 //! alph, fnsymbol, gobble …) and commands `\footnote<S>[n]{text}`, `\footnotemark<S>[n]`,

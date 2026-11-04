@@ -57,7 +57,7 @@ dedicated sessions once a large goal completes, not inside the batch that found 
 | K20 | Gullet expansion fidelity: four tex.web algorithms the gullet deviates from (column ends by command code §342/§789, `\left`/`\middle`/`\right` as primitives with `scan_delimiter` §1160/§1188-1192, §395 extra `}` in a delimited argument, peeking macros as one unexpandable step §380/§440-445/§506/§785) | C5 (study 2026-10-11) | ~400-700 arXiv papers: X1 62 IfLimit Fatals in `\xymatrix`, redefined `\span` ~127, V1b cell-head `_` ~61, part of Mouth:EoF 338; 8 REDs; queued rows 64n/64o/64v; OD #500's expansion-only residual | 2 (after P0) | OPEN, ordered G4 → G2 → G3 → G1 (user 2026-10-11) |
 | K21 | Environments as TeX does them: `Streamed` (group + element opened/closed) vs `Captured` (`#body` box) DefEnvironments, no default mode, the XML element stack independent of the save stack | C2; extends K9, K2 | M1 residual 82/150 (64y), `$$` in 64 mode-less `#body` environments (~1,700 fixed by 64ra), `\endlx@list` 839, ~5k first errors, 15 REDs, HF6 | 3 (behind P0) | OPEN; HIGH risk, staged |
 | K22 | Binding provenance and ownership: a FileIdentity per class/package load, an owned set per binding over a raw-loaded real file, the shipped-copy delta, a corpus-copy conformance audit | C1; generalizes K1 step 3 and K13 stage 3 | `undefined:` 63% of run-336 first errors (227 clusters of ≥100 papers ≈54k tasks), binding surplus over the paper (OSA abbreviations, PoS/JHEP macros, EPL `{widetext}`), 31 renamed JHEP3 copies, ~15 REDs | read-only audit in parallel with K20 | step 2 census DONE 2026-10-11 (83.6% of the not-in-TL bound families' papers ship the file); FileIdentity + owned-set overlay OPEN |
-| K23 | Frontmatter author-block event model: a lexer of author blocks into events (name, mark, separator, affiliation, contact, note, layout, group), per-binding association policy, one resolver, one emission | C4 (beyond Perl) | 49 REDs, HF2 residual 16, A2 rows, ~24 KPE / ~15 OD frontmatter entries, 20+ batches and 30+ NO-SHIP rounds | after K24's frontmatter extractor | OPEN — shadow mode first (user: needs very careful testing) |
+| K23 | Frontmatter author-block event model: a lexer of author blocks into events (name, mark, separator, affiliation, contact, note, layout, group), per-binding association policy, one resolver, one emission | C4 (beyond Perl) | 49 REDs, HF2 residual 16, A2 rows, ~24 KPE / ~15 OD frontmatter entries, 20+ batches and 30+ NO-SHIP rounds | after K24's frontmatter extractor | OPEN — shadow mode first (user: needs very careful testing); step 1's observer core landed as FM S2a.1 (OD #837, `LATEXML_FM_SHADOW=1`); the resolver, policy table and `ab_audit fmshadow` comparator as FM S2a.2 r1-r7 (shadow only; r4: revtex4_support below the class guard, the S2b pilot candidate; r5: ams_support below the unclassified bar too (no precision sample of its own yet), the comparator's name-note gap closed; S2b gates per family (int63); r6: the main session's decisions 2-3 (a note's links by spelling or as its only marked link; an entry's address group written out), revtex4_support passes the gate on int63 (0.4 % unclassified, 38/39 classified right); r7: the r6 review's findings (live places, a note's links placed once every name is read), a name's mark and separator glyphs read as such, a note's mark answering a `\footnotemark` entry; the other families not yet, SYNC "FM S2a.2") |
 | K24 | One audited A/B comparator: stamped revisions or refuse, per-qname element counts, attribute text, canonical XML diff with mapped ids, frontmatter tuples; entry numbers allocated at integration | P0; extends K17 to arXiv; seed of the A4 audit | ≥7 missed or near-missed regressions in one week (64zc r1, 64x r1/r4, 63w4, 64k5, 64u EPL, 64b), 122 ad-hoc compare scripts, 3 renumberings | 1 | LANDED (p0 `1e47551e6c`, 2026-10-11): `ab_audit run/compare/audit` + `tools/perfect_kernel/next_entry_numbers.sh` |
 
 ## K1 — Definition provenance and raw-load-then-overlay bindings
@@ -267,7 +267,7 @@ matching closer with "Missing } inserted". Perl fuses the two
 **Today.** One `State` frame stack carries groups AND modes: `begin_mode` =
 `push_stack_frame(false)` + `BOUND_MODE` bound in that frame (stomach.rs `begin_mode`); `end_mode` demands the top
 frame be the mode frame; `egroup`/`endgroup` gate on `BOUND_MODE`-on-top + `groupNonBoxing`; the box reader's
-terminal is the raw frame depth (base_utilities.rs). Batch 56z added `lx@group@code` for `bounded` environments only.
+terminal is the raw frame depth (base_utilities/boxes_lists.rs). Batch 56z added `lx@group@code` for `bounded` environments only.
 
 **Abstraction (staged; each stage = guard + control).**
 - Stage 0, no behaviour change: every opener writes its group code
@@ -325,20 +325,51 @@ labels linked from the authors' `$^{n,}$` (`\lx@author@withsup` /
 `\lx@affiliation@withsup`).
 
 **Mechanism (as landed: 56dj, extended 58m, 58q, 59d, 59e).** After a raw `.cls` loads (the
-`latexml_core/src/binding/content.rs` after-hook site; a binding's own raw self-load does not fire it),
+`latexml_core/src/binding/content.rs` after-hook site; since 68x also for the class a binding reads raw, at the end
+of that class load, the binding's own setters kept),
 `\lx@class@loaded@raw{name}` runs `frontmatter_stores::reroute_raw_class_stores`: each setter of the NAME → kind
 table that the class defined as a pure store — one argument, or `[optional]{mandatory}` (58m, bfhlayout
-`\institute`) — is rerouted to the frontmatter API, and once any store was captured `\let\@maketitle\@empty`, as
-Perl's locked `\maketitle` discards it; off-table stores are dropped with it (Perl parity; guard
-`only_table_names_with_store_bodies_are_rerouted`). Since 58m the stores are read where the class reads them:
-creator stores (affiliation, address, e-mail, ORCID; editor, speaker) at `\maketitle`, the others when set. 58q
+`\institute`) — is rerouted to the frontmatter API. The class's `\@maketitle` is kept (it was `\let` to `\@empty`
+until sweep 93): `\lx@deposit@maketitle` (sect05.rs) digests it with the title fields and the captured stores read as
+empty and keeps what it typesets when it raises no error, and replays the class's own refused `\maketitle`
+(`\lx@dropped@maketitle`) the same way when the replay gate finds its vocabulary defined (`body_vocabulary_is_defined`;
+since 75a a `\def`'s replacement text and a called macro's delimiters are not checked as run, and a class's
+`\appto`/`\g@addto@macro` to the refused `\maketitle` extends the class's definition, state.rs
+`extended_refused_definition`; OXIDIZED_DESIGN_DIVERGENCES #756-#757). An off-table store whose
+title-page code does not typeset — a refused body the gate rejects, a deposit or replay that errs, a class field the
+deposit reads as empty (jfpc's `\@author` built from its stores) — is handed on at `\maketitle` since 77i — the document's title or
+authors when the class's own `\title`/`\author` hands its argument to the store's setter (or its `\@author` prints the
+store as the names) and the document has none, rows of the creators' author block for a store its `\@author` prints
+beside the names, nothing for a store that only repeats the creators' names (no label printed before it, every creator
+named), else an `ltx:pubnote` named by the label the title page prints before it (when TeX's run prints it right before
+the store, `verify_title_page_labels`, 77i r4) — when speculative runs of the class's title page with each store set to
+a letters and then a digits sentinel print both, a plain value is in the run with the document's own values, and no
+kept deposit or replay typesets it (`before_title_page_runs`,
+`hand_untypeset_stores`, OXIDIZED_DESIGN_DIVERGENCES #767); one only a refused class environment
+prints (wiley-article's abstract) was tabled in 75a (#758). Guard
+`only_table_names_with_store_bodies_are_rerouted`. Since 58m the stores are read where the class reads them:
+creator stores (affiliation, address, e-mail, ORCID; editor, speaker) and an abstract or keywords the title page reads (named
+by its label or not, 77i r4) at `\maketitle`,
+the others when set (once a
+`\maketitle` placed one — handed on and printed by its title page, the sentinel run — a later call only re-sets the store; a store the title page prints after a label is named by
+it, 77i, #154). 58q
 leaves a binding's own setters alone (`latexml_core::binding::store_setters`, KPE #418/#419); 59d hands what code
 appends to `\@author` to the creator (DIVERGENCES #405); 59e lets a later `\maketitle` typeset the authors set
 after the last one (DIVERGENCES #406). Inside author content `\inst{n}` is the affiliation link request
 (`\lx@author@withinst`). The 56dj text and the original steps are in the archive.
 
+68u r2 (DIVERGENCES #643) widens what a setter is, by the NAME's semantics: (rule (a)) a table setter storing its
+argument in a macro of another name is the frontmatter's when the reader scan finds only the class's title-page code
+reading it (apa6.cls:760 `\affiliation` → `\@affil`, :779 `\authornote` → `\@acks`; a store another class macro
+reads stays raw, sweep 93's letter `\fromaddress` / afthesis `\addr@ss`); a setter may define side macros beside its
+store (tufte-common.def:608-614); a raw class's redefinition of the kernel's unlocked `\date` storing `\@date` keeps its
+definitions and sets the frontmatter's date; a `{keywords}` collecting its body (`\Collect@Body`) for the title page
+only is the frontmatter's keywords (cclayout.sty:71-73).
+
 **Open.** List-append stores other than `\@author` (verify a witness first); retire the per-class bindings whose only
-content is store rerouting (ptptex first), keeping those with non-store shapes.
+content is store rerouting (ptptex first), keeping those with non-store shapes; apa/apa6's numbered author and
+affiliation forms (`\twoauthors` … `\sixaffiliations`, 64 of 188 papers, no creator at all); expl3 stores
+(asmejour.cls:1483 `\date` → `\g__asmejour_date_tl`).
 
 ## Ordering
 
@@ -432,7 +463,7 @@ style feature is added.
 (abntex2cite 80.5 → 99.4 % measured with bibtex's own `.bbl`); (b) per declaration kind. Running
 biblatex's drivers raw over the `.bbl` would be exact but loses the per-field markup — not taken for `alphabetic`: the native path
 keeps its per-field markup and lays the entries out as `standard.bbx` does for `alphabetic`
-(`latexml_post/src/biblatex_layout.rs`, DIVERGENCES #601; `numeric` has the same drivers and is the next
+(`latexml_post/src/biblatex_layout.rs`, DIVERGENCES #980; `numeric` has the same drivers and is the next
 candidate); other styles keep the formatter rows.
 **Risk:** MED (a is new code but isolated).
 
@@ -595,10 +626,59 @@ one emission with no relocation pass.
 Layer A in shadow mode beside today's path, logging disagreements, no output change; (2) one family at a time, new and
 small first (OSA/EPL/l-aa, interact, elsarticle/cas, IEEE, acmart, generic article last), byte-identical on the family
 corpus plus every frontmatter guard, any intended change a RED→GREEN repro with a ruling; (3) delete the superseded
-heuristics in `base_utilities.rs`.
+heuristics in `base_utilities/`.
 
 **Class guard:** shadow disagreement < 0.5% per family before migrating; the 49 frontmatter REDs go green without new
 per-shape rules. **Risk:** HIGH; needs very careful testing (user 2026-10-11).
+
+**As landed (FM S2a.1, fms2a1; OXIDIZED_DESIGN_DIVERGENCES #837).** Layer A's data in shadow mode:
+`latexml_engine/src/base_utilities/frontmatter/observer/` — a ledger of the `\author`-family calls (kernel and
+`\lx@add@authors*`) with their stamped positions and queue places, the contact/creator API calls after them; a rehearsal
+of each block under Layer-B event bindings (the speculative-run engine, nothing kept); the event lexer (Name, Mark,
+Sep, Break, Contact, Note, Layout, ApiCall with field spans and ink). Under `LATEXML_FM_SHADOW=1` (unset on the
+fleet) the CLI writes `<dest>.fmshadow.json`; without it nothing runs, and with it the XML and the log are
+byte-identical: the rehearsal's group reads from a mouth of its own, so an `\aftergroup` of the block's stays inside it
+(r2). The model's departures from the design note (a Note carries no mark, a font Layout no span, gap em of the box's
+font, `\corref`/`\fnref`/`\thanksref`/`\ead` not bound, projected spans keyed by (block, span), a bare
+`\footnotemark` under the kernel `\maketitle`'s `\@fnsymbol` unless a binding declares the title's marks through the
+hook `\lx@title@thefootnote` (the kernel's, since 78o r2), a font switch inside a run shown at the next run, an `\input`'s tokens without span)
+are listed in OD #837 for S2a.2. r3 (review revfms2a1_2): a container's placement argument is no name (`shown_arguments`),
+the kernel's `\lx@newline` a `\centering` or a box rebinds `\\` to is a Break, a stray `&` a column separator (nothing
+held: the `&` constructor errs only when built), progress notes silenced in the rehearsal (an `\input` in the field no
+longer doubled the log's `(Processing content …` note), a block deferred for want of a journal says so. Not yet: the
+resolver and the comparator (S2a.2), any output change (S2b on). Guards `perfect_kernel_batchfms2a1::*`; SYNC_STATUS
+"FM S2a.1".
+
+**As landed (FM S2a.2, fms2a2; OD #837 "S2a.2").** Layers B and C in shadow mode: `observer/policy.rs` (the policy
+table keyed on (the binding owning `\author`, the hook), each entry citing what it reproduces; since 87a each binding
+declares its own conventions at load, read from the state, OD #837 "The conventions' home") and `observer/resolver/`
+(rules 1-9 of the design note, each association with its rule), whose tuples the dump carries as `resolved`; the
+comparator `ab_audit fmshadow ROOT` (per-family table with the gate number, a row per classified/unclassified
+disagreement, `--re-resolve` to resolve a dump's events again offline). The class guard is not met: the census numbers
+and the PDF checks are in SYNC_STATUS "FM S2a.2". Guards `perfect_kernel_batchfms2a2::*`. r2 (review revfms2a2, three
+quarters of r1's unclassified share the resolver's own defects): the resolver fixed by defect class (whole note texts,
+whole fuzzy labels, `author:N`, Perl's prefix fallback, legends by their leading Mark, names lines by evidence, marks
+mid-line and trailing, the API intake, contact roles, authblk's `\AB@thenote`, today's joined lines and contact grid,
+a replacing `\author`), the policy key's class fallback (report/book title-page marks), and the comparator made honest
+(the block compared, joined items only, classified = an adopted ruling's change or a PDF-confirmed XML-wrong class
+listed by name; elimination counted as today's, not a change). r3 (r2's classified sample 69 % right; the revtex4_support
+and ams_support unclassified papers read against their PDFs): marked entries of one call parted by their marks, glued
+labels parted by the marks shown, fuzzy labels by surname and with their macros written out, e-mails by evidence (a
+note's by spelling, author-order lists for every class), the ORCID links, `\cite` marks and environment arguments of the
+lexer, a sole author's orphans, title notes, and six more PDF-confirmed XML-wrong classes (OD #837 "S2a.2 r3").
+r4 (the r3 revtex4_support and ams_support residual against the PDFs; review revfms2a2_3): `observer/resolver/` and
+`ab_audit/fmshadow/` split by stage, every file below 1,000 lines (byte-identical shadow dumps); today's attachment
+reproduced where the shadow had invented one (an empty entry's role and its place in today's contact pile, a
+`\lx@affiliation@withsup` line's first superscript, today's contact grid before the labels, annotations before any
+author), a prefix-marked name's notes, ORCID links printing a name, the lexer's `\thanks` inside a superscript and
+numeric box arguments, the comparator's `unobserved` bucket and one more PDF-confirmed XML-wrong class (welded
+legend lines), the review's ledger nits (OD #837 "S2a.2 r4"). revtex4_support is the first family under the class
+guard; the precision sample and the census are in SYNC_STATUS "FM S2a.2". r5 (r4's classified sample, review
+revfms2a2_4): the footnote texts a name's `\footnotemark` shows read by their marks (the ledger's `NoteText`) and the XML's
+personname notes compared, the `unobserved` bucket by reason with its observed blocks compared, the sample's wrong
+classes and ams_support's residual fixed by class (ams_support under the guard too), two r3 XML-wrong classes fenced and
+two added (OD #837 "S2a.2 r5"); classified precision on a hash-ordered seeded draw 82 % (SYNC_STATUS: a long tail of
+classes, a ruling question on ruling 4's inner contacts).
 
 ## K24 — One audited A/B comparator
 

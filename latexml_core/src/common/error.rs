@@ -87,6 +87,35 @@ pub fn set_suppress_log_output(suppress: bool) -> bool {
   prev
 }
 
+/// The log-output suppression flag set for a scope ([`set_suppress_log_output`]) and put back as it was when the
+/// guard is dropped — at the scope's end, on an early return or while a panic unwinds — so a scope that fails cannot
+/// leave the thread's later conversions silent (a speculative title-page run, sect05.rs
+/// `speculative_title_page_run`, under `cortex_worker`'s per-paper `catch_unwind`).
+#[must_use = "the suppression ends when the guard is dropped"]
+pub struct SuppressLogOutputGuard {
+  prev: bool,
+}
+
+impl SuppressLogOutputGuard {
+  /// Set the flag to `suppress` until the guard is dropped.
+  pub fn new(suppress: bool) -> Self {
+    SuppressLogOutputGuard {
+      prev: set_suppress_log_output(suppress),
+    }
+  }
+}
+
+impl Drop for SuppressLogOutputGuard {
+  fn drop(&mut self) { SUPPRESS_LOG_OUTPUT.set(self.prev); }
+}
+
+/// Clear the log-output suppression flag and the progress notes' silence ([`SilenceProgressNotesGuard`];
+/// `reset_thread_engine`): a fresh conversion on a reused thread logs.
+pub fn reset_suppress_log_output() {
+  SUPPRESS_LOG_OUTPUT.set(false);
+  SILENCE_PROGRESS_NOTES.set(false);
+}
+
 // Thread-local FATAL DEMOTION for bibliography post-processing (user
 // policy 2026-07-04): with the live-state field interpretation, Warn!/
 // Error! report at NATIVE severity and count normally (matching Perl's
@@ -554,6 +583,23 @@ pub fn record_last_fatal(e: &Error) {
   RESOURCE_FATAL_SEEN.with(|c| c.set(true));
 }
 
+/// Unlatch the latched resource fatal when it is a runaway limit of the expansion in progress — the pushback, a
+/// recursion — for a run the document never makes, discarded with it (`speculative_title_page_run`). A limit of the
+/// conversion stays latched as the document's: its deadline, its memory budget, its token budget, its conditional
+/// ids. (The token count itself does not carry past the failed run: `reading_from_mouth`'s error path resets the
+/// gullet's `progress`, gullet.rs.) Whether it was one.
+pub fn unlatch_runaway_fatal() -> bool {
+  use ErrorCategory as C;
+  let runaway = LAST_RESOURCE_FATAL.with(|c| {
+    matches!(c.borrow().as_ref(), Some(e) if matches!(e.category, C::PushbackLimit | C::Recursion))
+  });
+  if runaway {
+    LAST_RESOURCE_FATAL.with(|c| *c.borrow_mut() = None);
+    RESOURCE_FATAL_SEEN.with(|c| c.set(false));
+  }
+  runaway
+}
+
 /// Take (and clear) the latched resource fatal, if any. Returns the
 /// structured `Error` so a boundary that received only a flattened string can
 /// propagate the real thing.
@@ -606,11 +652,15 @@ pub fn get_status_message() -> String {
   if report.fatal {
     parts.push("1 fatal error".to_string());
   }
-  let undef_keys: Vec<String> = report
+  // (sorted, and so are the missing files: a hash map's order follows the symbols' interning history, which any
+  // work done before an error changes — the frontmatter observer's rehearsal, a new definition; Perl State.pm:771
+  // lists `keys %{$$status{undefined}}`, a random hash order)
+  let mut undef_keys: Vec<String> = report
     .undefined
     .keys()
     .map(|k| crate::common::arena::to_string(*k))
     .collect();
+  undef_keys.sort_unstable();
   if !undef_keys.is_empty() {
     parts.push(format!(
       "{} undefined macro{}[{}]",
@@ -619,11 +669,12 @@ pub fn get_status_message() -> String {
       undef_keys.join(", ")
     ));
   }
-  let miss_keys: Vec<String> = report
+  let mut miss_keys: Vec<String> = report
     .missing
     .keys()
     .map(|k| crate::common::arena::to_string(*k))
     .collect();
+  miss_keys.sort_unstable();
   if !miss_keys.is_empty() {
     parts.push(format!(
       "{} missing file{}[{}]",
@@ -1344,6 +1395,37 @@ impl From<ParseFloatError> for Error {
 //**********************************************************************
 // Progress reporting.
 
+/// When true, the progress notes ([`note_begin`]/[`note_end`], [`note_progress`], [`note_progress_detailed`]) log
+/// nothing: a digestion the conversion discards reads a file (an `\input` in an author field rehearsed by the
+/// frontmatter observer, OXIDIZED_DESIGN_DIVERGENCES #837) or skips a `{comment}`, and its log must be the one without
+/// the rehearsal. Not Perl's (it has no rehearsal).
+#[thread_local]
+static SILENCE_PROGRESS_NOTES: std::cell::Cell<bool> = std::cell::Cell::new(false);
+
+/// The progress notes silenced for a scope and put back as they were when the guard is dropped (a panic unwinding
+/// included).
+#[must_use = "the silence ends when the guard is dropped"]
+pub struct SilenceProgressNotesGuard {
+  prev: bool,
+}
+
+impl SilenceProgressNotesGuard {
+  /// Silence the progress notes until the guard is dropped.
+  pub fn new() -> Self {
+    let prev = SILENCE_PROGRESS_NOTES.get();
+    SILENCE_PROGRESS_NOTES.set(true);
+    SilenceProgressNotesGuard { prev }
+  }
+}
+
+impl Default for SilenceProgressNotesGuard {
+  fn default() -> Self { Self::new() }
+}
+
+impl Drop for SilenceProgressNotesGuard {
+  fn drop(&mut self) { SILENCE_PROGRESS_NOTES.set(self.prev); }
+}
+
 /// Advance the progress indicator by one step.
 ///
 /// Perl `Common/Error.pm:ProgressStep` L430-433 ticks a terminal spinner. This
@@ -1358,12 +1440,18 @@ pub fn progress_step(_note: &str) {
 
 pub fn note_progress(stuff: &str) {
   use log::info;
+  if SILENCE_PROGRESS_NOTES.get() {
+    return;
+  }
   info!(target: "note", "{}", stuff);
 }
 
 // TODO: Rethink this reporting
 pub fn note_progress_detailed(stuff: &str) {
   use log::debug;
+  if SILENCE_PROGRESS_NOTES.get() {
+    return;
+  }
   debug!(target: "note", "{}", stuff);
 }
 
@@ -1376,6 +1464,9 @@ pub fn note_progress_detailed(stuff: &str) {
 /// time; this port logs the structure without the timing (per-phase wall times
 /// are the telemetry module's job).
 pub fn note_begin(stage: &str) {
+  if SILENCE_PROGRESS_NOTES.get() {
+    return;
+  }
   // $state->assignMapping('NOTE_TIMERS', $stage, [Time::HiRes::gettimeofday]);
   use log::info;
   info!(target: "note", "\n({}...", stage);
@@ -1387,6 +1478,9 @@ pub fn note_begin(stage: &str) {
 /// elapsed time from its `NOTE_TIMERS` entry; see [`note_begin`] for why this
 /// port does not.
 pub fn note_end(_stage: &str) {
+  if SILENCE_PROGRESS_NOTES.get() {
+    return;
+  }
   // if (my $start = $state && $state->lookupMapping('NOTE_TIMERS', $stage)) {
   //   $state->assignMapping('NOTE_TIMERS', $stage, undef);
 
@@ -1712,5 +1806,26 @@ mod tests {
     assert!(!is_log_output_suppressed());
     // Clean up to original state.
     set_suppress_log_output(prior);
+  }
+
+  /// The guard puts the flag back on drop — also when the scope panics (77i r3: a speculative title-page run that
+  /// panicked left the thread's later conversions without Info/Warning lines).
+  #[test]
+  fn suppress_log_output_guard_restores_on_drop_and_unwind() {
+    set_suppress_log_output(false);
+    {
+      let _guard = SuppressLogOutputGuard::new(true);
+      assert!(is_log_output_suppressed());
+    }
+    assert!(!is_log_output_suppressed());
+    let unwound = std::panic::catch_unwind(|| {
+      let _guard = SuppressLogOutputGuard::new(true);
+      panic!("speculative run panicked");
+    });
+    assert!(unwound.is_err());
+    assert!(!is_log_output_suppressed());
+    set_suppress_log_output(true);
+    reset_suppress_log_output();
+    assert!(!is_log_output_suppressed());
   }
 }

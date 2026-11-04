@@ -16,6 +16,7 @@ pub extern crate latexml_engine as engine;
 // plus package-specific symbols.
 #[macro_use]
 pub mod prelude;
+pub mod float_description;
 pub mod shipped_class;
 // XMath helper functions for building XMDual token streams
 pub mod xmath_helpers;
@@ -163,15 +164,6 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("revtex", "cls", package::revtex_cls::load_definitions),
   ("revtex4-1", "cls", package::revtex4_1_cls::load_definitions),
   ("jheppub", "sty", package::jheppub_sty::load_definitions),
-  // jcappub is JCAP's SISSA/IOP publication class — the JCAP sibling of jheppub
-  // (JHEP), with the same accumulating `\author[affil]{name}` + `\affiliation` +
-  // `\emailAdd` + `\keywords`/`\acknowledgments` frontmatter. Neither Perl nor
-  // Rust ships a jcappub binding, so its `\author`s fell through to article's
-  // (which overwrites), truncating the list to the last author, and
-  // `\affiliation`/`\emailAdd` were undefined. Route it to the jheppub binding —
-  // faithful (same author API) and surpass-Perl. html_feedback #6884, witness
-  // arXiv 2404.03569 (63 authors, previously 1). Its own journal abbreviations ride along (jcappub_sty.rs).
-  ("jcappub", "sty", package::jcappub_sty::load_definitions),
   ("neurips", "sty", package::neurips_sty::load_definitions),
   (
     "neurips_2019",
@@ -272,7 +264,7 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("yfonts", "sty", package::yfonts_sty::load_definitions),
   ("ytableau", "sty", package::ytableau_sty::load_definitions),
   // Native bindings for packages of the arXiv mathematics sample with no Perl binding
-  // (OXIDIZED_DESIGN #588).
+  // (OXIDIZED_DESIGN #967).
   ("centernot", "sty", package::centernot_sty::load_definitions),
   (
     "colonequals",
@@ -401,6 +393,7 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("endnotes", "sty", package::endnotes_sty::load_definitions),
   ("enotez", "sty", package::enotez_sty::load_definitions),
   ("enumitem", "sty", package::enumitem_sty::load_definitions),
+  ("eqnarray", "sty", package::eqnarray_sty::load_definitions),
   ("epigraph", "sty", package::epigraph_sty::load_definitions),
   ("float", "sty", package::float_sty::load_definitions),
   ("floatfig", "sty", package::floatfig_sty::load_definitions),
@@ -519,48 +512,48 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   (
     "icml2016",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   (
     "icml2017",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   (
     "icml2018",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   ("icml2019", "sty", package::icml2019_sty::load_definitions),
   (
     "icml2020",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   (
     "icml2021",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   (
     "icml2022",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   (
     "icml2023",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   (
     "icml2024",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   (
     "icml2025",
     "sty",
-    package::icml_support_sty::load_definitions,
+    package::icml_support_sty::load_icml_style,
   ),
   (
     "icml_support",
@@ -681,6 +674,11 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
     "cls",
     package::quantumview_cls::load_definitions,
   ),
+  // just.cls is cpc-hepnp.cls under another name (its `\ProvidesClass{cpc-hepnp}`, just.cls:11; the PhiPsi15
+  // proceedings, 1603.03230). cpc-hepnp routing waits for 91c (its mark conventions; OD #912), so `cpc-hepnp` is not
+  // registered: a `\documentclass{cpc-hepnp}` paper reads its copy as before.
+  ("just", "cls", package::cpc_hepnp_cls::load_definitions),
+  ("asmejour", "cls", package::asmejour_cls::load_definitions),
   ("shapepar", "sty", package::shapepar_sty::load_definitions),
   ("multido", "sty", package::multido_sty::load_definitions),
   ("multirow", "sty", package::multirow_sty::load_definitions),
@@ -691,6 +689,7 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("cp852", "def", package::cp852_def::load_definitions),
   ("csquotes", "def", package::csquotes_def::load_definitions),
   ("latin10", "def", package::latin10_def::load_definitions),
+  ("t3enc", "def", package::t3enc_def::load_definitions),
   ("t5enc", "def", package::t5enc_def::load_definitions),
   ("t1enc", "sty", package::t1enc_sty::load_definitions),
   ("t1enc", "def", package::t1enc_def::load_definitions),
@@ -717,16 +716,21 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ("lgr", "fontmap", package::lgr_fontmap::load_definitions),
   ("line", "fontmap", package::line_fontmap::load_definitions),
   ("lmc", "fontmap", package::lmc_fontmap::load_definitions),
+  ("ot2", "fontmap", package::ot2_fontmap::load_definitions),
   ("ot4", "fontmap", package::ot4_fontmap::load_definitions),
   ("ly1", "fontmap", package::ly1_fontmap::load_definitions),
   ("t1", "fontmap", package::t1_fontmap::load_definitions),
   ("t2a", "fontmap", package::t2a_fontmap::load_definitions),
   ("t2b", "fontmap", package::t2b_fontmap::load_definitions),
   ("t2c", "fontmap", package::t2c_fontmap::load_definitions),
+  ("t3", "fontmap", package::t3_fontmap::load_definitions),
+  ("t4", "fontmap", package::t4_fontmap::load_definitions),
   ("ts1", "fontmap", package::ts1_fontmap::load_definitions),
+  ("x2", "fontmap", package::x2_fontmap::load_definitions),
   ("tu", "fontmap", package::tu_fontmap::load_definitions),
   ("pzd", "fontmap", package::pzd_fontmap::load_definitions),
   ("pifont", "sty", package::pifont_sty::load_definitions),
+  ("pos", "sty", package::pos_sty::load_definitions),
   ("pict2e", "sty", package::pict2e_sty::load_definitions),
   ("utf8", "def", package::utf8_def::load_definitions),
   // Perl utf8x.def.ltxml L18: "Note: this is a copy of utf8.def.ltxml
@@ -1041,6 +1045,7 @@ pub const BINDINGS: &[(&str, &str, BindingLoader)] = &[
   ),
   ("tocbibind", "sty", package::tocbibind_sty::load_definitions),
   ("todonotes", "sty", package::todonotes_sty::load_definitions),
+  ("tone", "sty", package::tone_sty::load_definitions),
   (
     "transparent",
     "sty",
@@ -1298,16 +1303,27 @@ pub fn dispatch(filename: &str) -> Option<Result<()>> {
         .iter()
         .find(|(name, extension, _)| matches_entry_nocase(filename, name, extension))
     })
-    .map(|(_, extension, loader)| {
+    .map(|(name, extension, loader)| {
       // K1 provenance: a binding's own definitions are `Binding`; a `.pool`
-      // entry is a pool.
-      use ::latexml_core::definition::origin::{DefinitionOrigin, with_origin};
+      // entry is a pool; a binding a fallback class requires stays part of its
+      // guess, `Fallback` (`input_definitions`), and one a binding borrows stays
+      // `Borrowed` (`require_package_borrowed`).
+      use ::latexml_core::definition::origin::{DefinitionOrigin, current_origin, with_origin};
       let origin = if *extension == "pool" {
         DefinitionOrigin::Pool
+      } else if matches!(
+        current_origin(),
+        DefinitionOrigin::Fallback | DefinitionOrigin::Borrowed
+      ) {
+        current_origin()
       } else {
         DefinitionOrigin::Binding
       };
-      with_origin(origin, loader)
+      // (the frontmatter observer notes the binding whose load defines `\author`, its conventions' key; under its
+      // shadow switch only: OXIDIZED_DESIGN_DIVERGENCES #837)
+      ::latexml_engine::base_utilities::note_binding_load(name, extension, || {
+        with_origin(origin, loader)
+      })
     })
 }
 

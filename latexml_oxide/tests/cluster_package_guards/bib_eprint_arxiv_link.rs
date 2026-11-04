@@ -4,13 +4,13 @@
 //! biblatex.def:1365-1367). Perl's reader (`BibTeX.pool.ltxml:724`) files `eprint` as
 //! plain `ltx:bib-links` text and leaves the type and class as unformatted
 //! `ltx:bib-data`, so the id was never a link. SURPASS-PERL
-//! (OXIDIZED_DESIGN_DIVERGENCES #585). The eprint becomes an
+//! (OXIDIZED_DESIGN_DIVERGENCES #964). The eprint becomes an
 //! `ltx:bib-identifier scheme="arxiv"`, the same element the DOI uses, so the
 //! post stage renders it as an `ltx:ref` among the "External Links". Witness:
 //! 2404.01499 (`archivePrefix={arXiv}`, `primaryClass={math.AG}`).
 //! Both readers share it: the biblatex `.bib` path and classic `\bibliography`. The classic list prints the link among
 //! the "External Links"; an alphabetic biblatex list prints it as standard.bbx's `eprint` macro does, "arXiv: <id>
-//! [<class>]" with the id and the class one link (OXIDIZED_DESIGN_DIVERGENCES #601).
+//! [<class>]" with the id and the class one link (OXIDIZED_DESIGN_DIVERGENCES #980).
 use std::process::Command;
 
 const RAW: &str = "--preload=[rawstyles,rawclasses]latexml.sty";

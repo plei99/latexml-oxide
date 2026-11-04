@@ -2054,8 +2054,9 @@ fn hashful_begin_document_chunk_under_a_package_label() {
   assert!(xml.contains("[v] (w)"), "{xml}");
 }
 
-/// The forest/diagrams discard stubs warn instead of erroring: the body is
-/// discarded cleanly (forest-quickstart, fragoli_doc, milsymb; pdflatex clean).
+/// The forest discard stub warns instead of erroring: the body is discarded
+/// cleanly (forest-quickstart, fragoli_doc, milsymb; pdflatex clean). The
+/// diagrams stub it shared this with is a binding since 67d (`perfect_kernel_batch67d`).
 #[test]
 fn forest_stub_is_a_warning() {
   let tex = r"\documentclass{article}
@@ -2302,7 +2303,10 @@ fn raw_double_declaration_still_errors() {
 
 /// Perl Expandable.pm:35: an unbalanced expansion is FATAL. jarticle.cls's
 /// `\ds@tate` (ISO-2022-JP bytes whose `%` eats a brace) aborts in seconds
-/// instead of proceeding into a 250 s loop (platexcheat; RUST-ONLY).
+/// instead of proceeding into a 250 s loop (platexcheat; RUST-ONLY). The file is
+/// `\input` as code: since 68u r3 a class declaring another format
+/// (`\NeedsTeXFormat{pLaTeX2e}`, jarticle.cls:16) is not read raw as the
+/// document class (`load_class`, `perfect_kernel_batch68u::a_class_for_another_format_is_not_read_raw`).
 #[test]
 fn unbalanced_expansion_is_fatal() {
   // Host-portability: skip when the exercised package is absent from this
@@ -2313,7 +2317,9 @@ fn unbalanced_expansion_is_fatal() {
   // `\hour`/`\minute` are pLaTeX-format registers jarticle.cls:26-28 uses (the parked pTeX
   // format, §D9); declaring them leaves only the unbalanced expansion's error and its Fatal.
   let tex = r"\newcount\hour\newcount\minute
-\documentclass[12pt,a4j,dvipdfmx]{jarticle}
+\documentclass{article}
+\makeatletter
+\input{jarticle.cls}
 \begin{document}
 Hello
 \end{document}
@@ -2734,8 +2740,10 @@ fn mdframed_theorem_environments_are_theorems() {
   );
 }
 
-/// thm-restate.sty:191 `restatable*` (proof-at-the-end demo) and
-/// lineno.sty:2881 `bframe` (ulineno).
+/// thm-restate.sty:207-213 `restatable*` (proof-at-the-end demo) and lineno.sty:2881 `bframe` (ulineno). The
+/// `{restatable*}` is not the numbered instance (`\thmt@thisistheonefalse`): its number is the later `\mainthm`'s, by
+/// reference to the label that one sets (:158-160); pdflatex (second run): "Theorem 1 (Main). Restated body." twice.
+/// Without the later `\mainthm` the reference is missing (pdflatex "??", ours a Warning).
 #[test]
 fn restatable_star_and_lineno_bframe() {
   let tex = r"\documentclass{article}
@@ -2746,13 +2754,24 @@ fn restatable_star_and_lineno_bframe() {
 \begin{document}
 \begin{restatable*}[Main]{theorem}{mainthm}Restated body.\end{restatable*}
 \begin{bframe}Framed text.\end{bframe}
+\mainthm
 \end{document}
 ";
   let (stderr, xml) = convert(tex, true);
-  assert_eq!(error_count(&stderr), 0, "{stderr}");
-  assert!(
-    xml.contains("Restated body.") && xml.contains("Framed text."),
-    "{xml}"
+  assert_eq!(
+    (error_count(&stderr), warning_count(&stderr)),
+    (0, 0),
+    "{stderr}"
+  );
+  let preview = r##"<theorem class="ltx_theorem_theorem" inlist="thm theorem:theorem" xml:id="Thmtheoremx1"><tags><tag>Theorem <ref labelref="LABEL:restatable:mainthm"/></tag><tag role="refnum"><ref labelref="LABEL:restatable:mainthm"/></tag><tag role="typerefnum">Theorem <ref labelref="LABEL:restatable:mainthm"/></tag></tags><title class="ltx_runin"><tag><text font="bold">Theorem </text><ref font="bold" labelref="LABEL:restatable:mainthm"/></tag><text font="bold"> </text>(Main)<text font="bold">.</text></title><para xml:id="Thmtheoremx1.p1"><p><text font="italic">Restated body.</text></p></para></theorem>"##;
+  latexml::util::test::assert_element(&xml, "theorem", &["xml:id=\"Thmtheoremx1\""], preview);
+  let the_one = r##"<theorem class="ltx_theorem_theorem" inlist="thm theorem:theorem" labels="LABEL:restatable:mainthm" xml:id="Thmtheorem1"><tags><tag>Theorem 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Theorem 1</tag></tags><title class="ltx_runin"><tag><text font="bold">Theorem 1</text></tag><text font="bold"> </text>(Main)<text font="bold">.</text></title><para xml:id="Thmtheorem1.p1"><p><text font="italic">Restated body.</text></p></para></theorem>"##;
+  latexml::util::test::assert_element(&xml, "theorem", &["xml:id=\"Thmtheorem1\""], the_one);
+  latexml::util::test::assert_element(
+    &xml,
+    "para",
+    &["xml:id=\"p1\""],
+    "<para xml:id=\"p1\"><p>Framed text.</p></para>",
   );
 }
 
@@ -3553,7 +3572,7 @@ After.
       r#"<XMath><XMTok name="backslash" role="MULOP">\</XMTok></XMath></Math>"#,
       r#"<text font="typewriter">a{B {C} D}. "#,
       r#"<Math mode="inline" tex="\backslash" text="backslash" xml:id="p1.m2"><XMath>"#,
-      r#"<XMTok font="serif" name="backslash" role="MULOP">\</XMTok></XMath></Math>x</text></p></para>"#
+      r#"<XMTok name="backslash" role="MULOP">\</XMTok></XMath></Math>x</text></p></para>"#
     ),
   );
   latexml::util::test::assert_element(
@@ -5054,7 +5073,7 @@ fn halign_template_accepts_active_char_separators() {
 /// the abstract swallowed the document). KNOWN_PERL_ERRORS #216, batch 56ba.
 #[test]
 fn bare_index_takes_one_token() {
-  let tex = "\\documentclass{article}\n\\makeindex\n\\begin{document}\n\\begin{abstract}\nthe \\index command, twice \\index here.\n\\end{abstract}\n\\section{S}\nBody \\index{real entry} text TAILMARK.\n\\end{document}\n";
+  let tex = "\\documentclass{article}\n\\makeindex\n\\begin{document}\n\\begin{abstract}\nthe \\index command, twice \\index here.\n\\end{abstract}\n\\section{S}\nBody \\index{real entry} text TAILMARK.\n\\begin{theindex}\\end{theindex}\\end{document}\n";
   let (stderr, xml) = convert(tex, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   let abs = xml.find("<abstract").unwrap_or_else(|| panic!("{xml}"));
@@ -5411,7 +5430,7 @@ fn byte_mouth_latin1_before_cjk_decodes_sequence_wise() {
 /// of the bare name being force-expanded into `<ltx:ERROR/>`.
 #[test]
 fn index_entry_passes_undefined_words_inert() {
-  let tex = "\\documentclass{book}\n\\usepackage{manyind}\n\\makeindex\n\\begin{document}\n\\setindex{main}\na\\index{\\\"N@\\protect\\nxtletre \\protect\\def \\nwletre {\\\"O}\\gobblepageref}\n\\end{document}\n";
+  let tex = "\\documentclass{book}\n\\usepackage{manyind}\n\\makeindex\n\\begin{document}\n\\setindex{main}\na\\index{\\\"N@\\protect\\nxtletre \\protect\\def \\nwletre {\\\"O}\\gobblepageref}\n\\begin{theindex}\\end{theindex}\\end{document}\n";
   let (stderr, xml) = convert(tex, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert!(xml.contains("<indexmark"), "{xml}");
@@ -5425,7 +5444,7 @@ fn index_entry_passes_undefined_words_inert() {
 /// name (Perl's style-catcode re-tokenize; KPE #83).
 #[test]
 fn index_sort_key_undefined_word_is_text() {
-  let tex = "\\documentclass{article}\n\\usepackage{makeidx}\\makeindex\n\\begin{document}\nA\\index{\\AB@\\relax x}\n\\end{document}\n";
+  let tex = "\\documentclass{article}\n\\usepackage{makeidx}\\makeindex\n\\begin{document}\nA\\index{\\AB@\\relax x}\n\\printindex\\end{document}\n";
   let (stderr, xml) = convert(tex, true);
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert!(xml.contains("key=\"\\AB\""), "{xml}");
@@ -6110,7 +6129,7 @@ fn let_at_left_left_does_not_loop() {
     "{xml}"
   );
   // The `\mathopen{}\mathclose\bgroup\left` idiom reads as its `\left…\right`
-  // (OXIDIZED_DESIGN #580; Perl leaves it unparsed), never as an empty `list@()`
+  // (OXIDIZED_DESIGN #959; Perl leaves it unparsed), never as an empty `list@()`
   // that drops the operands (56is).
   assert!(!xml.contains("list@()"), "{xml}");
   assert_eq!(warning_count(&stderr), 0, "{stderr}");
@@ -6828,7 +6847,7 @@ fn everypar_grammar_survives_vertical_material_between_productions() {
     "../../../tools/perfect_kernel/repros/block-model/leave_horizontal_runs_a_redefined_par_whole.tex"
   );
   // `\vskip 0pt` reaches `leave_horizontal`; the witness's `\vspace{0em}` is dropped in a paragraph's text now (divergence
-  // #603) and must still convert as cleanly.
+  // #982) and must still convert as cleanly.
   for tex in [tex.to_string(), tex.replace("\\vskip 0pt", "\\vspace{0em}")] {
     let (stderr, xml) = convert(&tex, true);
     assert_eq!(error_count(&stderr), 0, "{stderr}");
@@ -7123,11 +7142,54 @@ Body text here.
 }
 
 /// Batch 56gg: `\unwind@titlepage` (the `{titlepage}` env's `\maketitle` hook)
+/// re-homes the unwound children the new parent cannot hold. A class `\@maketitle`
+/// deposited inside the document's `{titlepage}` (`\begin{titlepage}\maketitle
+/// \end{titlepage}`) leaves its paragraphs in that titlepage, which the hook unwraps:
+/// a paragraph the class prints is wrapped in a `<para>` under `<document>`, not left a
+/// bare `<p>` there (`element "p" not allowed here`). The jlreq case is
+/// [`unwound_titlepage_rehomes_its_paragraphs`].
+#[test]
+fn unwound_titlepage_rehomes_a_printed_paragraph() {
+  let (stderr, xml) = convert_with(
+    r"\documentclass{article}
+\makeatletter
+\def\@maketitle{\begin{center}{\LARGE \@title \par}\vskip 1em{\large\begin{tabular}[t]{c}\@author\end{tabular}\par}%
+  \vskip 1em Printed cover text\end{center}\par}
+\makeatother
+\title{T}\author{A}
+\begin{document}
+\begin{titlepage}
+\maketitle
+\end{titlepage}
+\section{S} Body.
+\end{document}
+",
+    Some("ar5iv.sty"),
+  );
+  assert_eq!(
+    (error_count(&stderr), warning_count(&stderr)),
+    (0, 0),
+    "{stderr}"
+  );
+  // (the paragraph alone: that it stands before the title, where the PDF prints it after the title and the author, is
+  // a base residual, SYNC_STATUS)
+  latexml::util::test::assert_element(
+    &xml,
+    "para",
+    &["xml:id=\"p1\""],
+    r#"<para xml:id="p1"><p align="center" xml:id="p1.1">Printed cover text</p></para>"#,
+  );
+  assert!(!xml.contains("<titlepage"), "{xml}");
+}
+
+/// Batch 56gg: `\unwind@titlepage` (the `{titlepage}` env's `\maketitle` hook)
 /// re-homes the unwound children the new parent cannot hold. jlreq's own
 /// `\maketitle` opens a titlepage inside the document's `{titlepage}`
 /// (jlreq.cls:5501-5527); its empty centered paragraphs were unwrapped straight
 /// under `<document>` — `element "p" not allowed here` ×2, the only schema errors
-/// of gckanbun-doc and kksymbols-doc. Now each is wrapped in a `<para>`.
+/// of gckanbun-doc and kksymbols-doc. Now each is wrapped in a `<para>`; since 77o the
+/// title page that printed only its emptied fields is not deposited at all, so the
+/// printed-paragraph case is [`unwound_titlepage_rehomes_a_printed_paragraph`].
 #[test]
 fn unwound_titlepage_rehomes_its_paragraphs() {
   if !kpsewhich_has("jlreq.cls") {
@@ -7169,8 +7231,11 @@ Hello.
   let flat = gaps
     .replace_all(&ids.replace_all(&xml, ""), "><")
     .into_owned();
+  // 77o: jlreq's `\maketitle` (jlreq.cls:5501-5527) prints nothing but its fields, `\@author` in a
+  // `\begin{tabular}[t]{c}` whose position letter is no text (base_utilities.rs `typesets_content`), so its deposit
+  // goes: no empty centered paragraphs are left to re-home.
   assert!(
-    flat.contains(r#"<para><p/></para><para><p align="center"/></para>"#),
+    !flat.contains("<p/>") && !flat.contains(r#"<p align="center"/>"#),
     "{flat}"
   );
   let bare = regex::Regex::new(r"</(?:title|creator|date|pagination|para)><p[ />]").unwrap();
@@ -8607,10 +8672,11 @@ fn sectionless_body_after_the_abstract_is_not_cover_layout() {
 /// Batch 56et regression control (s107: 8 docs leaked `<_Frontmatter_Capture_>`): an
 /// abstract queued AFTER `\maketitle` placed the frontmatter (lips: a `\DocInput`-ed
 /// `\begin{abstract}`) is a LATE abstract. No position marker is built once the
-/// frontmatter is placed, the abstract-only fallback neither promotes nor wraps (what
-/// precedes it is body, not cover), `insert_late_frontmatter` files the abstract beside
-/// the existing frontmatter, and the core finalize drops any stranded `*_Capture_`
-/// scaffolding even when `\end{document}` is never reached.
+/// frontmatter is placed, the abstract-only fallback neither promotes nor wraps, the body
+/// prose before it is no cover (OXIDIZED_DESIGN_DIVERGENCES #903's `is_body_prose`, batch
+/// 86g, whose late marker is settled at once), the abstract stays beside the existing
+/// frontmatter, and the core finalize drops any stranded `*_Capture_` scaffolding even
+/// when `\end{document}` is never reached.
 #[test]
 fn late_abstract_after_maketitle_leaves_no_marker_and_wraps_nothing() {
   let tex = "\\documentclass{article}\n\\title{T}\\author{A}\n\\begin{document}\n\\maketitle\n\
@@ -9531,7 +9597,7 @@ fn biber_bib_percent_comments_keep_the_entry() {
 /// OPEN and a CLOSE that carries the `x`: the generic `open close` alternative
 /// built `list@()` and dropped the `x` from the content tree, silently (arXiv
 /// 2605.13448: 98 formulas; 2605.22010: 160). Perl leaves it unparsed with its
-/// content kept. Since OXIDIZED_DESIGN #580 the empty OPEN is dropped and the CLOSE wrap
+/// content kept. Since OXIDIZED_DESIGN #959 the empty OPEN is dropped and the CLOSE wrap
 /// of one fence let through before parsing, so it reads as `\left(x\right)` does: `x`,
 /// never `list@()`. An OPEN atom before a CLOSE that is no fence (`\mathopen{y}\mathclose{x}`)
 /// still meets the empty-fence alternative and is rejected. A balanced empty fence still parses.
@@ -9634,7 +9700,9 @@ fn afterassignment_fires_after_arithmetic() {
 /// A braced `\input{…}` keeps its braces through the file-name scan, so `\input`
 /// still strips them and loads LaTeX.pool (TeX_FileIO.pool.ltxml:164-169): a
 /// LaTeX fragment input by a main file with no `\documentclass` keeps its
-/// `\section`. Stopping the scan at the `}` must not drop that.
+/// `\section`. Stopping the scan at the `}` must not drop that. With no class
+/// to set `secnumdepth` the section is unnumbered (latex.ltx:17332 leaves it 0;
+/// the kernel's own 3 was dropped in 68u).
 #[test]
 fn braced_input_of_a_fragment_loads_latex() {
   let (stderr, xml) = convert_files_with(
@@ -9648,7 +9716,7 @@ fn braced_input_of_a_fragment_loads_latex() {
     &xml,
     "section",
     &[],
-    r#"<section inlist="toc" xml:id="section1"><tags><tag>1</tag><tag role="refnum">1</tag><tag role="typerefnum">§1</tag></tags><title><tag close=" ">1</tag>Intro</title><para xml:id="section1.p1"><p>Fragment text.</p></para></section>"#,
+    r#"<section inlist="toc" xml:id="sectionx1"><title>Intro</title><para xml:id="sectionx1.p1"><p>Fragment text.</p></para></section>"#,
   );
 }
 
@@ -9703,7 +9771,7 @@ fn tblr_colspec_count_is_an_integer_expression() {
     &xml,
     "tabular",
     &["xml:id=\"p1.1\""],
-    r#"<tabular vattach="middle" xml:id="p1.1"><tbody><tr xml:id="p1.1.1"><td align="center" xml:id="p1.1.1.1">a</td><td align="center" xml:id="p1.1.1.2">b</td></tr></tbody></tabular>"#,
+    r#"<tabular vattach="middle" xml:id="p1.1"><tbody><tr xml:id="p1.1.1"><td align="center" border="b l r t" xml:id="p1.1.1.1">a</td><td align="center" border="b r t" xml:id="p1.1.1.2">b</td></tr></tbody></tabular>"#,
   );
   latexml::util::test::assert_element(
     &xml,
@@ -10424,17 +10492,14 @@ fn an_unset_intarray_item_is_zero() {
 }
 
 /// A font with no metric of its own takes its family's at 10pt, else cmr10's,
-/// scaled to its size (Perl `getMetricForName`, Common/Font.pm:551-562): small
-/// caps and bold italic read an empty array — 0pt — in 56kr's first cut. An
-/// `at` size scales them exactly (Perl truncates, KPE #303). And `\em` in italic
-/// or slanted text is upright (latex.ltx:14058), now that the font's slant is
-/// its TFM's. `\font\x=bbm17` takes its size from bbm17.tfm, which TeX Live
-/// ships (design size 17.28pt, 58g, KPE #409), and its parameters from the
-/// standard metric of `cmr17` (`font_parameters_for_name`, Perl's `'cmr'.$size`
-/// candidate, Common/Font.pm:556-558; there is no `bbm` metric): `\fontdimen2`
-/// 5.21661pt, which is also pdflatex's, since bbm17.tfm's SPACE equals cmr17's
-/// (0.3018875). It replaced `cmr11`, whose TFM TeX Live does not ship: pdflatex
-/// finds one only after mktextfm has generated it, which Rust never does.
+/// scaled to its size (Perl `getMetricForName`, Common/Font.pm:551-562):
+/// `cmr11`, small caps and bold italic read an empty array — 0pt — in 56kr's
+/// first cut. An `at` size scales them exactly (Perl truncates, KPE #303). And
+/// `\em` in italic or slanted text is upright (latex.ltx:14058), now that the
+/// font's slant is its TFM's. `\font\x=cmr17` loads at its 17.28pt design size
+/// (58g, KPE #409), pdflatex's [5.21661pt]; at 17pt it would be [5.13208pt].
+/// (It was `cmr11` at 10.95pt, but TeX Live ships no cmr11.tfm — mktextfm makes
+/// it on first use — so the value hung on the host's font cache.)
 #[test]
 fn a_font_without_its_own_metric_has_cmr_parameters() {
   let (stderr, xml) = convert_with(
@@ -10906,7 +10971,9 @@ fn figure_boxes_become_figures_and_rows() {
     latexml::util::test::assert_element(&xml, "figure", &[&format!(r#"xml:id="{id}""#)], markup);
   }
   assert_eq!(
-    xml.matches(r#"<figure xml:id="p"#).count(),
+    xml
+      .matches(r#"<figure class="ltx_panels_gallery" panelcols="3" panelrows="1" xml:id="p"#)
+      .count(),
     1,
     "one row:\n{xml}"
   );
@@ -10914,7 +10981,7 @@ fn figure_boxes_become_figures_and_rows() {
     &xml,
     "figure",
     &[r#"xml:id="p5""#],
-    r#"<figure xml:id="p5"><figure align="center" class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><graphics class="ltx_centering" graphic="c" options="width=103.50105pt,keepaspectratio=true" xml:id="g3"/><toccaption><tag close=" ">3</tag>C</toccaption><caption><tag close=": ">Figure 3</tag>C</caption></figure><figure align="center" class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F4"><tags><tag>Figure 4</tag><tag role="refnum">4</tag><tag role="typerefnum">Figure 4</tag></tags><graphics class="ltx_centering" graphic="d" options="width=103.50105pt,keepaspectratio=true" xml:id="p5.g1"/><toccaption><tag close=" ">4</tag>D</toccaption><caption><tag close=": ">Figure 4</tag>D</caption></figure><table align="center" class="ltx_figure_panel ltx_minipage" inlist="lot" vattach="middle" width="103.5pt" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><graphics class="ltx_centering" graphic="e" options="width=103.50105pt,keepaspectratio=true" xml:id="p5.g2"/><toccaption><tag close=" ">1</tag>E</toccaption><caption><tag close=": ">Table 1</tag>E</caption></table></figure>"#,
+    r#"<figure class="ltx_panels_gallery" panelcols="3" panelrows="1" xml:id="p5"><figure align="center" class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><graphics class="ltx_centering" graphic="c" options="width=103.50105pt,keepaspectratio=true" xml:id="g3"/><toccaption><tag close=" ">3</tag>C</toccaption><caption><tag close=": ">Figure 3</tag>C</caption></figure><figure align="center" class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F4"><tags><tag>Figure 4</tag><tag role="refnum">4</tag><tag role="typerefnum">Figure 4</tag></tags><graphics class="ltx_centering" graphic="d" options="width=103.50105pt,keepaspectratio=true" xml:id="p5.g1"/><toccaption><tag close=" ">4</tag>D</toccaption><caption><tag close=": ">Figure 4</tag>D</caption></figure><table align="center" class="ltx_figure_panel ltx_minipage" inlist="lot" vattach="middle" width="103.5pt" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><graphics class="ltx_centering" graphic="e" options="width=103.50105pt,keepaspectratio=true" xml:id="p5.g2"/><toccaption><tag close=" ">1</tag>E</toccaption><caption><tag close=": ">Table 1</tag>E</caption></table></figure>"#,
   );
 }
 
@@ -10936,7 +11003,7 @@ fn figure_box_lines_settle_when_the_paragraph_closes() {
     &xml,
     "figure",
     &[r#"xml:id="p2""#],
-    r#"<figure xml:id="p2"><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><graphics graphic="c" xml:id="g1"/><toccaption><tag close=" ">1</tag>C</toccaption><caption><tag close=": ">Figure 1</tag>C</caption></figure><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><graphics graphic="d" xml:id="p2.g1"/><toccaption><tag close=" ">2</tag>D</toccaption><caption><tag close=": ">Figure 2</tag>D</caption></figure><break/><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><graphics graphic="e" xml:id="p2.g2"/><toccaption><tag close=" ">3</tag>E</toccaption><caption><tag close=": ">Figure 3</tag>E</caption></figure></figure>"#,
+    r#"<figure class="ltx_panels_gallery" panelcols="2" panelrows="2" xml:id="p2"><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><graphics graphic="c" xml:id="g1"/><toccaption><tag close=" ">1</tag>C</toccaption><caption><tag close=": ">Figure 1</tag>C</caption></figure><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><graphics graphic="d" xml:id="p2.g1"/><toccaption><tag close=" ">2</tag>D</toccaption><caption><tag close=": ">Figure 2</tag>D</caption></figure><break/><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><graphics graphic="e" xml:id="p2.g2"/><toccaption><tag close=" ">3</tag>E</toccaption><caption><tag close=": ">Figure 3</tag>E</caption></figure></figure>"#,
   );
   latexml::util::test::assert_element(
     &xml,
@@ -10972,7 +11039,7 @@ fn float_boxes_keep_their_line_alignment() {
     ),
     (
       "p3",
-      r#"<figure align="center" xml:id="p3"><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><graphics graphic="y" xml:id="g2"/><toccaption><tag close=" ">2</tag>Y</toccaption><caption><tag close=": ">Figure 2</tag>Y</caption></figure><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><graphics graphic="z" xml:id="g3"/><toccaption><tag close=" ">3</tag>Z</toccaption><caption><tag close=": ">Figure 3</tag>Z</caption></figure></figure>"#,
+      r#"<figure align="center" class="ltx_panels_gallery" panelcols="2" panelrows="1" xml:id="p3"><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><graphics graphic="y" xml:id="g2"/><toccaption><tag close=" ">2</tag>Y</toccaption><caption><tag close=": ">Figure 2</tag>Y</caption></figure><figure class="ltx_figure_panel ltx_minipage" inlist="lof" vattach="middle" width="103.5pt" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><graphics graphic="z" xml:id="g3"/><toccaption><tag close=" ">3</tag>Z</toccaption><caption><tag close=": ">Figure 3</tag>Z</caption></figure></figure>"#,
     ),
     (
       "S0.F4",
@@ -11053,13 +11120,13 @@ fn parbox_panels_stay_panels() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F1""#],
-    r#"<figure inlist="lof" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><block class="ltx_figure_panel ltx_minipage ltx_parbox" vattach="middle" width="155.3pt"><p>Left panel.</p><p>Its second line.</p></block><block class="ltx_figure_panel ltx_minipage ltx_parbox" vattach="middle" width="155.3pt"><p>Right panel.</p><p>Its second line.</p></block><toccaption><tag close=" ">1</tag>Minipages.</toccaption><caption><tag close=": ">Figure 1</tag>Minipages.</caption></figure>"#,
+    r#"<figure class="ltx_panels_gallery" inlist="lof" panelcols="2" panelfill="0.9" panelline="1" panelrows="1" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><block class="ltx_figure_panel ltx_minipage ltx_parbox" panelwidth="0.45" vattach="middle" width="155.3pt"><p>Left panel.</p><p>Its second line.</p></block><block class="ltx_figure_panel ltx_minipage ltx_parbox" panelwidth="0.45" vattach="middle" width="155.3pt"><p>Right panel.</p><p>Its second line.</p></block><toccaption><tag close=" ">1</tag>Minipages.</toccaption><caption><tag close=": ">Figure 1</tag>Minipages.</caption></figure>"#,
   );
   latexml::util::test::assert_element(
     &xml,
     "figure",
     &[r#"xml:id="fig1""#],
-    r#"<figure xml:id="fig1"><figure align="center" class="ltx_figure_panel ltx_parbox" inlist="lof" vattach="middle" width="155.3pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><graphics graphic="a" xml:id="S0.F2.g1"/><toccaption><tag close=" ">2</tag>A</toccaption><caption><tag close=": ">Figure 2</tag>A</caption></figure><figure align="center" class="ltx_figure_panel ltx_parbox" inlist="lof" vattach="middle" width="155.3pt" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><graphics graphic="b" xml:id="S0.F3.g2"/><toccaption><tag close=" ">3</tag>B</toccaption><caption><tag close=": ">Figure 3</tag>B</caption></figure></figure>"#,
+    r#"<figure class="ltx_panels_gallery" panelcols="2" panelfill="0.9" panelline="1" panelrows="1" xml:id="fig1"><figure align="center" class="ltx_figure_panel ltx_parbox" inlist="lof" panelwidth="0.45" vattach="middle" width="155.3pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><graphics graphic="a" xml:id="S0.F2.g1"/><toccaption><tag close=" ">2</tag>A</toccaption><caption><tag close=": ">Figure 2</tag>A</caption></figure><figure align="center" class="ltx_figure_panel ltx_parbox" inlist="lof" panelwidth="0.45" vattach="middle" width="155.3pt" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><graphics graphic="b" xml:id="S0.F3.g2"/><toccaption><tag close=" ">3</tag>B</toccaption><caption><tag close=": ">Figure 3</tag>B</caption></figure></figure>"#,
   );
 }
 
@@ -11186,8 +11253,8 @@ fn orcidlink_starts_the_paragraph() {
 }
 
 /// 57i (K13 stage-2 finding): `\externaldocument[prefix][nocite]{file}[url]` reads its trailing
-/// `[url]` (xr.sty:47, xr-hyper.sty:41); it was left as text. The binding announces its stub (one
-/// warning, `xr.sty is not implemented`).
+/// `[url]` (xr.sty:47, xr-hyper.sty:41); it was left as text. With no `supp.aux` to import, the one
+/// warning is xr's own (`No file supp.aux`, 79g; it was the stub's `xr.sty is not implemented`).
 #[test]
 fn xr_externaldocument_reads_its_url() {
   let (stderr, xml) = convert_with(
@@ -11198,20 +11265,25 @@ fn xr_externaldocument_reads_its_url() {
   );
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert_eq!(warning_count(&stderr), 1, "{stderr}");
-  assert!(stderr.contains("Warning:missing_file:xr.sty"), "{stderr}");
+  assert!(stderr.contains("Warning:missing_file:supp.aux"), "{stderr}");
   latexml::util::test::assert_element(
     &xml,
     "para",
     &[r#"xml:id="p1""#],
     r#"<para xml:id="p1"><p>See the supplement.</p></para>"#,
   );
-  // siamart loads xr-hyper (siamart220329.cls:1266); its binding's copy reads the same `[url]`.
+  // siamart loads xr-hyper (siamart220329.cls:1266), which reads the same `[url]` and warns of the missing
+  // `ex_supplement.aux`, as pdflatex's xr-hyper does.
   let (stderr, xml) = convert_with(
     "\\documentclass{siamart}\n\\externaldocument[][nocite]{ex_supplement}[https://example.org/ex_supp.pdf]\n\\begin{document}\nSee the supplement.\n\\end{document}\n",
     None,
   );
   assert_eq!(error_count(&stderr), 0, "{stderr}");
-  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  assert_eq!(warning_count(&stderr), 1, "{stderr}");
+  assert!(
+    stderr.contains("Warning:missing_file:ex_supplement.aux"),
+    "{stderr}"
+  );
   latexml::util::test::assert_element(
     &xml,
     "para",
@@ -11954,13 +12026,13 @@ fn subfloat_reads_a_lone_optional_as_its_caption() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F1""#],
-    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag><text fontsize="90%">Figure 1</text></tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure class="ltx_figure_panel" inlist="lof" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1a</tag></tags><p>A</p><toccaption><tag close=" ">a</tag>One</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">One</text></caption></figure><break class="ltx_break"/><figure class="ltx_figure_panel" inlist="List" xml:id="S0.F1.sf2"><tags><tag><text fontsize="90%">(b)</text></tag><tag role="refnum">1b</tag></tags><p>B</p><toccaption><tag close=" ">b</tag>Two</toccaption><caption><tag close=" "><text fontsize="90%">(b)</text></tag><text fontsize="90%">Two</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": "><text fontsize="90%">Figure 1</text></tag><text fontsize="90%">Main</text></caption></figure>"##,
+    r##"<figure class="ltx_panels_gallery" inlist="lof" panelcols="1" panelrows="2" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure class="ltx_figure_panel" inlist="lof" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1a</tag></tags><p>A</p><toccaption><tag close=" ">a</tag>One</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">One</text></caption></figure><break class="ltx_break"/><figure class="ltx_figure_panel" inlist="List" xml:id="S0.F1.sf2"><tags><tag><text fontsize="90%">(b)</text></tag><tag role="refnum">1b</tag></tags><p>B</p><toccaption><tag close=" ">b</tag>Two</toccaption><caption><tag close=" "><text fontsize="90%">(b)</text></tag><text fontsize="90%">Two</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": ">Figure 1</tag>Main</caption></figure>"##,
   );
   latexml::util::test::assert_element(
     &xml,
     "table",
     &[r#"xml:id="S0.T1""#],
-    r##"<table inlist="lot" xml:id="S0.T1"><tags><tag><text fontsize="90%">Table 1</text></tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><table inlist="lot" xml:id="S0.T1.st1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1a</tag></tags><p>X</p><toccaption><tag close=" ">a</tag>Tab one</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Tab one</text></caption></table><toccaption><tag close=" ">1</tag>Tabs</toccaption><caption><tag close=": "><text fontsize="90%">Table 1</text></tag><text fontsize="90%">Tabs</text></caption></table>"##,
+    r##"<table inlist="lot" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><table inlist="lot" xml:id="S0.T1.st1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1a</tag></tags><p>X</p><toccaption><tag close=" ">a</tag>Tab one</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Tab one</text></caption></table><toccaption><tag close=" ">1</tag>Tabs</toccaption><caption><tag close=": ">Table 1</tag>Tabs</caption></table>"##,
   );
 }
 
@@ -12202,7 +12274,8 @@ C, D. </bibblock><bibblock>(2002).
 }
 
 /// 57m: OmniBus's `\doi` reads its DOI as a url (`HyperVerbatim`), so the `.bbl` of an apa6 paper — a class with
-/// no `\doi` of its own, falling to OmniBus — keeps `\doi{10.1000/j_x~y.2002}` whole (Perl OmniBus.cls.ltxml:154's
+/// no `\doi` of its own, falling to OmniBus (since 68u r3 apa6 has a binding over the raw class, so the repro's class
+/// is paper.cls, which also defines no `\doi` and has no binding) — keeps `\doi{10.1000/j_x~y.2002}` whole (Perl OmniBus.cls.ltxml:154's
 /// `\doi{}` gives Error:unexpected:_; pdflatex errors too, under apacite's `\doi`, and 64zf warns). apa7, bound since 62zl, keeps the DOI a link (apa7_cls.rs), where apacite's
 /// own `\doi` would set url-styled text only (apacite.sty:1812-1815): semantic markup before PDF fidelity.
 #[test]
@@ -12224,7 +12297,7 @@ fn omnibus_doi_reads_as_a_url() {
     })
     .count();
   assert_eq!(foreign, 0, "{stderr}");
-  assert!(stderr.contains("Warning:missing_file:apa6"), "{stderr}");
+  assert!(stderr.contains("Warning:missing_file:paper"), "{stderr}");
   // 64zf: apacite's `\doi` reads the DOI as TeX, so pdflatex errors on its `_`; the link is a semantic recovery,
   // reported as one Warning.
   assert_eq!(
@@ -12245,7 +12318,7 @@ C, D. </bibblock><bibblock>(2002).
   );
   let (stderr, xml) = convert_with(
     &include_str!("../../../tools/perfect_kernel/repros/index-bib/omnibus_doi_reads_as_a_url.tex")
-      .replace("{apa6}", "{apa7}"),
+      .replace("{paper}", "{apa7}"),
     None,
   );
   let foreign = stderr
@@ -12392,13 +12465,13 @@ fn minipage_text_panels_share_a_row() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F1""#],
-    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p class="ltx_figure_panel ltx_minipage" vattach="top" width="155.3pt">Left text.</p><p class="ltx_figure_panel ltx_minipage" vattach="top" width="155.3pt">Right text.</p><toccaption><tag close=" ">1</tag>Two panels.</toccaption><caption><tag close=": ">Figure 1</tag>Two panels.</caption></figure>"##,
+    r##"<figure class="ltx_panels_gallery" inlist="lof" panelcols="2" panelfill="0.9" panelline="1" panelrows="1" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p class="ltx_figure_panel ltx_minipage" panelwidth="0.45" vattach="top" width="155.3pt">Left text.</p><p class="ltx_figure_panel ltx_minipage" panelwidth="0.45" vattach="top" width="155.3pt">Right text.</p><toccaption><tag close=" ">1</tag>Two panels.</toccaption><caption><tag close=": ">Figure 1</tag>Two panels.</caption></figure>"##,
   );
   latexml::util::test::assert_element(
     &xml,
     "figure",
     &[r#"xml:id="S0.F2""#],
-    r##"<figure inlist="lof" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><p class="ltx_figure_panel ltx_minipage" vattach="top" width="155.3pt">Left text that is long enough to wrap over several lines in the printed minipage of this figure, surely more than one line.</p><p class="ltx_figure_panel ltx_minipage" vattach="top" width="155.3pt">Right text that is long enough to wrap over several lines in the printed minipage of this figure, surely more than one line.</p><toccaption><tag close=" ">2</tag>Long.</toccaption><caption><tag close=": ">Figure 2</tag>Long.</caption></figure>"##,
+    r##"<figure class="ltx_panels_gallery" inlist="lof" panelcols="2" panelfill="0.9" panelline="1" panelrows="1" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><p class="ltx_figure_panel ltx_minipage" panelwidth="0.45" vattach="top" width="155.3pt">Left text that is long enough to wrap over several lines in the printed minipage of this figure, surely more than one line.</p><p class="ltx_figure_panel ltx_minipage" panelwidth="0.45" vattach="top" width="155.3pt">Right text that is long enough to wrap over several lines in the printed minipage of this figure, surely more than one line.</p><toccaption><tag close=" ">2</tag>Long.</toccaption><caption><tag close=": ">Figure 2</tag>Long.</caption></figure>"##,
   );
 }
 
@@ -12419,7 +12492,7 @@ fn minipage_panel_single_child_width() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F1""#],
-    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><inline-block angle="90" class="ltx_figure_panel ltx_minipage" depth="0.0pt" height="21.1pt" innerdepth="0.0pt" innerheight="6.8pt" innerwidth="21.1pt" vattach="middle" width="27.6pt" xtranslate="-7.1pt" ytranslate="-7.1pt"><p>EKF</p></inline-block><rule class="ltx_figure_panel ltx_minipage" height="56.9pt" vattach="middle" width="151.8pt"/><rule class="ltx_figure_panel ltx_minipage" height="56.9pt" vattach="middle" width="151.8pt"/><break class="ltx_break"/><inline-block angle="90" class="ltx_figure_panel ltx_minipage" depth="0.0pt" height="21.8pt" innerdepth="0.0pt" innerheight="6.8pt" innerwidth="21.8pt" vattach="middle" width="27.6pt" xtranslate="-7.5pt" ytranslate="-7.5pt"><p>UKF</p></inline-block><rule class="ltx_figure_panel ltx_minipage" height="56.9pt" vattach="middle" width="151.8pt"/><rule class="ltx_figure_panel ltx_minipage" height="56.9pt" vattach="middle" width="151.8pt"/><toccaption><tag close=" ">1</tag>Rows</toccaption><caption><tag close=": ">Figure 1</tag>Rows</caption></figure>"##,
+    r##"<figure class="ltx_panels_matrix" inlist="lof" panelcols="3" panelfill="0.96" panelline="1" panelrows="2" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><inline-block angle="90" class="ltx_figure_panel ltx_minipage" depth="0.0pt" height="21.1pt" innerdepth="0.0pt" innerheight="6.8pt" innerwidth="21.1pt" panelwidth="0.08" vattach="middle" width="27.6pt" xtranslate="-7.1pt" ytranslate="-7.1pt"><p>EKF</p></inline-block><rule class="ltx_figure_panel ltx_minipage" height="56.9pt" panelwidth="0.44" vattach="middle" width="151.8pt"/><rule class="ltx_figure_panel ltx_minipage" height="56.9pt" panelwidth="0.44" vattach="middle" width="151.8pt"/><break class="ltx_break"/><inline-block angle="90" class="ltx_figure_panel ltx_minipage" depth="0.0pt" height="21.8pt" innerdepth="0.0pt" innerheight="6.8pt" innerwidth="21.8pt" panelwidth="0.08" vattach="middle" width="27.6pt" xtranslate="-7.5pt" ytranslate="-7.5pt"><p>UKF</p></inline-block><rule class="ltx_figure_panel ltx_minipage" height="56.9pt" panelwidth="0.44" vattach="middle" width="151.8pt"/><rule class="ltx_figure_panel ltx_minipage" height="56.9pt" panelwidth="0.44" vattach="middle" width="151.8pt"/><toccaption><tag close=" ">1</tag>Rows</toccaption><caption><tag close=": ">Figure 1</tag>Rows</caption></figure>"##,
   );
 }
 
@@ -12490,7 +12563,7 @@ fn pnas_doi_is_the_classs_setter() {
     &xml,
     "pubnote",
     &[r#"role="doi""#],
-    r##"<pubnote name="DOI: " role="doi"><ref class="ltx_url" font="typewriter" href="www.pnas.org/cgi/doi/10.1073/pnas.XXXXXXXXXX">www.pnas.org/cgi/doi/10.1073/pnas.XXXXXXXXXX</ref></pubnote>"##,
+    r##"<pubnote role="doi"><ref class="ltx_url" font="typewriter" href="www.pnas.org/cgi/doi/10.1073/pnas.XXXXXXXXXX">www.pnas.org/cgi/doi/10.1073/pnas.XXXXXXXXXX</ref></pubnote>"##,
   );
   // A bibliography's `\doi` meets the class setter: nothing printed (as in pdflatex).
   latexml::util::test::assert_element(
@@ -12520,7 +12593,7 @@ fn subfigure_refnum_is_the_letter() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F1""#],
-    r##"<figure inlist="lof" labels="LABEL:m" xml:id="S0.F1"><tags><tag><text fontsize="90%">Figure 1</text></tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure class="ltx_figure_panel" inlist="lof" labels="LABEL:a" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1a</tag></tags><p>X</p><toccaption><tag close=" ">a</tag>Alpha</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Alpha</text></caption></figure><figure class="ltx_figure_panel" inlist="lof" labels="LABEL:b" xml:id="S0.F1.sf2"><tags><tag><text fontsize="90%">(b)</text></tag><tag role="refnum">1b</tag></tags><p>Y</p><toccaption><tag close=" ">b</tag>Beta</toccaption><caption><tag close=" "><text fontsize="90%">(b)</text></tag><text fontsize="90%">Beta</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": "><text fontsize="90%">Figure 1</text></tag><text fontsize="90%">Main</text></caption></figure>"##,
+    r##"<figure class="ltx_panels_gallery" inlist="lof" labels="LABEL:m" panelcols="2" panelrows="1" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure class="ltx_figure_panel" inlist="lof" labels="LABEL:a" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1a</tag></tags><p>X</p><toccaption><tag close=" ">a</tag>Alpha</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Alpha</text></caption></figure><figure class="ltx_figure_panel" inlist="lof" labels="LABEL:b" xml:id="S0.F1.sf2"><tags><tag><text fontsize="90%">(b)</text></tag><tag role="refnum">1b</tag></tags><p>Y</p><toccaption><tag close=" ">b</tag>Beta</toccaption><caption><tag close=" "><text fontsize="90%">(b)</text></tag><text fontsize="90%">Beta</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": ">Figure 1</tag>Main</caption></figure>"##,
   );
 }
 
@@ -12541,7 +12614,7 @@ fn subcaption_labelformat_option_keeps_the_authors_number() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F1""#],
-    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag><text fontsize="90%">Figure 1</text></tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure inlist="lof" labels="LABEL:a" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1(a)</tag></tags><p>X</p><toccaption><tag close=" ">(a)</tag>Alpha</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Alpha</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": "><text fontsize="90%">Figure 1</text></tag><text fontsize="90%">Main</text></caption></figure>"##,
+    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure inlist="lof" labels="LABEL:a" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1(a)</tag></tags><p>X</p><toccaption><tag close=" ">(a)</tag>Alpha</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Alpha</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": ">Figure 1</tag>Main</caption></figure>"##,
   );
 }
 
@@ -12560,7 +12633,7 @@ fn subcaption_labelformat_setup_keeps_the_authors_number() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F1""#],
-    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag><text fontsize="90%">Figure 1</text></tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure inlist="lof" labels="LABEL:a" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1(a)</tag></tags><p>X</p><toccaption><tag close=" ">(a)</tag>Alpha</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Alpha</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": "><text fontsize="90%">Figure 1</text></tag><text fontsize="90%">Main</text></caption></figure>"##,
+    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure inlist="lof" labels="LABEL:a" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1(a)</tag></tags><p>X</p><toccaption><tag close=" ">(a)</tag>Alpha</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Alpha</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": ">Figure 1</tag>Main</caption></figure>"##,
   );
 }
 
@@ -12580,7 +12653,7 @@ fn subfigure_before_subcaption_keeps_its_numbers() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F1""#],
-    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag><text fontsize="90%">Figure 1</text></tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure labels="LABEL:a" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1(a)</tag></tags><p>X</p><toccaption><tag close=" ">(a)</tag>Alpha</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Alpha</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": "><text fontsize="90%">Figure 1</text></tag><text fontsize="90%">Main</text></caption></figure>"##,
+    r##"<figure inlist="lof" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><figure labels="LABEL:a" xml:id="S0.F1.sf1"><tags><tag><text fontsize="90%">(a)</text></tag><tag role="refnum">1(a)</tag></tags><p>X</p><toccaption><tag close=" ">(a)</tag>Alpha</toccaption><caption><tag close=" "><text fontsize="90%">(a)</text></tag><text fontsize="90%">Alpha</text></caption></figure><toccaption><tag close=" ">1</tag>Main</toccaption><caption><tag close=": ">Figure 1</tag>Main</caption></figure>"##,
   );
 }
 
@@ -12670,7 +12743,7 @@ fn panel_merge_keeps_boxes_closed() {
     &xml,
     "figure",
     &[r#"xml:id="S0.F2""#],
-    r##"<figure inlist="lof" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><block class="ltx_figure_panel"><block align="center" class="ltx_minipage" vattach="middle" width="241.5pt"><graphics class="ltx_centering" graphic="none.png" options="width=241.49895pt,keepaspectratio=true" xml:id="S0.F2.g1"/></block><p align="center" class="ltx_minipage" vattach="middle" width="13.8pt"><text fontsize="80%">(a)</text></p></block><break class="ltx_break"/><block class="ltx_figure_panel"><block align="center" class="ltx_minipage" vattach="middle" width="241.5pt"><graphics class="ltx_centering" graphic="none.png" options="width=241.49895pt,keepaspectratio=true" xml:id="S0.F2.g2"/></block><p align="center" class="ltx_minipage" vattach="middle" width="13.8pt"><text fontsize="80%">(b)</text></p></block><toccaption class="ltx_centering"><tag close=" ">2</tag>Two rows</toccaption><caption class="ltx_centering"><tag close=": ">Figure 2</tag>Two rows</caption></figure>"##,
+    r##"<figure class="ltx_panels_gallery" inlist="lof" panelcols="1" panelfill="0.74" panelline="1" panelrows="2" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><block class="ltx_figure_panel" panelwidth="0.74"><block align="center" class="ltx_minipage" vattach="middle" width="241.5pt"><graphics class="ltx_centering" graphic="none.png" options="width=241.49895pt,keepaspectratio=true" xml:id="S0.F2.g1"/></block><p align="center" class="ltx_minipage" vattach="middle" width="13.8pt"><text fontsize="80%">(a)</text></p></block><break class="ltx_break"/><block class="ltx_figure_panel" panelwidth="0.74"><block align="center" class="ltx_minipage" vattach="middle" width="241.5pt"><graphics class="ltx_centering" graphic="none.png" options="width=241.49895pt,keepaspectratio=true" xml:id="S0.F2.g2"/></block><p align="center" class="ltx_minipage" vattach="middle" width="13.8pt"><text fontsize="80%">(b)</text></p></block><toccaption class="ltx_centering"><tag close=" ">2</tag>Two rows</toccaption><caption class="ltx_centering"><tag close=": ">Figure 2</tag>Two rows</caption></figure>"##,
   );
 }
 
@@ -13409,6 +13482,7 @@ fn enumitem_setlist_levels_and_names() {
 }
 
 /// 57u: `\setlist` replaces and `\setlist*` appends, `list<depth>` keys apply, only a counter command takes `*`, a `\newlist` name is a list (enumitem.sty:573-598, :977-980, :1597-1612; KPE #354).
+/// The level-2 label empties `\p@enumii` (enumitem.sty:551-556, 77u): its reference is "**", as pdflatex's `\ref`.
 #[test]
 fn enumitem_setlist_replaces_appends_and_depth() {
   let (stderr, xml) = convert_with(
@@ -13423,7 +13497,7 @@ fn enumitem_setlist_replaces_appends_and_depth() {
     &xml,
     "enumerate",
     &[r#"xml:id="S0.I1""#],
-    r##"<enumerate xml:id="S0.I1"><item xml:id="S0.I1.i1"><tags><tag><text font="bold">1.</text></tag><tag role="refnum">1</tag><tag role="typerefnum">item 1</tag></tags><para xml:id="S0.I1.i1.p1"><p>one</p><enumerate xml:id="S0.I1.i1.I1"><item xml:id="S0.I1.i1.I1.i1"><tags><tag><text font="bold">**</text></tag><tag role="refnum">1**</tag><tag role="typerefnum">item 1**</tag></tags><para xml:id="S0.I1.i1.I1.i1.p1"><p>two</p></para></item></enumerate></para></item></enumerate>"##,
+    r##"<enumerate xml:id="S0.I1"><item xml:id="S0.I1.i1"><tags><tag><text font="bold">1.</text></tag><tag role="refnum">1</tag><tag role="typerefnum">item 1</tag></tags><para xml:id="S0.I1.i1.p1"><p>one</p><enumerate xml:id="S0.I1.i1.I1"><item xml:id="S0.I1.i1.I1.i1"><tags><tag><text font="bold">**</text></tag><tag role="refnum">**</tag><tag role="typerefnum">item **</tag></tags><para xml:id="S0.I1.i1.I1.i1.p1"><p>two</p></para></item></enumerate></para></item></enumerate>"##,
   );
   latexml::util::test::assert_element(
     &xml,
@@ -14270,9 +14344,10 @@ fn declaremathoperator_keeps_the_following_letters_italic() {
   );
 }
 
-/// 57ab: in an italic context the italic is the context's (`<text font="italic">`, a theorem
-/// body), so a letter there is a plain `<mi>`, found by the inherited font as Perl's
-/// `$LaTeXML::MathML::FONT` (MathML.pm:278); an upright one says `normal`.
+/// 57ab: in an italic context (`<text font="italic">`, a theorem body) a letter is a plain `<mi>`;
+/// an upright one says `normal`. Perl finds the italic by the inherited font (`$LaTeXML::MathML::FONT`,
+/// MathML.pm:278); since 77u r3 the letter carries its own `font="italic"`, written against the text
+/// default rather than the enclosing text (OXIDIZED_DESIGN_DIVERGENCES #780).
 #[test]
 fn letters_in_an_italic_context_stay_plain_mi() {
   let (stderr, html) = convert_html(
@@ -14388,7 +14463,7 @@ fn continuedfloat_keeps_the_number_and_the_letters() {
   assert_eq!(warning_count(&stderr), 0, "{stderr}");
   let figure = |n: &str| {
     format!(
-      r#"<tags><tag><text fontsize="90%">Figure {n}</text></tag><tag role="refnum">{n}</tag><tag role="typerefnum">Figure {n}</tag></tags>"#
+      r#"<tags><tag>Figure {n}</tag><tag role="refnum">{n}</tag><tag role="typerefnum">Figure {n}</tag></tags>"#
     )
   };
   let (f1, f2) = (figure("1"), figure("2"));
@@ -14463,46 +14538,41 @@ fn continuedfloat_suppresses_one_step_per_real_float() {
 /// leaves its step-back, so its next table is Table 1 again; Figure 1, 1, 2.
 #[test]
 fn continuedfloat_counts_only_the_main_floats_steps() {
-  let tags = |kind: &str, n: &str, sized: bool| {
-    let label = if sized {
-      format!(r#"<text fontsize="90%">{kind} {n}</text>"#)
-    } else {
-      format!("{kind} {n}")
-    };
+  let tags = |kind: &str, n: &str| {
     format!(
-      r#"<tags><tag>{label}</tag><tag role="refnum">{n}</tag><tag role="typerefnum">{kind} {n}</tag></tags>"#
+      r#"<tags><tag>{kind} {n}</tag><tag role="refnum">{n}</tag><tag role="typerefnum">{kind} {n}</tag></tags>"#
     )
   };
   for (tex, expected) in [
     (
       "\\documentclass{article}\n\\usepackage{caption}\n\\usepackage{subcaption}\n\\begin{document}\n\\begin{table}\\caption{Top}\n\\begin{minipage}{.4\\linewidth}\\subcaption{One}X\\end{minipage}\n\\end{table}\n\\begin{table}\\ContinuedFloat\\caption{Top again}\n\\begin{minipage}{.4\\linewidth}\\subcaption{Two}Y\\end{minipage}\n\\end{table}\n\\begin{table}\\caption{Next}Z\\end{table}\n\\end{document}\n",
       vec![
-        ("S0.T1", tags("Table", "1", true)),
-        ("S0.T1a", tags("Table", "1", true)),
-        ("S0.T2", tags("Table", "2", true)),
+        ("S0.T1", tags("Table", "1")),
+        ("S0.T1a", tags("Table", "1")),
+        ("S0.T2", tags("Table", "2")),
       ],
     ),
     (
       "\\documentclass{article}\n\\usepackage{graphicx}\n\\usepackage{subfig}\n\\begin{document}\n\\begin{table}\\caption{Top}\\subfloat[One]{\\rule{1cm}{1cm}}\\subfloat[Two]{\\rule{1cm}{1cm}}\\end{table}\n\\begin{table}\\ContinuedFloat\\subfloat[Three]{\\rule{1cm}{1cm}}\\end{table}\n\\begin{table}\\caption{Next}\\rule{1cm}{1cm}\\end{table}\n\\end{document}\n",
       vec![
-        ("S0.T1", tags("Table", "1", false)),
+        ("S0.T1", tags("Table", "1")),
         (
           "S0.T1a.sf3",
           r#"<tags><tag>(c)</tag><tag role="refnum">1c</tag></tags>"#.to_string(),
         ),
         // The next table, Table 1 again: its id `S0.T1` is taken, so it is repaired to `S0.T1a`
         // (the uncaptioned continued table keeps no element of its own, only its sub-float).
-        ("S0.T1a", tags("Table", "1", false)),
+        ("S0.T1a", tags("Table", "1")),
       ],
     ),
     (
       "\\documentclass{article}\n\\usepackage{caption}\n\\begin{document}\n\\begin{figure}A\\caption{A}\\end{figure}\n\\begin{figure}\\begin{center}\\ContinuedFloat B\\end{center}\\caption{B}\\end{figure}\n\\begin{figure}C\\caption{C}\\end{figure}\n\\end{document}\n",
       vec![
-        ("S0.F1", tags("Figure", "1", false)),
+        ("S0.F1", tags("Figure", "1")),
         // The continued figure: its `\@alph` id suffix is local to the `center` (as caption's),
         // so `S0.F1a` is the duplicate-id repair of its `S0.F1`.
-        ("S0.F1a", tags("Figure", "1", false)),
-        ("S0.F2", tags("Figure", "2", false)),
+        ("S0.F1a", tags("Figure", "1")),
+        ("S0.F2", tags("Figure", "2")),
       ],
     ),
   ] {

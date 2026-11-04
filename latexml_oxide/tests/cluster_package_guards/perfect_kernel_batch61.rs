@@ -378,6 +378,7 @@ fn index_entry_keeps_expl3_names_whole() {
 \cs_new:Nn \my_add:n { \index { #1 \bool_if:nT { \c_true_bool } { ! W } } }
 Text\my_add:n { Z }
 \ExplSyntaxOff
+\begin{theindex}\end{theindex}
 \end{document}",
     RAW,
     (0, 0),
@@ -403,6 +404,7 @@ fn index_entry_protect_is_consumed_at_shipout() {
 \newcommand*{\indexCommandO}[1]{\index{\protect\texttt{\protect\string\protect#1}}}
 \begin{document}
 Text\indexCommandO{\fbox} more.
+\begin{theindex}\end{theindex}
 \end{document}",
     RAW,
     (0, 0),
@@ -429,6 +431,7 @@ fn index_entry_typed_in_source_is_written_verbatim() {
 \newcommand\idx[1]{\index{#1}}
 \begin{document}
 Typed\index{a\early} and built\idx{b\early}.
+\begin{theindex}\end{theindex}
 \end{document}",
     RAW,
     (0, 0),
@@ -536,6 +539,18 @@ fn uiucthesis_title_page_is_replayed() {
     RAW,
     (0, 0),
     &[],
+  );
+  // 68u r2 (rule (a)) made uiucthesis.cls:97 `\department` (`\@dept`, read only by the title page) the author's
+  // affiliation, and the replayed page read it as empty: "for the degree of Doctor of Philosophy in". 68x r2's line rule
+  // (frontmatter_stores.rs `ClassReaders::store_lines`, OXIDIZED_DESIGN_DIVERGENCES #662) keeps a store the
+  // title page prints in one line with a class value the frontmatter does not carry: uiucthesis.cls:177 `for the degree
+  // of \@degree\ in \@dept\\` (`\@degree` from `\phdthesis`, :81) — the line whole, as pdflatex prints it, and no
+  // affiliation.
+  assert_element(
+    &xml,
+    "creator",
+    &[r#"role="author""#],
+    "<creator role=\"author\"><personname>Juan Valdez</personname></creator>",
   );
   for line in [
     "Submitted in partial fulfillment of the requirements",
@@ -1613,8 +1628,8 @@ fn scanned_class_options_naming_macros_stay_inert() {
 /// 62a (stopped full-arXiv run 329): `\textcircled`'s argument is typeset in a box (omsenc.def:62-64 `\ooalign`'s
 /// `\hbox`), restricted horizontal even in math, so in `$\textcircled{$C$}_1$` the inner `$` opens a formula. Digested
 /// in the surrounding math mode, it closed the outer one and the `_1` raised "Script _ can only appear in math mode"
-/// (1009.5713, 53 errors). latex: two circled C₁, C₂; Perl is clean (it circles the raw tokens). The circled text
-/// "$C$" (Perl's too) is a pinned residual, not the target.
+/// (1009.5713, 53 errors). latex: two circled C₁, C₂; Perl is clean (it circles the raw tokens). The circled text is
+/// the formula's, Ⓒ (78l, sect13.rs `typeset_text`; before, "$C$⃝" as Perl's, KNOWN_PERL_ERRORS #361).
 #[test]
 fn textcircled_argument_is_text_in_math() {
   let xml = assert_elements(
@@ -1630,7 +1645,7 @@ glue $\textcircled{$C$}_1$ and $\textcircled{$C$}_2$ along.
     &xml,
     "Math",
     &[r#"xml:id="p1.m1""#],
-    r#"<Math mode="inline" tex="\textcircled{$C$}_{1}" text="circled-$C$ _ 1" xml:id="p1.m1"><XMath><XMApp><XMTok role="SUBSCRIPTOP" scriptpos="post1"/><XMTok meaning="circled-$C$" role="UNKNOWN">$C$⃝</XMTok><XMTok fontsize="70%" meaning="1" role="NUMBER">1</XMTok></XMApp></XMath></Math>"#,
+    r#"<Math mode="inline" tex="\textcircled{$C$}_{1}" text="circled-C _ 1" xml:id="p1.m1"><XMath><XMApp><XMTok role="SUBSCRIPTOP" scriptpos="post1"/><XMTok meaning="circled-C" role="UNKNOWN">Ⓒ</XMTok><XMTok fontsize="70%" meaning="1" role="NUMBER">1</XMTok></XMApp></XMath></Math>"#,
   );
 }
 
@@ -1721,7 +1736,7 @@ A $\emph{x}+1$ and $\emph{P$\bar{3}$m1}$ B.
     &xml,
     "emph",
     &[r#"class="ltx_markedasmath""#],
-    r#"<emph class="ltx_markedasmath" font="italic">P<Math mode="inline" tex="\bar{3}" text="bar@(3)" xml:id="p1.m2.m1"><XMath><XMApp><XMTok font="upright" name="bar" role="OVERACCENT" stretchy="false">¯</XMTok><XMTok font="upright" meaning="3" role="NUMBER">3</XMTok></XMApp></XMath></Math>m1</emph>"#,
+    r#"<emph class="ltx_markedasmath" font="italic">P<Math mode="inline" tex="\bar{3}" text="bar@(3)" xml:id="p1.m2.m1"><XMath><XMApp><XMTok name="bar" role="OVERACCENT" stretchy="false">¯</XMTok><XMTok meaning="3" role="NUMBER">3</XMTok></XMApp></XMath></Math>m1</emph>"#,
   );
   // In an italic theorem the emphasis is upright in math as in text (leaving math restores the text font, the
   // emphasis is toggled again), and a nested `\emph` toggles back.
@@ -2136,7 +2151,7 @@ See \doiurl{10.1214/09-AOS1} and \arxivurl{math.PR/0603300}.
     &xml,
     "table",
     &[],
-    "<table angle=\"90\" depth=\"0.0pt\" height=\"550.0pt\" inlist=\"lot\" innerdepth=\"36.0pt\" innerheight=\"6.8pt\" innerwidth=\"550.0pt\" width=\"42.8pt\" xml:id=\"S0.T1\" xtranslate=\"-253.6pt\" ytranslate=\"-253.6pt\"><tags><tag>Table 1</tag><tag role=\"autoref\">Table\u{a0}1</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Table 1</tag></tags><toccaption><tag close=\" \">1</tag>Data</toccaption><caption><tag close=\": \">Table 1</tag>Data</caption><tabular class=\"ltx_figure_panel\" vattach=\"middle\"><tbody><tr><td align=\"left\">A<sup>a</sup></td></tr></tbody></tabular><break class=\"ltx_break\"/><p class=\"ltx_figure_panel\"><sup>a</sup>A note.</p></table>",
+    "<table angle=\"90\" class=\"ltx_panels_gallery\" depth=\"0.0pt\" height=\"550.0pt\" inlist=\"lot\" innerdepth=\"36.0pt\" innerheight=\"6.8pt\" innerwidth=\"550.0pt\" panelcols=\"1\" panelrows=\"2\" width=\"42.8pt\" xml:id=\"S0.T1\" xtranslate=\"-253.6pt\" ytranslate=\"-253.6pt\"><tags><tag>Table 1</tag><tag role=\"autoref\">Table\u{a0}1</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Table 1</tag></tags><toccaption><tag close=\" \">1</tag>Data</toccaption><caption><tag close=\": \">Table 1</tag>Data</caption><tabular class=\"ltx_figure_panel\" vattach=\"middle\"><tbody><tr><td align=\"left\">A<sup>a</sup></td></tr></tbody></tabular><break class=\"ltx_break\"/><p class=\"ltx_figure_panel\"><sup>a</sup>A note.</p></table>",
   );
   assert_element(
     &xml,
@@ -2263,7 +2278,7 @@ Initialize $x$\;
     &xml,
     "listing",
     &[],
-    "<listing class=\"ltx_lst_numbers_left\"><listingline>\u{2002}<rule height=\"100%\" width=\"1px\"/>\u{2003}update <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"algorithm1.m3\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math></listingline><listingline>end for</listingline></listing>",
+    "<listing class=\"ltx_lst_numbers_left\"><listingline>\u{2002}<rule height=\"100%\" width=\"1px\"/>\u{2003}update <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"algorithm1.m3\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math></listingline><listingline><text font=\"bold\">end</text></listingline></listing>",
   );
   // the float whole: closing from the statements' last line runs every close hook up to it, the float's own (its
   // caption frame's break) among them (64a review: a line freed on its close had ended that walk early). The
@@ -2274,7 +2289,7 @@ Initialize $x$\;
     &xml,
     "float",
     &["xml:id=\"algorithm1\""],
-    "<float class=\"ltx_float_algorithm\" framed=\"top\" inlist=\"loa\" placement=\"ht\" xml:id=\"algorithm1\"><tags><tag><text font=\"bold\">Algorithm\u{a0}1</text></tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Algorithm 1</tag></tags><toccaption><tag close=\" \">1</tag>Demo</toccaption><caption><tag close=\" \"><text font=\"bold\">Algorithm\u{a0}1</text></tag> Demo</caption><p framed=\"topbottom\">Initialize <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"algorithm1.m1\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math><text font=\"bold\">for</text> <emph font=\"italic\"><Math mode=\"inline\" tex=\"i=1\" text=\"i = 1\" xml:id=\"algorithm1.m2\"><XMath><XMApp><XMTok font=\"upright\" meaning=\"equals\" role=\"RELOP\">=</XMTok><XMTok role=\"UNKNOWN\">i</XMTok><XMTok font=\"upright\" meaning=\"1\" role=\"NUMBER\">1</XMTok></XMApp></XMath></Math></emph> <text font=\"bold\">do</text></p><break class=\"ltx_break\"/><listing class=\"ltx_lst_numbers_left\"><listingline>\u{2002}<rule height=\"100%\" width=\"1px\"/>\u{2003}update <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"algorithm1.m3\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math></listingline><listingline>end for</listingline></listing></float>",
+    "<float class=\"ltx_float_algorithm\" framed=\"top\" inlist=\"loa\" placement=\"ht\" xml:id=\"algorithm1\"><tags><tag><text font=\"bold\">Algorithm\u{a0}1</text></tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Algorithm 1</tag></tags><toccaption><tag close=\" \">1</tag>Demo</toccaption><caption><tag close=\" \"><text font=\"bold\">Algorithm\u{a0}1</text></tag> Demo</caption><p framed=\"topbottom\">Initialize <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"algorithm1.m1\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math><text font=\"bold\">for</text> <emph font=\"italic\"><Math mode=\"inline\" tex=\"i=1\" text=\"i = 1\" xml:id=\"algorithm1.m2\"><XMath><XMApp><XMTok meaning=\"equals\" role=\"RELOP\">=</XMTok><XMTok font=\"italic\" role=\"UNKNOWN\">i</XMTok><XMTok meaning=\"1\" role=\"NUMBER\">1</XMTok></XMApp></XMath></Math></emph> <text font=\"bold\">do</text></p><break class=\"ltx_break\"/><listing class=\"ltx_lst_numbers_left\"><listingline>\u{2002}<rule height=\"100%\" width=\"1px\"/>\u{2003}update <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"algorithm1.m3\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math></listingline><listingline><text font=\"bold\">end</text></listingline></listing></float>",
   );
 }
 
@@ -2309,7 +2324,7 @@ last\;
     &xml,
     "listing",
     &[],
-    "<listing class=\"ltx_lst_numbers_left\" framed=\"topbottom\"><listingline><inline-block><description xml:id=\"S0.I1\"><item xml:id=\"S0.I1.ix1\"><tags><tag><text font=\"bold\">Init</text></tag><tag role=\"typerefnum\">item Init</tag></tags><para xml:id=\"S0.I1.ix1.p1\"><p><break/>Choose the constants.</p></para></item></description></inline-block></listingline><listingline><inline-block><enumerate xml:id=\"S0.I2\"><item xml:id=\"S0.I2.i1\"><tags><tag>1.</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">item\u{a0}1</tag></tags><para xml:id=\"S0.I2.i1.p1\"><p><text font=\"bold\">foreach</text> <emph font=\"italic\"><Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I2.i1.p1.m1\"><XMath><XMTok role=\"UNKNOWN\">x</XMTok></XMath></Math></emph> <text font=\"bold\">do<break/></text>count <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I2.i1.p1.m2\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math><break/>end foreach<break/></p></para></item><item xml:id=\"S0.I2.i2\"><tags><tag>2.</tag><tag role=\"refnum\">2</tag><tag role=\"typerefnum\">item\u{a0}2</tag></tags><para xml:id=\"S0.I2.i2.p1\"><p>Place the elements.</p></para></item></enumerate></inline-block></listingline><listingline>last;</listingline><listingline><text font=\"bold\">for</text> <emph font=\"italic\"><Math mode=\"inline\" tex=\"i\" text=\"i\" xml:id=\"algorithm1.m1\"><XMath><XMTok role=\"UNKNOWN\">i</XMTok></XMath></Math></emph> <text font=\"bold\">do</text></listingline><listingline>\u{2002}<rule height=\"100%\" width=\"1px\"/>\u{2003}inner;</listingline><listingline>end for</listingline></listing>",
+    "<listing class=\"ltx_lst_numbers_left\" framed=\"topbottom\"><listingline><inline-block><description xml:id=\"S0.I1\"><item xml:id=\"S0.I1.ix1\"><tags><tag><text font=\"bold\">Init</text></tag><tag role=\"typerefnum\">item Init</tag></tags><para xml:id=\"S0.I1.ix1.p1\"><p><break/>Choose the constants.</p></para></item></description></inline-block></listingline><listingline><inline-block><enumerate xml:id=\"S0.I2\"><item xml:id=\"S0.I2.i1\"><tags><tag>1.</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">item\u{a0}1</tag></tags><para xml:id=\"S0.I2.i1.p1\"><p><text font=\"bold\">foreach</text> <emph font=\"italic\"><Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I2.i1.p1.m1\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math></emph> <text font=\"bold\">do<break/></text>count <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I2.i1.p1.m2\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math><break/><text font=\"bold\">end<break/></text></p></para></item><item xml:id=\"S0.I2.i2\"><tags><tag>2.</tag><tag role=\"refnum\">2</tag><tag role=\"typerefnum\">item\u{a0}2</tag></tags><para xml:id=\"S0.I2.i2.p1\"><p>Place the elements.</p></para></item></enumerate></inline-block></listingline><listingline>last;</listingline><listingline><text font=\"bold\">for</text> <emph font=\"italic\"><Math mode=\"inline\" tex=\"i\" text=\"i\" xml:id=\"algorithm1.m1\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">i</XMTok></XMath></Math></emph> <text font=\"bold\">do</text></listingline><listingline>\u{2002}<rule height=\"100%\" width=\"1px\"/>\u{2003}inner;</listingline><listingline><text font=\"bold\">end</text></listingline></listing>",
   );
 }
 
@@ -2369,7 +2384,7 @@ last\;
     &xml,
     "listing",
     &[],
-    "<listing class=\"ltx_lst_numbers_left\" framed=\"topbottom\"><listingline><tags><tag><text font=\"bold\">1</text></tag></tags>first;</listingline><listingline><inline-block><enumerate xml:id=\"S0.I1\"><item xml:id=\"S0.I1.i1\"><tags><tag>1.</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">item\u{a0}1</tag></tags><para xml:id=\"S0.I1.i1.p1\"><p><text font=\"bold\">foreach</text> <emph font=\"italic\"><Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I1.i1.p1.m1\"><XMath><XMTok role=\"UNKNOWN\">x</XMTok></XMath></Math></emph> <text font=\"bold\">do<break/></text>count <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I1.i1.p1.m2\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math>;<break/>more <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I1.i1.p1.m3\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math>;<break/>end foreach<break/></p></para></item><item xml:id=\"S0.I1.i2\"><tags><tag>2.</tag><tag role=\"refnum\">2</tag><tag role=\"typerefnum\">item\u{a0}2</tag></tags><para xml:id=\"S0.I1.i2.p1\"><p>Place the elements.</p></para></item></enumerate></inline-block></listingline><listingline><tags><tag><text font=\"bold\">2</text></tag></tags>last;</listingline></listing>",
+    "<listing class=\"ltx_lst_numbers_left\" framed=\"topbottom\"><listingline><tags><tag><text font=\"bold\">1</text></tag></tags>first;</listingline><listingline><inline-block><enumerate xml:id=\"S0.I1\"><item xml:id=\"S0.I1.i1\"><tags><tag>1.</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">item\u{a0}1</tag></tags><para xml:id=\"S0.I1.i1.p1\"><p><text font=\"bold\">foreach</text> <emph font=\"italic\"><Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I1.i1.p1.m1\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math></emph> <text font=\"bold\">do<break/></text>count <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I1.i1.p1.m2\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math>;<break/>more <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"S0.I1.i1.p1.m3\"><XMath><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math>;<break/><text font=\"bold\">end<break/></text></p></para></item><item xml:id=\"S0.I1.i2\"><tags><tag>2.</tag><tag role=\"refnum\">2</tag><tag role=\"typerefnum\">item\u{a0}2</tag></tags><para xml:id=\"S0.I1.i2.p1\"><p>Place the elements.</p></para></item></enumerate></inline-block></listingline><listingline><tags><tag><text font=\"bold\">2</text></tag></tags>last;</listingline></listing>",
   );
 }
 
@@ -2411,7 +2426,7 @@ after compact\;
     &xml,
     "caption",
     &[],
-    "<caption><tag close=\" \"><text font=\"bold\">Algorithm\u{a0}1</text></tag>Demo <Math mode=\"inline\" tex=\"a\\\\&#10;b\" text=\"a * b\" xml:id=\"algorithm1.m2\"><XMath><XMApp><XMTok meaning=\"times\" role=\"MULOP\">\u{2062}</XMTok><XMTok font=\"italic\" role=\"UNKNOWN\">a</XMTok><XMTok font=\"italic\" role=\"UNKNOWN\">b</XMTok></XMApp></XMath></Math> first<break/>second</caption>",
+    "<caption><tag close=\": \"><text font=\"bold\">Algorithm\u{a0}1</text></tag>Demo <Math mode=\"inline\" tex=\"a\\\\&#10;b\" text=\"a * b\" xml:id=\"algorithm1.m2\"><XMath><XMApp><XMTok meaning=\"times\" role=\"MULOP\">\u{2062}</XMTok><XMTok font=\"italic\" role=\"UNKNOWN\">a</XMTok><XMTok font=\"italic\" role=\"UNKNOWN\">b</XMTok></XMApp></XMath></Math> first<break/>second</caption>",
   );
 }
 
@@ -2916,15 +2931,17 @@ fn ieeetran_eps_source_loads_dvips_graphicx() {
 }
 
 /// 62k: with `localrawclasses` a shipped class still takes a binding reached by Perl's prefix alternate, or by the
-/// case-insensitive or basename steps Rust adds (`class_binding_alternate`; DIVERGENCES #444): `IEEEtranTCOM.cls` and
-/// `misc/ieeetran.cls` keep the IEEEtran binding and are not read (2105.02087). The stub classes error if read raw.
+/// case-insensitive step Rust adds (`class_binding_alternate`; DIVERGENCES #444), or the binding a path-prefixed class
+/// names by its basename (`class_binding_for_path`, 68d): `IEEEtranTCOM.cls` and `misc/ieeetran.cls` keep the IEEEtran
+/// binding and are not read (2105.02087). The stub classes error if read raw. Only the alternate warns; the basename
+/// binding is the request's own file, as in Perl (Package.pm:2125-2128).
 #[test]
 fn a_shipped_class_with_an_alternate_binding_keeps_it() {
   const READ_RAW: &str =
     "\\ProvidesClass{stub}\\errmessage{the shipped class was read raw}\\LoadClass{article}\n";
-  for (class, file) in [
-    ("IEEEtranTCOM", "IEEEtranTCOM.cls"),
-    ("misc/ieeetran", "misc/ieeetran.cls"),
+  for (class, file, warnings) in [
+    ("IEEEtranTCOM", "IEEEtranTCOM.cls", 1),
+    ("misc/ieeetran", "misc/ieeetran.cls", 0),
   ] {
     let (log, xml) = convert_files_with(
       &format!(
@@ -2933,13 +2950,17 @@ fn a_shipped_class_with_an_alternate_binding_keeps_it() {
       &[(file, READ_RAW)],
       Some("ar5iv.sty"),
     );
-    // The one warning is the alternate's notice: "Can't find binding for class … (using IEEEtran)".
+    // The alternate's one warning is its notice: "Can't find binding for class … (using IEEEtran)".
     assert_eq!(
       (error_count(&log), warning_count(&log)),
-      (0, 1),
+      (0, warnings),
       "{class}: {log}"
     );
-    assert!(log.contains("(using IEEEtran)"), "{class}: {log}");
+    assert_eq!(
+      log.contains("(using IEEEtran)"),
+      warnings == 1,
+      "{class}: {log}"
+    );
     assert_element(
       &xml,
       "keywords",
@@ -3551,7 +3572,7 @@ See \ref{a} and \ref{b}.
   for (body, panel) in [
     (
       r"Above.\caption{Mid.}Below.",
-      r#"<figure class="ltx_figure_panel" inlist="lof" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p class="ltx_figure_panel" xml:id="S0.F1.1">Above.</p><toccaption><tag close=" ">1</tag>Mid.</toccaption><caption><tag close=": ">Figure 1</tag>Mid.</caption><p class="ltx_figure_panel" xml:id="S0.F1.2">Below.</p></figure>"#,
+      r#"<figure class="ltx_figure_panel ltx_panels_gallery" inlist="lof" panelcols="1" panelrows="2" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p class="ltx_figure_panel" xml:id="S0.F1.1">Above.</p><toccaption><tag close=" ">1</tag>Mid.</toccaption><caption><tag close=": ">Figure 1</tag>Mid.</caption><p class="ltx_figure_panel" xml:id="S0.F1.2">Below.</p></figure>"#,
     ),
     (
       r"\caption{Top caption.}Body below caption.",
@@ -3570,7 +3591,7 @@ See \ref{a} and \ref{b}.
       (0, 0),
       "{body}: {log}"
     );
-    assert_element(&xml, "figure", &["class=\"ltx_figure_panel\""], panel);
+    assert_element(&xml, "figure", &["xml:id=\"S0.F1\""], panel);
   }
   // A math `array` is an alignment too: the caption stays in its cell, a panel in the cell's text.
   let (log, xml) = convert_with(
@@ -3696,7 +3717,7 @@ fn captioned_minipages_are_their_own_floats() {
     &[(
       "figure",
       "fig1",
-      r#"<figure xml:id="fig1"><figure class="ltx_figure_panel ltx_minipage" inlist="lof" labels="LABEL:a" vattach="middle" width="138.0pt" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p xml:id="S0.F1.1">X</p><toccaption><tag close=" ">1</tag>Left.</toccaption><caption><tag close=": ">Figure 1</tag>Left.</caption></figure><figure class="ltx_figure_panel ltx_minipage" inlist="lof" labels="LABEL:b" vattach="middle" width="138.0pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><p xml:id="S0.F2.1">Y</p><toccaption><tag close=" ">2</tag>Right.</toccaption><caption><tag close=": ">Figure 2</tag>Right.</caption></figure></figure>"#,
+      r#"<figure class="ltx_panels_gallery" panelcols="2" panelfill="0.8" panelline="1" panelrows="1" xml:id="fig1"><figure class="ltx_figure_panel ltx_minipage" inlist="lof" labels="LABEL:a" panelwidth="0.4" vattach="middle" width="138.0pt" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p xml:id="S0.F1.1">X</p><toccaption><tag close=" ">1</tag>Left.</toccaption><caption><tag close=": ">Figure 1</tag>Left.</caption></figure><figure class="ltx_figure_panel ltx_minipage" inlist="lof" labels="LABEL:b" panelwidth="0.4" vattach="middle" width="138.0pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><p xml:id="S0.F2.1">Y</p><toccaption><tag close=" ">2</tag>Right.</toccaption><caption><tag close=": ">Figure 2</tag>Right.</caption></figure></figure>"#,
     )],
   );
   assert_elements(
@@ -3708,7 +3729,7 @@ fn captioned_minipages_are_their_own_floats() {
     &[(
       "figure",
       "S0.F3",
-      r#"<figure inlist="lof" labels="LABEL:c" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><figure class="ltx_figure_panel ltx_minipage" inlist="lof" labels="LABEL:a" vattach="middle" width="138.0pt" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p xml:id="S0.F1.1">X</p><toccaption><tag close=" ">1</tag>Left.</toccaption><caption><tag close=": ">Figure 1</tag>Left.</caption></figure><figure class="ltx_figure_panel ltx_minipage" inlist="lof" labels="LABEL:b" vattach="middle" width="138.0pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><p xml:id="S0.F2.1">Y</p><toccaption><tag close=" ">2</tag>Right.</toccaption><caption><tag close=": ">Figure 2</tag>Right.</caption></figure><toccaption><tag close=" ">3</tag>Overall.</toccaption><caption><tag close=": ">Figure 3</tag>Overall.</caption></figure>"#,
+      r#"<figure class="ltx_panels_gallery" inlist="lof" labels="LABEL:c" panelcols="2" panelfill="0.8" panelline="1" panelrows="1" xml:id="S0.F3"><tags><tag>Figure 3</tag><tag role="refnum">3</tag><tag role="typerefnum">Figure 3</tag></tags><figure class="ltx_figure_panel ltx_minipage" inlist="lof" labels="LABEL:a" panelwidth="0.4" vattach="middle" width="138.0pt" xml:id="S0.F1"><tags><tag>Figure 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Figure 1</tag></tags><p xml:id="S0.F1.1">X</p><toccaption><tag close=" ">1</tag>Left.</toccaption><caption><tag close=": ">Figure 1</tag>Left.</caption></figure><figure class="ltx_figure_panel ltx_minipage" inlist="lof" labels="LABEL:b" panelwidth="0.4" vattach="middle" width="138.0pt" xml:id="S0.F2"><tags><tag>Figure 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Figure 2</tag></tags><p xml:id="S0.F2.1">Y</p><toccaption><tag close=" ">2</tag>Right.</toccaption><caption><tag close=": ">Figure 2</tag>Right.</caption></figure><toccaption><tag close=" ">3</tag>Overall.</toccaption><caption><tag close=": ">Figure 3</tag>Overall.</caption></figure>"#,
     )],
   );
   assert_elements(
@@ -3721,7 +3742,7 @@ fn captioned_minipages_are_their_own_floats() {
     &[(
       "table",
       "tab1",
-      r#"<table xml:id="tab1"><table class="ltx_figure_panel ltx_minipage" inlist="lot" labels="LABEL:a" vattach="middle" width="138.0pt" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><toccaption><tag close=" ">1</tag>TL.</toccaption><caption><tag close=": ">Table 1</tag>TL.</caption><tabular vattach="middle" xml:id="S0.T1.1"><tbody><tr xml:id="S0.T1.1.1"><td align="center" xml:id="S0.T1.1.1.1">1</td></tr></tbody></tabular></table><table class="ltx_figure_panel ltx_minipage" inlist="lot" labels="LABEL:b" vattach="middle" width="138.0pt" xml:id="S0.T2"><tags><tag>Table 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Table 2</tag></tags><toccaption><tag close=" ">2</tag>TR.</toccaption><caption><tag close=": ">Table 2</tag>TR.</caption><tabular vattach="middle" xml:id="S0.T2.1"><tbody><tr xml:id="S0.T2.1.1"><td align="center" xml:id="S0.T2.1.1.1">2</td></tr></tbody></tabular></table></table>"#,
+      r#"<table class="ltx_panels_gallery" panelcols="2" panelfill="0.8" panelline="1" panelrows="1" xml:id="tab1"><table class="ltx_figure_panel ltx_minipage" inlist="lot" labels="LABEL:a" panelwidth="0.4" vattach="middle" width="138.0pt" xml:id="S0.T1"><tags><tag>Table 1</tag><tag role="refnum">1</tag><tag role="typerefnum">Table 1</tag></tags><toccaption><tag close=" ">1</tag>TL.</toccaption><caption><tag close=": ">Table 1</tag>TL.</caption><tabular vattach="middle" xml:id="S0.T1.1"><tbody><tr xml:id="S0.T1.1.1"><td align="center" xml:id="S0.T1.1.1.1">1</td></tr></tbody></tabular></table><table class="ltx_figure_panel ltx_minipage" inlist="lot" labels="LABEL:b" panelwidth="0.4" vattach="middle" width="138.0pt" xml:id="S0.T2"><tags><tag>Table 2</tag><tag role="refnum">2</tag><tag role="typerefnum">Table 2</tag></tags><toccaption><tag close=" ">2</tag>TR.</toccaption><caption><tag close=": ">Table 2</tag>TR.</caption><tabular vattach="middle" xml:id="S0.T2.1"><tbody><tr xml:id="S0.T2.1.1"><td align="center" xml:id="S0.T2.1.1.1">2</td></tr></tbody></tabular></table></table>"#,
     )],
   );
   // A box around the minipage (`\fbox`, `lrbox` + `\usebox`) makes no panel of it: the float keeps the number and
@@ -5504,12 +5525,14 @@ fn neurips_notice_names_the_year_of_its_style() {
   }
 }
 
-/// 62zg: an author block in any alignment stays whole — Perl's splitter (Base_Utility.pool.ltxml:693) keeps only
+/// 62zg: an author block in any alignment opens no alignment across its pieces — Perl's splitter (Base_Utility.pool.ltxml:693) keeps only
 /// `{tabular}`, `{minipage}` and `\halign` content whole, so a `tabular*` author was split at its row ends, leaving
 /// the alignment open across the pieces (2609.34061, 34965, 39374, 39909; KNOWN_PERL_ERRORS #502). pdflatex: "A" over
-/// "X".
+/// "X". The kernel family written (94a, OD #928): the observer reads the name A and the line X under it its
+/// affiliation (R12), and the writer re-parts the one creator today's kept whole, the name the run of its digested cell
+/// (`slice_name`) — no alignment opened in either.
 #[test]
-fn author_in_tabular_star_stays_whole() {
+fn author_in_tabular_star_opens_no_alignment() {
   let xml = assert_elements(
     r"\documentclass{article}
 \title{T}
@@ -5526,7 +5549,7 @@ Text.
     &xml,
     "creator",
     &["role=\"author\""],
-    "<creator role=\"author\"><personname><tabular vattach=\"middle\" xml:id=\"id1\"><tbody><tr xml:id=\"id1.1\"><td align=\"left\" xml:id=\"id1.1.1\">A</td></tr><tr xml:id=\"id1.2\"><td align=\"left\" xml:id=\"id1.2.1\">X</td></tr></tbody></tabular></personname></creator>",
+    "<creator role=\"author\"><personname>A</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">X</contact></creator>",
   );
 }
 
@@ -5589,7 +5612,9 @@ fn captionsetup_type_sets_the_caption_type() {
       (
         "figure",
         "S0.F1",
-        "<figure align=\"center\" inlist=\"lof\" xml:id=\"S0.F1\"><tags><tag><text fontsize=\"90%\" xml:id=\"S0.F1.1\">Figure 1</text></tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Figure 1</tag></tags><toccaption><tag close=\" \">1</tag>Both.</toccaption><caption><tag close=\": \"><text fontsize=\"90%\" xml:id=\"S0.F1.2\">Figure 1</text></tag><text fontsize=\"90%\" xml:id=\"S0.F1.3\">Both.</text></caption></figure>",
+        "<figure align=\"center\" inlist=\"lof\" xml:id=\"S0.F1\"><tags><tag>Figure 1</tag><tag role=\"refnum\">1\
+         </tag><tag role=\"typerefnum\">Figure 1</tag></tags><toccaption><tag close=\" \">1</tag>Both.</toccaption>\
+         <caption><tag close=\": \">Figure 1</tag>Both.</caption></figure>",
       ),
     ],
   );
@@ -5662,8 +5687,10 @@ fn physics_operator_leaves_a_sized_bracket() {
 
 /// 62zg: the witnesses' shape — a sized bracket that a row break splits, in `align` and in `eqnarray` (`\tr`): each row
 /// keeps its half, `\\` ends the row as in pdflatex. 12 errors before (the size read took `\Bigg`, the power read the
-/// `[…]` across the `\\`; 2609.12812, 39468). The 5 warnings are the cells holding half a bracket pair, which no math
-/// parse spans (math parsing is a separate stream).
+/// `[…]` across the `\\`; 2609.12812, 39468). The warnings are the cells holding half a bracket pair, which no math
+/// parse spans (math parsing is a separate stream). 79d: the eqnarray's second row prints a number of its own (pdflatex
+/// (3) and (4)), so it is an equation of its own (OXIDIZED_DESIGN_DIVERGENCES #888), whose formula `B\big]` is a sixth
+/// half pair.
 #[test]
 fn physics_operator_bracket_across_a_row_break() {
   let (log, xml) = convert_with(
@@ -5675,8 +5702,8 @@ fn physics_operator_bracket_across_a_row_break() {
 \end{document}",
     Some("ar5iv.sty"),
   );
-  assert_eq!((error_count(&log), warning_count(&log)), (0, 5), "{log}");
-  assert_eq!(log.matches("Warning:unparsed_math:").count(), 5, "{log}");
+  assert_eq!((error_count(&log), warning_count(&log)), (0, 6), "{log}");
+  assert_eq!(log.matches("Warning:unparsed_math:").count(), 6, "{log}");
   assert_element(
     &xml,
     "Math",
@@ -5792,7 +5819,9 @@ After \ref{a}, \ref{c}.
       (
         "figure",
         "S0.F1",
-        "<figure align=\"center\" inlist=\"lof\" labels=\"LABEL:c\" xml:id=\"S0.F1\"><tags><tag><text fontsize=\"90%\" xml:id=\"S0.F1.1\">Figure 1</text></tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Figure 1</tag></tags><toccaption><tag close=\" \">1</tag>Both.</toccaption><caption><tag close=\": \"><text fontsize=\"90%\" xml:id=\"S0.F1.2\">Figure 1</text></tag><text fontsize=\"90%\" xml:id=\"S0.F1.3\">Both.</text></caption></figure>",
+        "<figure align=\"center\" inlist=\"lof\" labels=\"LABEL:c\" xml:id=\"S0.F1\"><tags><tag>Figure 1</tag>\
+         <tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Figure 1</tag></tags><toccaption><tag close=\" \">1\
+         </tag>Both.</toccaption><caption><tag close=\": \">Figure 1</tag>Both.</caption></figure>",
       ),
     ],
   );
@@ -5819,7 +5848,26 @@ $x$
     &[(
       "logical-block",
       "id1",
-      "<logical-block xml:id=\"id1\"><para xml:id=\"p3\"><p align=\"center\" xml:id=\"p3.1\"><inline-logical-block class=\"ltx_minipage\" vattach=\"top\" width=\"103.5pt\" xml:id=\"p3.1.1\"><para xml:id=\"p1\"><p align=\"center\" xml:id=\"p1.1\">A</p></para><figure align=\"center\" inlist=\"lof\" xml:id=\"S0.F0.sf1\"><tags><tag><text fontsize=\"90%\" xml:id=\"S0.F0.sf1.1\">(a)</text></tag><tag role=\"refnum\">0a</tag></tags><toccaption><tag close=\" \">a</tag>Left.</toccaption><caption><tag close=\" \"><text fontsize=\"90%\" xml:id=\"S0.F0.sf1.2\">(a)</text></tag><text fontsize=\"90%\" xml:id=\"S0.F0.sf1.3\">Left.</text></caption></figure></inline-logical-block><Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"m1\"><XMath xml:id=\"m1.1\"><XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math><inline-logical-block class=\"ltx_minipage\" vattach=\"top\" width=\"103.5pt\" xml:id=\"p3.1.2\"><para xml:id=\"p2\"><p align=\"center\" xml:id=\"p2.1\">B</p></para><figure align=\"center\" inlist=\"lof\" xml:id=\"S0.F0.sf2\"><tags><tag><text fontsize=\"90%\" xml:id=\"S0.F0.sf2.1\">(b)</text></tag><tag role=\"refnum\">0b</tag></tags><toccaption><tag close=\" \">b</tag>Right.</toccaption><caption><tag close=\" \"><text fontsize=\"90%\" xml:id=\"S0.F0.sf2.2\">(b)</text></tag><text fontsize=\"90%\" xml:id=\"S0.F0.sf2.3\">Right.</text></caption></figure></inline-logical-block></p></para><figure align=\"center\" inlist=\"lof\" xml:id=\"S0.F1\"><tags><tag><text fontsize=\"90%\" xml:id=\"S0.F1.1\">Figure 1</text></tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Figure 1</tag></tags><toccaption><tag close=\" \">1</tag>Both.</toccaption><caption><tag close=\": \"><text fontsize=\"90%\" xml:id=\"S0.F1.2\">Figure 1</text></tag><text fontsize=\"90%\" xml:id=\"S0.F1.3\">Both.</text></caption></figure></logical-block>",
+      "<logical-block xml:id=\"id1\"><para xml:id=\"p3\"><p align=\"center\" xml:id=\"p3.1\">\
+       <inline-logical-block class=\"ltx_minipage\" vattach=\"top\" width=\"103.5pt\" xml:id=\"p3.1.1\">\
+       <para xml:id=\"p1\"><p align=\"center\" xml:id=\"p1.1\">A</p></para>\
+       <figure align=\"center\" inlist=\"lof\" xml:id=\"S0.F0.sf1\"><tags><tag>\
+       <text fontsize=\"90%\" xml:id=\"S0.F0.sf1.1\">(a)</text></tag><tag role=\"refnum\">0a</tag></tags>\
+       <toccaption><tag close=\" \">a</tag>Left.</toccaption><caption><tag close=\" \">\
+       <text fontsize=\"90%\" xml:id=\"S0.F0.sf1.2\">(a)</text></tag>\
+       <text fontsize=\"90%\" xml:id=\"S0.F0.sf1.3\">Left.</text></caption></figure></inline-logical-block>\
+       <Math mode=\"inline\" tex=\"x\" text=\"x\" xml:id=\"m1\"><XMath xml:id=\"m1.1\">\
+       <XMTok font=\"italic\" role=\"UNKNOWN\">x</XMTok></XMath></Math>\
+       <inline-logical-block class=\"ltx_minipage\" vattach=\"top\" width=\"103.5pt\" xml:id=\"p3.1.2\">\
+       <para xml:id=\"p2\"><p align=\"center\" xml:id=\"p2.1\">B</p></para>\
+       <figure align=\"center\" inlist=\"lof\" xml:id=\"S0.F0.sf2\"><tags><tag>\
+       <text fontsize=\"90%\" xml:id=\"S0.F0.sf2.1\">(b)</text></tag><tag role=\"refnum\">0b</tag></tags>\
+       <toccaption><tag close=\" \">b</tag>Right.</toccaption><caption><tag close=\" \">\
+       <text fontsize=\"90%\" xml:id=\"S0.F0.sf2.2\">(b)</text></tag>\
+       <text fontsize=\"90%\" xml:id=\"S0.F0.sf2.3\">Right.</text></caption></figure></inline-logical-block></p>\
+       </para><figure align=\"center\" inlist=\"lof\" xml:id=\"S0.F1\"><tags><tag>Figure 1</tag>\
+       <tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Figure 1</tag></tags><toccaption><tag close=\" \">1\
+       </tag>Both.</toccaption><caption><tag close=\": \">Figure 1</tag>Both.</caption></figure></logical-block>",
     )],
   );
 }
@@ -5845,7 +5893,7 @@ fn caption_after_framed_text_keeps_the_reading_order() {
     &[(
       "figure",
       "S0.F1",
-      "<figure inlist=\"lof\" xml:id=\"S0.F1\"><tags><tag>Figure 1</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Figure 1</tag></tags><p class=\"ltx_figure_panel\" xml:id=\"S0.F1.1\"><text cssstyle=\"padding:3.0pt\" framecolor=\"#000000\" framed=\"rectangle\" xml:id=\"S0.F1.1.1\">A</text>  <text cssstyle=\"padding:3.0pt\" framecolor=\"#000000\" framed=\"rectangle\" xml:id=\"S0.F1.1.2\">B</text> text</p><toccaption><tag close=\" \">1</tag>Two</toccaption><caption><tag close=\": \">Figure 1</tag>Two</caption><p class=\"ltx_figure_panel\" xml:id=\"S0.F1.2\"><text cssstyle=\"padding:3.0pt\" framecolor=\"#000000\" framed=\"rectangle\" xml:id=\"S0.F1.2.1\">C</text> after</p></figure>",
+      "<figure class=\"ltx_panels_gallery\" inlist=\"lof\" panelcols=\"1\" panelrows=\"2\" xml:id=\"S0.F1\"><tags><tag>Figure 1</tag><tag role=\"refnum\">1</tag><tag role=\"typerefnum\">Figure 1</tag></tags><p class=\"ltx_figure_panel\" xml:id=\"S0.F1.1\"><text cssstyle=\"padding:3.0pt\" framecolor=\"#000000\" framed=\"rectangle\" xml:id=\"S0.F1.1.1\">A</text>  <text cssstyle=\"padding:3.0pt\" framecolor=\"#000000\" framed=\"rectangle\" xml:id=\"S0.F1.1.2\">B</text> text</p><toccaption><tag close=\" \">1</tag>Two</toccaption><caption><tag close=\": \">Figure 1</tag>Two</caption><p class=\"ltx_figure_panel\" xml:id=\"S0.F1.2\"><text cssstyle=\"padding:3.0pt\" framecolor=\"#000000\" framed=\"rectangle\" xml:id=\"S0.F1.2.1\">C</text> after</p></figure>",
     )],
   );
 }
@@ -6051,7 +6099,8 @@ Text.
     &xml,
     "pubnote",
     &["role=\"doi\""],
-    "<pubnote name=\"DOI:\u{a0}\" role=\"doi\">10.1109/OJ.2024.0000000</pubnote>",
+    // (the class's label, IEEEoj.cls:3458 "Digital Object Identifier": batch 92e, OD #915)
+    "<pubnote name=\"Digital Object Identifier\u{a0}\" role=\"doi\">10.1109/OJ.2024.0000000</pubnote>",
   );
   // The overridden first values are gone, not kept beside the last ones.
   assert!(
@@ -6193,7 +6242,9 @@ $\argmax_x f$.
     &xml,
     "creator",
     &["role=\"author\""],
-    "<creator role=\"author\"><personname>Ann Author</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept A, Univ A, ann@a.edu</contact></creator>",
+    // (97e: informs4's family written — the address the entry prints taken out, an e-mail of the author it spells: the
+    // take-out, OD #938)
+    "<creator role=\"author\"><personname>Ann Author</personname><contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Dept A, Univ A</contact><contact name=\"Email:\u{a0}\" role=\"email\">ann@a.edu</contact></creator>",
   );
   assert_element(
     &xml,
@@ -6324,10 +6375,12 @@ Text.
         "<creator {sep}role=\"author\"><personname>Zhengzhong You</personname>{}</creator>",
         affiliation("Univ B")
       ),
+      // (97e: informs4's family written — the `*` line the legend of Lijun Wei's mark, a correspondence note)
       format!(
-        "<creator {sep}role=\"author\"><personname>Lijun Wei</personname>{}{}</creator>",
+        "<creator {sep}role=\"author\"><personname>Lijun Wei</personname>{}<note \
+         class=\"ltx_note_frontmatter ltx_thanks_correspondence\" mark=\"∗\" role=\"thanks\" \
+         xml:id=\"id1\"><sup xml:id=\"id1.1\">∗</sup>Corresponding author</note></creator>",
         affiliation("Univ E"),
-        affiliation("Corresponding author")
       ),
       format!(
         "<creator {sep}role=\"author\"><personname>Zhou Xu</personname>{}</creator>",
@@ -6743,9 +6796,14 @@ Text.
       vec![affiliation(
         "<text fontsize=\"90%\" xml:id=\"id1\"> Univ A</text>"
       )],
-      vec![affiliation(
-        "<text fontsize=\"90%\" xml:id=\"id2\"> Univ B. Email: x@y.z</text>"
-      )],
+      // (the address after the entry, spelling no one, the e-mail of its only carrier, Bob Baker — 95c, OD #938; it had
+      // stayed in Univ B's text; named by its label word as printed, as an e-mail line's label names its contacts — 95c
+      // r2 B5)
+      vec![
+        affiliation("<text fontsize=\"90%\" xml:id=\"id2\"> Univ B.</text>"),
+        "<contact name=\"Email: \" role=\"email\"><text fontsize=\"90%\" xml:id=\"id3\">x@y.z</text></contact>"
+          .to_string(),
+      ],
     ],
     "{xml}"
   );
@@ -6779,13 +6837,10 @@ Text.
   );
   assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
   let found = contacts(&xml);
-  // (Ann's `*`, whose legend line lands among Bob's affiliations, stays shown as printed: 65e `show_unanswered_marks`)
-  assert_element(
-    &xml,
-    "personname",
-    &[],
-    "<personname>Ann Able<sup xml:id=\"id1\">\u{2217}</sup></personname>",
-  );
+  // (Ann's `*`: its legend line is her note since the writer reads it (93a, OD #925), so the mark it answers is no
+  // longer shown — review rev94a r2 S3, `hide_answered_marks`; before, the line landed among Bob's affiliations and the
+  // mark stayed shown as printed, 65e `show_unanswered_marks`)
+  assert_element(&xml, "personname", &[], "<personname>Ann Able</personname>");
   // Ann holds her affiliation and her address alone: each address of the line goes to its author in order
   // (`email_line_calls`), the legend is not folded into Univ B. (Where the legend goes, an unmarked line placed by
   // position, is not pinned: it is not an affiliation.)
@@ -6793,7 +6848,7 @@ Text.
     found[0],
     vec![
       affiliation(" Univ A"),
-      "<contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id2\">a@x.y</text></contact>".to_string()
+      "<contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id1\">a@x.y</text></contact>".to_string()
     ],
     "{xml}"
   );
@@ -6805,6 +6860,7 @@ Text.
     bob,
     vec![
       &affiliation(" Univ B"),
+      // (id3: Ann's legend note, written since 93a, holds id2 — OD #925; her shown mark, id1 before, taken in 94a r3)
       &"<contact name=\"Email:\u{a0}\" role=\"email\"><text font=\"typewriter\" xml:id=\"id3\">b@x.y</text></contact>".to_string()
     ],
     "{xml}"
@@ -6978,7 +7034,9 @@ Text.
       "{ann}"
     );
   }
-  // One address under an affiliation two authors share continues it, as printed (round 3: each author got it).
+  // One address under an affiliation two authors share continues it, as printed (round 3: each author got it); since 97e
+  // (iopart written) the address is taken out of the entry, an e-mail of the author it spells (FIDELITY_CHARTER §4,
+  // the take-out of OD #938).
   assert_eq!(
     contacts(
       r"\documentclass{iopart}
@@ -6992,8 +7050,12 @@ Text.
 \end{document}"
     ),
     vec![
-      creator(false, "Ann Able", &affiliation(" Univ A<break/>ann@x.y")),
-      creator(true, "Bob Baker", &affiliation(" Univ A<break/>ann@x.y")),
+      creator(
+        false,
+        "Ann Able",
+        &format!("{}{}", affiliation(" Univ A"), email("ann@x.y"))
+      ),
+      creator(true, "Bob Baker", &affiliation(" Univ A")),
       creator(true, "Cy Dee", &affiliation(" Univ B"))
     ]
   );
@@ -7025,15 +7087,14 @@ Text.
   );
   // Rounds 4-5. An address claims an author only where the list says whose it is: under an affiliation of a list
   // that puts addresses under its affiliations, one address of its one author's. Several under one author's
-  // affiliation, or one under an affiliation several share, continue it, as printed (the global email count had made
-  // a creator with no name for `bob2@x.y`; by order among a shared mark's authors, 2609.06094's addresses went to
-  // the wrong ones).
+  // affiliation, or one under an affiliation several share, continued it, as printed, until 97e wrote iopart: each is
+  // now taken out, an e-mail of the author it spells (the global email count had made a creator with no name for
+  // `bob2@x.y`; by order among a shared mark's authors, 2609.06094's addresses went to the wrong ones).
   let iopart = |authors: &str, addresses: &str| {
     contacts(&format!(
       "\\documentclass{{iopart}}\n\\begin{{document}}\n\\title{{T}}\n\\author{{{authors}}}\n{addresses}\n\\maketitle\nText.\n\\end{{document}}"
     ))
   };
-  let shared = |rest: &str| format!("<creator role=\"author\">{rest}</creator>");
   assert_eq!(
     iopart(
       r"Ann Able$^1$, Bob Baker$^2$ and Cy Dee$^2$",
@@ -7045,15 +7106,16 @@ Text.
         "Ann Able",
         &format!("{}{}", affiliation(" Univ A"), email("ann@x.y"))
       ),
+      // (97e, iopart written: the shared entry's addresses taken out, each an e-mail of the author it spells)
       creator(
         true,
         "Bob Baker",
-        &affiliation(" Univ B<break/>bob@x.y<break/>cy@x.y")
+        &format!("{}{}", affiliation(" Univ B"), email("bob@x.y"))
       ),
       creator(
         true,
         "Cy Dee",
-        &affiliation(" Univ B<break/>bob@x.y<break/>cy@x.y")
+        &format!("{}{}", affiliation(" Univ B"), email("cy@x.y"))
       )
     ]
   );
@@ -7068,15 +7130,23 @@ Text.
         "Ann Able",
         &format!("{}{}", affiliation(" Univ A"), email("ann@x.y"))
       ),
+      // (97e, iopart written: both addresses taken out, Bob Baker's, whom each spells)
       creator(
         true,
         "Bob Baker",
-        &affiliation(" Univ B<break/>bob@x.y<break/>bob2@x.y")
+        &format!(
+          "{}{}{}",
+          affiliation(" Univ B"),
+          email("bob@x.y"),
+          email("bob2@x.y")
+        )
       )
     ]
   );
   // A list whose addresses only follow its affiliations gives them to the authors in order when there is one for
-  // each, else to the shared creator below the authors (#159) — 2609.06094's shape: two authors request mark 2, two
+  // each, else each to the author it spells (since batch 99a: the placement order's step 2 before step 4), else to the
+  // shared creator below the authors (#159), one contact an address (77o r3: the raw line was one
+  // Semiverbatim contact, 1802.07182's `$\,$` shown as `$ $`) — 2609.06094's shape: two authors request mark 2, two
   // addresses, a legend after. (The legend on the last author is the unmarked-row placement of before, not pinned
   // as intended.) A footnote-symbol legend after the run, `$^\dagger$ Corresponding author`, is no affiliation the
   // run sits above (round 6: Ann's address went to Bob).
@@ -7092,18 +7162,26 @@ Text.
 \end{document}"
     ),
     vec![
-      creator(false, "Ann Able", &affiliation(" Univ A")),
-      creator(true, "Bob Baker", &affiliation(" Univ B")),
+      creator(
+        false,
+        "Ann Able",
+        &format!("{}{}", affiliation(" Univ A"), email_tt("ann@x.y", 1))
+      ),
+      creator(
+        true,
+        "Bob Baker",
+        &format!("{}{}", affiliation(" Univ B"), email_tt("bob@x.y", 2))
+      ),
       creator(
         true,
         "Cy Dee",
+        // (Univ B before the legend, as printed: since 99a r2 in print order (R8: `relocate::at_queue_position`, OD #954))
         &format!(
           "{}{}",
-          affiliation("* Equal contribution"),
-          affiliation(" Univ B")
+          affiliation(" Univ B"),
+          affiliation("* Equal contribution")
         )
       ),
-      shared(&email_tt("ann@x.y, bob@x.y", 1))
     ]
   );
   assert_eq!(
@@ -7129,8 +7207,11 @@ Text.
         &format!(
           "{}{}{}",
           affiliation(" Univ B"),
-          affiliation(" Corresponding author"),
-          email_tt("bob@x.y", 2)
+          email_tt("bob@x.y", 2),
+          // (the legend Bob Baker's note, its `†` kept: the kernel family's writer since 93a, OD #925 — ruling 2's
+          // legend line, which the old reader made an affiliation; its `mark` the dagger it prints, 94a r6)
+          "<note class=\"ltx_note_frontmatter ltx_thanks_correspondence\" mark=\"†\" role=\"thanks\" \
+           xml:id=\"id3\"><sup xml:id=\"id3.1\">†</sup> Corresponding author</note>"
         )
       )
     ]
@@ -7242,9 +7323,11 @@ Text.
       )
     ]
   );
-  // A mark's first label is the one it sets (`$^{1,3}$`): Bob's request for 3 finds no affiliation, a residual shared
-  // with Perl (Base_Utility.pool.ltxml:565-570 keeps the first label), though pdflatex prints Univ A as his too; the
-  // affiliation's printed `1,3` answers his mark, so it is not shown again (64a `answered_labels`).
+  // A mark's first label is the one it sets (`$^{1,3}$`): Perl's reading keeps the first label only
+  // (Base_Utility.pool.ltxml:565-570), so Bob's request for 3 found no affiliation; the observer reads the printed
+  // `1,3` as both (ruling 1), and the observer writes it: Univ A is Bob's too, as pdflatex prints it (the binary wrote
+  // it so since 92c; this in-process conversion since 93a, OD #925). The affiliation's printed `1,3` answers his mark,
+  // so it is not shown again (64a `answered_labels`).
   assert_eq!(
     contacts(
       r"\documentclass{llncs}
@@ -7262,11 +7345,11 @@ Text.
         "Ann Able",
         &format!("{}{}", affiliation(" Univ A"), email("ann@x.y"))
       ),
-      creator(true, "Bob Baker", "")
+      creator(true, "Bob Baker", &affiliation(" Univ A"))
     ]
   );
-  // More addresses than authors: one contact of the block, on the shared creator, without the `\email{…}` wrapper
-  // (round 2: an empty contact beside it; round 5: on the last author).
+  // More addresses than authors: the block's, on the shared creator, without the `\email{…}` wrapper, one contact an
+  // address (round 2: an empty contact beside it; round 5: on the last author; 77o r3: one contact for the line).
   assert_eq!(
     contacts(
       r"\documentclass{llncs}
@@ -7282,8 +7365,10 @@ Text.
       creator(false, "Ann Able", &affiliation(" Univ A")),
       creator(true, "Bob Baker", &affiliation(" Univ B")),
       format!(
-        "<creator role=\"author\">{}</creator>",
-        email_tt("a@x.y, b@x.y, c@x.y", 1)
+        "<creator role=\"author\">{}{}{}</creator>",
+        email_tt("a@x.y", 1),
+        email_tt("b@x.y", 2),
+        email_tt("c@x.y", 3)
       )
     ]
   );
@@ -7741,12 +7826,15 @@ fn author_marks_link_their_affiliations() {
     creators(include_str!(
       "../../../tools/perfect_kernel/repros/sectioning-frontmatter/author_symbol_mark_links_its_affiliation.tex"
     )),
+    // (97e: informs4's family, `UNDECLARED`, written — the `*` line is the legend of Bob Baker's symbol mark, a
+    // correspondence note of his, as pdflatex prints it under the names: FIDELITY_CHARTER §4 ruling 2)
     vec![
       creator("", "Ann Able", &affiliation("Univ A")),
       creator(
         "before=\"\u{2003}\u{2003}\" ",
-        "Bob Baker<sup>*</sup>",
-        &affiliation("Corresponding author")
+        "Bob Baker",
+        "<note class=\"ltx_note_frontmatter ltx_thanks_correspondence\" mark=\"∗\" \
+         role=\"thanks\"><sup>∗</sup>Corresponding author</note>"
       ),
     ]
   );
@@ -8010,13 +8098,15 @@ fn frontmatter_digest_cluster_2609() {
   let xml = clean(include_str!(
     "../../../tools/perfect_kernel/repros/sectioning-frontmatter/author_block_environment_is_one_unit.tex"
   ));
-  let found = names(&xml);
-  assert_eq!(found.len(), 2, "{found:?}");
-  assert_eq!(found[0], "Ann Able");
-  assert!(
-    found[1].starts_with("Bob Baker") && found[1].contains("Department of Physics and Astronomy"),
-    "{found:?}"
-  );
+  // (the `{center}` under the names is a line of its own, every name's affiliation — R12 — not text in the last
+  // personname)
+  let department = "<contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">Department of Physics and Astronomy</contact>";
+  assert_eq!(creators_of(&xml), [
+    format!("<creator role=\"author\"><personname>Ann Able</personname>{department}</creator>"),
+    format!(
+      "<creator before=\"\u{2003}\u{2003}\" role=\"author\"><personname>Bob Baker</personname>{department}</creator>"
+    ),
+  ]);
   // An alignment environment around the whole block, or a whole `\and` group, is layout: its lines split as written.
   let affiliation = |name: &str| {
     format!("<contact name=\"Affiliation:\u{a0}\" role=\"affiliation\">{name}</contact>")

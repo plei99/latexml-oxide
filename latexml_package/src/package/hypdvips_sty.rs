@@ -1,6 +1,6 @@
 //! hypdvips.sty (v3.03, 2019/07/31) — hyperref extensions for the dvips driver.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(h). The package extends hyperref's
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(h). The package extends hyperref's
 //! `hdvips` driver with PostScript `pdfmark`s: file attachments (`\attachfile`, `\embedfile`,
 //! `\file`), links into other and attached PDFs (`\goto`, `\gotoparent`, `\runattachment`), named
 //! destinations (`\odest`), page labels, open actions, bookmark styles and annotation colours, and it

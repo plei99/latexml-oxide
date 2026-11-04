@@ -1,6 +1,6 @@
 //! leftindex.sty (v0.2beta, 2024/01/31) — left super- and subscripts.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(o). `\leftindex[#1][#2]^{#3}_{#4}{#5}`
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(o). `\leftindex[#1][#2]^{#3}_{#4}{#5}`
 //! (leftindex.sty:73-89) typesets `#3`/`#4` as scripts of an empty `\mathop{}` kerned in front of
 //! `#5`, slanted to fit it and sized by `\vphantom`s of `#2`/`#1`
 //! (`\__leftindex_auxiliary:nnnnn`, :128-207). Here they are the prescripts of `#5` in one

@@ -36,7 +36,7 @@
 //!
 //! The package option `disablejfam` (luatexja.sty:48) sets `\ifltj@disablejfam`; other options are ignored (:49).
 //! Not provided: the code conversions `\euc`, `\jis`, `\sjis`, `\kuten` (luatexja-compat.sty; they need the tables),
-//! `\ucs` is `\char`, and everything under `luatexja.*` in Lua. OXIDIZED_DESIGN #614.
+//! `\ucs` is `\char`, and everything under `luatexja.*` in Lua. OXIDIZED_DESIGN #991.
 //!
 //! Where raw TeX Live packages are read (`--includestyles`, the `rawstyles` protocol; `raw_tex_styles_enabled`) the genuine
 //! file loads, as it did before this binding: `jlreq.cls` and the classes built on luatexja use its internals (`\Cht`,

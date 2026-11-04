@@ -1,4 +1,4 @@
-//! A rule inside a box in an alignment cell is that box's rule, not a border of the alignment (KNOWN_PERL_ERRORS #661):
+//! A rule inside a box in an alignment cell is that box's rule, not a border of the alignment (KNOWN_PERL_ERRORS #1208):
 //! an `\hrule`'s border restarted the row's columns, so the next `&` overwrote the cell. ytableau's boxes
 //! (`\fcolorbox@YT`, kerned `\hrule`s and `\vrule`s in a `\vbox`) kept only a row's first and last cells. The ytableau
 //! binding makes each box its cell's four borders around a `\boxdim@YT`-square inline block.

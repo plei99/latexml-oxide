@@ -185,7 +185,7 @@
       </xsl:call-template>
       <!-- add colspan, rowspan but NOT on fake td elements -->
       <xsl:if test="$context != 'inline'">
-        <!-- (latexml-oxide, OXIDIZED_DESIGN #590) A header cell says which cells it heads.
+        <!-- (latexml-oxide, OXIDIZED_DESIGN #969) A header cell says which cells it heads.
              LaTeXML marks a cell a header along an axis, and a cell that is one along both
              ("column row", Alignment.pm:1239 merges the two values; the corner) cannot be
              given one scope; in a thead it heads its column, elsewhere it gets none. -->

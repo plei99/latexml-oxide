@@ -1,5 +1,5 @@
 //! TikZ path fadings (`path fading=`, `\pgfsetfading`) are `svg:mask`s of the fading's box
-//! (OXIDIZED_DESIGN_DIVERGENCES #615; Perl's `\pgfsys@fadingfrombox`/`\pgfsys@usefading` are `# NOT IMPLEMENTED`
+//! (OXIDIZED_DESIGN_DIVERGENCES #992; Perl's `\pgfsys@fadingfrombox`/`\pgfsys@usefading` are `# NOT IMPLEMENTED`
 //! no-ops, pgfsys-latexml.def.ltxml:811-824, so a faded fill came out opaque).
 
 use latexml::util::test::assert_element;
@@ -200,7 +200,7 @@ fn an_undefined_fading_is_an_error_and_masks_nothing() {
 }
 
 /// A shading is as large as it was declared. The driver made `\lxSVG@pos` (the shading's size, for the box and the
-/// bounding box) the pixel size read as points, 1.38 times too large (OXIDIZED_DESIGN_DIVERGENCES #616): the
+/// bounding box) the pixel size read as points, 1.38 times too large (OXIDIZED_DESIGN_DIVERGENCES #993): the
 /// picture of a `\pgfuseshading` in text was 192px wide round a 139px rectangle, and a node holding one put the
 /// shading 27px off its centre. The shading here is 100bp = 138.89px; its box is the same.
 #[test]

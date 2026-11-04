@@ -162,7 +162,7 @@ fn opdecoration_post_test() {
 
 #[test]
 fn overline_post_test() {
-  // `\overline` / `\underline` presentation (OXIDIZED_DESIGN_DIVERGENCES #584).
+  // `\overline` / `\underline` presentation (OXIDIZED_DESIGN_DIVERGENCES #963).
   // Perl (MathML.pm L1490-1506) and we used to emit `<mover accent><base/><mo>¯</mo>`;
   // the macron's horizontal stretch needs a horizontal MATH-table construction that
   // common math fonts lack, so the "bar" rendered as a short tick. The operators NAMED

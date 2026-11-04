@@ -612,6 +612,7 @@ fn siunitx_v3_keys() {
 /// enumitem's `shortlabels`: a list's first key with no `=` that names no
 /// enumitem key is a label template (enumitem.sty:660-681 `\enit@first`), not
 /// an unknown key: `[(a)]` warned and kept arabic labels.
+/// As a `label=`, it is the reference too: "(a)" (77u, KNOWN_PERL_ERRORS #808).
 #[test]
 fn enumitem_shortlabels() {
   let tex =
@@ -628,11 +629,11 @@ fn enumitem_shortlabels() {
     tags,
     [
       "<tag>(a)</tag>",
-      r#"<tag role="refnum">a</tag>"#,
+      r#"<tag role="refnum">(a)</tag>"#,
       "<tag>(b)</tag>",
-      r#"<tag role="refnum">b</tag>"#,
+      r#"<tag role="refnum">(b)</tag>"#,
       "<tag>(i)</tag>",
-      r#"<tag role="refnum">i</tag>"#,
+      r#"<tag role="refnum">(i)</tag>"#,
     ],
     "{xml}"
   );
@@ -799,9 +800,10 @@ fn raw_class_normalsize_nominal() {
   let (stderr, xml) = convert_with(tex, Some("[rawstyles,rawclasses]latexml.sty"));
   assert_eq!(error_count(&stderr), 0, "{stderr}");
   assert!(!stderr.contains("Bad type area settings"), "{stderr}");
-  // The `\@startsection`/`\@sect` identity warnings (LEDGER 56ig) are absent in KOMA-Script
-  // 3.49.2 (TeX Live 2026); present in 3.41 (TeX Live 2024).
-  assert_eq!(warning_count(&stderr), 0, "{stderr}");
+  // (no warning at all: KOMA's two sectioning-identity warnings, LEDGER 56ig, are gone since 72a r10, koma_script.rs
+  // `koma_pre_load`)
+  let warnings = stderr.lines().filter(|l| l.contains("Warning:")).count();
+  assert_eq!(warnings, 0, "{stderr}");
   assert!(
     xml
       .contains(r#"<p>Body <text fontsize="110%">L</text> and <text fontsize="91%">s</text>.</p>"#),

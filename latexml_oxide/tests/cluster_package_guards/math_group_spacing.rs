@@ -1,13 +1,13 @@
 //! Three places where the spacing and the size of a math formula came out other than TeX sets them
-//! (OXIDIZED_DESIGN_DIVERGENCES #611, #612, #613):
+//! (OXIDIZED_DESIGN_DIVERGENCES #988, #989, #990):
 //!
-//! * #611 `\delimiter`/`\mathchar` of class 3 (Rel): `\left\{d\delimiter"326A30C D\right\}`, the set-builder bar,
+//! * #988 `\delimiter`/`\mathchar` of class 3 (Rel): `\left\{d\delimiter"326A30C D\right\}`, the set-builder bar,
 //!   is set with `\thickmuskip` either side. The glyph's own role (VERTBAR, re-roled MIDDLE by the fence rule, an Ord
 //!   to the spacing walk, MathML.pm:1151) won over the class (Package.pm:2993), so the bar had no space.
-//! * #612 a `\vphantom` beside a stretchy fence sizes it: `\left.x\vphantom{\int}\right|_{a}`, which physics.sty:180-193
+//! * #989 a `\vphantom` beside a stretchy fence sizes it: `\left.x\vphantom{\int}\right|_{a}`, which physics.sty:180-193
 //!   sets for `\evaluated{x}_{a}`. The strut was dropped (math_common.pool.ltxml:680 makes an `XMHint`, which
 //!   MathParser.pm:440 `filter_hints` unlinks), so the bar was as short as the row and the limit hung from its middle.
-//! * #613 `D_X\mathsf{-Mod}`: the minus opens a math group, an Ord atom, so it is unary and tight (tex.web §727); it
+//! * #990 `D_X\mathsf{-Mod}`: the minus opens a math group, an Ord atom, so it is unary and tight (tex.web §727); it
 //!   was flat in the formula and set as the binary minus of `D_X - Mod`.
 
 use latexml::util::test::assert_element;
@@ -41,7 +41,7 @@ fn assert_math(html: &str, id: &str, expected: &str) {
   assert_element(html, "math", &[&format!(r#"id="{id}""#)], expected);
 }
 
-// ---- #611: a Rel-class bar ----------------------------------------------------------------------------------------
+// ---- #988: a Rel-class bar ----------------------------------------------------------------------------------------
 
 #[test]
 fn a_class_3_delimiter_records_its_class() {
@@ -101,7 +101,7 @@ fn a_class_3_delimiter_after_middle_is_a_fence_not_a_relation() {
   );
 }
 
-// ---- #612: a strut beside a stretchy fence ------------------------------------------------------------------------
+// ---- #989: a strut beside a stretchy fence ------------------------------------------------------------------------
 
 #[test]
 fn a_vphantom_gives_the_closing_fence_its_extent() {
@@ -242,7 +242,7 @@ fn physics_evaluated_with_a_delimited_argument_sizes_both_fences() {
   );
 }
 
-// ---- #613: a minus that opens a group ------------------------------------------------------------------------------
+// ---- #990: a minus that opens a group ------------------------------------------------------------------------------
 
 #[test]
 fn a_group_leading_minus_records_the_ordinary_class() {

@@ -273,6 +273,10 @@ pub struct DeclaredMode {
   pub bounded:          bool,
   pub require_math:     bool,
   pub forbid_math:      bool,
+  /// Declared `mode => "restricted_horizontal"` itself (not `text`, not an environment's default): the constructor
+  /// builds a TeX box (`\hbox`, `\mbox`, `\fcolorbox`, `\scalebox`), the first element it opens outside math marked
+  /// for a frontmatter field's print (core `document::FIELD_BOX_PROPERTY`, OXIDIZED_DESIGN #715).
+  pub restricted_box:   bool,
 }
 
 pub trait Definition: Object {
@@ -302,6 +306,17 @@ pub trait Definition: Object {
   /// a primitive built by hand). The audit reads `None` on a primitive or constructor as
   /// declaring nothing.
   fn declared_mode(&self) -> Option<DeclaredMode> { None }
+  /// The font a primitive or constructor was declared with (its `font => {…}` option), which its
+  /// digestion merges into the current font; `None` for every other definition. latex.ltx's
+  /// `\@fontswitch` reads a math alphabet as a switch to the group's end (`\mathrm\relax` with
+  /// `\math@bgroup` let to `\relax`, latex.ltx:14312-14321): the binding's switch merges this font
+  /// (`\lx@math@alphabet@switch`, latex_constructs/sect13.rs).
+  fn declared_font(&self) -> Option<&FontDirective> { None }
+  /// The literal XML template that is a constructor's whole construction: its replacement's source (`DefConstructor!`
+  /// with a string replacement), when no construction hook (`before_construct`, `after_construct`) adds to it. `None`
+  /// for a closure replacement, a constructor made at run time and every other definition: what it builds cannot be
+  /// read off it (the frontmatter's no-ink test, latexml_engine util_text.rs `first_ink`, counts such a whatsit as ink).
+  fn replacement_template(&self) -> Option<&'static str> { None }
   fn get_alias(&self) -> Option<&String>;
   fn is_protected(&self) -> bool { false }
   /// Whether this macro peeks at the next token the way latex.ltx's

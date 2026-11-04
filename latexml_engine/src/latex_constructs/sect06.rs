@@ -153,12 +153,17 @@ pub(crate) fn load() -> Result<()> {
   // closing the first inline, and array content lands inside
   // `<ltx:p>` triggering schema violations. Driver: astro-ph0203201
   // (table*+center+$$+array).
+  // `{center}`, `{flushleft}` and `{flushright}` are `\trivlist` and `\centering`, `\raggedright`, `\raggedleft`
+  // (latex.ltx:15415-15432), which let `\\` be `\@centercr`, a line break: in them `\\` is the kernel's newline
+  // (`\@normalcr`, as a parbox's), whatever the document made it (`\def\\ml{m_L}`, hep-ph9607435: "Missing argument
+  // Match:ml" per `\\`). Guard `perfect_kernel_batch73b::centering_rebinds_the_line_break`.
   DefEnvironment!("{center}", sub[document, _args, props] {
     document.maybe_close_element("ltx:p")?; // this starts a new vertical block
     // aligning will take care of \\\\ "rows"
     aligning_environment("center", "ltx_centering", document, props)?;
     Ok(())
-  }, mode => "internal_vertical");
+  }, mode => "internal_vertical",
+  before_digest => { Let!("\\\\", "\\@normalcr"); });
   // HOWEVER, define a plain \center to act like \centering (?)
   DefMacro!("\\center", "\\centering");
   def_macro_noop("\\endcenter")?;
@@ -171,12 +176,14 @@ pub(crate) fn load() -> Result<()> {
     document.maybe_close_element("ltx:p")?; // this starts a new vertical block
     aligning_environment("left", "ltx_align_left", document, props)?;
     Ok(())
-  }, mode => "internal_vertical");
+  }, mode => "internal_vertical",
+  before_digest => { Let!("\\\\", "\\@normalcr"); });
   DefEnvironment!("{flushright}", sub[document, _args, props] {
     document.maybe_close_element("ltx:p")?; // this starts a new vertical block
     aligning_environment("right", "ltx_align_right", document, props)?;
     Ok(())
-  }, mode => "internal_vertical");
+  }, mode => "internal_vertical",
+  before_digest => { Let!("\\\\", "\\@normalcr"); });
   // Perl latex_constructs.pool.ltxml L1316-1318: "Redefine these so they work
   // both as environments, and as single commands". The bare `\flushleft` /
   // `\flushright` commands (without matching `\end...`) are used as
@@ -210,9 +217,10 @@ pub(crate) fn load() -> Result<()> {
   // \raggedsignature` in `\closing`: "You can't use \raggedsignature after
   // \the" (bfh-ci letter, SFSesim, makelabels ×2, scrlttr2copy; Perl's
   // constructors fail identically, pool:1237-1240).
-  DefMacro!("\\centering", "\\lx@do@centering");
-  DefMacro!("\\raggedright", "\\lx@do@raggedright");
-  DefMacro!("\\raggedleft", "\\lx@do@raggedleft");
+  // Each lets `\\` be the kernel's newline first, as latex.ltx's `\let\\\@centercr` (`{center}` above; hep-ph9607435).
+  DefMacro!("\\centering", "\\let\\\\\\@normalcr\\lx@do@centering");
+  DefMacro!("\\raggedright", "\\let\\\\\\@normalcr\\lx@do@raggedright");
+  DefMacro!("\\raggedleft", "\\let\\\\\\@normalcr\\lx@do@raggedleft");
   DefConstructor!("\\lx@do@centering", sub[doc,_args] {
     setup_aligning_context(doc);
   },
@@ -281,15 +289,17 @@ pub(crate) fn load() -> Result<()> {
 
   // Perl: Let('\@block@cr', '\lx@newline');  # Obsolete, but in case still used
   Let!("\\@block@cr", "\\lx@newline");
-  DefEnvironment!("{quote}",
-    "<ltx:quote>#body</ltx:quote>",
-    mode => "internal_vertical");
-  DefEnvironment!("{quotation}",
-    "<ltx:quote>#body</ltx:quote>",
-    mode => "internal_vertical");
-  DefEnvironment!("{verse}",
-    "<ltx:quote role='verse'>#body</ltx:quote>",
-    mode => "internal_vertical");
+  // Perl `<ltx:quote>#body</ltx:quote>` (and `role='verse'`), its end acting on the quote it opened
+  // (`quote_environment`).
+  DefEnvironment!("{quote}", sub[document, _args, props] {
+    quote_environment(document, props, None)
+  }, mode => "internal_vertical");
+  DefEnvironment!("{quotation}", sub[document, _args, props] {
+    quote_environment(document, props, None)
+  }, mode => "internal_vertical");
+  DefEnvironment!("{verse}", sub[document, _args, props] {
+    quote_environment(document, props, Some("verse"))
+  }, mode => "internal_vertical");
 
   //======================================================================
   // C.6.2 List-Making environments
@@ -653,6 +663,19 @@ pub(crate) fn load() -> Result<()> {
       // `\endtrivlist`; a raw `\@trivlist` … `\endtrivlist` pair) can tell
       // the list's own mode frame from an enclosing one.
       assign_value("groupInitiator", Stored::Token(T_CS!("\\lx@list")), None);
+      // The list opens no TeX group (latex.ltx `\list`/`\@trivlist`), so this frame is LaTeXML's alone: a `}` or
+      // `\endgroup` meeting it ends the list first, as for a bare `\X` (stomach.rs `close_environment_frame`, an Info),
+      // and then its own group — `\def\refs{\list{}{…}}` closed only by `\end{refs}`'s `\endgroup` (iopconf.sty:283
+      // `\references`, astro-ph9806019; jT.cls:170 `resume`, 0902.3464) or INFORMS's `\Trivlist` ended by its own
+      // `\endTrivlist` copy (2106.10067) swallowed the rest of the document into the last item. `\endlx@list`, not
+      // `\endlist`: a group's end does not undo `\list`'s global `\@listdepth` step in LaTeX either. Guard:
+      // `perfect_kernel_batch66x::list_closed_by_its_environments_group`.
+      assign_frame_value("lx@env@bare@end", T_CS!("\\endlx@list"));
+      // The environment the list is opened in (a class's `\chapthebibliography` = `\section*` + `\list` + `\item[]`,
+      // cargese.cls:1859-1890): a `\bibitem` in that environment closes this list before it opens the kernel's
+      // bibliography (sect11.rs `\lx@mung@bibliography`).
+      let currenvir = Expand!(Tokens!(T_CS!("\\@currenvir"))).to_string();
+      assign_frame_value("lx@list@currenvir", currenvir);
     });
   // Close the anonymous list if we're still within one.
   //
@@ -673,9 +696,20 @@ pub(crate) fn load() -> Result<()> {
   // Guards: `perfect_kernel_batch51::endlist_without_lx_list_frame`,
   // `perfect_kernel_batch54::endlist_decrements_listdepth`,
   // `perfect_kernel_batch56::endlist_closes_an_enumerate_opened_by_its_begin_macro`.
+  //
+  // With no list open — no `internal_vertical` mode frame anywhere on the stack — `\endlist` is latex.ltx:15915-15930
+  // `\endtrivlist`'s paragraph and skip bookkeeping only, which TeX does without a diagnostic: a class repeating
+  // `{thebibliography}`'s end code at load (siuro210301.cls:995-1000, lt6-proc.cls:988-994 via the blank lines that
+  // make `\newenvironment`'s #3 `\par`), or a `{proof}` whose end code calls `\endlist` (0710.0460: 30 Errors). An
+  // open mode frame below an unrelated top frame keeps the error-without-pop above. Guard:
+  // `perfect_kernel_batch69b::endlist_with_no_list_open_does_nothing`.
   DefConstructor!("\\endlx@list", sub[document] {
   document.maybe_close_element("ltx:itemize")?; },
-  before_digest => { end_mode("internal_vertical")?; });
+  before_digest => {
+    if internal_vertical_mode_frame_open() {
+      end_mode("internal_vertical")?;
+    }
+  });
 
   DefConstructor!("\\list@item OptionalUndigested",
     "<ltx:item xml:id='#id' itemsep='#itemsep'>#tags",
@@ -861,7 +895,12 @@ pub(crate) fn load() -> Result<()> {
       }
     }
   });
-  DefMacro!("\\@trivlist", "\\lx@trivlist@setup\\lx@list");
+  // Locked, as Perl's `DefMacro('\@trivlist', '\relax', locked => 1)` (latex_constructs.pool.ltxml:1673; D1, "a
+  // locked binding owns its calls"): the ACM 1.8 family (vldb.cls:1118, sig-alternate*.cls, acm_proc_article-sp.cls,
+  // acmtrans2m.cls) re-`\def`s latex.ltx's `\@trivlist` for its spacing, so `\list` never opened `\lx@list` and
+  // `\endlist` erred "Attempt to end mode internal_vertical" (rc_struct3 L1, est. 252 papers; 1212.6177, 1710.00867).
+  // Guard: `perfect_kernel_batch69b::class_redefining_trivlist_keeps_the_list`.
+  DefMacro!("\\@trivlist", "\\lx@trivlist@setup\\lx@list", locked => true);
   DefMacro!("\\trivlist@item", "\\preitem@par\\trivlist@item@");
   DefConstructor!("\\trivlist@item@ OptionalUndigested",
     "<ltx:item xml:id='#id' itemsep='#itemsep'><ltx:tags><ltx:tag>#tag</ltx:tag></ltx:tags>",
@@ -1112,4 +1151,70 @@ fn close_trivlists_from(document: &mut Document, level: usize) -> Result<()> {
     document.maybe_close_node(&list)?;
   }
   Ok(())
+}
+
+/// `{quote}`, `{quotation}`, `{verse}`: Perl's `<ltx:quote>#body</ltx:quote>` (`role='verse'` for a verse,
+/// latex_constructs.pool.ltxml), whose end acts on the quote it opened. A bibliography or a sectioning unit in the body
+/// closes the quote (`Document::close_quotes_blocking`, OXIDIZED_DESIGN_DIVERGENCES #677, #678); the end then closes
+/// no other quote (one around it stays open: probe b_qsq, a `{quote}` in a `{quotation}`), only the paragraph
+/// the body's tail is in, as TeX's `\endlist` ends it (latex.ltx `\@endparenv`), so the text after the environment is
+/// a paragraph of its own (probe b_quote_text). A run-in `\paragraph`/`\subparagraph` leaves the quote open (an
+/// `ltx:inline-sectional-block` in it, closed here). Witnesses 2203.09193 1504.06728 (a bibliography in a quote, a
+/// verse), 0712.1985 (`\section*` in a `{quotation}`), 2607.27159 (`\paragraph` in a quote). Guards
+/// `perfect_kernel_batch69a::{bibliography_in_a_quote_keeps_the_tail_paragraph,
+/// bibliography_in_a_nested_quote_keeps_the_outer_quote, paragraph_in_a_quote_stays_in_it}`.
+fn quote_environment(
+  document: &mut Document,
+  props: &SymHashMap<Stored>,
+  role: Option<&str>,
+) -> Result<()> {
+  // The template's open: no attributes, no font (`<ltx:quote>`); with one, the whatsit's font.
+  let quote = match role {
+    None => document.open_element("ltx:quote", None, None)?,
+    Some(role) => {
+      let attrs: HashMap<String, String> = string_map!("role" => role);
+      let font = match props.get("font") {
+        Some(Stored::Font(f)) => Some(Cow::Borrowed(&**f)),
+        Some(Stored::FontDirective(FontDirective::Asset(fa))) => Some(Cow::Borrowed(&**fa)),
+        Some(Stored::FontDirective(FontDirective::Closure(code))) => Some(Cow::Owned(code(None)?)),
+        _ => None,
+      };
+      document.open_element("ltx:quote", Some(attrs), font.as_deref())?
+    },
+  };
+  if let Some(Stored::Digested(body)) = props.get("body") {
+    document.absorb(body, None)?;
+  }
+  // `close_quotes_blocking` may have removed the quote (closed and left empty, then freed): the freed handle is
+  // blanked (libxml's `free_subtree` neutralizes every wrapper into the subtree), so it is neither the current node
+  // nor has children, and `is_open` is false — the quote counts as closed, as it is.
+  if document.is_open(&quote) {
+    document.close_element_if_open("ltx:quote")?;
+  } else {
+    // The tail's paragraph text: the innermost `ltx:p` reached through elements that auto-close.
+    let mut node = Some(document.get_node().clone());
+    while let Some(current) = node {
+      if current.get_type() == Some(NodeType::ElementNode) {
+        if document::get_node_qname(&current) == pin!("ltx:p") {
+          document.close_node_internal(&current)?;
+          break;
+        }
+        if !document::can_auto_close(&current) {
+          break;
+        }
+      }
+      node = current.get_parent();
+    }
+  }
+  Ok(())
+}
+
+/// Whether a stack frame binds the `internal_vertical` mode (`begin_mode`), the mode `\lx@list` and the list
+/// environments open: with none, `\endlx@list` has no list to end.
+fn internal_vertical_mode_frame_open() -> bool {
+  (0..get_frame_depth()).any(|n| {
+    is_value_bound("BOUND_MODE", Some(n))
+      && value_in_frame("BOUND_MODE", n)
+        .is_some_and(|mode| String::from(&mode) == "internal_vertical")
+  })
 }

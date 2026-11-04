@@ -1,7 +1,7 @@
 //! mathalpha.sty (v1.145, 2025/01/17) and its alias mathalfa.sty — choosing the faces of the
 //! calligraphic, script, fraktur and blackboard math alphabets.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(j). The options `cal=`, `scr=`,
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(j). The options `cal=`, `scr=`,
 //! `frak=`, `bb=` each pick a face for one alphabet and (re)declare its command (mathalpha.sty:68-1100):
 //! `cal=` redeclares `\mathcal`, `scr=` is the only path that defines `\mathscr`, `frak=` `\mathfrak`,
 //! `bb=` `\mathbb`, each with its bold companion (`\mathbfcal`, `\mathbfscr`, `\mathbffrak`,

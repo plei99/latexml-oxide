@@ -1,6 +1,6 @@
 //! tensor.sty (v2.2, 2023/07/18) — tensor indices, staggered or aligned, before and after a symbol.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(g). The package typesets
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(g). The package typesets
 //! `\tensor{T}{^a_b^c}` as one superscript and one subscript whose items are padded with
 //! `\hphantom`s of each other, so every index has its own column (tensor.sty:154-162,
 //! `\tnsr@Add`); `\tensor*` drops the phantoms, so the superscripts run together over the

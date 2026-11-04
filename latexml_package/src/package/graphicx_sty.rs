@@ -4,7 +4,10 @@ pub use latexml_core::util::image::{
   image_candidates, image_graphicx_sizer, natural_display_size_pt_of_candidates,
 };
 
-use crate::prelude::*;
+use crate::{
+  package::standalone_sty::{top_level_items, unbraced},
+  prelude::*,
+};
 
 LoadDefinitions!({
   // graphicx.sty provides alternative argument syntax for graphics inclusion.
@@ -129,7 +132,7 @@ LoadDefinitions!({
   // survives when `\usepackage{graphicx}` runs inside a group.
   DefMacro!(
     "\\includegraphics OptionalMatch:* []",
-    "\\@ifnextchar[{\\@includegraphics#1[#2]}{\\@includegraphicx#1[#2]}",
+    "\\@ifnextchar[{\\@includegraphics#1[#2]}{\\lx@Gin@include#1[#2]}",
     scope => Some(Scope::Global)
   );
   // graphicx.sty:198-203 `\def\Gin@i{… \@ifnextchar[\Gin@ii{\Gin@ii[]}}`: the body of `\includegraphics`, its
@@ -139,9 +142,119 @@ LoadDefinitions!({
   // #475; 2410.09019).
   DefMacro!(
     "\\Gin@i []",
-    "\\@ifnextchar[{\\@includegraphics[#1]}{\\@includegraphicx[#1]}",
+    "\\@ifnextchar[{\\@includegraphics[#1]}{\\lx@Gin@include[#1]}",
     scope => Some(Scope::Global)
   );
+  // graphics.sty:233-252 `\Gin@setfile` by the graphics rule of the file's extension (`\Gin@rule@<ext>`,
+  // `\DeclareGraphicsRule`): a rule whose type the driver does not read (`\Ginclude@<type>` is a package's own, not
+  // pdftex.def's or dvips.def's) and which runs no converter is a TeX source read as TeX — gincltex.sty:43
+  // `\DeclareGraphicsRule{.tex}{tex}{.tex}{}` (standalone.sty:1012 loads it), figlatex.sty:120 `{.pdftex_t}{rawtex}`.
+  // The file goes to `\lx@Gin@setfile`, which runs the package's reader and include as `\Gin@setfile` does; any
+  // other graphic is the `\@includegraphicx` constructor, for the image converter, as before. A `.tex` handed to the
+  // converter was lost with "failed to convert" (1604.05572, 2511.17298, 2305.04329, 2408.06999, 2305.16841).
+  // Guard: `perfect_kernel_batch70a::gincltex_tex_graphic_is_read_as_tex`.
+  // The file is graphicx's `#2` (graphicx.sty:198-203 `\Gin@ii`), read at the document's catcodes and expanded as
+  // `\Gin@setfile`'s `\filename@parse` expands it: tikzscale.sty:183 passes `{\tikzscale@fileName}` (2511.17298,
+  // 2408.06999, 2305.16841, 2410.05869), and a name macro whose parameter text holds a `_` (`\def\seq_name{…}`,
+  // `\seq_name-clip`: 1908.04391, 2609.16620) finds that `_` a subscript character, as in pdflatex; read
+  // Semiverbatim, the `_` was an other character, every call "Missing argument Match:_name" (101 errors, Fatal). A
+  // name with no control sequence goes on unexpanded (its characters are the constructor's to neutralize).
+  // KNOWN_PERL_ERRORS #950. Guard: `perfect_kernel_batchint20::graphic_name_macro_with_underscore_expands`.
+  DefMacro!("\\lx@Gin@include OptionalMatch:* [] {}", sub[(star, keys, file)] {
+    let has_cs = file.unlist_ref().iter().any(|t| t.get_catcode() == Catcode::CS);
+    let expanded = if has_cs { Expand!(file.clone()) } else { file.clone() };
+    let file = expanded.clone();
+    let name = raw_name(&expanded);
+    let mut tail: Vec<Token> = Vec::new();
+    if let Some(star) = star {
+      tail.extend(star.unlist());
+    }
+    tail.push(T_OTHER!("["));
+    tail.extend(keys.map(|k| k.unlist()).unwrap_or_default());
+    tail.push(T_OTHER!("]"));
+    tail.push(T_BEGIN!());
+    tail.extend(file.clone().unlist());
+    tail.push(T_END!());
+    let rule = graphics_rule_extension(name.trim()).map(|ext| T_CS!(s!("\\Gin@rule@{ext}")));
+    let mut out: Vec<Token> = Vec::new();
+    match rule {
+      // `\expandafter\expandafter\expandafter\lx@Gin@setfile\csname Gin@rule@<ext>\endcsname{<file>}`: the rule's
+      // `{<type>}{<read-file>}{<command>}` before the arguments
+      Some(rule) if is_defined_token(&rule) => {
+        out.extend([T_CS!("\\expandafter"), T_CS!("\\expandafter"), T_CS!("\\expandafter")]);
+        out.extend([T_CS!("\\lx@Gin@setfile"), rule, T_BEGIN!()]);
+        out.extend(expanded.unlist());
+        out.push(T_END!());
+      },
+      _ => out.push(T_CS!("\\@includegraphicx")),
+    }
+    out.extend(tail);
+    Ok(Tokens::new(out))
+  });
+  DefMacro!("\\lx@Gin@setfile{}{}{} OptionalMatch:* [] Semiverbatim", sub[(kind, read, command, star, keys, file)] {
+    let (kind, name) = (kind.to_string(), Expand!(file.clone()).to_string());
+    let name = name.trim();
+    let include = T_CS!(s!("\\Ginclude@{kind}"));
+    // the file as `\input` reads it: where the graphics search path finds it (`\graphicspath`), else as written
+    let found = tex_graphic_file(name);
+    let as_tex = !DRIVER_GRAPHICS_TYPES.contains(&kind.as_str())
+      && is_defined_token(&include)
+      && command.to_string().trim() == name
+      && found.is_some();
+    let mut out: Vec<Token> = Vec::new();
+    let Some(path) = found.filter(|_| as_tex) else {
+      out.push(T_CS!("\\@includegraphicx"));
+      if let Some(star) = star {
+        out.extend(star.unlist());
+      }
+      out.push(T_OTHER!("["));
+      out.extend(keys.map(|k| k.unlist()).unwrap_or_default());
+      out.push(T_OTHER!("]"));
+      out.push(T_BEGIN!());
+      out.extend(file.unlist());
+      out.push(T_END!());
+      return Ok(Tokens::new(out));
+    };
+    let path = ExplodeText!(path);
+    let keys = keys.map(|k| k.to_string()).unwrap_or_default();
+    let value = |key: &str| {
+      top_level_items(&keys)
+        .iter()
+        .filter_map(|item| item.split_once('='))
+        .find(|(k, _)| k.trim() == key)
+        .map(|(_, v)| unbraced(v).to_string())
+        .filter(|v| !v.is_empty())
+    };
+    let tex = |text: String| mouth::tokenize_internal(TeXString::assembled(text)).unlist();
+    // graphics.sty:254-262: the bounding box from the type's reader (`\Gread@<type>` on the read file, here the file
+    // itself when the rule reads its own extension), at 0 0 0 0 without one
+    out.extend(tex(r"\begingroup\def\Gin@llx{0}\let\Gin@lly\Gin@llx\let\Gin@urx\Gin@llx\let\Gin@ury\Gin@llx".to_string()));
+    let reader = T_CS!(s!("\\Gread@{kind}"));
+    let read = read.to_string();
+    let own_extension = graphics_rule_extension(name).is_some_and(|ext| read.trim() == ext);
+    if own_extension && is_defined_token(&reader) {
+      out.extend([reader, T_BEGIN!()]);
+      out.extend(path.iter().cloned());
+      out.push(T_END!());
+    }
+    // graphicx.sty:140-187 `\Gin@req@sizes`, the width and height asked for (`totalheight` as height); `scale` alone
+    // scales the natural size, the bounding box's; a size not given is `!`, the other's aspect
+    let width = value("width").unwrap_or_default();
+    let height = value("height").or_else(|| value("totalheight")).unwrap_or_default();
+    out.extend(tex(s!(r"\def\Gin@req@width{{{width}}}\def\Gin@req@height{{{height}}}")));
+    if let Some(scale) = value("scale").filter(|_| width.is_empty() && height.is_empty()) {
+      out.extend(tex(s!(
+        r"\dimen@\Gin@urx bp\advance\dimen@-\Gin@llx bp\dimen@{scale}\dimen@\ifdim\dimen@>\z@\edef\Gin@req@width{{\the\dimen@}}\fi"
+      )));
+    }
+    // graphics.sty:296-301 the include, in a box
+    out.extend(tex(r"\leavevmode\hbox\bgroup".to_string()));
+    out.extend([include, T_BEGIN!()]);
+    out.extend(path);
+    out.push(T_END!());
+    out.extend(tex(r"\egroup\endgroup".to_string()));
+    Ok(Tokens::new(out))
+  });
 
   // Perl L52-72: graphicx-style \includegraphics with keyval options.
   DefConstructor!(
@@ -239,9 +352,11 @@ LoadDefinitions!({
       // proportion as the source and scales with the reader's font-size/zoom (no
       // fixed 72-vs-96 DPI guess). The natural size is read directly as a true
       // physical length in TeX pt — a PDF page box, an EPS/PS BoundingBox, or an
-      // SVG's lengths/viewBox, all bp→pt (`natural_display_size_pt`), which
-      // returns `None` for raster formats and so gates the em path to vector
-      // figures. CSS `em` is the element's font-size exactly, so `em = size_pt /
+      // SVG's lengths/viewBox, all bp→pt (`natural_display_size_pt`), of the
+      // candidate the sizer sizes the box from (the first one any reader sizes:
+      // `natural_display_size_pt_of_candidates`), and `None` when that one is a
+      // raster, so the em path is gated to vector figures and never sizes a
+      // `q.png` by a `q.eps` after it (review rev78z finding 1). CSS `em` is the element's font-size exactly, so `em = size_pt /
       // font_pt` against the LOCAL font. Emitted as `cssstyle`, copied verbatim
       // into the `<img>`/`<object>` style by LaTeXML-common.xsl, overriding the
       // pixel `imagewidth`/`imageheight`. Author-sized (`width=`/`height=`/
@@ -249,8 +364,9 @@ LoadDefinitions!({
       // author's absolute choice, not the figure's intrinsic size. Converges with
       // the upstream font-relative sizing rework rather than committing an
       // absolute px factor. NB `natural_display_size_pt` is read fresh here rather
-      // than reused from the sizer's `cached_width`, which runs EPS/raster sizes
-      // through a device-DPI round-trip and is not a physical length.
+      // than reused from the sizer's `cached_width`, which runs raster sizes
+      // through a device-DPI round-trip (an EPS's is bp since 78z,
+      // OXIDIZED_DESIGN_DIVERGENCES #886) and is not a physical length.
       let options = whatsit.get_property("options").map(|v| v.to_string()).unwrap_or_default();
       let is_natural = !options.split(',').any(|o| {
         matches!(
@@ -329,4 +445,54 @@ LoadDefinitions!({
         }
     }
   );
+  // The width it states is a float panel's (the panel grid rule, `declare_panel_width`): its `width`, not its height
+  // (1703.09474 Fig 13, 2503.09651 Fig 1), which scales its width where it states none (graphicx has no `totalwidth`
+  // key, review rev78x2 finding 7).
+  declare_panel_width("\\@includegraphicx", 2, &["width"], &[
+    "height",
+    "totalheight",
+  ]);
 });
+
+/// A file name's characters as written, whatever their catcodes (a subscript `_` is `_`, not its display rendering);
+/// a control sequence left by the expansion keeps its printed name.
+fn raw_name(tokens: &Tokens) -> String {
+  let mut name = String::new();
+  for t in tokens.unlist_ref() {
+    if t.get_catcode() == Catcode::CS {
+      name.push_str(&t.to_string());
+    } else {
+      with(t.get_sym(), |c| name.push_str(c));
+    }
+  }
+  name
+}
+
+/// The graphic types a graphics driver reads itself (pdftex.def, dvips.def, xetex.def, dvipdfmx.def, luatex.def,
+/// dvisvgm.def `\Ginclude@<type>` and `\Gin@rule@<ext>` types): an image, for the image converter, even where a
+/// package wraps the driver's include (asymptote.sty:130, psfrag.sty:55 `\def\Ginclude@eps`).
+const DRIVER_GRAPHICS_TYPES: [&str; 14] = [
+  "eps", "ps", "pdf", "png", "jpg", "jbig2", "mps", "bmp", "pict", "pntg", "pdftex", "psorpdf",
+  "bitmap", "dvipdfmx",
+];
+
+/// The extension graphics.sty keys a file's rule by (`\Gin@rule@<ext>`, :213-231 `\Gin@getbase`): from the last `.` of
+/// the file's own name (`fig.v2.tex` → `.tex`, `x.pdf_tex` → `.pdf_tex`); none for a name without one.
+fn graphics_rule_extension(name: &str) -> Option<String> {
+  let base = name.rsplit('/').next().unwrap_or(name);
+  base
+    .rfind('.')
+    .filter(|at| *at > 0)
+    .map(|at| base[at..].to_string())
+}
+
+/// Where the TeX source `name` given as a graphic is: the file of that name on the graphics search path
+/// (`\graphicspath`, the source directory), else where `\input` finds it; `None` when neither does.
+fn tex_graphic_file(name: &str) -> Option<String> {
+  let file_name = name.rsplit('/').next().unwrap_or(name);
+  image_candidates(name)
+    .split(',')
+    .find(|found| !found.is_empty() && found.rsplit('/').next() == Some(file_name))
+    .map(str::to_string)
+    .or_else(|| find_file(name, None).map(|_| name.to_string()))
+}

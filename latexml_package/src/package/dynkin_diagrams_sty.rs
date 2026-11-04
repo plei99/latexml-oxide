@@ -1,6 +1,6 @@
 //! dynkin-diagrams.sty (2024/12/04, B. McKay) — Dynkin and Coxeter diagrams drawn with TikZ.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(s). `\dynkin[keys]{series}[twist]{spec}`
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(s). `\dynkin[keys]{series}[twist]{spec}`
 //! (dynkin-diagrams.sty:97) draws the diagram of a root system: roots of a series A–I placed along a
 //! line, D's two last roots forking at ±60°, E's root 2 above root 4 (:4313-5126), bonds single,
 //! double or triple with an arrow toward the short root (B: to root n, C: to n−1, F4: 2→3, G2: to 1),

@@ -1,7 +1,7 @@
 //! old-arrows.sty (v2.0, 2017/01/05) — Computer Modern's pre-1992 arrowheads, and `\var…`
 //! names for the other design.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(z). The package redeclares the
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(z). The package redeclares the
 //! arrows in the `oasy` font (`default`, `old`) and adds `\var…` arrows in the other one (`new`,
 //! `old`). The two designs differ only in the arrowhead's drawing: Unicode and MathML have one
 //! character for each arrow, so every arrow keeps its meaning and each `\var…` name is the arrow

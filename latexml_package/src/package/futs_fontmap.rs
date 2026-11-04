@@ -4,7 +4,7 @@
 //! the nearest Unicode ornament, chosen by the shape (rendered with pdflatex): the aldines the rotated and reversed
 //! floral hearts (U+2767, U+2619) and `\aldine` U+2766; the decorative curls (`\decofourright`…`\decothreeleft`),
 //! `\textthing` and the small aldines the floral heart; the old pilcrows `¶`; `\decosix` the white four-pointed star. Slots the package never uses stay undecoded. The
-//! encoding is not attached to the `futs` family, which is also Fourier's Utopia text family. OXIDIZED_DESIGN #591; guard
+//! encoding is not attached to the `futs` family, which is also Fourier's Utopia text family. OXIDIZED_DESIGN #970; guard
 //! `native_notes_bindings::fourier_orns_print_their_ornaments`.
 use crate::prelude::*;
 

@@ -1,4 +1,4 @@
-//! An `\item`'s label is typeset in the font in force at the `\item` (OXIDIZED_DESIGN_DIVERGENCES #604).
+//! An `\item`'s label is typeset in the font in force at the `\item` (OXIDIZED_DESIGN_DIVERGENCES #983).
 //!
 //! LaTeX's `\@item` sets `\makelabel{\labelenumi}` in the list's current font (latex.ltx), so the `1.` `2.` of an
 //! enumerate inside a plain-style theorem (`\itshape` body) print in italic, as a bullet does. Perl LaTeXML builds every

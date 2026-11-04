@@ -16,7 +16,7 @@
 //! `futs` table does not cover) are redefined to use the original fontspec switch directly. Options are the file's:
 //! a direct `\usepackage{fourier-orns}` under a TU persona takes the fontspec branch; fourier.sty's `noOTF` the
 //! `futs` one. Loaded by fourier-otf.sty (:17 skips the definition, fourier-otf.sty:109-110 makes it later) the
-//! wrap does not apply; that package has no binding here. OXIDIZED_DESIGN #591.
+//! wrap does not apply; that package has no binding here. OXIDIZED_DESIGN #970.
 use latexml_package::prelude::*;
 
 LoadDefinitions!({

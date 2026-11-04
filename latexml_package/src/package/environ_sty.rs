@@ -1,6 +1,6 @@
 //! environ.sty (v0.3, 2014/05/04) — environments whose body is collected into a macro.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(l). `\NewEnviron{name}[n][default]{begin}[end]`
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(l). `\NewEnviron{name}[n][default]{begin}[end]`
 //! (environ.sty:143-219) defines an environment whose begin code collects the body up to its own
 //! `\end{name}` (`\Collect@Body`, :98-131), stores it, spaces trimmed, in `\BODY` (the name
 //! `\environbodyname` set when the environment was defined, :52-53), then runs `begin` with the

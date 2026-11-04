@@ -1,6 +1,6 @@
 //! eepic.sty (Conrad Kwok, 1988) — epic's and LaTeX's picture objects drawn with tpic `\special`s.
 //!
-//! No Perl binding exists; native binding, OXIDIZED_DESIGN #588(t). eepic replaces the drawing of
+//! No Perl binding exists; native binding, OXIDIZED_DESIGN #967(t). eepic replaces the drawing of
 //! epic and of LaTeX's picture objects by tpic specials (eepic.sty:59-476): lines of any slope
 //! (`\line`, :311-341) and circles of any size (`\circle`, `\circle*`, :294-296), which the kernel's
 //! picture model already draws; dotted lines with round dots (`\dottedline`, :104-145); epic's dashes

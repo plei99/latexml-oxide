@@ -156,6 +156,11 @@ AUDITED = {
     "walkdir": ("2.5.0",
         "compare/nftw.c -- a benchmark comparison against C's nftw(3), not built.",
     ),
+    "nix": ("0.31.3",
+        "test/test_kmod/hello_mod/hello.c -- a Linux kernel-module test fixture, not built; "
+        "zip 9 depends on nix only on macOS and the BSDs (zip-9.0.3 Cargo.toml:263, feature "
+        "\"fs\"), so no Linux build compiles nix at all; license MIT.",
+    ),
     # Both versions audited: the same uncompiled reference/*.cpp shape.
     # (A tuple lists every audited version — needed because the lockfile is
     # gitignored, so different machines/CI can resolve different compatible
@@ -185,9 +190,10 @@ AUDITED = {
         "links = \"rayon-core\": same version-lock trick. Its build.rs says so outright "
         "-- \"we're not *actually* linking\".",
     ),
-    "pericortex": ("0.2.8",
+    "pericortex": ("0.2.9",
         "Ours (dginev). The 'vendored archive' is 1508.01222.zip, an arXiv test paper "
-        "-- data, not code.",
+        "-- data, not code. 0.2.9 re-checked 2026-10-20: no build.rs, no native source, "
+        "the same zip byte for byte; the diff is Rust only (harness.rs fleet RSS helper).",
     ),
 
     # The dginev/marpa fork's sys crate, published to crates.io as
@@ -214,7 +220,7 @@ AUDITED = {
         "-- e.g. MiKTeX -- not a build-time one, so it does not avoid the static "
         "link.) Attributed in THIRD-PARTY-NOTICES 3.2; static LGPL -> relink 3.5."
     ),
-    "libxml": (("0.3.21", "0.3.22"),
+    "libxml": (("0.3.21", "0.3.22", "0.3.23"),
         "Binds libxml2 -- (c) Daniel Veillard, MIT -- whom the crate's own 'MIT' "
         "field does not name as holder. Linked via pkg-config + rustc-link-lib "
         "rather than compiled here, and STATIC on every release leg "
@@ -226,7 +232,10 @@ AUDITED = {
         "unchanged. 0.3.21 -> 0.3.22 diffed 2026-10-13 (registry sources): build.rs "
         "and src/wrapper.h (the bindgen header) byte-identical, Rust-only changes "
         "(the HTML well-formedness error handler removed from c_helpers.rs), license "
-        "field 'MIT' unchanged."
+        "field 'MIT' unchanged. 0.3.22 -> 0.3.23 diffed 2026-10-31 (git tags v0.3.22..v0.3.23 "
+        "of KWARC/rust-libxml, our release): build.rs and src/wrapper.h byte-identical, no C "
+        "source, Rust-only changes (xpath::Expression, Node::with_property, the wrapper's "
+        "stack name copies and in-place value reads), license field 'MIT' unchanged."
     ),
     "libxslt": ("0.1.5",
         "Binds libxslt/libexslt -- (c) Daniel Veillard, MIT -- same shape as libxml "
