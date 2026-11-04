@@ -250,8 +250,8 @@ fn sagej_sm_heading_follows_the_copy() {
   );
 }
 
-/// oup-authoring-template.cls (TL 2025): `\vol` and `\boxedtext` frontmatter notes (the box's heading leading its
-/// text, TL 2025's "Key Messages"), `\secsize`.
+/// oup-authoring-template.cls (TL 2026, v1.5): `\vol` (:1170) and `\boxedtext{heading}{text}` (:1281-1283) frontmatter
+/// notes (the box's heading, its first argument, leading its text), `\secsize` (:1673).
 #[test]
 fn oup_authoring_template_class_commands() {
   let xml = clean!("oup_authoring_template_class_commands.tex");
@@ -269,6 +269,47 @@ fn oup_authoring_template_class_commands() {
   );
   assert!(
     xml.contains(r#"<text font="bold" xml:id="S1.p1.1.1">Heading font</text> text."#),
+    "{xml}"
+  );
+}
+
+/// A paper's own copy of the TL 2025 class (2306.17210: 14 of the sampled copies) takes the box's text alone,
+/// `\newcommand{\@@boxedtext}[1]` headed "Key Messages"; TL 2026's v1.5 takes `{heading}{text}`, which would read
+/// the text through the next command. The binding follows the copy the paper ships (`shipped_class_text`).
+#[test]
+fn oup_authoring_template_boxedtext_text_alone_in_a_shipped_copy() {
+  let (log, xml) = convert_files_with(
+    r"\documentclass{oup-authoring-template}
+\begin{document}
+\title{A Title}
+\author[1]{Ann Author}
+\abstract{The abstract.}
+\boxedtext{\begin{itemize}\item One point.\end{itemize}}
+\keywords{one, two}
+\maketitle
+\section{One}
+Text.
+\end{document}
+",
+    &[(
+      "oup-authoring-template.cls",
+      "\\ProvidesClass{oup-authoring-template}\n\\def\\boxedtext{\\@@boxedtext}\n\\newcommand{\\@@boxedtext}[1]{\\fbox{\\parbox{.97\\textwidth}{\\textbf{Key Messages}\\par#1}}}\n",
+    )],
+    Some("ar5iv.sty"),
+  );
+  assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
+  let xml = squash(&xml);
+  assert!(
+    xml.contains(r#"<text font="bold" xml:id="id"#)
+      && xml.contains(">Key Messages</text> <itemize"),
+    "{xml}"
+  );
+  assert!(
+    xml.contains("<p xml:id=\"S0.I1.i1.p1.1\">One point.</p>"),
+    "{xml}"
+  );
+  assert!(
+    xml.contains(r#"scheme="keywords">one, two</classification>"#),
     "{xml}"
   );
 }

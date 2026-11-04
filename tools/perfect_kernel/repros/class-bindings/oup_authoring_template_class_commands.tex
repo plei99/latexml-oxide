@@ -1,10 +1,13 @@
 % witness: 2104.15079, 2204.11994, 2206.08262 (`\vol`); 2306.17210 (`\boxedtext`); 2309.05250 (`\secsize`)
-% oracle:  pdflatex with TL 2025's oup-authoring-template.cls (clean; :1054 `\vol`, :1117-1119 `\boxedtext`)
+% oracle:  pdflatex with TL 2026's oup-authoring-template.cls v1.5 (clean; :1170 `\vol`, :1281-1283 `\boxedtext{heading}{text}`);
+%          TL 2025's took the text alone, `\boxedtext{text}` (headed "Key Messages"), which TL 2026's two-argument form would
+%          read through the next command (`\keywords`); that shape is guarded under a shipped copy
 % engines: rust 68d2 = 3 errors (undefined `\vol`, `\boxedtext`, `\secsize`)
 % expect:  0 errors, 0 warnings; the volume and the boxed statement as frontmatter notes
 % status:  RED (68d2) -> GREEN (67z)
 % preload: ar5iv.sty
 \documentclass[unnumsec,webpdf,contemporary,large]{oup-authoring-template}
+\def\societylogo{}% v1.5's footer calls it; the journal template defines it (:921-926)
 \begin{document}
 \journaltitle{Journal}
 \DOI{DOI}
@@ -18,7 +21,7 @@
 \author[1]{Ann Author}
 \address[1]{\orgname{Some University}}
 \abstract{The abstract.}
-\boxedtext{\begin{itemize}\item One point.\end{itemize}}
+\boxedtext{Key Messages}{\begin{itemize}\item One point.\end{itemize}}
 \keywords{one, two}
 \maketitle
 \section{One}

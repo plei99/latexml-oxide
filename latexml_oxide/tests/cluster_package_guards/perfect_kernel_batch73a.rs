@@ -175,7 +175,7 @@ fn ieeeaccess_figure_is_a_figure() {
     &xml,
     "figure",
     &[],
-    r#"<figure inlist="lof" labels="LABEL:block_diagram" placement="t!" xml:id="S0.F1"><tags><tag>FIGURE 1</tag><tag role="refnum">1</tag><tag role="typerefnum">FIGURE 1</tag></tags><graphics candidates="../../usr/local/texlive/2025/texmf-dist/tex/latex/mwe/example-image-a.png" class="ltx_centering" graphic="example-image-a.png" options="scale=0.1" xml:id="S0.F1.g1"/><toccaption class="ltx_centering"><tag close=" ">1</tag>Block diagram of the passband system.</toccaption><caption class="ltx_centering"><tag close=". ">FIGURE 1</tag>Block diagram of the passband system.</caption></figure>"#,
+    r#"<figure inlist="lof" labels="LABEL:block_diagram" placement="t!" xml:id="S0.F1"><tags><tag>FIGURE 1</tag><tag role="refnum">1</tag><tag role="typerefnum">FIGURE 1</tag></tags><graphics candidates="../../usr/local/texlive/2026/texmf-dist/tex/latex/mwe/example-image-a.png" class="ltx_centering" graphic="example-image-a.png" options="scale=0.1" xml:id="S0.F1.g1"/><toccaption class="ltx_centering"><tag close=" ">1</tag>Block diagram of the passband system.</toccaption><caption class="ltx_centering"><tag close=". ">FIGURE 1</tag>Block diagram of the passband system.</caption></figure>"#,
   );
 }
 

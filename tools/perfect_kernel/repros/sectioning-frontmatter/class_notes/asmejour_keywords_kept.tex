@@ -2,9 +2,11 @@
 % builds: the keywords were lost with 0 errors. Kept as the document's keywords under the class's "Keywords:" label
 % (asmejour_cls.rs); the class's date footnote (:1474-1488) already keeps `\date`.
 % witness: 2510.10694 (`\keywords{Digital Twin, …}`)
-% oracle:  pdflatex 0 errors: the abstract ends "Keywords: alpha, beta"; the date footnote "Version 2, 1 May 2025"
+% oracle:  pdflatex (TL 2026, asmejour 2025/11/30) 2 errors, the class's own: "LaTeX socket Error: Socket 'caption/label'
+%          undeclared!" from :1111 (latex-lab-testphase-float.sty:327 declares it; an untagged document never loads that;
+%          TL 2025's class: 0 errors); the abstract ends "Keywords: alpha, beta"; the date footnote "Version 2, 1 May 2025"
 % engines: rust 67int28 = 0 errors, no keywords (the date a footnote); perl not run
-% expect:  0 errors; <ltx:keywords name="Keywords: ">alpha, beta</ltx:keywords>; the date footnote "Version 2, 1 May 2025"
+% expect:  2 errors (the same two), 0 warnings; <ltx:keywords name="Keywords: ">alpha, beta</ltx:keywords>; the date footnote "Version 2, 1 May 2025"
 % status:  RED (67int28) -> GREEN (int27)
 % preload: ar5iv.sty
 \documentclass{asmejour}

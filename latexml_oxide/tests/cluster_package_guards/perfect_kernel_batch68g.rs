@@ -27,6 +27,22 @@ macro_rules! clean {
   }};
 }
 
+/// For a conversion that loads aliascnt itself (where [`clean!`] would see a warning): aliascnt.sty:41-43 (2026-03-08 v1.7) warns "The
+/// package is obsolete. Check the documentation." once, on a format dated 2026-06-01 or later (TeX Live 2026), as
+/// pdflatex does. That one Warning is pinned by name and count, and is the only one expected.
+fn assert_aliascnt_obsolete_warning_only(log: &str) {
+  assert_eq!((error_count(log), warning_count(log)), (0, 1), "{log}");
+  assert_eq!(
+    log
+      .lines()
+      .filter(|l| l.starts_with("Warning:")
+        && l.contains("Package aliascnt Warning: The package is obsolete."))
+      .count(),
+    1,
+    "{log}"
+  );
+}
+
 /// Every theorem's visible tag and refnum, in document order: `"Theorem 1/1"`, …
 fn theorem_tags(xml: &str) -> Vec<String> {
   let mut tags = Vec::new();
@@ -255,7 +271,8 @@ fn llncs_spnewtheorem_errors() {
   assert!(!xml.contains("ltx_theorem_foo"), "{xml}");
 }
 
-/// aliascnt's `\newaliascnt{lemma}{theorem}` (2605.20695): hyperref's type is the alias, named by its own
+/// aliascnt's `\newaliascnt{lemma}{theorem}` (2605.20695; the package warns that it is obsolete on TeX Live 2026,
+/// aliascnt.sty:41-43, pinned once): hyperref's type is the alias, named by its own
 /// `\<alias>autorefname`/`\<alias>name` or not at all — pdflatex "See 8, Theorem 1, 2, Proposition 3, Theorem 4." (the
 /// plain `[theorem]` corollary is the counter's "Theorem"); 67int9 named the alias by its root, "Theorem 2".
 #[test]
@@ -266,7 +283,7 @@ fn aliascnt_autoref_names_the_alias() {
     ),
     Some("ar5iv.sty"),
   );
-  assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
+  assert_aliascnt_obsolete_warning_only(&log);
   let xml = squash(&xml);
   for (label, tags) in [
     (
@@ -338,11 +355,16 @@ fn theorem_head(xml: &str, marker: &str) -> String {
 }
 
 /// Round 3: a paper loading aliascnt itself calls `\aliascntresetthe{lemma}` on the class's alias (llncs.cls:53
-/// loads aliascnt; aliascnt.sty v1.5 :54-57 records the alias as `\AC@cnt@lemma` and `\cl@lemma`): pdflatex "See
+/// loads aliascnt; aliascnt.sty v1.7 :63-82 records the alias as `\AC@cnt@lemma` and `\cl@lemma`): pdflatex "See
 /// Theorem 1, Lemma 2, ClaimX 3." and no error (68g r2: "`lemma' is not an alias counter").
 #[test]
 fn llncs_aliascntresetthe() {
-  let xml = clean!("llncs_aliascntresetthe.tex");
+  let (log, xml) = convert_with(
+    include_str!("../../../tools/perfect_kernel/repros/class-bindings/llncs_aliascntresetthe.tex"),
+    Some("ar5iv.sty"),
+  );
+  assert_aliascnt_obsolete_warning_only(&log);
+  let xml = squash(&xml);
   for (label, env, autoref) in [
     ("t1", "theorem", "Theorem 1"),
     ("l1", "lemma", "Lemma 2"),
