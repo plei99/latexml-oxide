@@ -30644,7 +30644,8 @@ control sequence and it takes that).
 Known differences: a derived `\Cref` of a format led by `[` (`\crefformat{figure}{[#2图~#1#3]}`) has none: since the
 2022 kernel `\MakeUppercase[<language>]` reads the `[` as its optional argument (latex.ltx `\MakeUppercase \c_space_tl…
 [#1] #2`), and the reference prints cleveref's default; a `$`-led one (`\crefformat{section}{$\S$#2#1#3}`) errs at
-`\Cref` as pdflatex does ("Extra }, or forgotten $"). The format is read where the target is built, so one set after
+`\Cref` as pdflatex does ("Extra }, or forgotten $"; pdflatex's second error, "Missing } inserted", is not raised;
+guard `cleveref_crefformat::derived_cref_of_a_math_led_format_errs`). The format is read where the target is built, so one set after
 the `\label` it shapes is not seen. Guards `cleveref_crefformat::*`; the formats' own, `perfect_kernel_batch78j::cleveref_*`.
 
 ### 966. The rows of a pgf SVG alignment are a `\baselineskip` apart, as TeX stacks them (Perl: a row's height and depth apart)
@@ -30855,8 +30856,9 @@ maps the used slots to Unicode ornaments chosen by shape (`⚠` U+26A0, `☜` U+
 decorative curls and small aldines take U+2766). Under a TU engine `\grappe`, `\leftgrappe` and `\rightgrappe`
 (:80-82) use the fontspec switch directly: their code points are not slots. The encoding is switched by
 `\FourierOrns`, never by the `futs` family, which is also Fourier's Utopia text family (t1futs.fd, fourier.sty:58).
-Text after a `\normalfont` inside the switch's group stays in the ornament encoding, because the engine's
-`\normalfont` omits latex.ltx:14306 `\fontencoding\encodingdefault` (SYNC_STATUS.md). When fourier-otf.sty loads
+Text after a `\normalfont` inside the switch's group is back in the document's encoding, since `\normalfont` runs
+`\fontencoding\encodingdefault` (latex.ltx:14306; #779): `{\FourierOrns 1 \normalfont Abc1}` is "⚠ Abc1", as in
+pdflatex. When fourier-otf.sty loads
 fourier-orns (:17 skips the definition; fourier-otf.sty:109-110 makes `\FourierOrns` later) the wrap does not apply;
 that package has no binding here.
 **Why**: a document's ornaments are content; printing `1` and `M` in their place changes the text silently.
@@ -31256,7 +31258,9 @@ prints `\fnum@table` plain in longtable's own `\LT@makecaption` (longtable.sty:4
 classes are untouched, and the stylesheet's rule stays (the same effect twice). acmart, which loads amsart and sets its
 own label fonts through caption (acmart.cls:878-906), is reset to `\fnum@font@float` (`acmart_cls.rs`); its
 `labelfont={bf}` is not modelled. Not modelled: `\captionsetup{labelfont=…}` on an AMS class still gets the small
-capitals (caption_sty.rs ignores `labelfont`).
+capitals (caption_sty.rs ignores `labelfont`); and a newfloat or float.sty type's label stays upright, where amsart's
+`\@makecaption`, which makes every kernel float's caption, sets it in small capitals too (pdflatex: CMCSC10 for a
+newfloat `listing` and, under caption, a float.sty `program`).
 
 **Guards**: `cluster_package_guards::ams_caption_label_smallcaps::*`.
 

@@ -2,11 +2,12 @@
 %          used on user text, fourier-orns-doc.tex:118-121); the kernel gap is any `\fontencoding{X}` + `\normalfont`
 % oracle:  pdflatex 0 errors; an ornament, then `Abc1` in the normal font (latex.ltx:14305-14306 `\normalfont` runs
 %          `\fontencoding\encodingdefault`)
-% engines: rust: `Abc1` stays in the ornament encoding and prints `☙❦⚠` (A, c, 1 mapped, the unmapped b dropped);
-%          perl identical in kind (SHARED,
+% engines: rust before upstream OD #779: `Abc1` stayed in the ornament encoding and printed `☙❦⚠` (A, c, 1 mapped,
+%          the unmapped b dropped); perl identical in kind (SHARED,
 %          Engine/latex_constructs.pool.ltxml:5201-5202 omits the `\fontencoding\encodingdefault` step)
+%          rust (OD #779, `\normalfont` runs `\fontencoding\encodingdefault`): `⚠ Abc1`
 % expect:  0 errors; <ltx:p> `⚠ Abc1`
-% status:  RED (SHARED, kernel; run natively: --preload=latexml.sty)
+% status:  GREEN (run natively: --preload=latexml.sty; guard native_notes_bindings::normalfont_leaves_the_ornament_encoding)
 \documentclass{article}
 \usepackage{fourier-orns}
 \begin{document}

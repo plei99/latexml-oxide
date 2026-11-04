@@ -329,6 +329,21 @@ fn crefformat_case_change_reads_the_raw_format() {
   }
 }
 
+/// The derived `\Cref` of a `$`-led format, `\MakeUppercase$\S$…`, is an error, as in pdflatex (the 2022 kernel's
+/// `\MakeUppercase` typesets in a group, which the `$` it was given leaves in math). pdflatex (TL 2026) gives "Extra },
+/// or forgotten $" and then "Missing } inserted"; here only the first. OXIDIZED_DESIGN_DIVERGENCES #965.
+#[test]
+fn derived_cref_of_a_math_led_format_errs() {
+  let tex = format!(
+    "{PREAMBLE}\\crefformat{{section}}{{$\\S$#2#1#3}}\n\\begin{{document}}\n\\section{{A}}\\label{{sec}}\n\\Cref{{sec}}\n\\end{{document}}\n"
+  );
+  let (stderr, _html) = convert_html(&tex);
+  let errors: Vec<&str> = stderr.lines().filter(|l| l.contains("Error:")).collect();
+  assert_eq!(errors.len(), 1, "{stderr}");
+  assert!(errors[0].contains("Extra }, or forgotten $"), "{stderr}");
+  assert!(!stderr.contains("Fatal:"), "{stderr}");
+}
+
 /// A format with no letters or digits stands alone: it does not pull the parent's reference
 /// in beside it (`(∗) ‣ section 1`), neither for a starred equation nor for a `\fnsymbol`
 /// footnote, and nothing leaks into the text after it.
@@ -514,8 +529,9 @@ fn no_format_leaves_the_xml_alone() {
 
 /// A `\cref` list under a multi-reference format with a link extent: each reference's text before its link sits
 /// between the previous link and its own, and the conjunction cleveref's pair format would add (`\crefpairconjunction`)
-/// is dropped, as it is for a format that is all link (`settle_cref_conjunctions`): "eqs. (1 and 2)", not
-/// "eqs. (1 and  and 2)".
+/// is dropped, as it is for a format that is all link (`settle_cref_conjunctions`): "eqs. (1 and 3)", not
+/// "eqs. (1 and  and 3)". The numbers are not consecutive, so cleveref prints the list and no range (pdflatex
+/// "eqs. (1, 3, and 5)"; consecutive ones it would compress to "(1) to (3)", an open row: OPEN_ROWS.md).
 #[test]
 fn crefmultiformat_list_has_no_second_conjunction() {
   let p = compact_paragraph(
@@ -523,20 +539,22 @@ fn crefmultiformat_list_has_no_second_conjunction() {
 \crefmultiformat{equation}{eqs.~(#2#1#3}{ and~#2#1#3)}{, #2#1#3}{, and~#2#1#3)}
 ",
     r"\begin{equation}a\label{e1}\end{equation}
-\begin{equation}b\label{e2}\end{equation}
+\begin{equation}b\end{equation}
 \begin{equation}c\label{e3}\end{equation}
-X \cref{e1,e2}; \cref{e1,e2,e3}.",
+\begin{equation}d\end{equation}
+\begin{equation}e\label{e5}\end{equation}
+X \cref{e1,e3}; \cref{e1,e3,e5}.",
   );
   let nb = '\u{a0}';
   assert!(
     p.contains(&format!(
-      r##"X {{eqs.{nb}(}}<a href="#S0.E1">{{1}}</a>{{ and{nb}}}<a href="#S0.E2">{{2}}</a>{{)}}; "##
+      r##"X {{eqs.{nb}(}}<a href="#S0.E1">{{1}}</a>{{ and{nb}}}<a href="#S0.E3">{{3}}</a>{{)}}; "##
     )),
     "{p}"
   );
   assert!(
     p.contains(&format!(
-      r##"{{eqs.{nb}(}}<a href="#S0.E1">{{1}}</a>{{, }}<a href="#S0.E2">{{2}}</a>{{, and{nb}}}<a href="#S0.E3">{{3}}</a>{{)}}."##
+      r##"{{eqs.{nb}(}}<a href="#S0.E1">{{1}}</a>{{, }}<a href="#S0.E3">{{3}}</a>{{, and{nb}}}<a href="#S0.E5">{{5}}</a>{{)}}."##
     )),
     "{p}"
   );

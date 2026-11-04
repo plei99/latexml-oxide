@@ -10,8 +10,8 @@
 //! (`\lx@fontencoding`, which loads `futs_fontmap.rs`), so the ornaments are their Unicode glyphs, not the slot
 //! letters, in both branches (the OTF has the ornaments at the same ASCII slots). The `futs` family is also
 //! Fourier's Utopia text family (t1futs.fd, fourier.sty:58), so the encoding is switched only by `\FourierOrns`,
-//! never by the family. The engine's `\normalfont` does not reset the encoding (latex.ltx:14306 does), so text after
-//! a `\normalfont` inside an ornament group stays in the ornament encoding (SYNC_STATUS.md). Under a TU engine
+//! never by the family. `\normalfont` resets the encoding (latex.ltx:14306; OXIDIZED_DESIGN #779), so text after a
+//! `\normalfont` inside an ornament group is in the document's encoding again. Under a TU engine
 //! `\grappe`, `\leftgrappe` and `\rightgrappe` (:80-82, `\char"2766`, `"2619`, `"2767`: Unicode code points the
 //! `futs` table does not cover) are redefined to use the original fontspec switch directly. Options are the file's:
 //! a direct `\usepackage{fourier-orns}` under a TU persona takes the fontspec branch; fourier.sty's `noOTF` the

@@ -13225,7 +13225,8 @@ ytableau frames every box with `\hrule`s in a `\vbox` in the cell (ytableau.sty:
 first and last cells, and after an `\omit` cell (`\none`) the next cell lost its template's `$` ("Script _ can only
 appear in math mode"; 2308.07459). Minimal trigger: `\halign{&\vbox{\hrule}$#$\cr a & b & Z\cr}` (Perl: 2 cells).
 Fixed in Rust (tex_box.rs `\hrule` is a border only while the alignment is between rows; repro
-alignment/rule_in_a_cell_box_keeps_the_row).
+alignment/rule_in_a_cell_box_keeps_the_row). #1208 is the same defect for any rule inside a box in a cell, `\vrule` too;
+both tests hold.
 
 ## 670. An unbalanced `$` in a natbib `\bibitem` label runs math past the item
 
@@ -18946,6 +18947,27 @@ Text.
 
 Fixed in Rust (OXIDIZED_DESIGN_DIVERGENCES #957): the break is taken out, the notes the names'. Witnesses 2609.17106,
 2411.05212, 2312.10807.
+
+## 1207. `\right` closes its group before reading its delimiter; `\mathopen{}\mathclose\bgroup\left` is unparsed
+
+TeX_Math.pool.ltxml:786-799: `\right` unreads `\lx@hidden@egroup@right` and `\lx@right`, so the `\left` group closes
+before the delimiter is read; tex.web §1191 reads the delimiter, then `unsave`s. An `\aftergroup` inside
+`\left…\right` therefore runs before the delimiter. Trigger:
+
+```tex
+\documentclass{article}
+\begin{document}
+\[ \mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right) \]
+\end{document}
+```
+
+→ Perl (the development tree at 0db6f47, run on this host, 2026-10-14): `tex="\mathopen{}\mathclose{{\left(x}}\right)"`,
+`Warning:not_parsed:>OPEN`; pdflatex 0 errors, `\showlists` `\mathclose{\mathinner{\left( x \right)}}`. With TeX's
+grouping written out (`\mathopen{}\mathclose{\left( x \right)}`) Perl is still `not_parsed:>OPEN`: an empty OPEN atom
+and a CLOSE wrap no grammar rule reads. Raw-loaded physics2's `\ab` and papers' `\left` redefinitions produce it
+(2605.22010, 2605.13448; 2605.21750 carries the redefinition too, but its unparsed formulas are another shape); Perl's
+mleftright and mathtools bindings use plain `\left`/`\right`. Fixed in Rust: OXIDIZED_DESIGN_DIVERGENCES #959.
+
 ## 1208. A rule inside a box in an alignment cell is read as a border of the alignment
 
 TeX_Box.pool.ltxml:811-814 (`\vrule`) and :846-850 (`\hrule`) mark a rule as a cell border whenever an alignment is
@@ -18963,8 +18985,9 @@ kerned `\hrule`s and `\vrule`s, ytableau.sty:272-296, the `\@frameb@x` idiom). T
 ```
 
 → Perl: 0 errors, rows `1 4` and `3 5` (entry 2 lost), no box drawn; pdflatex: the tableau. Fixed in Rust: a box's
-contents set the group-local `lx@rule@boxed` (base_utilities.rs `predigest_list_in_mode`), which an alignment clears, and
-`\vrule`/`\hrule` border only through `tex_tables::alignment_for_raw_rule`; a ytableau binding makes each box its cell's
+contents set the group-local `lx@rule@boxed` (base_utilities/boxes_lists.rs `predigest_list_in_mode`), which an
+alignment clears, and `\vrule`/`\hrule` border only through `tex_tables::alignment_for_raw_rule`; an `\hrule` also only
+between rows (#669, the same Perl defect seen from the `\hrule` side; both tests hold); a ytableau binding makes each box its cell's
 borders around a sized inline block. Guards `ytableau_boxes::{a_boxed_rule_in_a_cell_keeps_the_row,
 young_tableau_cells_are_bordered_boxes}`.
 
@@ -18992,12 +19015,6 @@ math_common.pool.ltxml:109-124 `\active@math@prime` combines a following supersc
 which compares the token itself (Gullet.pm:596-600). latex.ltx's `\pr@m@s` (:15687) tests `\ifx^\@let@token`, a comparison
 by meaning, and `\sp` is `\let\sp=^` (:15666). derivative.sty writes a variable's order with `\sp`, so `\pdv[order=2]{}{x'}`
 gives `x'\sp{2}`. Trigger:
-
-## 1207. `\right` closes its group before reading its delimiter; `\mathopen{}\mathclose\bgroup\left` is unparsed
-
-TeX_Math.pool.ltxml:786-799: `\right` unreads `\lx@hidden@egroup@right` and `\lx@right`, so the `\left` group closes
-before the delimiter is read; tex.web §1191 reads the delimiter, then `unsave`s. An `\aftergroup` inside
-`\left…\right` therefore runs before the delimiter. Trigger:
 
 ```tex
 \documentclass{article}
@@ -19027,20 +19044,9 @@ typeset inside it, indented. Trigger:
 ```
 
 → Perl: `Error:malformed:ltx:theorem <ltx:theorem> isn't allowed in <ltx:quote>` (`\section*` in a quote likewise,
-`ltx:section`; moduli.cls's `\tableofcontents` does that); pdflatex 0 errors. In Rust a theorem, proof or TOC in a quote opens an `ltx:inline-logical-block` there (OXIDIZED_DESIGN_DIVERGENCES
-#271, main-session ruling P1 2026-10-17), a run-in `\paragraph` an `ltx:inline-sectional-block`, and a display unit
-closes the quote (OXIDIZED_DESIGN_DIVERGENCES #678).
-
-\[ \mathopen{}\mathclose\bgroup\left( x \aftergroup\egroup\right) \]
-\end{document}
-```
-
-→ Perl (the development tree at 0db6f47, run on this host, 2026-10-14): `tex="\mathopen{}\mathclose{{\left(x}}\right)"`,
-`Warning:not_parsed:>OPEN`; pdflatex 0 errors, `\showlists` `\mathclose{\mathinner{\left( x \right)}}`. With TeX's
-grouping written out (`\mathopen{}\mathclose{\left( x \right)}`) Perl is still `not_parsed:>OPEN`: an empty OPEN atom
-and a CLOSE wrap no grammar rule reads. Raw-loaded physics2's `\ab` and papers' `\left` redefinitions produce it
-(2605.22010, 2605.13448; 2605.21750 carries the redefinition too, but its unparsed formulas are another shape); Perl's
-mleftright and mathtools bindings use plain `\left`/`\right`. Fixed in Rust: OXIDIZED_DESIGN_DIVERGENCES #959.
+`ltx:section`; moduli.cls's `\tableofcontents` does that); pdflatex 0 errors. In Rust a theorem, proof or TOC in a
+quote opens an `ltx:inline-logical-block` there (OXIDIZED_DESIGN_DIVERGENCES #689), a run-in `\paragraph` an
+`ltx:inline-sectional-block`, and a display unit closes the quote (OXIDIZED_DESIGN_DIVERGENCES #678).
 
 ## 1212. A `\titleformat` label is plain text of the title, not a `tag`
 

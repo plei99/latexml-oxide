@@ -25,7 +25,7 @@ fn tokens(xml: &str) -> Vec<String> {
   re.captures_iter(xml).map(|c| c[1].to_string()).collect()
 }
 
-/// extarrows (#588f): each arrow is amsmath's labelled arrow over a stretchy operator.
+/// extarrows (#967f): each arrow is amsmath's labelled arrow over a stretchy operator.
 #[test]
 fn extarrows_label_stretchy_operators() {
   let xml = clean(
@@ -42,7 +42,7 @@ fn extarrows_label_stretchy_operators() {
   assert_eq!(xml.matches("role=\"UNDERACCENT\"").count(), 1, "{xml}");
 }
 
-/// centernot (#588c), colonequals (#588d): negated and colon relations as single characters.
+/// centernot (#967c), colonequals (#967d): negated and colon relations as single characters.
 #[test]
 fn centernot_and_colonequals_are_relation_characters() {
   let xml = clean(
@@ -57,7 +57,7 @@ fn centernot_and_colonequals_are_relation_characters() {
   assert!(xml.contains(r#"tex="x\colonequals y""#), "{xml}");
 }
 
-/// faktor (#588e): a quotient of raised and lowered parts, reverting to `\faktor`.
+/// faktor (#967e): a quotient of raised and lowered parts, reverting to `\faktor`.
 #[test]
 fn faktor_is_a_quotient() {
   let xml = clean("\\usepackage{amssymb,faktor}", "$\\faktor[\\mathbb]{Z}{n}$");
@@ -127,7 +127,7 @@ fn old_arrows_keep_semantic_arrows() {
   assert_eq!(tokens(&xml), ["a", "⟶", "b", "→", "c", "↪", "d", "⟼", "e"]);
 }
 
-/// stackengine (#588b): math stacks are accents over the anchor, text stacks rows.
+/// stackengine (#967b): math stacks are accents over the anchor, text stacks rows.
 #[test]
 fn stackengine_stacks() {
   let xml = clean(
@@ -412,7 +412,7 @@ fn eepic_draws() {
   );
 }
 
-/// quiver (#588a), tkz-graph (#967x), dynkin-diagrams (#967s): TikZ diagrams without raw files.
+/// quiver (#967a), tkz-graph (#967x), dynkin-diagrams (#967s): TikZ diagrams without raw files.
 #[test]
 fn tikz_diagram_packages_draw() {
   let xml = clean(

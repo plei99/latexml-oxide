@@ -13,6 +13,6 @@ use crate::prelude::*;
 #[rustfmt::skip]
 LoadDefinitions!({
   // centernot.sty:42-44 (`\newcommand*{\centernot}{\mathpalette\@centernot}`): one argument,
-  // read as `\mathpalette`'s `#2` is, and the result is a relation (`\mathrel`, :47).
+  // read as `\mathpalette`'s `#2` is, and the result is a relation (`\mathrel`, :46).
   DefMacro!("\\centernot{}", "\\mathrel{\\not#1}");
 });

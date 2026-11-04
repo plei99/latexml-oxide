@@ -447,14 +447,18 @@ pub(crate) fn load() -> Result<()> {
         Some(Postponed(toctokens)) if !toctokens.is_empty() => Some(toctokens),
         _ => None,
       };
+      // The title re-read as the toctitle is a copy of a source the heading digests too: `\lx@reread@copy`, as for
+      // the numbered heading's toc copy (OXIDIZED_DESIGN_DIVERGENCES #721), so its Warnings are given once.
       let toctokens = match (explicit_toctokens, title.data()) {
-        (Some(toctokens), _) => Some(toctokens),
+        (Some(toctokens), _) => Some(toctokens.clone()),
         (None, Postponed(title_tokens))
           if !title_tokens.is_empty()
             && !args[1].as_ref().is_some_and(|inlist| inlist.to_string().is_empty())
             && lookup_definition(&T_CS!(s!("\\format@toctitle@font@{stype_str}")))?.is_some() =>
         {
-          Some(title_tokens)
+          Some(Tokens::new(
+            std::iter::once(T_CS!("\\lx@reread@copy")).chain(title_tokens.clone().unlist()).collect(),
+          ))
         },
         _ => None,
       };
@@ -464,7 +468,7 @@ pub(crate) fn load() -> Result<()> {
         // braced, as the title font is handed the title, so a font command ending in a one-argument command takes it whole
         let toctitle_digested = digest(
           Tokens!(T_CS!("\\lx@hidden@bgroup"), font,
-            T_BEGIN!(), toctokens.clone().unlist(), T_END!(), T_CS!("\\lx@hidden@egroup")))?;
+            T_BEGIN!(), toctokens.unlist(), T_END!(), T_CS!("\\lx@hidden@egroup")))?;
         props.insert("toctitle", toctitle_digested.into());
       }
       Ok(props)

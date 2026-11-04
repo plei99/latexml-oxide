@@ -79,7 +79,7 @@ fn mathtools_loads_mhsetup() {
 }
 
 /// newtxmath.sty:36 `\RequirePackage{centernot}`; `\centernot` negates the relation as `\not` does (2002.09451,
-/// 2103.01489, 2104.13315), and the result is a relation: centernot.sty:47 `\mathrel` (centernot_sty.rs; OXIDIZED_DESIGN
+/// 2103.01489, 2104.13315), and the result is a relation: centernot.sty:46 `\mathrel` (centernot_sty.rs; OXIDIZED_DESIGN
 /// #967(c)).
 #[test]
 fn newtxmath_loads_centernot() {

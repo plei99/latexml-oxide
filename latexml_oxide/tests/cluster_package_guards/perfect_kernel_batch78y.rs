@@ -289,8 +289,10 @@ fn caption_settings_reach_a_listing() {
 /// amsart's `\@makecaption` (amsart.cls:1386-1410) makes a newfloat type's caption "Listing 1. Code one."; float.sty's
 /// plain style and longtable keep their own ": " (pdflatex). Red (int65a): "Listing 1: ", "Table 2. Long one.". Repro class-bindings/amsart_newfloat_caption_takes_the_class_format.
 /// The figure's and table's labels are in small capitals, as amsart's `\@makecaption` sets them under `\@captionheadfont`
-/// (OXIDIZED_DESIGN_DIVERGENCES #984); a newfloat type's is not, and neither is longtable's, which prints `\fnum@table`
-/// plain in its own `\LT@makecaption` (longtable.sty:475-483; longtable_sty.rs `\lx@longtable@ownformat`).
+/// (OXIDIZED_DESIGN_DIVERGENCES #984). Longtable's is upright, as pdflatex prints `\fnum@table` plain in its own
+/// `\LT@makecaption` (longtable.sty:475-483; longtable_sty.rs `\lx@longtable@ownformat`). The upright newfloat
+/// "Listing 1" is a known gap: amsart's `\@makecaption` sets it in small capitals too (pdflatex CMCSC10; #984, "Not
+/// modelled").
 #[test]
 fn amsart_newfloat_caption_takes_the_class_format() {
   assert_captions(
@@ -309,6 +311,7 @@ fn amsart_newfloat_caption_takes_the_class_format() {
 /// "Program 1. Prog one.", "Table 2. Long one.". Red (int65a): "Listing 1: ", "Program 1: ". Repro class-bindings/amsart_caption_package_formats_every_type.
 /// The figure's and table's labels (longtable's too, which caption formats as a table's: caption.sty:1167) are in the
 /// small capitals of caption-ams-smf.sto's `labelfont` default, `\@captionheadfont` (OXIDIZED_DESIGN_DIVERGENCES #984).
+/// The upright "Listing 1" and "Program 1" are a known gap (pdflatex: CMCSC10; #984, "Not modelled").
 #[test]
 fn caption_under_an_ams_class_closes_every_type_with_a_period() {
   assert_captions(repro!("amsart_caption_package_formats_every_type.tex"), &[

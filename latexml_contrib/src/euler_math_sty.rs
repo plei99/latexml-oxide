@@ -8,8 +8,8 @@
 //! `eulervm` (Perl `eulervm.sty.ltxml`: "There's really nothing to do for LaTeXML") — the binding loads iftex (:7)
 //! and runs `\RequireTUTeX` (:8) as the file does, requires unicode-math with `math-style=upright` (:9), accepts the
 //! key options (`CharacterVariant`, `StylisticSet`, `Style`, `Scale`, `Numbers`, :19-26) without effect, and of the
-//! `\AtBeginDocument` block keeps only `\varPhi`, the one symbol whose meaning differs from the default (amsmath's
-//! `\varPhi` is the math italic's). The iftex binding passes `\RequireTUTeX` under every persona (iftex_sty.rs:91; Perl
+//! `\AtBeginDocument` block keeps only `\varPhi`, upright where amsmath's is the math italic's; the other symbols keep
+//! their default glyphs (`\hbar` stays U+210F, where Euler's slot is U+0127, :42). The iftex binding passes `\RequireTUTeX` under every persona (iftex_sty.rs:91; Perl
 //! `iftex.sty.ltxml:61` makes it a no-op; witnesses 2605.02089, 2605.16477), so the package loads under the default
 //! persona too, `\iftutex` stays defined for the document, and a later change to that rule applies here. Not
 //! provided: `\setmathfont` features (:30-35) and the names only the file defines (`\varemptyset`,

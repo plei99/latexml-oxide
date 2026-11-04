@@ -233,6 +233,20 @@ fn fourier_orns_is_a_font_switch() {
   }
 }
 
+/// `\normalfont` inside an ornament group runs `\fontencoding\encodingdefault` (latex.ltx:14306; OXIDIZED_DESIGN #779):
+/// the text after it is in the document's encoding, not decoded as ornaments (pdflatex "⚠ Abc1"). Repro
+/// fonts-nfss/normalfont_keeps_font_encoding.
+#[test]
+fn normalfont_leaves_the_ornament_encoding() {
+  let xml = native(
+    include_str!(
+      "../../../tools/perfect_kernel/repros/fonts-nfss/normalfont_keeps_font_encoding.tex"
+    ),
+    0,
+  );
+  latexml::util::test::assert_element(&xml, "p", &[], "<p>⚠ Abc1</p>");
+}
+
 /// fourier-orns.sty:29-72: each ornament is a slot of the `futs` font, selected by `\FourierOrns` and decoded by
 /// `futs_fontmap.rs` into its Unicode ornament, not the slot letter ("1", "M", "U", "e").
 #[test]

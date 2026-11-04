@@ -285,7 +285,7 @@ fn memoir_display_chapter() {
   // The label (name and number) is the tag, on a line of its own above the title; a starred
   // heading has no number, so no tag. It is set in the format's font (`\bfseries`), as titlesec's `\chapter*`
   // does (it applies the format without the label) and as an unnumbered unit takes the class's title font
-  // (Perl latex_constructs.pool.ltxml:666-670; upstream 78a `\lx@format@title@font@@` in `\@@unnumbered@section`,
+  // (Perl latex_constructs.pool.ltxml:673-674; upstream 78a `\lx@format@title@font@@` in `\@@unnumbered@section`,
   // sect04.rs; divergence #785).
   assert_eq!(
     titles(&xml),

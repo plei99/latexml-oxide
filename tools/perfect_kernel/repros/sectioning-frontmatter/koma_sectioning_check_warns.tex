@@ -7,6 +7,8 @@
 % copies of those two kernel workers to the kernel's (ours) before the raw load (koma_script.rs `koma_pre_load`), so the
 % class takes pdflatex's branch; LaTeXML's sections are kept by `\scr@startsection` = `\@startsection`
 % (`koma_post_load`), on either branch.
+% TL 2026 (KOMA-Script 3.49.2, scrartcl.cls 2026/02/02) has neither identity check; its only check is the
+% `cmd/@startsection/before` hook (scrartcl.cls:3310-3321), which warns for a direct `\@startsection` call.
 % status:  CONTROL (2 warnings, batch 60m) -> GREEN (72a r10: 0 warnings, as pdflatex)
 % oracle:  pdflatex 0 errors, no Class scrartcl Warning
 % engines: rust 60m-72a r9: Warning "`\@startsection' has been changed", Warning "Unexpected definition of \@sect!"
