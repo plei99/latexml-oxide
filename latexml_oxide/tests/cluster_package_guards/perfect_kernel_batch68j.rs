@@ -226,6 +226,8 @@ fn tabls_line_separations_are_dimens() {
 /// stmaryrd.sty:40 `\stmry@if#1#2{\let#2=\@undefined\iftrue#1#2}`: old-arrows.sty:489-492's
 /// `\stmry@if\def\varmapsfrom{\varleftarrow\mapsfromchar}\fi` defines `\varmapsfrom` and runs nothing (pdflatex 0
 /// errors; 67int10 `\varleftarrow`, `\varlongleftarrow` undefined at the load). 2006.11831, 2102.02198, 2406.00395.
+/// old-arrows is a native binding here (OXIDIZED_DESIGN_DIVERGENCES #967): `\to` stays the kernel's arrow, where the raw
+/// file's `\let\to=\rightarrow` (old-arrows.sty:95-96) makes it a `\mathrel` `\rightarrow`.
 #[test]
 fn stmaryrd_if_defines_its_cs() {
   let xml = convert_checked(repro!("stmaryrd_if_old_arrows.tex"), 0);
@@ -234,7 +236,7 @@ fn stmaryrd_if_defines_its_cs() {
     &xml,
     "p",
     &[r#"xml:id="p1.1""#],
-    r#"<p xml:id="p1.1"><Math mode="inline" tex="a\rightarrow b\llbracket x\rrbracket" text="a rightarrow b * delimited-⟦⟧@(x)" xml:id="p1.m1"><XMath xml:id="p1.m1.2"><XMApp xml:id="p1.m1.2.1"><XMTok name="rightarrow" role="RELOP">→</XMTok><XMTok font="italic" role="UNKNOWN">a</XMTok><XMApp xml:id="p1.m1.2.1.3"><XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok font="italic" role="UNKNOWN">b</XMTok><XMDual xml:id="p1.m1.2.1.3.3"><XMApp xml:id="p1.m1.2.1.3.3.1"><XMTok meaning="delimited-⟦⟧"/><XMRef idref="p1.m1.1" xml:id="p1.m1.2.1.3.3.1.2"/></XMApp><XMWrap xml:id="p1.m1.2.1.3.3.2"><XMTok name="llbracket" role="OPEN">⟦</XMTok><XMTok font="italic" role="UNKNOWN" xml:id="p1.m1.1">x</XMTok><XMTok name="rrbracket" role="CLOSE">⟧</XMTok></XMWrap></XMDual></XMApp></XMApp></XMath></Math></p>"#,
+    r#"<p xml:id="p1.1"><Math mode="inline" tex="a\to b\llbracket x\rrbracket" text="a to b * delimited-⟦⟧@(x)" xml:id="p1.m1"><XMath xml:id="p1.m1.2"><XMApp xml:id="p1.m1.2.1"><XMTok name="to" role="ARROW">→</XMTok><XMTok font="italic" role="UNKNOWN">a</XMTok><XMApp xml:id="p1.m1.2.1.3"><XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok font="italic" role="UNKNOWN">b</XMTok><XMDual xml:id="p1.m1.2.1.3.3"><XMApp xml:id="p1.m1.2.1.3.3.1"><XMTok meaning="delimited-⟦⟧"/><XMRef idref="p1.m1.1" xml:id="p1.m1.2.1.3.3.1.2"/></XMApp><XMWrap xml:id="p1.m1.2.1.3.3.2"><XMTok name="llbracket" role="OPEN">⟦</XMTok><XMTok font="italic" role="UNKNOWN" xml:id="p1.m1.1">x</XMTok><XMTok name="rrbracket" role="CLOSE">⟧</XMTok></XMWrap></XMDual></XMApp></XMApp></XMath></Math></p>"#,
   );
 }
 

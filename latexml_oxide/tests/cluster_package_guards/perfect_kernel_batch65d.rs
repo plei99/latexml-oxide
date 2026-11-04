@@ -453,6 +453,7 @@ fn parameterless_commands_are_delimiters_only_as_symbols() {
     ],
     "{log}"
   );
+  // The `\left.` fence the parser re-supplies is `meaning="absent"`, so it renders as nothing (OXIDIZED_DESIGN #67).
   assert_element(
     &xml,
     "Math",
@@ -461,7 +462,7 @@ fn parameterless_commands_are_delimiters_only_as_symbols() {
       r#"<Math mode="inline" tex="w\left.x\right)" text="delimited-)@(w * x)" xml:id="p1.m5">"#,
       r#"<XMath xml:id="p1.m5.2"><XMDual xml:id="p1.m5.2.1"><XMApp xml:id="p1.m5.2.1.1">"#,
       r#"<XMTok meaning="delimited-)"/><XMRef idref="p1.m5.1" xml:id="p1.m5.2.1.1.2"/></XMApp>"#,
-      r#"<XMWrap xml:id="p1.m5.2.1.2"><XMTok role="OPEN"/><XMApp xml:id="p1.m5.1">"#,
+      r#"<XMWrap xml:id="p1.m5.2.1.2"><XMTok meaning="absent" role="OPEN"/><XMApp xml:id="p1.m5.1">"#,
       r#"<XMTok meaning="times" role="MULOP">⁢</XMTok><XMTok font="italic" role="UNKNOWN">w</XMTok>"#,
       r#"<XMTok font="italic" role="UNKNOWN">x</XMTok></XMApp><XMTok role="CLOSE" stretchy="true">)</XMTok>"#,
       r#"</XMWrap></XMDual></XMath></Math>"#,

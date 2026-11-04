@@ -79,13 +79,14 @@ fn mathtools_loads_mhsetup() {
 }
 
 /// newtxmath.sty:36 `\RequirePackage{centernot}`; `\centernot` negates the relation as `\not` does (2002.09451,
-/// 2103.01489, 2104.13315).
+/// 2103.01489, 2104.13315), and the result is a relation: centernot.sty:47 `\mathrel` (centernot_sty.rs; OXIDIZED_DESIGN
+/// #967(c)).
 #[test]
 fn newtxmath_loads_centernot() {
   let xml = clean!("stub-dependencies/newtxmath_loads_centernot.tex");
   assert!(
     xml.contains(
-      r#"<XMApp xml:id="p1.m1.1.1"> <XMTok meaning="not-implies" name="not-⟹" role="ARROW">⟹̸</XMTok> <XMTok font="italic" role="UNKNOWN">a</XMTok> <XMTok font="italic" role="UNKNOWN">b</XMTok> </XMApp>"#
+      r#"<XMApp xml:id="p1.m1.1.1"> <XMTok meaning="not-implies" name="not-⟹" role="RELOP">⟹̸</XMTok> <XMTok font="italic" role="UNKNOWN">a</XMTok> <XMTok font="italic" role="UNKNOWN">b</XMTok> </XMApp>"#
     ),
     "{xml}"
   );
