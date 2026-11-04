@@ -9,6 +9,7 @@ use libxml::tree::{Node, NodeType};
 use rustc_hash::FxHashMap as HashMap;
 
 use crate::{
+  crossref::is_cref_link_mark,
   document::{PostDocument, is_ltx},
   object_db::{ObjectDB, Value},
   processor::{ProcessResult, Processor},
@@ -1189,12 +1190,13 @@ fn clean_text_content(node: &Node) -> String {
 }
 
 /// Whether `node` holds markup: an element child with text, other than an `ltx:indexmark` (which a stored copy leaves
-/// out). An empty one (a name's `<ltx:text/>` from a group that typeset nothing) adds nothing to the text.
+/// out). An empty one (a name's `<ltx:text/>` from a group that typeset nothing) adds nothing to the text, unless it
+/// is an end of a cleveref format's hyperlink (`#2`, `#3`), which the CrossRef pass cuts the format at.
 fn has_markup(node: &Node) -> bool {
   std::iter::successors(node.get_first_child(), |child| child.get_next_sibling()).any(|child| {
     child.get_type() == Some(NodeType::ElementNode)
       && !is_indexmark(&child)
-      && !clean_text_content(&child).trim().is_empty()
+      && (is_cref_link_mark(&child) || !clean_text_content(&child).trim().is_empty())
   })
 }
 
