@@ -11,10 +11,11 @@
 //! the paper's era found it, so 1710.04900's harvard.sty `\IfFileExists{html.sty}` loads the html binding), or
 //! LaTeXML's own ([`LATEXML_OWN`]; the pools, font maps and drivers such as `pgfsys-latexml.def` need no list).
 //!
-//! Every registered `.cls`/`.sty`/`.tex` binding TL 2025's kpathsea does not find is on exactly one of the three
+//! Every registered `.cls`/`.sty`/`.tex` binding TL 2026's kpathsea does not find is on exactly one of the three
 //! lists, by name and case (TeX on a case-sensitive file system finds neither `JHEP.cls` for TL 2007's `jhep.cls` nor
-//! `ieeeconf.cls` for `IEEEconf.cls`; TL 2025's `mn2e.cls` is a documentation file of mnras, which kpathsea does not
-//! search). TeX Live's history is read from its file lists: the TL 2007 image's
+//! `ieeeconf.cls` for `IEEEconf.cls`; TL 2026's `mn2e.cls` is a documentation file of mnras, which kpathsea does not
+//! search; `rasti.cls` is no stand-in since TL 2026 distributes it, rasti-journal v3.1 of 2026/9/9). TeX Live's
+//! history is read from its file lists: the TL 2007 image's
 //! `texmf/lists`, the TL 2008 tlpdb, the TL 2009 texmf listing and the tlpdb of every year 2010-2024. Guards:
 //! `perfect_kernel_batch68d::author_file_stand_ins_are_bindings_outside_tex_live` (each entry against the registry
 //! and kpathsea, the lists disjoint) and `::every_binding_outside_tex_live_is_listed` (the reverse, on a full tree).
@@ -280,7 +281,6 @@ pub const AUTHOR_FILE_STAND_INS: &[&str] = &[
   "ptephy.cls",
   "ptephy_v1.cls",
   "ptephy_v2.cls",
-  "rasti.cls",
   "revtex.cls",
   "revtex.sty",
   "revtex4.sty",
