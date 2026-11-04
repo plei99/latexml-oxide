@@ -8,7 +8,9 @@
 //! (hypdvips.sty:1980-2306, :3073-3518). It refuses to load without hyperref, or with a driver other
 //! than `hdvips` (:26-42). This converter has no output driver: the driver test is taken as passed
 //! (a dvips run selects `hdvips` by default, hyperref.sty:4343, which is how the SIAM classes that
-//! ship it load it), the hyperref test is kept, and the commands keep what is observable in a
+//! ship it load it; hyperref's `\Hy@driver` follows the output mode, hyperref_sty.rs, so in DVI mode
+//! the raw file's own test would pass too, and in PDF mode, where it is `hpdftex`, this stand-in loads
+//! regardless), the hyperref test is kept, and the commands keep what is observable in a
 //! document: an attachment is a link to its file showing the `text=` material (or the attachment
 //! icon), `\file` its file name, underlined in typewriter (:2874-2884), `\goto[dest=…]{text}` a link
 //! to that destination (other targets: the text), `\gotoparent`/`\runattachment` their text,

@@ -424,8 +424,16 @@ pub(crate) fn load() -> Result<()> {
   // In a float, `\vspace` between panels is TeX's in a paragraph (latex.ltx:9361-9370 `\@vspace`: `\vadjust`
   // outside vertical mode), which breaks no line, where a `\vskip` there ends the paragraph: the float's begin lets
   // `\vspace` to this, whose `\vskip` (`\lx@vspace@mark`) is no row break (the panel grid rule, `note_panel_separator`).
+  // It is `\vspace` above in every other respect: where that drops the skip (the text of a paragraph, also in a float:
+  // `text \vspace{1ex} more` stays one paragraph there too, OXIDIZED_DESIGN_DIVERGENCES #982) so does this, and the
+  // `\vskip` stays after a paragraph that ends in leaders (`\hrulefill\vspace*{4pt}` between float rows, arXiv
+  // 2302.11635), whose panels after the rule line must not join its `ltx:p`.
   DefPrimitive!("\\lx@vspace@mark", { assign_value("lx@vspace@mark", true, None); });
-  DefMacro!("\\lx@panel@vspace OptionalMatch:* {}", "\\lx@vspace@mark\\vskip #2\\relax");
+  DefMacro!("\\lx@panel@vspace@skip{}",
+    "\\iflx@vspace@vskip\\lx@vspace@mark\\vskip #1\\relax\\else\\lx@vspace@scratch=#1\\relax\\fi");
+  DefMacro!("\\lx@panel@vspace OptionalMatch:* {}",
+    "\\ifhmode\\ifdim\\lastskip>\\z@\\lx@panel@vspace@skip{#2}\\ignorespaces\\else\\lx@panel@vspace@skip{#2}\\fi\\else\\lx@panel@vspace@skip{#2}\\fi",
+    protected => true);
   Let!("\\lx@kernel@vspace", "\\vspace");
   def_primitive_noop("\\addvspace {}")?;
   def_primitive_noop("\\addpenalty {}")?;

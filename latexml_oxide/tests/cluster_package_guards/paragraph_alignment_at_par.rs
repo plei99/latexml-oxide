@@ -220,11 +220,22 @@ fn vspace_after_a_rule_line_closes_the_paragraph_of_the_minipages() {
     "{stderr}"
   );
   assert_eq!(xml.matches("<figure ").count(), 6, "{xml}");
-  assert_eq!(xml.matches("<figure xml:id=\"fig1\">").count(), 1, "{xml}");
+  // The float is the panel grid of upstream's 79c markup (each panel's `panelwidth`): four rows, the rule line a row
+  // of its own between the two pairs of minipages.
+  assert_eq!(
+    xml.matches("<figure class=\"ltx_panels_gallery\" panelcols=\"2\" panelfill=\"0.96\" panelline=\"1\" panelrows=\"4\" xml:id=\"fig1\">").count(),
+    1,
+    "{xml}"
+  );
+  assert_eq!(
+    xml.matches("<text class=\"ltx_leader\"><rule").count(),
+    1,
+    "{xml}"
+  );
   for (n, text) in ["One", "Two", "Three", "Four", "Five"].iter().enumerate() {
     let n = n + 1;
     let panel = format!(
-      "<figure class=\"ltx_figure_panel ltx_minipage\" inlist=\"lof\" vattach=\"middle\" width=\"165.6pt\" xml:id=\"S0.F{n}\">"
+      "<figure class=\"ltx_figure_panel ltx_minipage\" inlist=\"lof\" panelwidth=\"0.48\" vattach=\"middle\" width=\"165.6pt\" xml:id=\"S0.F{n}\">"
     );
     let caption = format!(
       "<caption class=\"ltx_centering\"><tag close=\": \">Figure {n}</tag>{text}</caption>"
@@ -319,14 +330,71 @@ fn vspace_after_a_grouped_rule_line_closes_its_paragraph() {
     "\\begin{figure}\n\\begin{minipage}{0.4\\textwidth}A\\caption{One}\\end{minipage}\n{\\small\\hrulefill}\\vspace*{4pt}\n\\begin{minipage}{0.4\\textwidth}B\\caption{Two}\\end{minipage}\n\\end{figure}\n",
   );
   assert_eq!(xml.matches("<figure ").count(), 3, "{xml}");
+  // The grid (upstream's 79c markup): the minipages, and between them the rule line as a row of its own.
+  assert_eq!(
+    xml
+      .matches(
+        "<figure class=\"ltx_panels_gallery\" panelcols=\"1\" panelrows=\"3\" xml:id=\"fig1\">"
+      )
+      .count(),
+    1,
+    "{xml}"
+  );
+  assert_eq!(
+    xml.matches("<text class=\"ltx_leader\"").count(),
+    1,
+    "{xml}"
+  );
   for (n, text) in [(1, "One"), (2, "Two")] {
     let panel = format!(
-      "<figure class=\"ltx_figure_panel ltx_minipage\" inlist=\"lof\" vattach=\"middle\" width=\"138.0pt\" xml:id=\"S0.F{n}\">"
+      "<figure class=\"ltx_figure_panel ltx_minipage\" inlist=\"lof\" panelwidth=\"0.4\" vattach=\"middle\" width=\"138.0pt\" xml:id=\"S0.F{n}\">"
     );
     let caption = format!("<caption><tag close=\": \">Figure {n}</tag>{text}</caption>");
     assert_eq!(xml.matches(&panel).count(), 1, "{panel}\n{xml}");
     assert_eq!(xml.matches(&caption).count(), 1, "{caption}\n{xml}");
   }
+}
+
+/// In a float `\vspace` is the panel grid's (`\lx@panel@vspace`, sect12.rs), and is still `\vspace` in the text of a
+/// paragraph: the skip is dropped there, in the float's own text, in a minipage in it and in a caption, and the
+/// paragraph stays whole (divergence #982), where the panel form's `\vskip` had split each at the `\vspace`. The two
+/// lines are the float's two rows.
+#[test]
+fn vspace_in_the_text_of_a_float_keeps_the_paragraph_whole() {
+  let (stderr, xml) = super::convert(
+    "\\documentclass{article}\n\\begin{document}\n\\begin{figure}\nText one \\vspace{1ex} text two.\n\n\
+     \\begin{minipage}{0.4\\textwidth}Inner one \\vspace{5mm} inner two\\end{minipage}\n\
+     \\caption{Cap \\vspace{2pt} tail}\n\\end{figure}\n\\end{document}\n",
+    false,
+  );
+  assert_eq!(super::error_count(&stderr), 0, "{stderr}");
+  assert_eq!(
+    super::perfect_kernel_batch46::warning_count(&stderr),
+    0,
+    "{stderr}"
+  );
+  assert_eq!(
+    xml
+      .matches("<p class=\"ltx_figure_panel\">Text one text two.</p>")
+      .count(),
+    1,
+    "{xml}"
+  );
+  assert_eq!(
+    xml
+      .matches("width=\"138.0pt\">Inner one inner two</p>")
+      .count(),
+    1,
+    "{xml}"
+  );
+  assert_eq!(
+    xml
+      .matches("<caption><tag close=\": \">Figure 1</tag>Cap tail</caption>")
+      .count(),
+    1,
+    "{xml}"
+  );
+  assert_eq!(xml.matches("panelrows=\"2\"").count(), 1, "{xml}");
 }
 
 /// A footnote's text: `\vspace` before a display inside the note keeps the note's paragraph whole too.

@@ -6,6 +6,8 @@
 %          (no siamart binding: OmniBus, the copy is not read)
 % expect:  0 errors, 1 warning (hypdvips.sty:2002 `\g@addto@macro{\endfigure}`: a constructor here, the flag
 %          reset dropped as Perl drops it, Package.pm:2542); both links kept
+% fork:    the native hypdvips binding (hypdvips_sty.rs, OXIDIZED_DESIGN #967h) loads instead of hypdvips.sty, so the
+%          `\endfigure` warning is not raised: 0 errors, 0 warnings
 % status:  RED (int128b) -> GREEN (101a)
 % preload: ar5iv.sty
 \pdfoutput=0

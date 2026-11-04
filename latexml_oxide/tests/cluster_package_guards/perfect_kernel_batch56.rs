@@ -6847,7 +6847,8 @@ fn everypar_grammar_survives_vertical_material_between_productions() {
     "../../../tools/perfect_kernel/repros/block-model/leave_horizontal_runs_a_redefined_par_whole.tex"
   );
   // `\vskip 0pt` reaches `leave_horizontal`; the witness's `\vspace{0em}` is dropped in a paragraph's text now (divergence
-  // #982) and must still convert as cleanly.
+  // #982) and must still convert as cleanly. The `\rangle` token carries no `font`: a formula's tokens are written
+  // relative to the text default, not to the italic text around them (arXiv 2608.14133; OXIDIZED_DESIGN #780).
   for tex in [tex.to_string(), tex.replace("\\vskip 0pt", "\\vspace{0em}")] {
     let (stderr, xml) = convert(&tex, true);
     assert_eq!(error_count(&stderr), 0, "{stderr}");
@@ -6856,7 +6857,7 @@ fn everypar_grammar_survives_vertical_material_between_productions() {
       &xml,
       "item",
       &[r#"xml:id="S0.I1.ix2""#],
-      r##"<item xml:id="S0.I1.ix2"><tags><tag><Math mode="inline" tex="\langle" text="langle" xml:id="S0.I1.ix2.m1"><XMath><XMTok name="langle" role="OPEN" stretchy="false">⟨</XMTok></XMath></Math><text font="italic">model<Math mode="inline" tex="\rangle" text="rangle" xml:id="S0.I1.ix2.m2"><XMath><XMTok font="upright" name="rangle" role="CLOSE" stretchy="false">⟩</XMTok></XMath></Math></text>  ::=</tag><tag role="typerefnum">item </tag></tags><para xml:id="S0.I1.ix2.p1"><p>bar</p></para></item>"##,
+      r##"<item xml:id="S0.I1.ix2"><tags><tag><Math mode="inline" tex="\langle" text="langle" xml:id="S0.I1.ix2.m1"><XMath><XMTok name="langle" role="OPEN" stretchy="false">⟨</XMTok></XMath></Math><text font="italic">model<Math mode="inline" tex="\rangle" text="rangle" xml:id="S0.I1.ix2.m2"><XMath><XMTok name="rangle" role="CLOSE" stretchy="false">⟩</XMTok></XMath></Math></text>  ::=</tag><tag role="typerefnum">item </tag></tags><para xml:id="S0.I1.ix2.p1"><p>bar</p></para></item>"##,
     );
   }
 }
