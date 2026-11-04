@@ -15,7 +15,12 @@ fn rule_in_a_cell_box_keeps_the_row() {
   ));
   assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
   assert_eq!(xml.matches("<td").count(), 11, "{xml}");
-  assert!(!xml.contains("border="), "{xml}");
+  // No `\hrule` of a box adds a border row: the only borders are the ytableau binding's own (ytableau_sty.rs,
+  // KNOWN_PERL_ERRORS #1208), a box's four sides on each of the seven boxed cells (not the `\none` cell, nor the plain
+  // `\halign`'s, whose `\vbox{\hrule}` is drawn as a `<rule>`).
+  assert_eq!(xml.matches("border=").count(), 7, "{xml}");
+  assert_eq!(xml.matches("border=\"b l r t\"").count(), 7, "{xml}");
+  assert_eq!(xml.matches("<rule").count(), 3, "{xml}");
   for formula in [
     "tex=\"a\"",
     "tex=\"b\"",

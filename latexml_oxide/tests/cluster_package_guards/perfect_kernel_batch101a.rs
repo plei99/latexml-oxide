@@ -18,14 +18,12 @@ fn siamart_copy_loads_hypdvips_in_dvi_mode() {
     "../../../tools/perfect_kernel/repros/stand-in-copies/siamart_hypdvips/siamart.cls"
   );
   let (log, xml) = convert_files_with(tex, &[("siamart.cls", cls)], Some("ar5iv.sty"));
-  // hypdvips.sty:2002 `\g@addto@macro{\endfigure}{\pp@subfigurefalse}`: `\endfigure` is a constructor here, so the
-  // addition (a flag reset, no content) is dropped with Perl's Warning (Package.pm:2542 `AddToMacro`).
-  assert_eq!((error_count(&log), warning_count(&log)), (0, 1), "{log}");
-  assert!(
-    log
-      .contains("Warning:unexpected:\\endfigure \\endfigure is not an expandable control sequence"),
-    "{log}"
-  );
+  // The fork's native hypdvips binding (hypdvips_sty.rs, OXIDIZED_DESIGN #967h) loads in place of hypdvips.sty, so the
+  // raw file's `\g@addto@macro{\endfigure}` (hypdvips.sty:2002: a constructor here, dropped with Perl's Warning,
+  // Package.pm:2542) is never run: no warning. The raw file's driver test (hypdvips.sty:26-42) would pass too, now
+  // that `\Hy@driver` is `hdvips` in DVI mode (`hyperref_driver_follows_the_output_mode`).
+  assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
+  assert!(!log.contains("endfigure"), "{log}");
   assert_element(
     &xml,
     "p",
@@ -39,7 +37,7 @@ fn siamart_copy_loads_hypdvips_in_dvi_mode() {
     "\\makeatletter\\Hy@PutCatalog{/OpenAction <<x>>}\\makeatother See ",
   );
   let (log, xml) = convert_files_with(&tex, &[("siamart.cls", cls)], Some("ar5iv.sty"));
-  assert_eq!((error_count(&log), warning_count(&log)), (0, 1), "{log}");
+  assert_eq!((error_count(&log), warning_count(&log)), (0, 0), "{log}");
   assert!(!xml.contains("OpenAction"), "{xml}");
 }
 

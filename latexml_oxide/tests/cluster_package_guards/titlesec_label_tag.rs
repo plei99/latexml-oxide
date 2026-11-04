@@ -283,13 +283,16 @@ fn memoir_display_chapter() {
   );
   assert!(stderr.contains("misdefined:\\@iffirstamp"), "{stderr}");
   // The label (name and number) is the tag, on a line of its own above the title; a starred
-  // heading has no number, so no tag.
+  // heading has no number, so no tag. It is set in the format's font (`\bfseries`), as titlesec's `\chapter*`
+  // does (it applies the format without the label) and as an unnumbered unit takes the class's title font
+  // (Perl latex_constructs.pool.ltxml:666-670; upstream 78a `\lx@format@title@font@@` in `\@@unnumbered@section`,
+  // sect04.rs; divergence #785).
   assert_eq!(
     titles(&xml),
     [
       "<title font=\"bold\"><tag class=\"ltx_tag_titlesec\">Chapter 1</tag><break/>\
        <text fontsize=\"207%\">Intro</text></title>",
-      "<title>Starred</title>"
+      "<title font=\"bold\">Starred</title>"
     ],
     "{xml}"
   );

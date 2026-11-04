@@ -31191,6 +31191,12 @@ Rust (sect12.rs) expands `\vspace` to `\lx@vspace@skip{<length>}`, which is `\vs
   paragraph). The rule is a line of its own and the float panels after it must not join its `ltx:p`, which may
   already hold minipages (a captioned minipage in a `<p>` is schema-invalid; #97, WISDOM #38). A leader in a font or
   colour group that the list does not show as a group item is not recognised.
+- **In a float** `\vspace` is the panel grid's `\lx@panel@vspace` (#885: its `\vskip` is marked, `\lx@vspace@mark`, so
+  it is no row break), which takes the same `\iflx@vspace@vskip` choice: the text of a paragraph in a float, in a
+  minipage in it or in a caption keeps the paragraph whole and drops the skip, and the `\vskip` stays in vertical mode
+  and after leaders (`\hrulefill\vspace*{4pt}` between float rows, arXiv 2302.11635). Guards
+  `paragraph_alignment_at_par::{vspace_in_the_text_of_a_float_keeps_the_paragraph_whole,
+  vspace_after_a_rule_line_closes_the_paragraph_of_the_minipages, vspace_after_a_grouped_rule_line_closes_its_paragraph}`.
 - **The body of an environment with no mode of its own** (`stomach::in_text_environment_body`) counts as a paragraph's
   text, though its mode is `restricted_horizontal`: `\vspace` drops its space there too (the `\vskip` would close the
   `ltx:para` the title page's last line is in).
