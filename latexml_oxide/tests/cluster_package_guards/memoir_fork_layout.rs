@@ -277,6 +277,26 @@ const UNNUMBERED_FONTS: &str = "\\documentclass{memoir}\n\\settocdepth{subsectio
                                 \\begin{document}\n\\tableofcontents\n\\frontmatter\n\\chapter{Preface}\n\\chapter*{Starred}\n\
                                 \\mainmatter\n\\chapter{First}\n\\section{Alpha}\n\\subsection{Unnumbered}\nBody.\n\\end{document}\n";
 
+/// An unnumbered entry's toctitle re-reads the heading's title (`\@@unnumbered@section`, sect04.rs) behind
+/// `\lx@reread@copy`, as the numbered heading's toc copy does (OXIDIZED_DESIGN_DIVERGENCES #721): a Warning the title
+/// raises is given once, for its one source occurrence. amsmath's `\hat` taking `\mathbf` alone warns once, and the
+/// entry keeps the formula.
+#[test]
+fn unnumbered_toc_entry_warns_once_for_its_title() {
+  let (stderr, _xml, html) = convert_xml_then_html(
+    "\\documentclass{memoir}\n\\usepackage{amsmath}\n\\begin{document}\n\\tableofcontents\n\\frontmatter\n\
+     \\chapter{On $\\hat\\mathbf{x}$}\nBody.\n\\end{document}\n",
+  );
+  assert_eq!(error_count(&stderr), 0, "{stderr}");
+  assert_eq!(
+    warning_heads(&stderr),
+    [CLASS_LOAD_WARNING, "Warning:malformed:\\hat"],
+    "{stderr}"
+  );
+  let entry = toc_entry(&html, "chapter", "On").expect("the front matter chapter's entry");
+  assert!(entry.contains("<math"), "{entry}");
+}
+
 /// Entries without a number are typeset in the entry font too: a front-matter `\chapter` (`secnumdepth` -10), and a
 /// subsection past the default `secnumdepth` (memoir.cls:12128, section). Perl's unnumbered section stays plain unless
 /// it has a toctitle of its own; `\@@unnumbered@section` (sect04.rs) takes the title as the toctitle when the type has a

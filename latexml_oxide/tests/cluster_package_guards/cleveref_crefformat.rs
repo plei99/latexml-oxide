@@ -331,17 +331,24 @@ fn crefformat_case_change_reads_the_raw_format() {
 
 /// The derived `\Cref` of a `$`-led format, `\MakeUppercase$\S$…`, is an error, as in pdflatex (the 2022 kernel's
 /// `\MakeUppercase` typesets in a group, which the `$` it was given leaves in math). pdflatex (TL 2026) gives "Extra },
-/// or forgotten $" and then "Missing } inserted"; here only the first. OXIDIZED_DESIGN_DIVERGENCES #965.
+/// or forgotten $" and then "Missing } inserted"; here only the first. pdflatex then prints "§1"; here the reference
+/// falls back to cleveref's default, "Section 1", still one link to the section. OXIDIZED_DESIGN_DIVERGENCES #965.
 #[test]
 fn derived_cref_of_a_math_led_format_errs() {
   let tex = format!(
     "{PREAMBLE}\\crefformat{{section}}{{$\\S$#2#1#3}}\n\\begin{{document}}\n\\section{{A}}\\label{{sec}}\n\\Cref{{sec}}\n\\end{{document}}\n"
   );
-  let (stderr, _html) = convert_html(&tex);
+  let (stderr, html) = convert_html(&tex);
   let errors: Vec<&str> = stderr.lines().filter(|l| l.contains("Error:")).collect();
   assert_eq!(errors.len(), 1, "{stderr}");
   assert!(errors[0].contains("Extra }, or forgotten $"), "{stderr}");
   assert!(!stderr.contains("Fatal:"), "{stderr}");
+  assert!(!stderr.contains("Warning:"), "{stderr}");
+  assert_eq!(
+    compact(paragraph(&html)),
+    "<a href=\"#S1\">{Section}\u{a0}{1}</a>",
+    "{html}"
+  );
 }
 
 /// A format with no letters or digits stands alone: it does not pull the parent's reference
@@ -531,7 +538,7 @@ fn no_format_leaves_the_xml_alone() {
 /// between the previous link and its own, and the conjunction cleveref's pair format would add (`\crefpairconjunction`)
 /// is dropped, as it is for a format that is all link (`settle_cref_conjunctions`): "eqs. (1 and 3)", not
 /// "eqs. (1 and  and 3)". The numbers are not consecutive, so cleveref prints the list and no range (pdflatex
-/// "eqs. (1, 3, and 5)"; consecutive ones it would compress to "(1) to (3)", an open row: OPEN_ROWS.md).
+/// "eqs. (1, 3, and 5)"; consecutive ones it would compress to "(1) to (3)", a deferred row: OPEN_ROWS.md, REF-6).
 #[test]
 fn crefmultiformat_list_has_no_second_conjunction() {
   let p = compact_paragraph(

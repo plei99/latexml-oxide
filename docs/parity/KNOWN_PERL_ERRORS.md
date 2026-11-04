@@ -13226,7 +13226,7 @@ first and last cells, and after an `\omit` cell (`\none`) the next cell lost its
 appear in math mode"; 2308.07459). Minimal trigger: `\halign{&\vbox{\hrule}$#$\cr a & b & Z\cr}` (Perl: 2 cells).
 Fixed in Rust (tex_box.rs `\hrule` is a border only while the alignment is between rows; repro
 alignment/rule_in_a_cell_box_keeps_the_row). #1208 is the same defect for any rule inside a box in a cell, `\vrule` too;
-both tests hold.
+both conditions apply.
 
 ## 670. An unbalanced `$` in a natbib `\bibitem` label runs math past the item
 
@@ -18987,7 +18987,7 @@ kerned `\hrule`s and `\vrule`s, ytableau.sty:272-296, the `\@frameb@x` idiom). T
 → Perl: 0 errors, rows `1 4` and `3 5` (entry 2 lost), no box drawn; pdflatex: the tableau. Fixed in Rust: a box's
 contents set the group-local `lx@rule@boxed` (base_utilities/boxes_lists.rs `predigest_list_in_mode`), which an
 alignment clears, and `\vrule`/`\hrule` border only through `tex_tables::alignment_for_raw_rule`; an `\hrule` also only
-between rows (#669, the same Perl defect seen from the `\hrule` side; both tests hold); a ytableau binding makes each box its cell's
+between rows (#669, the same Perl defect seen from the `\hrule` side; both conditions apply); a ytableau binding makes each box its cell's
 borders around a sized inline block. Guards `ytableau_boxes::{a_boxed_rule_in_a_cell_keeps_the_row,
 young_tableau_cells_are_bordered_boxes}`.
 

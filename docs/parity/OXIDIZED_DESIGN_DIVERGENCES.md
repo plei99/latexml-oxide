@@ -30644,7 +30644,8 @@ control sequence and it takes that).
 Known differences: a derived `\Cref` of a format led by `[` (`\crefformat{figure}{[#2图~#1#3]}`) has none: since the
 2022 kernel `\MakeUppercase[<language>]` reads the `[` as its optional argument (latex.ltx `\MakeUppercase \c_space_tl…
 [#1] #2`), and the reference prints cleveref's default; a `$`-led one (`\crefformat{section}{$\S$#2#1#3}`) errs at
-`\Cref` as pdflatex does ("Extra }, or forgotten $"; pdflatex's second error, "Missing } inserted", is not raised;
+`\Cref` as pdflatex does ("Extra }, or forgotten $"; pdflatex's second error, "Missing } inserted", is not raised,
+and the reference falls back to cleveref's default "Section 1" where pdflatex prints "§1";
 guard `cleveref_crefformat::derived_cref_of_a_math_led_format_errs`). The format is read where the target is built, so one set after
 the `\label` it shapes is not seen. Guards `cleveref_crefformat::*`; the formats' own, `perfect_kernel_batch78j::cleveref_*`.
 
@@ -30864,7 +30865,8 @@ that package has no binding here.
 **Why**: a document's ornaments are content; printing `1` and `M` in their place changes the text silently.
 
 **Guard**: `cluster_package_guards::native_notes_bindings::fourier_orns_print_their_ornaments`, `fourier_orns_is_a_font_switch`,
-`fourier_orns_under_a_tu_persona`, `futs_text_family_is_not_decoded_as_ornaments`.
+`fourier_orns_under_a_tu_persona`, `futs_text_family_is_not_decoded_as_ornaments`,
+`normalfont_leaves_the_ornament_encoding`.
 
 ### 971. `euler-math` is a native binding that requires unicode-math (Perl: none; the raw file blanks the symbols it redefines)
 

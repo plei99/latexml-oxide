@@ -448,7 +448,8 @@ pub(crate) fn load() -> Result<()> {
         _ => None,
       };
       // The title re-read as the toctitle is a copy of a source the heading digests too: `\lx@reread@copy`, as for
-      // the numbered heading's toc copy (OXIDIZED_DESIGN_DIVERGENCES #721), so its Warnings are given once.
+      // the numbered heading's toc copy (OXIDIZED_DESIGN_DIVERGENCES #721), so its Warnings are given once. Guard
+      // `memoir_fork_layout::unnumbered_toc_entry_warns_once_for_its_title`.
       let toctokens = match (explicit_toctokens, title.data()) {
         (Some(toctokens), _) => Some(toctokens.clone()),
         (None, Postponed(title_tokens))
