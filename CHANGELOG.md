@@ -394,17 +394,13 @@
     another type or none stays text. Perl has the defect (BibTeX.pool.ltxml:724).
     OXIDIZED_DESIGN_DIVERGENCES #964. Guards `bib_eprint_arxiv_link::*`.
 
-  - **cleveref's `\crefformat` and `\Crefformat` are honoured.** `\Crefformat{subsection}{第~#2#1#3~节}`
-    printed "Section 3.2" for `\Cref` (only `\crefname` names took effect). A single
-    `\cref`/`\Cref` of a type with an author's format now prints it: `#1` the number,
-    `#2`..`#3` the link (font included; the number alone when the format has no markers),
-    the text around it plain text beside the link; a format given for one of `\cref`/`\Cref`
-    serves the other as cleveref derives it, and a section's format reaches its subsections
-    as cleveref copies it at `\begin{document}` (a preamble format only). A link inside the
-    format's own markup (`\textbf{(#2#1#3)}`) keeps it. Types without a format, `\ref`, `\cpageref`, lists and
-    `\Crefname`-only renames print as before, and a document with no format has the same
-    XML. Not modelled: `\crefrangeformat`, `\crefmultiformat` and their `\Cref`/`label` forms;
-    a format set after the label it shapes. Perl has the defect (cleveref.sty.ltxml:47-58).
+  - **In a cleveref format only the part between `#2` and `#3` is the hyperlink.** With hyperref
+    loaded, `\Crefformat{subsection}{第~#2#1#3~节}` now prints "第 " and " 节" as plain text beside a
+    link on "3.2", as cleveref does (the whole formatted reference was the link). A mark inside the
+    format's own markup (`\textbf{(#2#1#3)}`) splits it around the link, which keeps the font; `#1` is
+    typeset in the font the format sets (`#2\textbf{Thm~#1}#3` is bold throughout); a format with no
+    marker links its number alone, an empty one is an empty link. Without hyperref the whole format
+    stays the link. Perl ignores the formats (cleveref.sty.ltxml:47-58).
     OXIDIZED_DESIGN_DIVERGENCES #965. Guards `cleveref_crefformat::*`.
 
   - **The lines of a multi-line TikZ node are a `\baselineskip` apart.** A node without

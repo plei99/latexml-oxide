@@ -1,15 +1,12 @@
-//! cleveref's `\crefformat` / `\Crefformat` shape what a single `\cref` / `\Cref` prints
-//! (cleveref.sty:1851-1852, 1886-1906): `#1` the number, `#2`..`#3` the hyperlink, the
-//! text outside literal. Perl's binding (`cleveref.sty.ltxml:47-58, 132-134`) hardwires
-//! the show `creftype~refnum` and never reads them, so the type name came out in English
-//! whatever the author set: `\Crefformat{subsection}{第~#2#1#3~节}` printed "Section 3.2".
-//! SURPASS-PERL (OXIDIZED_DESIGN_DIVERGENCES #965): the format becomes the
-//! `crefformat` / `crefformatcap` tags of the target (`cleveref_sty.rs`), the show
-//! `crefformat/creftype~refnum` picks the format when the target's type has one, and the
-//! CrossRef pass makes the `#2`..`#3` part the ref and leaves the rest as text beside it.
-//! A type without a user's format prints as before; `\ref`, `\cpageref`, lists and
-//! `\crefrange` do not read formats. A sub-unit takes its parent's format as cleveref
-//! copies it at `\begin{document}` (`\@crefcopyformats`). Repro:
+//! cleveref's link extent in a document's `\crefformat` / `\Crefformat` (cleveref.sty:1047-1071 `\@@setcref`,
+//! :1886-1906): `#1` is the number, and only the part between `#2` and `#3` is the hyperlink; the text outside it is
+//! plain text beside the link. The formats themselves (what `\cref` prints for a type, the sub-unit copies, the
+//! derived variant) are OXIDIZED_DESIGN_DIVERGENCES #845; the link extent is #965: `#2` and `#3` are empty marks
+//! (`\lx@cref@linkstart`, `\lx@cref@linkend`) in the format's tag, which the CrossRef pass cuts the reference at
+//! (`crossref.rs` `split_cref_link`), the part between them the `<ref>` and the rest `ltx_ref_tag` text beside it. A
+//! wrapper the mark sits in (`\textbf{(#2#1#3)}`) is split around the link and keeps its font on the link; a format
+//! that reads neither mark links its number alone (pdflatex links nothing there; a web reference stays one), and an
+//! empty format is an empty link. A type without a document format prints as before, all of it the link. Repro:
 //! `tools/perfect_kernel/repros/package-bindings/cleveref_crefformat.tex`.
 use std::process::Command;
 
@@ -142,6 +139,7 @@ fn crefformat_variants_and_link_extent() {
     r"\crefformat{subsection}{小节~#2#1#3}
 \Crefformat{subsection}{第~#2#1#3~节}
 \crefformat{figure}{[#2图~#1#3]}
+\Crefformat{figure}{[#2图~#1#3]}
 \crefformat{table}{表~#1}
 \begin{document}
 \section{A}\label{sec}
@@ -166,8 +164,8 @@ fn crefformat_variants_and_link_extent() {
   );
   // `[#2图~#1#3]`: the link takes the literal between the markers, not the brackets.
   assert_ref(items[2], &tag("["), "#S1.F1", &tag("图\u{a0}1"), &tag("]"));
-  // `\Cref` of a type with only `\crefformat`: the case change of the first token
-  // leaves `[` and the CJK text alone.
+  // (set for `\Cref` too: cleveref derives a missing variant with `\MakeUppercase`, which since the 2022 kernel reads a
+  // leading `[` as its optional language argument, so a bracket-led `\crefformat` has no usable derived `\Cref`.)
   assert_ref(items[3], &tag("["), "#S1.F1", &tag("图\u{a0}1"), &tag("]"));
   // No markers: the number alone is linked.
   assert_ref(items[4], &tag("表\u{a0}"), "#S1.T1", &tag("1"), "");
@@ -306,22 +304,22 @@ fn crefformat_case_change_reads_the_raw_format() {
 ",
     r"\section{A}\label{sec}\subsection{B}\label{sub}
 \begin{equation}x\label{eq}\end{equation}
-\cref{sec}; \Cref{sec}; \cref{eq}; \Cref{eq}; \cref{sub}; \Cref{sub}",
+\cref{sec}; \cref{eq}; \Cref{eq}; \cref{sub}; \Cref{sub}",
   );
   let items: Vec<&str> = p.split("; ").collect();
-  assert_eq!(items.len(), 6, "{p}");
-  for item in &items[..2] {
-    // `$\S$#2#1#3`: the math, then the linked number.
-    assert!(item.starts_with("{<math"), "{item}");
-    assert!(
-      item.ends_with(r##"</math>}<a href="#S1">{1}</a>"##),
-      "{item}"
-    );
-  }
-  for item in &items[2..4] {
+  assert_eq!(items.len(), 5, "{p}");
+  // `$\S$#2#1#3`: the math, then the linked number. (Its derived `\Cref`, `\MakeUppercase$\S$…`, is an error in
+  // pdflatex too, "Extra }, or forgotten $": the 2022 kernel's `\MakeUppercase` typesets inside a group, which the
+  // `$` it was given leaves in math.)
+  assert!(items[0].starts_with("{<math"), "{p}");
+  assert!(
+    items[0].ends_with(r##"</math>}<a href="#S1">{1}</a>"##),
+    "{p}"
+  );
+  for item in &items[1..3] {
     assert_eq!(*item, r##"<a href="#S1.E1">{1}</a>"##, "{p}");
   }
-  for item in &items[4..] {
+  for item in &items[3..] {
     // `\Cref` changes the case of the number itself, not of its counter's name.
     assert_eq!(
       item.trim_end_matches('.'),
@@ -373,10 +371,9 @@ See \cref{thm}.
 
 \begin{theorem}\label{thm}T\end{theorem}",
   );
+  // (the link is the bold part, number included: `#1` is typeset in the font the format sets)
   assert!(
-    p.contains(
-      "<a href=\"#Thmtheorem1\"><span class=\"ltx_text ltx_ref_tag ltx_font_bold\">Thm\u{a0}1}</a>"
-    ),
+    p.contains("<a href=\"#Thmtheorem1\">{<span class=\"ltx_text ltx_font_bold\">Thm\u{a0}1}}</a>"),
     "{p}"
   );
 }
@@ -496,7 +493,8 @@ fn crefformat_empty_prints_nothing() {
   assert_eq!(p, r##"[<a href="#S1">{}</a>]"##);
 }
 
-/// Without a format the XML is exactly what it was: no `crefformat` tags, Perl's `show`.
+/// Without a document format the XML has no `crefformat` tags and no link marks: the references show the type's
+/// name and number.
 #[test]
 fn no_format_leaves_the_xml_alone() {
   let (stderr, xml) = convert_xml(&format!(
@@ -509,6 +507,37 @@ fn no_format_leaves_the_xml_alone() {
   ));
   assert!(clean(&stderr), "{stderr}");
   assert!(!xml.contains("crefformat"), "{xml}");
-  assert!(xml.contains(r#"show="creftype~refnum""#), "{xml}");
-  assert!(xml.contains(r#"show="creftypecap~refnum""#), "{xml}");
+  assert!(!xml.contains("ltx_cref_link"), "{xml}");
+  assert!(xml.contains(r#"show="creftype~creflabel""#), "{xml}");
+  assert!(xml.contains(r#"show="creftypecap~creflabel""#), "{xml}");
+}
+
+/// A `\cref` list under a multi-reference format with a link extent: each reference's text before its link sits
+/// between the previous link and its own, and the conjunction cleveref's pair format would add (`\crefpairconjunction`)
+/// is dropped, as it is for a format that is all link (`settle_cref_conjunctions`): "eqs. (1 and 2)", not
+/// "eqs. (1 and  and 2)".
+#[test]
+fn crefmultiformat_list_has_no_second_conjunction() {
+  let p = compact_paragraph(
+    r"\usepackage{amsmath}
+\crefmultiformat{equation}{eqs.~(#2#1#3}{ and~#2#1#3)}{, #2#1#3}{, and~#2#1#3)}
+",
+    r"\begin{equation}a\label{e1}\end{equation}
+\begin{equation}b\label{e2}\end{equation}
+\begin{equation}c\label{e3}\end{equation}
+X \cref{e1,e2}; \cref{e1,e2,e3}.",
+  );
+  let nb = '\u{a0}';
+  assert!(
+    p.contains(&format!(
+      r##"X {{eqs.{nb}(}}<a href="#S0.E1">{{1}}</a>{{ and{nb}}}<a href="#S0.E2">{{2}}</a>{{)}}; "##
+    )),
+    "{p}"
+  );
+  assert!(
+    p.contains(&format!(
+      r##"{{eqs.{nb}(}}<a href="#S0.E1">{{1}}</a>{{, }}<a href="#S0.E2">{{2}}</a>{{, and{nb}}}<a href="#S0.E3">{{3}}</a>{{)}}."##
+    )),
+    "{p}"
+  );
 }

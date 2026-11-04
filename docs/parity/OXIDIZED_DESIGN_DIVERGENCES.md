@@ -24418,8 +24418,10 @@ cleveref makes of one for a sub-type (`\@crefcopyformats`, :8035-8046: the secti
 `cref_note_copy`); a name `\csname` made `\relax` is undefined, as `\@ifundefined` reads it (`cref_defined`). Each such format is a tag form of its own at the target
 (`crefformat`, `crefformatcap`, `labelcrefformat`, `crefmulti{first,firstcap,second,middle,last}`; `\lx@cref@docformat`,
 held like `creflabel`; the family's roles registered by the first format the document sets, so a document that sets
-none builds none), whole inside the link (pdflatex links only `#1`), the number one group (`{{<refnum>}}`, as
-cleveref's `#1` is one macro: the derived `\MakeUppercase#2#1#3` takes it whole; 2307.12991, 2408.03413). A form is the
+none builds none), the number one group (`{<refnum>}`, as
+cleveref's `#1` is one macro: the derived `\MakeUppercase#2#1#3` takes it whole; 2307.12991, 2408.03413; typeset in the
+font the format sets, not `\normalfont`'s, #965), the whole form the reference's link unless hyperref is loaded, where
+`#2`..`#3` bound it (#965). A form is the
 format's text, which pdflatex typesets at the reference: a format whose commands compute (`cref_format_is_text`: each
 must typeset — not expandable, protected, robust `\protect\<cs>`, or a macro made only of such — besides the case
 changer cleveref puts first in a variant it derives; 2608.12136's xstring calls on the label being referenced looped
@@ -30611,58 +30613,39 @@ stays Perl's plain text, and the type and class keep their `ltx:bib-data` as bef
 shared reader, so biblatex's `.bib` path and classic `\bibliography` agree. Witness: 2404.01499
 (`archivePrefix={arXiv}`, `primaryClass={math.AG}`). Guards `bib_eprint_arxiv_link::*`.
 
-### 965. cleveref's `\crefformat` / `\Crefformat` shape a single `\cref` / `\Cref` (Perl: ignored)
+### 965. In a cleveref format only `#2`..`#3` is the hyperlink (the formats themselves: #845)
 
-Perl's cleveref binding hardwires the show `creftype~refnum` (cleveref.sty.ltxml:47-58) and takes
-the type name from `\cref@<type>@name` (L132-134), so `\crefformat`/`\Crefformat`, which set what
-the whole reference reads (`#1` the number, `#2`..`#3` the hyperlink: cleveref.sty:1851-1852,
-1886-1906), were dead: `\Crefformat{subsection}{第~#2#1#3~节}` printed "Section 3.2" where
-pdflatex prints "第 3.2 节" (only `\crefname` names worked). Repro
+cleveref's formats put the hyperlink between `#2` and `#3` (cleveref.sty:1047-1071 `\@@setcref`; with hyperref the two
+arguments are `\cref@hyperlink{<url>}{<name>}` and `\@nil`, :2215-2223, which `\cref@hyperlink#1#2#3\@nil` turns into a
+`\hyper@@link` around what lies between), and the text outside is plain: `\Crefformat{subsection}{第~#2#1#3~节}`
+prints "第 " and " 节" beside a link on "3.2" (:1886-1906). Perl's binding ignores the formats (cleveref.sty.ltxml:47-58)
+and the formats' machinery (#845) made the whole formatted reference the link. Repro
 `tools/perfect_kernel/repros/package-bindings/cleveref_crefformat.tex`.
 
-Ours (cleveref_sty.rs): `\crefformat`/`\Crefformat` are clean ports, like `\crefname`, keeping the
-format's tokens under `lx@cref@format@<cref|Cref>@<type>`; the raw macros that derive formats from
-names (`\@crefdefineformat` & co., which also run at `\begin{document}`) are no-ops, so a stored
-format is always the author's. The first format of a document switches on the `crefformat` /
-`crefformatcap` tags (a document with none digests nothing extra, its `\cref` keeps Perl's
-`show="creftype~refnum"`, its XML is unchanged); like hyperref's `autoref` name they are held
-(`type_tag_deferred`), their diagnostics replayed only if a reference shows them. The type's
-formatter assembles each tag at the target with `#1` the number (one control sequence, so a case
-change or group cannot split it) and the `#2`..`#3` part wrapped in `\lx@cref@link`
-(`<ltx:text class="ltx_cref_link">`); a format with only one marker links from the start / to the
-end, one with none (or with braces straddling the markers) links the number alone (cleveref would
-link nothing; a web reference should stay a link), an empty one is an empty link. One variant
-derives the other as cleveref does, the case change decided on the RAW format: a leading `#1` has
-its number changed, a leading `#2`/`#3` nothing, a letter or other character is changed, a group
-has its text changed, anything else (`$`, a control sequence, `~`) is left. A sub-unit without a
-format takes its parent's, as `\@crefcopyformats` copies them at `\begin{document}`
-(subsection<-section<-…, subappendix, subfigure, subtable, subequation, enumii…), unless the author
-named the sub-unit with `\crefname`; only a preamble format is copied (cleveref copies once,
-at `\begin{document}`), one set in the body shapes its own type alone.
+Ours: with hyperref loaded before cleveref (`\if@cref@hyperrefloaded`, :2026-2043; cleveref_sty.rs `cref_hyperlinked`)
+a document format's `#2` and `#3` are the empty marks `\lx@cref@linkstart` and `\lx@cref@linkend`
+(`<ltx:text class="ltx_cref_link_start"/>`, `..._end`), so they stay in the format's tag (Scan stores a tag holding one
+as a node, scan.rs `has_markup`), and the CrossRef pass cuts the reference at them (crossref.rs `split_cref_link`,
+`add_cref_format`): what lies between is the `ref`, with the font and classes the format gave it, and what lies before
+and after is `ltx_ref_tag` text beside it, `<span class="ltx_text ltx_ref_tag">第 </span><a class="ltx_ref">…3.2…</a>
+<span class="ltx_text ltx_ref_tag"> 节</span>`. A mark inside the format's own markup (`\textbf{(#2#1#3)}`,
+`#2…\ref{x}#3`) splits each wrapper into a copy for every side that holds some of its content, each keeping the
+wrapper's attributes; a format with `#2` alone links to its end, one with `#3` alone from its start, one with neither
+links its number alone (cleveref would link nothing; a web reference should stay a reference), and an empty format
+(`\crefformat{section}{}`, pdflatex prints nothing) is an empty link. A tag copied into a title, a `\nameref` or a TOC
+entry has no link to bound, and loses its marks (`strip_cref_marks`). `#1` is typeset in the font the format sets
+(`\crefformat{theorem}{#2\textbf{Thm~#1}#3}` is bold throughout, as cleveref typesets it in place), so it is the
+refnum's `\lx@p@the@@`, not `\lx@therefnum@@` with its `\normalfont`. Without hyperref `#2` and `#3` are empty
+(cleveref.sty:1071), pdflatex links nothing, and the whole format stays the reference's link, as #845 has it, with the
+diagnostics of a format whose `#2`/`#3` are empty (the derived `\MakeUppercase#2\color{blue}…` of
+`perfect_kernel_batch78j::cleveref_document_format_opening_a_group` takes `\color` alone there; with hyperref `#2` is a
+control sequence and it takes that).
 
-`\cref`/`\Cref`/`\cref*` of one label show `crefformat/creftype~refnum` once a format exists. A
-show starting with `crefformat` has `/`-separated alternatives (any other show keeps `/` as text, as
-before); CrossRef tries them per target, and the format answers by itself: it is returned as soon as
-the target has one, never extended by ancestors' references (LaTeX does not walk up for it), and
-the plain alternative is all a target without one (or its ancestors) gets. The `ref` is the link
-part, with the font and classes the format gave it (`#2\textbf{Thm~#1}#3` is a bold link); a link
-inside the format's own markup (`\textbf{(#2#1#3)}`, `#2…\ref{x}#3`) splits the wrapper into a copy
-around the text before, one inside the link and one around the text after, each keeping the
-wrapper's attributes; the text before and after it is `ltx_ref_tag` spans beside the `ref`:
-`<span class="ltx_text ltx_ref_tag">第 </span><a class="ltx_ref">…3.2…</a><span class="ltx_text ltx_ref_tag"> 节</span>`.
-Scan keeps these two tags as nodes (every other tag is flattened to a string). A type with no
-author's format prints exactly as before (type name and number inside the one link), as do `\ref`,
-`\cpageref`, `\labelcref`, lists and `\Crefname`-only renames.
-
-Not modelled: `\crefrangeformat`, `\crefmultiformat`, `\crefrangemultiformat` and the `label`
-variants (ranges and lists still use the plural names and conjunctions). Known differences:
-a `\newtheorem{lemma}[theorem]` lemma and an `\appendix` section take the creftype
-`lemma`/`appendix` (pdflatex: `theorem`/`section`), so their format is looked up under that
-type, as their plain show already was; the format is read where the target is built, so a `\crefformat` set after the `\label` it should
-shape is not seen (pdflatex honours mid-document changes at the `\cref`), and one set after the
-`\cref` is not seen by that `\cref` (it keeps the plain show); math in a format takes `xml:id`s in
-the hidden tags (`S0.E1.m1`, `.m2`), shifting the equation's own `Math` id by the number of math
-pieces in the format. Guards `cleveref_crefformat::*`.
+Known differences: a derived `\Cref` of a format led by `[` (`\crefformat{figure}{[#2图~#1#3]}`) has none: since the
+2022 kernel `\MakeUppercase[<language>]` reads the `[` as its optional argument (latex.ltx `\MakeUppercase \c_space_tl…
+[#1] #2`), and the reference prints cleveref's default; a `$`-led one (`\crefformat{section}{$\S$#2#1#3}`) errs at
+`\Cref` as pdflatex does ("Extra }, or forgotten $"). The format is read where the target is built, so one set after
+the `\label` it shapes is not seen. Guards `cleveref_crefformat::*`; the formats' own, `perfect_kernel_batch78j::cleveref_*`.
 
 ### 966. The rows of a pgf SVG alignment are a `\baselineskip` apart, as TeX stacks them (Perl: a row's height and depth apart)
 

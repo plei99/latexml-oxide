@@ -468,8 +468,8 @@ fn cleveref_document_format_with_a_note_mark() {
     .replace_all(&html, " ")
     .to_string();
   for reference in [
-    r##"A <a href="#Thmfact1" title="Fact 1." class="ltx_ref"><span class="ltx_text ltx_ref_tag">Fact <math class="ltx_Math" alttext="{{1}}" display="inline" intent=":literal"><mn>1</mn></math></span></a>."##,
-    r##"B <a href="#S0.E1" title="" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><math class="ltx_Math" alttext="({{1}})" display="inline" intent=":literal"><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></math></span></a>."##,
+    r##"A <a href="#Thmfact1" title="Fact 1." class="ltx_ref"><span class="ltx_text ltx_ref_tag">Fact <math class="ltx_Math" alttext="{1}" display="inline" intent=":literal"><mn>1</mn></math></span></a>."##,
+    r##"B <a href="#S0.E1" title="" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><math class="ltx_Math" alttext="({1})" display="inline" intent=":literal"><mrow><mo stretchy="false">(</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></math></span></a>."##,
     r##"C <a href="#footnote1" title="" class="ltx_ref"><span class="ltx_text ltx_ref_tag">footnote</span> <span class="ltx_text ltx_ref_tag">1</span></a>."##,
     r##"D <a href="#Thmlemma1" title="Lemma 1." class="ltx_ref"><span class="ltx_text ltx_ref_tag">lemma</span> <span class="ltx_text ltx_ref_tag">1</span></a>."##,
   ] {
@@ -510,7 +510,7 @@ fn cleveref_document_format_opening_a_group() {
     &html,
     "p",
     &["id=\"p1.1\""],
-    r##"<p id="p1.1" class="ltx_p">A <a href="#S0.F1" title="" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text" style="--ltx-fg-color:#0000FF;">Fig. 1</span></span></a>. B <a href="#Thmtheorem1" title="Theorem 1" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text ltx_font_sansserif ltx_font_bold" style="--ltx-fg-color:#0000FF;">theorem </span><span class="ltx_text" style="--ltx-fg-color:#0000FF;">1</span></span></a>. C <a href="#S0.E1" title="" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text" style="--ltx-fg-color:#0000FF;">Eq. 1</span></span></a>.</p>"##,
+    r##"<p id="p1.1" class="ltx_p">A <a href="#S0.F1" title="" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text" style="--ltx-fg-color:#0000FF;">Fig. 1</span></span></a>. B <a href="#Thmtheorem1" title="Theorem 1" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text ltx_font_sansserif ltx_font_bold" style="--ltx-fg-color:#0000FF;">theorem 1</span></span></a>. C <a href="#S0.E1" title="" class="ltx_ref"><span class="ltx_text ltx_ref_tag"><span class="ltx_text" style="--ltx-fg-color:#0000FF;">Eq. 1</span></span></a>.</p>"##,
   );
 }
 
@@ -746,7 +746,7 @@ fn cleveref_format_form_keeps_an_alignment_row_end() {
     "tr",
     &["id=\"p1.1.1\""],
     r##"<tr id="p1.1.1" class="ltx_tr">
-<th id="p1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">x</th>
+<th id="p1.1.1.1" class="ltx_td ltx_align_left ltx_th ltx_th_row" scope="row">x</th>
 <td id="p1.1.1.2" class="ltx_td ltx_align_left">
 <span id="p1.1.1.2.1" class="ltx_inline-block ltx_minipage ltx_align_middle" style="width:85.4pt;">
 <span id="S0.I1" class="ltx_enumerate">
@@ -763,7 +763,7 @@ fn cleveref_format_form_keeps_an_alignment_row_end() {
     "tr",
     &["id=\"p1.1.2\""],
     r##"<tr id="p1.1.2" class="ltx_tr">
-<th id="p1.1.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row">z</th>
+<th id="p1.1.2.1" class="ltx_td ltx_align_left ltx_th ltx_th_row" scope="row">z</th>
 <td id="p1.1.2.2" class="ltx_td ltx_align_left">w</td></tr>"##,
   );
   assert_element(

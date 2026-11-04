@@ -298,6 +298,12 @@ LoadDefinitions!({
   // Where a `\label[<type>]`'s number forms print the object's number (`\lx@cleverref@labeltype` puts its refnum there).
   DefConstructor!("\\lx@cref@numbermark", "<ltx:text class='ltx_cref_number_mark'/>");
 
+  // `#2` and `#3` of a document's format, the hyperlink's ends (`cref_apply_format`): empty marks, which the CrossRef
+  // pass (crossref.rs `split_cref_link`) cuts the format at, the part between them the reference and the rest text
+  // beside it (cleveref.sty:1047-1071 `\@@setcref`).
+  DefConstructor!("\\lx@cref@linkstart", "<ltx:text class='ltx_cref_link_start'/>");
+  DefConstructor!("\\lx@cref@linkend", "<ltx:text class='ltx_cref_link_end'/>");
+
   // The conjunction between two references of a `\cref` list, which crossref.rs `settle_cref_conjunctions` drops
   // where the reference after it prints a format of the document's holding its own, and unwraps elsewhere.
   DefConstructor!("\\lx@cref@conjunction{}", "<ltx:text class='ltx_cref_conjunction'>#1</ltx:text>",
@@ -407,7 +413,8 @@ LoadDefinitions!({
   // builds the format of every type the document set none for from its names and label format at `\begin{document}`
   // (:8020-8032 `\@crefdefineformat`); that default is our `creftype~creflabel`. A format the document set is a tag
   // form of its own, built with the target's tags (`crefformat`, `crefformatcap`; the multi-reference formats of
-  // `\crefmultiformat`, `crefmulti<position>`), whole in the link: the reference prints it when its target has one
+  // `\crefmultiformat`, `crefmulti<position>`), whole in the link unless hyperref bounds it (`#2`..`#3`, OXIDIZED_DESIGN_DIVERGENCES #965; witness
+  // 2004.14422's `\crefformat{equation}{#2#1#3}` is the plain case): the reference prints it when its target has one
   // (crossref.rs `generate_ref_aux`'s `|` alternatives), else the default. `\labelcref` prints the format `\labelcref
   // format` set (`labelcrefformat`), and the bare number for a type whose `\crefformat` the document set, for which
   // cleveref builds no `\labelcref` format (:1438-1440, `\labelcref@default@format`). KNOWN_PERL_ERRORS #1073,
@@ -462,7 +469,8 @@ LoadDefinitions!({
     // label comes after the target's tags are built). Witnesses 2008.12750, 2604.24399; guard
     // `perfect_kernel_batch78j::cleveref_document_format_opening_a_group`.
     let hold = util::logger::DiagnosticsHold::begin();
-    let (form, balance) = digest_in_own_group(|| digest(cref_in_form(cref_apply_format(format, number))))?;
+    let applied = cref_apply_format(format, number, cref_hyperlinked());
+    let (form, balance) = digest_in_own_group(|| digest(cref_in_form(applied)))?;
     let form = form?;
     let balanced = balance == 0;
     if !balanced && hold.errors_raised() == 0 {
@@ -539,10 +547,7 @@ fn remove_if_empty_held(document: &mut Document, tag: Node) {
 /// conditional) is not: cleveref typesets the format at the reference (cleveref.sty:1047-1071), where it reads what
 /// the target cannot know.
 fn cref_format_is_text(format: &Token) -> bool {
-  let Ok(Some(defn)) = lookup_definition(format) else {
-    return false;
-  };
-  let Some(ExpansionBody::Tokens(body)) = defn.get_expansion() else {
+  let Some(body) = cref_format_body(format) else {
     return false;
   };
   // (the case changer cleveref puts first in a variant it derives, `\cref@othervariant`'s `\MakeUppercase`/
@@ -555,6 +560,19 @@ fn cref_format_is_text(format: &Token) -> bool {
     _ => body,
   };
   body.iter().all(|token| cref_text_token(token, true))
+}
+
+/// The replacement text of document format `format`; an empty one
+/// (`\crefformat{section}{}`) has none stored. `None` for a format that is no token list (a closure).
+fn cref_format_body(format: &Token) -> Option<Tokens> {
+  let Ok(Some(defn)) = lookup_definition(format) else {
+    return None;
+  };
+  match defn.get_expansion() {
+    Some(ExpansionBody::Tokens(body)) => Some(body.clone()),
+    None if defn.is_expandable() => Some(Tokens::default()),
+    _ => None,
+  }
 }
 
 /// One token of a format's body as [`cref_format_is_text`] reads it; `deep`, whether a macro of no arguments may be
@@ -651,23 +669,90 @@ fn cref_in_form(tokens: Tokens) -> Tokens {
   Tokens::new(out)
 }
 
-/// `format` applied to `number`: `<format>{{<number>}}{}{}`, `#2`/`#3`, the hyperlink's ends, empty (the whole
-/// reference is the link). `#1` is one group, as cleveref's is one macro (`\@templabel`, cleveref.sty:1071): the
-/// derived `\Cref` format `\MakeUppercase#2#1#3` (:1888-1904) takes it whole, where the bare refnum's `\lx@therefnum@@`
-/// alone was taken from its argument ("You can't use `}' after \the"; 2307.12991, 2408.03413
-/// `\crefformat{appendix}{#2#1#3}`).
-fn cref_apply_format(format: Token, number: Tokens) -> Tokens {
+/// `format` applied to `number`: `<format>{{<number>}}{#2}{#3}`. `#1` is one group, as cleveref's is one macro
+/// (`\@templabel`, cleveref.sty:1071): the derived `\Cref` format `\MakeUppercase#2#1#3` (:1888-1904) takes it whole,
+/// where the bare refnum's `\lx@therefnum@@` alone was taken from its argument ("You can't use `}' after \the";
+/// 2307.12991, 2408.03413 `\crefformat{appendix}{#2#1#3}`). `#2`/`#3` are the hyperlink's ends: with `link`, the
+/// marks the CrossRef pass cuts the reference at (`\lx@cref@linkstart`, `\lx@cref@linkend`), else empty (the whole
+/// reference is the link). A format that has neither (`\crefformat{table}{Tab.~#1}`) links its number alone, an
+/// empty one is an empty reference ([`cref_link_shape`]).
+fn cref_apply_format(format: Token, number: Tokens, link: bool) -> Tokens {
+  let shape = if link {
+    cref_link_shape(&format)
+  } else {
+    CrefLinkShape::Unlinked
+  };
+  let (start, end) = (T_CS!("\\lx@cref@linkstart"), T_CS!("\\lx@cref@linkend"));
+  if shape == CrefLinkShape::Empty {
+    return Tokens::new(vec![start, end]);
+  }
   let mut tokens = vec![format, T_BEGIN!(), T_BEGIN!()];
+  if shape == CrefLinkShape::Unmarked {
+    tokens.push(start);
+  }
   tokens.extend(number.unlist());
-  tokens.extend([
-    T_END!(),
-    T_END!(),
-    T_BEGIN!(),
-    T_END!(),
-    T_BEGIN!(),
-    T_END!(),
-  ]);
+  if shape == CrefLinkShape::Unmarked {
+    tokens.push(end);
+  }
+  tokens.extend([T_END!(), T_END!()]);
+  for mark in [start, end] {
+    tokens.push(T_BEGIN!());
+    if shape == CrefLinkShape::Marked {
+      tokens.push(mark);
+    }
+    tokens.push(T_END!());
+  }
   Tokens::new(tokens)
+}
+
+/// Whether cleveref makes the references hyperlinks: hyperref was loaded before it (cleveref.sty:2026-2043
+/// `\if@cref@hyperrefloaded`). Only then do `#2`/`#3` mark a link (:2215-2223 hyperref's `\@@@setcref`); without it
+/// they are empty (:1071), and the web reference is the whole format.
+fn cref_hyperlinked() -> bool {
+  do_expand(Tokens::new(vec![
+    T_CS!("\\if@cref@hyperrefloaded"),
+    T_OTHER!("1"),
+    T_CS!("\\fi"),
+  ]))
+  .is_ok_and(|expanded| expanded.to_string() == "1")
+}
+
+/// Where a document's format puts the hyperlink.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CrefLinkShape {
+  /// `#2`/`#3` are empty: the whole reference is the link.
+  Unlinked,
+  /// The format reads `#2` or `#3`: the link is what lies between.
+  Marked,
+  /// The format reads neither: pdflatex links nothing, the reference links its number (`#1`) alone.
+  Unmarked,
+  /// The format is empty (`\crefformat{section}{}`): the reference prints nothing, and is an empty link.
+  Empty,
+}
+
+/// The link shape of `format`, read from its definition's body (the case changer cleveref puts first in a variant it
+/// derives, :1888-1904, aside), so the format is not expanded here.
+fn cref_link_shape(format: &Token) -> CrefLinkShape {
+  let Some(body) = cref_format_body(format) else {
+    return CrefLinkShape::Marked;
+  };
+  let body = body.unlist_ref();
+  let body = match body.split_first() {
+    Some((first, rest)) if [T_CS!("\\MakeUppercase"), T_CS!("\\MakeLowercase")].contains(first) => {
+      rest
+    },
+    _ => body,
+  };
+  let marker = |t: &Token| {
+    t.get_catcode() == Catcode::ARG && (t.with_str(|s| s == "2") || t.with_str(|s| s == "3"))
+  };
+  if body.iter().any(marker) {
+    CrefLinkShape::Marked
+  } else if body.iter().all(|t| t.get_catcode() == Catcode::SPACE) {
+    CrefLinkShape::Empty
+  } else {
+    CrefLinkShape::Unmarked
+  }
 }
 
 /// `number` in the label format of cleveref type `ctype`: `\cref@<ctype>@label{<number>}{}{}` (`\creflabelformat`,
@@ -679,7 +764,7 @@ fn cref_label_format(ctype: &str, number: Tokens) -> Tokens {
     .map(|cs| T_CS!(cs))
     .find(cref_defined);
   match format {
-    Some(format) => cref_apply_format(format, number),
+    Some(format) => cref_apply_format(format, number, false),
     None => number,
   }
 }
@@ -875,7 +960,8 @@ fn cref_label_type_tags(ty: &Tokens) -> Result<Vec<Digested>> {
   Ok(tags)
 }
 
-/// The number a form of type `ty` prints: the target's refnum (`\lx@therefnum@@`), or under `\label[<type>]` the
+/// The number a form of type `ty` prints: the target's refnum in the font around it (`\lx@p@the@@`, the refnum's
+/// `\lx@therefnum@@` without its `\normalfont`), or under `\label[<type>]` the
 /// object's own (`cleveref_label_number`: the mark `\lx@cleverref@labeltype` replaces with the object's refnum).
 fn cref_number(ty: Tokens) -> Result<Tokens> {
   Ok(match lookup_tokens("cleveref_label_number") {
@@ -885,7 +971,9 @@ fn cref_number(ty: Tokens) -> Result<Tokens> {
       tokens.push(T_END!());
       Tokens::new(tokens)
     },
-    None => Invocation!(T_CS!("\\lx@therefnum@@"), vec![ty]),
+    // (not `\lx@therefnum@@`, whose `\normalfont` would take the number out of the font the format sets it in:
+    // `\crefformat{theorem}{#2\textbf{Thm~#1}#3}` is bold throughout, as cleveref typesets `#1` in place)
+    None => Invocation!(T_CS!("\\lx@p@the@@"), vec![ty]),
   })
 }
 
@@ -1220,7 +1308,7 @@ fn external_cref_text(show: &str, label: &str) -> Result<Option<Digested>> {
           {
             continue 'alternatives;
           }
-          cref_apply_format(format, number.clone())
+          cref_apply_format(format, number.clone(), false)
         },
         _ => continue 'alternatives,
       };
